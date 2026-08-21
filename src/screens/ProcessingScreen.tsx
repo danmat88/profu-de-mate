@@ -5,18 +5,23 @@ import { Animated, Image, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
 
 export function ProcessingScreen({ navigation, route }: Props) {
+  const { height, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
   const [active, setActive] = useState(0);
   const orbit = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current;
   const isCheck = route.params.mode === 'check';
   const jobs = isCheck ? ['Citesc fiecare rând', 'Compar logica', 'Pregătesc feedbackul'] : ['Citesc enunțul', 'Aleg metoda', 'Construiesc explicația'];
+  const stageHeight = Math.max(320, Math.min(390, height * 0.46));
+  const orbitSize = isCompact ? 232 : 273;
+  const haloSize = isCompact ? 181 : 211;
 
   useEffect(() => {
     const orbiting = Animated.loop(Animated.timing(orbit, { toValue: 1, duration: 2400, useNativeDriver: true }));
@@ -35,23 +40,23 @@ export function ProcessingScreen({ navigation, route }: Props) {
   }, [bob, navigation, orbit, progress, route.params.mode]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
       <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.top}><Text style={styles.brand}>Profu’ lucrează</Text><View style={styles.live}><Animated.View style={[styles.liveDot, { opacity: bob.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: bob.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1.1] }) }] }]} /><Text style={styles.liveText}>ÎN DIRECT</Text></View></View>
-      <View style={styles.stage}>
-        <Animated.View style={[styles.orbit, { transform: [{ rotate: orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }]}>
+      <View style={[styles.stage, { height: stageHeight }]}>
+        <Animated.View style={[styles.orbit, { width: orbitSize, height: orbitSize, borderRadius: orbitSize / 2, transform: [{ rotate: orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }]}>
           <View style={styles.orbitDotA} /><View style={styles.orbitDotB} /><View style={styles.orbitDotC} />
         </Animated.View>
-        <View style={styles.halo} />
+        <View style={[styles.halo, { width: haloSize, height: haloSize, borderRadius: haloSize / 2 }]} />
         <Animated.View style={{ transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [5, -7] }) }] }}>
-          <Image source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
+          <Image source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isCompact && styles.mascotCompact]} />
         </Animated.View>
-        <View style={styles.thought}><Text style={styles.thoughtText}>{isCheck ? 'Hmm… aici e un semn șugubăț.' : 'Aha! Știu de unde începem.'}</Text></View>
+        <View style={[styles.thought, isCompact && styles.thoughtCompact]}><Text style={styles.thoughtText}>{isCheck ? 'Hmm… aici e un semn șugubăț.' : 'Aha! Știu de unde începem.'}</Text></View>
       </View>
-      <Text style={styles.title}>{isCheck ? 'Verific fără să judec.' : 'Pun ideile în ordine.'}</Text>
+      <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fără să judec.' : 'Pun ideile în ordine.'}</Text>
       <Text style={styles.subtitle}>Mai durează doar cât să spunem „radical”.</Text>
-      <View style={styles.jobs}>
+      <View style={[styles.jobs, isShort && styles.jobsCompact]}>
         {jobs.map((job, index) => {
           const done = index < active;
           const current = index === active;
@@ -72,7 +77,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.ink, paddingHorizontal: 20 },
+  safe: { flex: 1, backgroundColor: colors.ink },
   top: { height: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18 },
   live: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#2C2457', borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 },
@@ -85,11 +90,15 @@ const styles = StyleSheet.create({
   orbitDotB: { position: 'absolute', width: 17, height: 17, borderRadius: 9, backgroundColor: colors.peach, borderWidth: 2, borderColor: colors.ink, bottom: 28, right: 8 },
   orbitDotC: { position: 'absolute', width: 13, height: 13, backgroundColor: colors.cyan, borderWidth: 2, borderColor: colors.ink, top: 109, right: -7, transform: [{ rotate: '14deg' }] },
   mascot: { width: 214, height: 225 },
+  mascotCompact: { width: 184, height: 194 },
   thought: { position: 'absolute', right: 0, top: 41, maxWidth: 135, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 17, paddingHorizontal: 10, paddingVertical: 8, transform: [{ rotate: '4deg' }] },
+  thoughtCompact: { top: 27, right: -2, maxWidth: 121 },
   thoughtText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11, lineHeight: 14, textAlign: 'center' },
   title: { fontFamily: fonts.display, color: colors.paper, fontSize: 31, lineHeight: 34, textAlign: 'center' },
+  titleNarrow: { fontSize: 27, lineHeight: 30 },
   subtitle: { fontFamily: fonts.body, color: '#B9B0D2', fontSize: 13, textAlign: 'center', marginTop: 3 },
   jobs: { marginTop: 25, marginHorizontal: 10 },
+  jobsCompact: { marginTop: 17 },
   job: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: '#39305F' },
   jobIcon: { width: 28, height: 28, borderRadius: 10, borderWidth: 2, borderColor: '#655C81', alignItems: 'center', justifyContent: 'center' },
   jobDone: { backgroundColor: colors.mint, borderColor: colors.ink },

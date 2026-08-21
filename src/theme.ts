@@ -23,6 +23,21 @@ export const fonts = {
   bodyBold: 'BalsamiqSans_700Bold',
 } as const;
 
+export const layout = {
+  gutter: 19,
+  gutterNarrow: 15,
+  sectionGap: 18,
+  radius: 22,
+  radiusSmall: 15,
+  border: 2.5,
+} as const;
+
+export const motion = {
+  entranceDistance: 18,
+  springSpeed: 9,
+  springBounce: 7,
+} as const;
+
 export const hardShadow = {
   shadowColor: colors.ink,
   shadowOffset: { width: 0, height: 7 },

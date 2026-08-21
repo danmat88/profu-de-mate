@@ -34,7 +34,14 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
+.env.*
+!.env.example
 .env*.local
+
+# Firebase CLI diagnostics
+firebase-debug.log
+firebase-debug.*.log
 
 # typescript
 *.tsbuildinfo

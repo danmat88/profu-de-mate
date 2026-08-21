@@ -36,8 +36,12 @@ export function ComicBackdrop({ dark = false }: { dark?: boolean }) {
         { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) },
         { rotate: drift.interpolate({ inputRange: [0, 1], outputRange: ['8deg', '14deg'] }) },
       ] }]}>√</Animated.Text>
-      <View style={[styles.spark, styles.sparkA, dark && styles.sparkDark]} />
-      <View style={[styles.spark, styles.sparkB, dark && styles.sparkDark]} />
+      {!dark ? (
+        <>
+          <View style={[styles.spark, styles.sparkA]} />
+          <View style={[styles.spark, styles.sparkB]} />
+        </>
+      ) : null}
     </View>
   );
 }
@@ -57,5 +61,4 @@ const styles = StyleSheet.create({
   spark: { position: 'absolute', width: 12, height: 34, borderRadius: 8, backgroundColor: colors.peach },
   sparkA: { top: 105, left: 30, transform: [{ rotate: '43deg' }] },
   sparkB: { top: 121, left: 45, transform: [{ rotate: '-42deg' }] },
-  sparkDark: { backgroundColor: colors.lime },
 });

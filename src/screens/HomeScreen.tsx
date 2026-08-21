@@ -3,11 +3,12 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
 import type { FlowMode, RootStackParamList } from '../types';
 
@@ -15,7 +16,8 @@ type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
 export function HomeScreen() {
   const navigation = useNavigation<Navigation>();
-  const { width } = useWindowDimensions();
+  const { width, height, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<FlowMode>('solve');
   const entrance = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
@@ -59,12 +61,17 @@ export function HomeScreen() {
   };
 
   const isSolve = mode === 'solve';
+  const segmentWidth = (width - gutter * 2 - 8) / 2;
+  const portalSize = isCompact ? 188 : 220;
+  const portalStageHeight = isShort ? 244 : Math.min(356, height * 0.445);
+  const mascotSize = isCompact ? 116 : 135;
+  const bottomSpace = Math.max(insets.bottom, 10);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}>
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <View style={styles.logoShadow} />
@@ -85,12 +92,12 @@ export function HomeScreen() {
             <View style={styles.kickerLine} />
             <Text style={styles.kicker}>POZĂ. LOGICĂ. AHA!</Text>
           </View>
-          <Text style={styles.title}>Matematica intră{`\n`}în <Text style={styles.titleAccent}>focus.</Text></Text>
+          <Text style={[styles.title, isNarrow && styles.titleNarrow]}>Matematica intră{`\n`}în <Text style={styles.titleAccent}>focus.</Text></Text>
           <Text style={styles.subtitle}>Prinde problema în cadru. Profu’ o citește și ți-o explică pe limba ta.</Text>
         </Animated.View>
 
-        <Animated.View style={[styles.modeSwitch, { opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]} accessibilityRole="tablist">
-          <Animated.View style={[styles.modeIndicator, { width: (width - 49) / 2, backgroundColor: modeMotion.interpolate({ inputRange: [0, 1], outputRange: [colors.violet, colors.peach] }), transform: [{ translateX: modeMotion.interpolate({ inputRange: [0, 1], outputRange: [0, (width - 49) / 2] }) }] }]} />
+        <Animated.View style={[styles.modeSwitch, isShort && styles.modeSwitchCompact, { opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]} accessibilityRole="tablist">
+          <Animated.View style={[styles.modeIndicator, { width: segmentWidth, backgroundColor: modeMotion.interpolate({ inputRange: [0, 1], outputRange: [colors.violet, colors.peach] }), transform: [{ translateX: modeMotion.interpolate({ inputRange: [0, 1], outputRange: [0, segmentWidth] }) }] }]} />
           <Pressable accessibilityRole="tab" accessibilityState={{ selected: isSolve }} onPress={() => chooseMode('solve')} style={styles.mode}>
             <AppIcon name="camera" size={37} />
             <Text style={[styles.modeText, isSolve && styles.modeTextActive]}>Rezolvă</Text>
@@ -101,22 +108,22 @@ export function HomeScreen() {
           </Pressable>
         </Animated.View>
 
-        <Animated.View style={[styles.portalStage, { opacity: entrance, transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}>
-          <Animated.View style={[styles.portalEcho, { transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.2] }) }]} />
-          <View style={styles.portalShadow} />
-          <View style={[styles.portal, !isSolve && styles.portalCheck]}>
-            <Animated.View style={[styles.portalBeam, { opacity: beam.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, 0.65, 0.65, 0] }), transform: [{ translateY: beam.interpolate({ inputRange: [0, 1], outputRange: [-84, 88] }) }] }]} />
-            <Animated.View style={[styles.scanCorners, { transform: [{ scale: modePop }] }]}>
+        <Animated.View style={[styles.portalStage, { height: portalStageHeight, opacity: entrance, transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}>
+          <Animated.View style={[styles.portalEcho, { width: portalSize + 8, height: portalSize + 8, borderRadius: (portalSize + 8) / 2, transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.2] }) }]} />
+          <View style={[styles.portalShadow, { width: portalSize, height: portalSize, borderRadius: portalSize / 2 }]} />
+          <View style={[styles.portal, { width: portalSize, height: portalSize, borderRadius: portalSize / 2 }, !isSolve && styles.portalCheck]}>
+            <Animated.View style={[styles.portalBeam, { opacity: beam.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, 0.65, 0.65, 0] }), transform: [{ translateY: beam.interpolate({ inputRange: [0, 1], outputRange: [-portalSize * 0.39, portalSize * 0.4] }) }] }]} />
+            <Animated.View style={[styles.scanCorners, isCompact && styles.scanCornersCompact, { transform: [{ scale: modePop }] }]}>
               <View style={[styles.corner, styles.cornerTL]} />
               <View style={[styles.corner, styles.cornerTR]} />
               <View style={[styles.corner, styles.cornerBL]} />
               <View style={[styles.corner, styles.cornerBR]} />
-              <AppIcon name={isSolve ? 'scan' : 'verify'} size={76} />
+              <AppIcon name={isSolve ? 'scan' : 'verify'} size={isCompact ? 65 : 76} />
               <Text style={styles.portalTitle}>{isSolve ? 'Arată-mi problema' : 'Arată-mi rezolvarea'}</Text>
               <Text style={styles.portalHint}>o poză clară e suficientă</Text>
             </Animated.View>
           </View>
-          <Animated.View style={[styles.mascotWrap, { transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [4, -7] }) }, { rotate: '4deg' }] }]}>
+          <Animated.View style={[styles.mascotWrap, { width: mascotSize, height: mascotSize * 1.06, transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [4, -7] }) }, { rotate: '4deg' }] }]}>
             <Image source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
           </Animated.View>
           <View style={[styles.sticker, !isSolve && styles.stickerCheck]}>
@@ -124,7 +131,10 @@ export function HomeScreen() {
           </View>
         </Animated.View>
 
+      </ScrollView>
+      <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
         <ComicButton
+          compact
           title={isSolve ? 'Deschide camera' : 'Verifică-mi lucrarea'}
           subtitle={isSolve ? 'Profu’ explică, tu înțelegi.' : 'Vedem ce e bun și ce reparăm.'}
           icon={isSolve ? 'camera' : 'verify'}
@@ -137,14 +147,15 @@ export function HomeScreen() {
           <View style={styles.promiseSpark}><Text style={styles.promiseSparkText}>✦</Text></View>
           <Text style={styles.promiseText}>Nu aruncă răspunsul. Îți arată de ce.</Text>
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  content: { paddingHorizontal: 18, paddingBottom: 26 },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 18, paddingBottom: 10 },
   header: { height: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, position: 'relative' },
   logoShadow: { position: 'absolute', left: 3, top: 6, width: 43, height: 43, borderRadius: 14, backgroundColor: colors.ink },
@@ -158,9 +169,11 @@ const styles = StyleSheet.create({
   kickerLine: { width: 27, height: 5, borderRadius: 4, backgroundColor: colors.peach, transform: [{ rotate: '-4deg' }] },
   kicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 1.6 },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 39, lineHeight: 39, marginTop: 5, letterSpacing: -0.6 },
+  titleNarrow: { fontSize: 34, lineHeight: 35 },
   titleAccent: { color: colors.violet },
   subtitle: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 19, marginTop: 7, maxWidth: 350 },
   modeSwitch: { height: 62, marginTop: 17, padding: 4, borderRadius: 21, backgroundColor: colors.paper, borderWidth: 2.5, borderColor: colors.ink, flexDirection: 'row' },
+  modeSwitchCompact: { height: 56, marginTop: 13 },
   modeIndicator: { position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: 14 },
   mode: { flex: 1, zIndex: 1, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   modeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 14 },
@@ -173,6 +186,7 @@ const styles = StyleSheet.create({
   portalCheck: { backgroundColor: '#5C35C7' },
   portalBeam: { position: 'absolute', left: 22, right: 22, height: 4, borderRadius: 3, backgroundColor: colors.lime, shadowColor: colors.lime, shadowOpacity: 0.9, shadowRadius: 8, elevation: 4 },
   scanCorners: { width: 154, height: 132, alignItems: 'center', justifyContent: 'center' },
+  scanCornersCompact: { width: 138, height: 117 },
   corner: { position: 'absolute', width: 24, height: 24, borderColor: colors.lime },
   cornerTL: { left: 0, top: 0, borderLeftWidth: 4, borderTopWidth: 4, borderTopLeftRadius: 8 },
   cornerTR: { right: 0, top: 0, borderRightWidth: 4, borderTopWidth: 4, borderTopRightRadius: 8 },
@@ -186,7 +200,8 @@ const styles = StyleSheet.create({
   stickerCheck: { backgroundColor: colors.peach },
   stickerText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9, letterSpacing: 1 },
   primary: { marginTop: 2 },
-  promise: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 13 },
+  actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 10 },
+  promise: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 4 },
   promiseSpark: { width: 20, height: 20, borderRadius: 7, backgroundColor: colors.violet, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-6deg' }] },
   promiseSparkText: { fontFamily: fonts.display, color: colors.lime, fontSize: 12, lineHeight: 16 },
   promiseText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
