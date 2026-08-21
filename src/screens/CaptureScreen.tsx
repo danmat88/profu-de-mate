@@ -207,14 +207,20 @@ export function CaptureScreen({ navigation, route }: Props) {
               ) : (
                 <>
                   <View style={styles.permissionIcon}><AppIcon name="camera" size={67} /></View>
-                  <Text style={styles.permissionTitle}>Camera are nevoie de permisiune</Text>
-                  <Text style={styles.permissionText}>O folosim numai când fotografiezi problema. Nu înregistrăm sunet.</Text>
+                  <Text style={styles.permissionEyebrow}>O SINGURĂ PERMISIUNE</Text>
+                  <Text style={styles.permissionTitle}>Activăm camera. Atât.</Text>
+                  <Text style={styles.permissionText}>Camera se deschide numai aici, când vrei să fotografiezi o problemă.</Text>
+                  <View style={styles.permissionPromise}>
+                    <MiniGlyph name="check" size={15} color={colors.ink} />
+                    <Text style={styles.permissionPromiseText}>Fără microfon · fără acces la toate pozele</Text>
+                  </View>
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => permission.canAskAgain ? void requestPermission() : void Linking.openSettings()}
                     style={styles.permissionButton}
                   >
-                    <Text style={styles.permissionButtonText}>{permission.canAskAgain ? 'Permite camera' : 'Deschide setările'}</Text>
+                    <Text style={styles.permissionButtonText}>{permission.canAskAgain ? 'Activează camera' : 'Deschide setările'}</Text>
+                    <MiniGlyph name="next" size={19} color={colors.ink} />
                   </Pressable>
                 </>
               )}
@@ -291,12 +297,15 @@ const styles = StyleSheet.create({
   finderShadow: { position: 'absolute', top: 6, left: 6, right: -6, bottom: -6, borderRadius: 25, backgroundColor: colors.violetDeep },
   finder: { flex: 1, borderRadius: 25, borderWidth: 2.5, borderColor: colors.paper, backgroundColor: '#393258', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   cameraShadeTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 76, backgroundColor: 'rgba(18,14,43,0.22)' },
-  permissionPanel: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#393258', paddingHorizontal: 30 },
-  permissionIcon: { width: 78, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A2351', marginBottom: 8 },
-  permissionTitle: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18, lineHeight: 21, textAlign: 'center', marginTop: 8 },
-  permissionText: { maxWidth: 280, fontFamily: fonts.body, color: '#CBC4DE', fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 5 },
-  permissionButton: { minHeight: 43, borderRadius: 14, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, justifyContent: 'center', paddingHorizontal: 18, marginTop: 13, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 3, height: 4 }, elevation: 4 },
-  permissionButtonText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
+  permissionPanel: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#393258', paddingHorizontal: 28 },
+  permissionIcon: { width: 82, height: 76, borderRadius: 23, borderWidth: 2, borderColor: '#776E98', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A2351', marginBottom: 10, transform: [{ rotate: '-2deg' }] },
+  permissionEyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 9, letterSpacing: 1.25 },
+  permissionTitle: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 22, lineHeight: 25, textAlign: 'center', marginTop: 3 },
+  permissionText: { maxWidth: 290, fontFamily: fonts.body, color: '#D1CBE1', fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 4 },
+  permissionPromise: { minHeight: 28, borderRadius: 10, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, marginTop: 9 },
+  permissionPromiseText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5 },
+  permissionButton: { minHeight: 46, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 18, marginTop: 13, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 3, height: 4 }, elevation: 4 },
+  permissionButtonText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 14 },
   cameraNoiseA: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: '#50496B', top: -55, right: -45, opacity: 0.45 },
   cameraNoiseB: { position: 'absolute', width: 140, height: 70, borderRadius: 35, backgroundColor: '#282241', bottom: 20, left: -31, transform: [{ rotate: '25deg' }] },
   alignmentStatus: { position: 'absolute', zIndex: 3, top: 13, left: 15, height: 25, borderRadius: 9, backgroundColor: 'rgba(23,19,55,0.76)', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 5 },

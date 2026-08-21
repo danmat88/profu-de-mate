@@ -17,19 +17,20 @@ Legendă: `[x]` finalizat, `[ ]` de făcut, `[-]` amânat intenționat.
 - [x] Selectare imagine din galerie
 - [x] Orientare, redimensionare și comprimare locală
 - [x] Confirmare cu fotografia reală
-- [ ] Decupare și rotire controlate de utilizator
+- [x] Decupare și rotire controlate de utilizator
 - [ ] Stări pentru permisiune refuzată, cameră indisponibilă și eroare
 - [ ] Accesibilitate și testare pe dimensiuni multiple
 
 ## Firebase și backend
 
 - [x] Firebase project `profu-de-mate-danmat88`
+- [x] Firebase CLI, Java 21 și Emulator Suite configurate local
 - [ ] Alegerea locației Firestore
 - [ ] Înregistrarea aplicației Android în Firebase
 - [ ] Auth anonim și Google opțional
-- [ ] Schema Firestore
-- [ ] Firestore Rules deny-by-default și teste în Emulator Suite
-- [ ] Indexes versionate
+- [x] Schema Firestore inițială pentru profil, caiet și feedback
+- [x] Firestore Rules deny-by-default și teste în Emulator Suite
+- [x] Indexes versionate
 - [ ] Cloud Functions 2nd gen și Secret Manager
 - [ ] App Check cu Play Integrity
 - [ ] Rate limiting, `maxInstances`, billing și alerte

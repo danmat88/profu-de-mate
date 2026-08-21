@@ -6,6 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
+import { ImageCropEditor } from '../components/ImageCropEditor';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
@@ -17,12 +18,14 @@ export function ReviewScreen({ navigation, route }: Props) {
   const { width, gutter, isNarrow, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const isCheck = route.params.mode === 'check';
-  const [fillPreview, setFillPreview] = useState(false);
+  const [currentImage, setCurrentImage] = useState(route.params.image);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [wasAdjusted, setWasAdjusted] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const reveal = useRef(new Animated.Value(0)).current;
   const photoWidth = width - gutter * 2;
-  const sourceRatio = route.params.image.height / route.params.image.width;
+  const sourceRatio = currentImage.height / currentImage.width;
   const photoHeight = Math.min(isCompact ? 250 : 310, Math.max(222, photoWidth * Math.min(sourceRatio, 0.9)));
   const bottomSpace = Math.max(insets.bottom, 10);
 
@@ -30,34 +33,39 @@ export function ReviewScreen({ navigation, route }: Props) {
     Animated.spring(reveal, { toValue: 1, useNativeDriver: true, speed: 8, bounciness: 8 }).start();
   }, [reveal]);
 
+  useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+  }, [currentImage.uri]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title="Confirmă captura" eyebrow="PASUL 2 DIN 4" onBack={() => navigation.goBack()} rightIcon="crop" rightLabel={fillPreview ? 'Arată poza completă' : 'Umple cadrul'} rightActive={fillPreview} onRight={() => setFillPreview((value) => !value)} />
+      <ScreenHeader title="Confirmă captura" eyebrow="PASUL 2 DIN 4" onBack={() => navigation.goBack()} rightIcon="crop" rightLabel="Ajustează" onRight={() => setCropOpen(true)} />
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}>
         <Text style={[styles.title, isNarrow && styles.titleNarrow]}>Verifică înainte să continui</Text>
         <Text style={styles.subtitle}>Confirmă că problema este clară și încadrată complet.</Text>
 
         <Animated.View style={[styles.photoWrap, { opacity: reveal, transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }] }]}>
           <View style={styles.photoShadow} />
-          <View style={[styles.photo, { height: photoHeight }, fillPreview && styles.photoCrop]}>
-            <View style={styles.tape}><Text style={styles.tapeText}>{route.params.image.source === 'camera' ? 'FOTOGRAFIE' : 'GALERIE'}</Text></View>
+          <View style={[styles.photo, { height: photoHeight }, wasAdjusted && styles.photoCrop]}>
+            <View style={styles.tape}><Text style={styles.tapeText}>{currentImage.source === 'camera' ? 'FOTOGRAFIE' : 'GALERIE'}</Text></View>
             {!imageLoaded && !imageError ? <ActivityIndicator size="large" color={colors.lime} /> : null}
             {imageError ? (
               <View style={styles.imageError}><AppIcon name="retake" size={52} /><Text style={styles.imageErrorTitle}>Nu pot afișa fotografia</Text><Text style={styles.imageErrorText}>Repetă captura sau alege altă imagine.</Text></View>
             ) : (
               <Image
-                source={{ uri: route.params.image.uri }}
-                resizeMode={fillPreview ? 'cover' : 'contain'}
+                source={{ uri: currentImage.uri }}
+                resizeMode="contain"
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageError(true)}
                 style={[styles.capturedImage, !imageLoaded && styles.capturedImageLoading]}
               />
             )}
-            <View style={[styles.cropCorner, styles.cropTL, fillPreview && styles.cropCornerActive]} /><View style={[styles.cropCorner, styles.cropTR, fillPreview && styles.cropCornerActive]} />
-            <View style={[styles.cropCorner, styles.cropBL, fillPreview && styles.cropCornerActive]} /><View style={[styles.cropCorner, styles.cropBR, fillPreview && styles.cropCornerActive]} />
-            {fillPreview ? <View style={styles.cropBadge}><AppIcon name="crop" size={29} /><Text style={styles.cropBadgeText}>PREVIZUALIZARE MĂRITĂ</Text></View> : null}
+            <View style={[styles.cropCorner, styles.cropTL]} /><View style={[styles.cropCorner, styles.cropTR]} />
+            <View style={[styles.cropCorner, styles.cropBL]} /><View style={[styles.cropCorner, styles.cropBR]} />
+            {wasAdjusted ? <View style={styles.cropBadge}><AppIcon name="crop" size={29} /><Text style={styles.cropBadgeText}>ÎNCADRARE AJUSTATĂ</Text></View> : null}
           </View>
         </Animated.View>
 
@@ -76,12 +84,22 @@ export function ReviewScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
-        <ComicButton compact title="Da, continuă" subtitle={isCheck ? 'Verificăm fiecare pas.' : 'Construim explicația.'} icon="scan" tone="lime" onPress={() => navigation.navigate('Processing', { mode: route.params.mode, image: route.params.image })} />
+        <ComicButton compact title="Da, continuă" subtitle={isCheck ? 'Verificăm fiecare pas.' : 'Construim explicația.'} icon="scan" tone="lime" onPress={() => navigation.navigate('Processing', { mode: route.params.mode, image: currentImage })} />
         <Pressable accessibilityRole="button" accessibilityLabel="Repetă fotografia" onPress={() => navigation.goBack()} style={styles.retakeLink}>
           <AppIcon name="retake" size={30} />
           <Text style={styles.retakeText}>Repetă fotografia</Text>
         </Pressable>
       </View>
+      <ImageCropEditor
+        visible={cropOpen}
+        image={currentImage}
+        onCancel={() => setCropOpen(false)}
+        onApply={(editedImage) => {
+          setCurrentImage(editedImage);
+          setWasAdjusted(true);
+          setCropOpen(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -112,7 +130,6 @@ const styles = StyleSheet.create({
   sheetEquationNarrow: { fontSize: 20 },
   sheetHand: { fontFamily: fonts.body, color: colors.violetDeep, fontSize: 17, marginTop: 11 },
   cropCorner: { position: 'absolute', width: 28, height: 28, borderColor: colors.lime },
-  cropCornerActive: { width: 38, height: 38 },
   cropTL: { top: 20, left: 20, borderTopWidth: 4, borderLeftWidth: 4 },
   cropTR: { top: 20, right: 20, borderTopWidth: 4, borderRightWidth: 4 },
   cropBL: { bottom: 20, left: 20, borderBottomWidth: 4, borderLeftWidth: 4 },

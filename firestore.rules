@@ -1,0 +1,92 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owns(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function validProfile(data) {
+      return data.keys().hasOnly([
+          'createdAt',
+          'updatedAt',
+          'displayName',
+          'grade',
+          'onboardingCompleted'
+        ])
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!('displayName' in data)
+          || (data.displayName is string && data.displayName.size() <= 40))
+        && (!('grade' in data)
+          || (data.grade is int && data.grade >= 5 && data.grade <= 12))
+        && (!('onboardingCompleted' in data)
+          || data.onboardingCompleted is bool);
+    }
+
+    function validFeedback(data) {
+      return data.keys().hasOnly([
+          'userId',
+          'lessonId',
+          'category',
+          'message',
+          'createdAt',
+          'appVersion'
+        ])
+        && data.keys().hasAll(['userId', 'category', 'createdAt', 'appVersion'])
+        && data.userId == request.auth.uid
+        && data.category in ['wrong_answer', 'unclear', 'unsafe', 'other']
+        && data.createdAt == request.time
+        && data.appVersion is string
+        && data.appVersion.size() <= 24
+        && (!('lessonId' in data)
+          || (data.lessonId is string && data.lessonId.size() <= 128))
+        && (!('message' in data)
+          || (data.message is string && data.message.size() <= 1000));
+    }
+
+    match /users/{userId} {
+      allow get: if owns(userId);
+      allow list: if false;
+      allow create: if owns(userId)
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if owns(userId)
+        && validProfile(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if owns(userId);
+
+      match /lessons/{lessonId} {
+        // Soluția și verdictul sunt create numai de backendul de încredere.
+        allow read: if owns(userId);
+        allow create: if false;
+        allow update: if owns(userId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isFavorite', 'userTitle', 'updatedAt'])
+          && (!('isFavorite' in request.resource.data)
+            || request.resource.data.isFavorite is bool)
+          && (!('userTitle' in request.resource.data)
+            || (request.resource.data.userTitle is string
+              && request.resource.data.userTitle.size() <= 80))
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if owns(userId);
+      }
+    }
+
+    match /feedback/{feedbackId} {
+      allow create: if signedIn() && validFeedback(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    // Orice colecție care nu este definită explicit rămâne inaccesibilă clienților.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
