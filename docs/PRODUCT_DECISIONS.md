@@ -28,8 +28,15 @@ Ultima actualizare: 21 august 2026
 5. Aplicația prezintă explicația în pași, în limba română.
 6. Utilizatorul salvează opțional lecția în caiet.
 
+## Starea Firebase de producție
+
+- Firestore Standard este activ în multi-regiunea europeană `eur3`.
+- Delete protection este activată, iar PITR este oprit până la aprobarea costurilor.
+- Aplicația Android finală este `ro.profudemate.app`.
+- Autentificarea anonimă este activă; Google Sign-In rămâne opțional.
+- Regulile și indexurile testate local au fost publicate în producție.
+
 ## Limite până la decizia finală
 
-- Firestore nu se activează înainte de alegerea explicită a locației.
 - Firebase Blaze nu se activează înainte de aprobarea billingului și a alertelor de buget.
 - Nicio cheie AI nu este inclusă în aplicația mobilă sau în Git.

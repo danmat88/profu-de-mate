@@ -24,7 +24,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -54,6 +57,17 @@
           "style": "light"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "expo-navigation-bar": {
+        "enforceContrast": false,
+        "style": "light",
+        "hidden": false
+      },
+      "eas": {
+        "projectId": "787d3089-788a-4b3f-b4dd-9096a08a1ea2"
+      }
+    },
+    "owner": "matdan88"
   }
 }

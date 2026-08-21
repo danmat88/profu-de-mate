@@ -8,8 +8,8 @@ Legendă: `[x]` finalizat, `[ ]` de făcut, `[-]` amânat intenționat.
 - [x] Interfață în limba română și flux vizual de prototip
 - [x] Public 13+, publisher persoană fizică, fără reclame în v1
 - [x] Checkpoint Git curat al interfeței
-- [ ] EAS project și profile development/preview/production
-- [ ] Expo development build
+- [x] EAS project și profile development/preview/production
+- [x] Expo development build Android semnat și instalabil
 
 ## Captură și experiență
 
@@ -25,12 +25,14 @@ Legendă: `[x]` finalizat, `[ ]` de făcut, `[-]` amânat intenționat.
 
 - [x] Firebase project `profu-de-mate-danmat88`
 - [x] Firebase CLI, Java 21 și Emulator Suite configurate local
-- [ ] Alegerea locației Firestore
-- [ ] Înregistrarea aplicației Android în Firebase
-- [ ] Auth anonim și Google opțional
+- [x] Firestore Standard creat în `eur3`, free tier, delete protection activ
+- [x] Aplicația Android `ro.profudemate.app` înregistrată în Firebase
+- [x] SHA-1 și SHA-256 pentru cheia EAS de dezvoltare înregistrate în Firebase
+- [x] Auth anonim activat și versionat
+- [ ] Google Sign-In opțional
 - [x] Schema Firestore inițială pentru profil, caiet și feedback
-- [x] Firestore Rules deny-by-default și teste în Emulator Suite
-- [x] Indexes versionate
+- [x] Firestore Rules deny-by-default, testate și publicate
+- [x] Indexes versionate și publicate
 - [ ] Cloud Functions 2nd gen și Secret Manager
 - [ ] App Check cu Play Integrity
 - [ ] Rate limiting, `maxInstances`, billing și alerte
@@ -62,6 +64,6 @@ Legendă: `[x]` finalizat, `[ ]` de făcut, `[-]` amânat intenționat.
 - [ ] Audit securitate și dependențe
 - [ ] AAB API 36 și verificare 16 KB page size
 - [ ] Cont Play Console personal și verificarea identității
-- [ ] Play App Signing, certificate și SHA fingerprints
+- [ ] Play App Signing și amprentele certificatului Play în Firebase
 - [ ] Store listing, screenshots și feature graphic
 - [ ] Internal/closed testing și staged rollout

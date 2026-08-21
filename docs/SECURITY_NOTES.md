@@ -8,7 +8,8 @@ Ultima verificare: 21 august 2026
 - Clientul nu poate crea sau modifica soluția matematică și verdictul.
 - Datele din caiet sunt accesibile numai proprietarului autentificat.
 - Suita locală conține 6 teste de reguli, toate trecute cu Firebase CLI 15.28.1 și Java 21.
-- Nicio regulă și niciun index nu au fost încă publicate în producție.
+- Regulile și cele două indexuri au fost publicate în producție pe 21 august 2026.
+- Firestore are delete protection activată; PITR rămâne oprit până la aprobarea costurilor.
 
 ## Audit npm
 
