@@ -19,6 +19,16 @@
         "buildType": "apk"
       }
     },
+    "production-apk": {
+      "distribution": "internal",
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_APP_CHECK_PROVIDER": "debug"
+      },
+      "android": {
+        "buildType": "apk"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "environment": "production",

@@ -1,41 +1,16 @@
-import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../theme';
 
 export function ComicBackdrop({ dark = false }: { dark?: boolean }) {
-  const drift = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(Animated.sequence([
-      Animated.timing(drift, { toValue: 1, duration: 5200, useNativeDriver: true }),
-      Animated.timing(drift, { toValue: 0, duration: 5200, useNativeDriver: true }),
-    ]));
-    animation.start();
-    return () => animation.stop();
-  }, [drift]);
-
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <Animated.View style={[styles.blobA, dark && styles.blobADark, { transform: [
-        { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -9] }) },
-        { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 7] }) },
-        { rotate: '-18deg' },
-      ] }]} />
-      <Animated.View style={[styles.blobB, dark && styles.blobBDark, { transform: [
-        { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) },
-        { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) },
-      ] }]} />
-      <Animated.View style={[styles.dotCloud, dark && styles.dotCloudDark, { transform: [{ translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) }] }]}>
+      <View style={[styles.blobA, dark && styles.blobADark]} />
+      <View style={[styles.blobB, dark && styles.blobBDark]} />
+      <View style={[styles.dotCloud, dark && styles.dotCloudDark]}>
         {Array.from({ length: 12 }).map((_, index) => <View key={index} style={styles.dot} />)}
-      </Animated.View>
-      <Animated.Text style={[styles.symbol, styles.symbolA, dark && styles.symbolDark, { transform: [
-        { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) },
-        { rotate: drift.interpolate({ inputRange: [0, 1], outputRange: ['-12deg', '-6deg'] }) },
-      ] }]}>×</Animated.Text>
-      <Animated.Text style={[styles.symbol, styles.symbolB, dark && styles.symbolDark, { transform: [
-        { translateY: drift.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) },
-        { rotate: drift.interpolate({ inputRange: [0, 1], outputRange: ['8deg', '14deg'] }) },
-      ] }]}>√</Animated.Text>
+      </View>
+      <Text style={[styles.symbol, styles.symbolA, dark && styles.symbolDark]}>×</Text>
+      <Text style={[styles.symbol, styles.symbolB, dark && styles.symbolDark]}>√</Text>
       {!dark ? (
         <>
           <View style={[styles.spark, styles.sparkA]} />

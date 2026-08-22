@@ -26,5 +26,5 @@ export const iconAssets = {
 export type AppIconName = keyof typeof iconAssets;
 
 export function AppIcon({ name, size = 48, style }: { name: AppIconName; size?: number; style?: StyleProp<ImageStyle> }) {
-  return <Image accessibilityIgnoresInvertColors fadeDuration={0} source={iconAssets[name]} resizeMode="contain" style={[{ width: size, height: size }, style]} />;
+  return <Image accessible={false} accessibilityIgnoresInvertColors fadeDuration={0} source={iconAssets[name]} resizeMode="contain" style={[{ width: size, height: size }, style]} />;
 }

@@ -4,11 +4,13 @@ import { flowModeSchema, type FlowMode } from './analysisSchema.js';
 const MAX_BASE64_LENGTH = 7_000_000;
 const MAX_IMAGE_BYTES = 5_000_000;
 const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+const REQUEST_ID_PATTERN = /^analysis-[a-z0-9]{6,16}-[a-z0-9]{6,16}$/;
 
 export type AnalyzeRequest = {
   mode: FlowMode;
   imageBase64: string;
   mimeType: 'image/jpeg' | 'image/png';
+  requestId: string;
 };
 
 export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
@@ -26,6 +28,10 @@ export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
     throw new HttpsError('invalid-argument', 'Formatul imaginii nu este acceptat.');
   }
 
+  if (typeof data.requestId !== 'string' || !REQUEST_ID_PATTERN.test(data.requestId)) {
+    throw new HttpsError('invalid-argument', 'Identificatorul analizei nu este valid.');
+  }
+
   if (typeof data.imageBase64 !== 'string' || data.imageBase64.length === 0 || data.imageBase64.length > MAX_BASE64_LENGTH) {
     throw new HttpsError('invalid-argument', 'Imaginea este goală sau prea mare.');
   }
@@ -38,5 +44,6 @@ export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
     mode: parsedMode.data,
     imageBase64: data.imageBase64,
     mimeType: data.mimeType,
+    requestId: data.requestId,
   };
 }

@@ -8,6 +8,8 @@ import {
 import { getAuth, signInAnonymously, type User } from '@react-native-firebase/auth';
 
 let initialization: Promise<User> | null = null;
+let verification: Promise<void> | null = null;
+let appCheckInstance: AppCheck | null = null;
 
 function isJwt(token: string): boolean {
   return token.split('.').length === 3;
@@ -39,13 +41,15 @@ export function initializeFirebaseServices(): Promise<User> {
 
   initialization = (async () => {
     const app = getApp();
-    const provider = new ReactNativeFirebaseAppCheckProvider();
-    provider.configure({
-      android: { provider: __DEV__ ? 'debug' : 'playIntegrity' },
-      apple: { provider: __DEV__ ? 'debug' : 'appAttestWithDeviceCheckFallback' },
-    });
-    const appCheck = initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true });
-    await ensureAppCheckReady(appCheck);
+    if (!appCheckInstance) {
+      const useDebugAppCheck = __DEV__ || process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER === 'debug';
+      const provider = new ReactNativeFirebaseAppCheckProvider();
+      provider.configure({
+        android: { provider: useDebugAppCheck ? 'debug' : 'playIntegrity' },
+        apple: { provider: useDebugAppCheck ? 'debug' : 'appAttestWithDeviceCheckFallback' },
+      });
+      appCheckInstance = initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true });
+    }
 
     const auth = getAuth(app);
     if (auth.currentUser) return auth.currentUser;
@@ -57,4 +61,22 @@ export function initializeFirebaseServices(): Promise<User> {
   });
 
   return initialization;
+}
+
+export async function initializeVerifiedFirebaseServices(): Promise<User> {
+  const user = await initializeFirebaseServices();
+  if (!appCheckInstance) throw new Error('Firebase App Check nu a fost inițializat.');
+  if (!verification) {
+    verification = ensureAppCheckReady(appCheckInstance).catch((error) => {
+      verification = null;
+      throw error;
+    });
+  }
+  await verification;
+  return user;
+}
+
+export function resetFirebaseInitialization() {
+  initialization = null;
+  verification = null;
 }

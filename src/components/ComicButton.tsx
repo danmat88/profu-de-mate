@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
 import { AppIcon, AppIconName } from './AppIcon';
@@ -29,22 +30,24 @@ const fills: Record<Tone, string> = {
 
 export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone = 'lime', compact = false, onPress, style }: Props) {
   const { isNarrow } = useResponsiveLayout();
+  const reducedMotion = useReducedMotion();
   const press = useRef(new Animated.Value(0)).current;
   const shine = useRef(new Animated.Value(0)).current;
   const light = tone === 'violet' || tone === 'ink';
   const condensed = compact || isNarrow;
 
   useEffect(() => {
-    if (tone === 'paper') return;
+    if (tone === 'paper' || reducedMotion) return;
     const animation = Animated.sequence([
       Animated.delay(420),
       Animated.timing(shine, { toValue: 1, duration: 720, useNativeDriver: true }),
     ]);
     animation.start();
     return () => animation.stop();
-  }, [shine, tone]);
+  }, [reducedMotion, shine, tone]);
 
   const move = (value: number) => {
+    if (reducedMotion) return;
     Animated.spring(press, { toValue: value, useNativeDriver: true, speed: 34, bounciness: 2 }).start();
   };
 

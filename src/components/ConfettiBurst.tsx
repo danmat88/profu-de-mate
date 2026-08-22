@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors } from '../theme';
 
 const pieces = [
@@ -18,14 +19,18 @@ const pieces = [
 ] as const;
 
 export function ConfettiBurst() {
+  const reducedMotion = useReducedMotion();
   const burst = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (reducedMotion) return;
     Animated.sequence([
       Animated.delay(120),
       Animated.timing(burst, { toValue: 1, duration: 1050, useNativeDriver: true }),
     ]).start();
-  }, [burst]);
+  }, [burst, reducedMotion]);
+
+  if (reducedMotion) return null;
 
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.stage]}>

@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Profu' de Mate",
+    "name": "Profu' de mate",
     "slug": "profu-de-mate",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/brand/app-icon-v2.png",
     "scheme": "profudemate",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FFF7E7",
@@ -13,24 +13,30 @@
     },
     "android": {
       "package": "ro.profudemate.app",
+      "versionCode": 1,
       "blockedPermissions": [
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#FFC83D",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#171337",
+        "foregroundImage": "./assets/brand/adaptive-foreground-v2.png",
+        "monochromeImage": "./assets/brand/adaptive-monochrome-v2.png"
       },
-      "predictiveBackGestureEnabled": false,
+      "predictiveBackGestureEnabled": true,
       "permissions": [
         "android.permission.CAMERA"
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/favicon-v2.png"
     },
     "plugins": [
       "expo-font",
@@ -53,7 +59,7 @@
         "expo-navigation-bar",
         {
           "enforceContrast": false,
-          "hidden": false,
+          "hidden": true,
           "style": "light"
         }
       ]
@@ -62,7 +68,7 @@
       "expo-navigation-bar": {
         "enforceContrast": false,
         "style": "light",
-        "hidden": false
+        "hidden": true
       },
       "eas": {
         "projectId": "787d3089-788a-4b3f-b4dd-9096a08a1ea2"

@@ -14,6 +14,7 @@ export type RenderedMath = {
   viewBox: string;
   widthEx: number;
   heightEx: number;
+  depthEx: number;
 };
 
 export type RenderedContentBlock = ContentBlock & {
@@ -24,6 +25,7 @@ export type RenderedRichContent = RenderedContentBlock[];
 
 export type RenderedMathAnalysis = Omit<MathAnalysis, 'problem' | 'summary' | 'finalAnswer' | 'steps' | 'takeaways'> & {
   schemaVersion: 3;
+  rendererVersion: 'fira-v3';
   problem: RenderedRichContent;
   summary: RenderedRichContent;
   finalAnswer: RenderedRichContent;
@@ -60,7 +62,7 @@ function initializeMathJax(): Promise<MathJaxApi> {
       svg: {
         fontCache: 'local',
         useXlink: false,
-        blacker: 8,
+        blacker: 11,
       },
     });
   });
@@ -77,7 +79,7 @@ function prefixSvgIds(svg: string, prefix: string): string {
 
 export async function renderLatex(latex: string): Promise<RenderedMath> {
   const normalized = latex.trim();
-  const cacheKey = createHash('sha256').update(`mathjax-4.1.3-fira-v2\u0000${normalized}`).digest('hex');
+  const cacheKey = createHash('sha256').update(`mathjax-4.1.3-fira-v3\u0000${normalized}`).digest('hex');
   const cached = renderCache.get(cacheKey);
   if (cached) return cached;
 
@@ -91,6 +93,7 @@ export async function renderLatex(latex: string): Promise<RenderedMath> {
   const viewBox = rawSvg.match(/\bviewBox="([^"]+)"/)?.[1];
   const widthEx = Number.parseFloat(rawSvg.match(/\bwidth="([\d.]+)ex"/)?.[1] ?? '0');
   const heightEx = Number.parseFloat(rawSvg.match(/\bheight="([\d.]+)ex"/)?.[1] ?? '0');
+  const depthEx = Math.abs(Number.parseFloat(rawSvg.match(/vertical-align:\s*(-?[\d.]+)ex/)?.[1] ?? '0'));
   if (!viewBox || !Number.isFinite(widthEx) || widthEx <= 0 || !Number.isFinite(heightEx) || heightEx <= 0) {
     throw new Error('MathJax produced invalid SVG dimensions.');
   }
@@ -105,7 +108,7 @@ export async function renderLatex(latex: string): Promise<RenderedMath> {
     .replace('<svg ', '<svg preserveAspectRatio="xMidYMid meet" ');
   svg = prefixSvgIds(svg, `m${cacheKey.slice(0, 12)}`);
 
-  const rendered = { svg, viewBox, widthEx, heightEx };
+  const rendered = { svg, viewBox, widthEx, heightEx, depthEx };
   renderCache.set(cacheKey, rendered);
   if (renderCache.size > 300) renderCache.delete(renderCache.keys().next().value as string);
   return rendered;
@@ -134,6 +137,7 @@ export async function renderMathAnalysis(value: MathAnalysis): Promise<RenderedM
   return {
     ...value,
     schemaVersion: 3,
+    rendererVersion: 'fira-v3',
     problem,
     summary,
     finalAnswer,

@@ -11,6 +11,7 @@ import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { prepareCapturedImage } from '../services/imagePipeline';
 import { colors, fonts } from '../theme';
 import type { CaptureSource, RootStackParamList } from '../types';
@@ -20,6 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Capture'>;
 export function CaptureScreen({ navigation, route }: Props) {
   const { gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const [permission, requestPermission] = useCameraPermissions();
   const [flash, setFlash] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -50,6 +52,11 @@ export function CaptureScreen({ navigation, route }: Props) {
   }, []));
 
   useEffect(() => {
+    if (reducedMotion || !isFocused) {
+      scan.setValue(0.5);
+      shutterPulse.setValue(0);
+      return;
+    }
     const scanning = Animated.loop(Animated.sequence([
       Animated.timing(scan, { toValue: 1, duration: 1850, useNativeDriver: true }),
       Animated.timing(scan, { toValue: 0, duration: 1850, useNativeDriver: true }),
@@ -61,14 +68,15 @@ export function CaptureScreen({ navigation, route }: Props) {
     scanning.start();
     breathing.start();
     return () => { scanning.stop(); breathing.stop(); };
-  }, [scan, shutterPulse]);
+  }, [isFocused, reducedMotion, scan, shutterPulse]);
 
   const animateCapture = useCallback(() => {
+    if (reducedMotion) return;
     Animated.sequence([
       Animated.timing(captureFlash, { toValue: 1, duration: 70, useNativeDriver: true }),
       Animated.timing(captureFlash, { toValue: 0, duration: 150, useNativeDriver: true }),
     ]).start();
-  }, [captureFlash]);
+  }, [captureFlash, reducedMotion]);
 
   const acceptImage = useCallback(async (raw: { uri: string; width: number; height: number }, source: CaptureSource) => {
     if (capturing.current) return;
@@ -152,10 +160,18 @@ export function CaptureScreen({ navigation, route }: Props) {
   const toggleHelp = () => {
     Haptics.selectionAsync();
     if (showHelp) {
+      if (reducedMotion) {
+        setShowHelp(false);
+        return;
+      }
       Animated.timing(helpPop, { toValue: 0, duration: 120, useNativeDriver: true }).start(() => setShowHelp(false));
       return;
     }
     setShowHelp(true);
+    if (reducedMotion) {
+      helpPop.setValue(1);
+      return;
+    }
     Animated.spring(helpPop, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 7 }).start();
   };
 
@@ -179,7 +195,7 @@ export function CaptureScreen({ navigation, route }: Props) {
 
       <View style={[styles.copy, isShort && styles.copyCompact]}>
         <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Încadrează toată rezolvarea' : 'Încadrează problema'}</Text>
-        <Text style={styles.hint}>Foaia întreagă, telefonul drept. Detectăm marginile automat.</Text>
+        <Text style={styles.hint}>Foaia întreagă, telefonul drept, iar toate marginile să rămână vizibile.</Text>
       </View>
 
       <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finderWrap, { marginHorizontal: gutter }]}>
@@ -262,7 +278,7 @@ export function CaptureScreen({ navigation, route }: Props) {
             <Text style={styles.sideLabel}>Ajutor</Text>
           </Pressable>
         </View>
-        <View style={styles.privacy}><AppIcon name="privacy" size={24} /><Text style={styles.privacyText}>O pregătim local și nu o salvăm în caiet</Text></View>
+        <View style={styles.privacy}><AppIcon name="privacy" size={24} /><Text style={styles.privacyText}>Se trimite securizat pentru analiză și nu se salvează în Caiet</Text></View>
       </View>
 
       {showHelp ? (

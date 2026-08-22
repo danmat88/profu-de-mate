@@ -4,7 +4,7 @@ export const flowModeSchema = z.enum(['solve', 'check']);
 export const analysisStatusSchema = z.enum(['ready', 'not_math', 'unclear']);
 export const verdictSchema = z.enum(['correct', 'partially_correct', 'incorrect', 'not_applicable']);
 
-const rawMathPattern = /(?:\\(?:frac|dfrac|tfrac|sqrt|begin|end|sum|prod|int|lim|overline|vec)\b|sqrt\s*\(|[A-Za-z0-9})\]]\s*\^\s*[{(A-Za-z0-9])/i;
+const rawMathPattern = /(?:\d|[$]|\\(?:frac|dfrac|tfrac|sqrt|begin|end|sum|prod|int|oint|lim|overline|vec|hat|bar|binom|det|log|ln|sin|cos|tan|cot|Delta|angle|triangle|mathbb|mathrm)\b|sqrt\s*\(|[A-Za-z0-9})\]]\s*[\^_]\s*[{(A-Za-z0-9]|[=<>≤≥≠≈±×÷√∫∑∏∞∈∉⊂⊆⊃⊇∪∩⊥∥∆Δ])/i;
 
 export const contentBlockSchema = z.object({
   type: z.enum(['text', 'math']),
@@ -28,15 +28,15 @@ export const contentBlockSchema = z.object({
 export const richContentSchema = z.array(contentBlockSchema).max(12);
 
 export const takeawaySchema = z.object({
-  content: z.array(contentBlockSchema).min(1).max(5),
+  content: z.array(contentBlockSchema).min(1).max(4),
 });
 
 export const lessonStepSchema = z.object({
   kicker: z.string().trim().min(1).max(42),
   title: z.string().trim().min(1).max(90),
-  explanation: z.array(contentBlockSchema).min(1).max(12),
-  note: z.array(contentBlockSchema).min(1).max(6),
-  alternative: z.array(contentBlockSchema).min(1).max(10),
+  explanation: z.array(contentBlockSchema).min(1).max(7),
+  note: z.array(contentBlockSchema).min(1).max(3),
+  alternative: z.array(contentBlockSchema).min(1).max(7),
 });
 
 export const mathAnalysisSchema = z.object({

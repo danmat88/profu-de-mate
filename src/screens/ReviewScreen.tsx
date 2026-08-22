@@ -1,22 +1,25 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { ImageCropEditor } from '../components/ImageCropEditor';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { createAnalysisRequestId } from '../services/mathAnalysis';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Review'>;
 
 export function ReviewScreen({ navigation, route }: Props) {
-  const { width, gutter, isNarrow, isCompact } = useResponsiveLayout();
+  const { width, height, gutter, isNarrow, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const isCheck = route.params.mode === 'check';
   const [currentImage, setCurrentImage] = useState(route.params.image);
   const [cropOpen, setCropOpen] = useState(false);
@@ -24,30 +27,49 @@ export function ReviewScreen({ navigation, route }: Props) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const reveal = useRef(new Animated.Value(0)).current;
+  const continuing = useRef(false);
   const photoWidth = width - gutter * 2;
   const sourceRatio = currentImage.height / currentImage.width;
-  const photoHeight = Math.min(isCompact ? 250 : 310, Math.max(222, photoWidth * Math.min(sourceRatio, 0.9)));
+  const photoHeight = Math.min(
+    isCompact ? 250 : 290,
+    Math.max(190, Math.min(height * 0.33, photoWidth * Math.min(sourceRatio, 0.9))),
+  );
   const bottomSpace = Math.max(insets.bottom, 10);
 
   useEffect(() => {
+    if (reducedMotion) {
+      reveal.setValue(1);
+      return;
+    }
     Animated.spring(reveal, { toValue: 1, useNativeDriver: true, speed: 8, bounciness: 8 }).start();
-  }, [reveal]);
+  }, [reducedMotion, reveal]);
 
   useEffect(() => {
     setImageLoaded(false);
     setImageError(false);
   }, [currentImage.uri]);
 
+  const continueToAnalysis = useCallback(() => {
+    if (continuing.current || imageError || !imageLoaded) return;
+    continuing.current = true;
+    navigation.navigate('Processing', {
+      mode: route.params.mode,
+      image: currentImage,
+      requestId: createAnalysisRequestId(),
+    });
+    requestAnimationFrame(() => { continuing.current = false; });
+  }, [currentImage, imageError, imageLoaded, navigation, route.params.mode]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader title="Confirmă captura" eyebrow="PASUL 2 DIN 4" onBack={() => navigation.goBack()} rightIcon="crop" rightLabel="Ajustează" onRight={() => setCropOpen(true)} />
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}>
-        <Text style={[styles.title, isNarrow && styles.titleNarrow]}>Verifică înainte să continui</Text>
-        <Text style={styles.subtitle}>Confirmă că problema este clară și încadrată complet.</Text>
+      <View style={[styles.content, { paddingHorizontal: gutter }]}>
+        <Text style={[styles.title, isNarrow && styles.titleNarrow, isCompact && styles.titleCompact]}>Verifică înainte să continui</Text>
+        <Text style={[styles.subtitle, isCompact && styles.subtitleCompact]}>Confirmă că problema este clară și încadrată complet.</Text>
 
-        <Animated.View style={[styles.photoWrap, { opacity: reveal, transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }] }]}>
+        <Animated.View style={[styles.photoWrap, isCompact && styles.photoWrapCompact, { opacity: reveal, transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }] }]}>
           <View style={styles.photoShadow} />
           <View style={[styles.photo, { height: photoHeight }, wasAdjusted && styles.photoCrop]}>
             <View style={styles.tape}><Text style={styles.tapeText}>{currentImage.source === 'camera' ? 'FOTOGRAFIE' : 'GALERIE'}</Text></View>
@@ -56,11 +78,13 @@ export function ReviewScreen({ navigation, route }: Props) {
               <View style={styles.imageError}><AppIcon name="retake" size={52} /><Text style={styles.imageErrorTitle}>Nu pot afișa fotografia</Text><Text style={styles.imageErrorText}>Repetă captura sau alege altă imagine.</Text></View>
             ) : (
               <Image
+                accessible
+                accessibilityLabel="Fotografia selectată pentru analiză"
                 source={{ uri: currentImage.uri }}
                 resizeMode="contain"
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageError(true)}
-                style={[styles.capturedImage, !imageLoaded && styles.capturedImageLoading]}
+                style={styles.capturedImage}
               />
             )}
             <View style={[styles.cropCorner, styles.cropTL]} /><View style={[styles.cropCorner, styles.cropTR]} />
@@ -82,9 +106,9 @@ export function ReviewScreen({ navigation, route }: Props) {
           <AppIcon name="hint" size={31} />
           <Text style={styles.tipText}>{isCheck ? 'La pasul următor voi compara fiecare rând, nu doar răspunsul final.' : 'La pasul următor citesc enunțul și îți arăt ce am înțeles.'}</Text>
         </View>
-      </ScrollView>
+      </View>
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
-        <ComicButton compact title="Da, continuă" subtitle={isCheck ? 'Verificăm fiecare pas.' : 'Construim explicația.'} icon="scan" tone="lime" onPress={() => navigation.navigate('Processing', { mode: route.params.mode, image: currentImage })} />
+        <ComicButton compact title="Da, continuă" subtitle={isCheck ? 'Verificăm fiecare pas.' : 'Construim explicația.'} icon="scan" tone="lime" onPress={continueToAnalysis} />
         <Pressable accessibilityRole="button" accessibilityLabel="Repetă fotografia" onPress={() => navigation.goBack()} style={styles.retakeLink}>
           <AppIcon name="retake" size={30} />
           <Text style={styles.retakeText}>Repetă fotografia</Text>
@@ -106,19 +130,20 @@ export function ReviewScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  scroll: { flex: 1 },
-  content: { flexGrow: 1, paddingHorizontal: 19, paddingBottom: 6 },
+  content: { flex: 1, minHeight: 0, paddingHorizontal: 19, paddingBottom: 2 },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 34, lineHeight: 37, marginTop: 8 },
   titleNarrow: { fontSize: 30, lineHeight: 33 },
+  titleCompact: { fontSize: 27, lineHeight: 29, marginTop: 2 },
   subtitle: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 19, maxWidth: 344, marginTop: 3 },
+  subtitleCompact: { fontSize: 12.5, lineHeight: 16 },
   photoWrap: { marginTop: 20, position: 'relative' },
+  photoWrapCompact: { marginTop: 12 },
   photoShadow: { position: 'absolute', top: 8, left: 7, right: -7, bottom: -9, borderRadius: 27, backgroundColor: colors.ink },
   photo: { borderRadius: 27, borderWidth: 3, borderColor: colors.ink, backgroundColor: '#252044', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   photoCrop: { borderColor: colors.lime },
   tape: { position: 'absolute', zIndex: 3, top: 12, left: -12, backgroundColor: colors.lime, paddingHorizontal: 22, paddingVertical: 5, borderWidth: 2, borderColor: colors.ink, transform: [{ rotate: '-8deg' }] },
   tapeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9, letterSpacing: 1.2 },
   capturedImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%' },
-  capturedImageLoading: { opacity: 0 },
   imageError: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25 },
   imageErrorTitle: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 17, marginTop: 4 },
   imageErrorText: { fontFamily: fonts.body, color: '#CFC8DF', fontSize: 11, lineHeight: 15, textAlign: 'center', marginTop: 2 },
@@ -145,7 +170,7 @@ const styles = StyleSheet.create({
   ocrTextNarrow: { fontSize: 16 },
   confidence: { backgroundColor: colors.lime, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 4 },
   confidenceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
-  tip: { flexDirection: 'row', gap: 8, marginTop: 'auto', paddingTop: 15, paddingBottom: 12, paddingHorizontal: 5 },
+  tip: { flexDirection: 'row', gap: 8, marginTop: 13, paddingTop: 2, paddingBottom: 10, paddingHorizontal: 5 },
   tipText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16 },
   actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 10 },
   retakeLink: { alignSelf: 'center', minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 16 },

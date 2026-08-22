@@ -1,26 +1,38 @@
 # Note de securitate și dependențe
 
-Ultima verificare: 21 august 2026
+Ultima verificare: 22 august 2026
 
-## Reguli Firebase
+## Controale active
 
-- Firestore și Storage pornesc de la `deny-by-default`.
-- Clientul nu poate crea sau modifica soluția matematică și verdictul.
-- Datele din caiet sunt accesibile numai proprietarului autentificat.
-- Suita locală conține 6 teste de reguli, toate trecute cu Firebase CLI 15.28.1 și Java 21.
-- Regulile și cele două indexuri au fost publicate în producție pe 21 august 2026.
-- Firestore are delete protection activată; PITR rămâne oprit până la aprobarea costurilor.
+- Firestore și Storage sunt deny-by-default; regulile publicate au 7 teste locale care trec.
+- Clientul nu poate crea soluții și nu poate modifica răspunsul/verdictul generat de backend.
+- Cloud Functions cer Firebase Anonymous Auth și App Check.
+- Cheia Gemini este în Secret Manager și nu este livrată în aplicație.
+- Analiza are `maxInstances: 3`, timeout 120 s, limită 30/zi și 4/minut per instalare.
+- `requestId` oferă idempotency pentru retry și împiedică dublarea consumului/salvării.
+- Release Android blochează cleartext traffic și activează minify/resource shrinking.
+- Permisiunile pentru reclame, locație, microfon, notificări și acces general la media sunt blocate explicit.
+- Crashlytics este implicit oprit și nu atașează intenționat fotografia în rapoarte.
+- Datele expiră automat și există ștergere completă în aplicație.
+- Ultimele 60 de loguri `analyzeMathImage` au fost auditate pe 22 august 2026: nu conțin fotografia, Base64-ul sau enunțul; conțin metadatele standard HTTP ale infrastructurii.
 
 ## Audit npm
 
-- `npm audit --omit=dev`: 15 vulnerabilități tranzitive, dintre care 8 high, 7 moderate și 0 critical.
-- Avertismentele de producție provin din lanțul Expo/Metro (`image-size`, `uuid`), nu din codul aplicației.
-- `npm audit fix --force` nu trebuie folosit: soluția sugerată ar coborî proiectul de la Expo SDK 57 la Expo 46 și ar rupe compatibilitatea.
-- Verificarea se repetă înaintea fiecărui build de publicare și se aplică actualizările Expo compatibile imediat ce upstream publică remediile.
+La 22 august 2026:
 
-## Înainte de producție
+- `npm audit --omit=dev`: 21 constatări tranzitive — 4 high, 17 moderate, 0 critical.
+- `npm audit`: 25 constatări — 4 high, 21 moderate, 0 critical.
+- Cele 4 high provin din lanțul Metro/`image-size`; constatările moderate includ Expo tooling, `uuid`, `xcode` și advisories propagate prin React Native Firebase.
+- `npm audit fix` fără `--force` a fost rulat și proiectul a rămas compatibil: Expo Doctor 21/21.
+- Nu se rulează `npm audit fix --force`: remediile propuse de npm includ downgrade-uri incompatibile, de exemplu Expo 46 sau React Native Firebase 17.
+- Acestea sunt în principal dependențe de build/tooling, dar rămân risc urmărit; auditul se repetă înaintea fiecărui AAB și se aplică numai actualizări compatibile verificate cu Expo SDK 57.
 
-- Activare App Check cu Play Integrity în development build-ul nativ.
-- Rate limiting și limite de cost pe funcțiile de analiză.
-- Secret Manager pentru orice cheie AI; nicio cheie în aplicație sau Git.
-- Audit al regulilor și al permisiunilor IAM după implementarea backendului.
+## Înainte de lansare
+
+- [ ] Audit IAM și Secret Manager cu principiul least privilege.
+- [ ] Buget și alerte Google Cloud.
+- [ ] Play Integrity + App Check pentru certificatul Play App Signing.
+- [ ] Analiză statică a AAB-ului pentru permisiuni și chei.
+- [x] Review al logurilor funcțiilor pentru a confirma că nu conțin imagini/base64 sau enunțuri; obiectele brute de eroare și UID-ul din logul ștergerii au fost eliminate.
+- [ ] Test de ștergere end-to-end în producție.
+- [ ] Plan de incident, rotația secretului Gemini și persoană de contact.

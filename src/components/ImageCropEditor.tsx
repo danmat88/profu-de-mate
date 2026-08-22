@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { cropCapturedImage, rotateCapturedImage } from '../services/imagePipeline';
 import { colors, fonts } from '../theme';
 import type { CapturedImage } from '../types';
@@ -31,6 +32,13 @@ type Rect = { x: number; y: number; width: number; height: number };
 type GestureKind = 'move' | 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 
 const MIN_CROP_SIZE = 82;
+const CROP_A11Y_STEP = 12;
+const cropAccessibilityActions = [
+  { name: 'moveUp', label: 'Mută în sus' },
+  { name: 'moveDown', label: 'Mută în jos' },
+  { name: 'moveLeft', label: 'Mută la stânga' },
+  { name: 'moveRight', label: 'Mută la dreapta' },
+];
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
@@ -62,6 +70,7 @@ function getInitialCrop(imageRect: Rect): Rect {
 
 export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const entrance = useRef(new Animated.Value(0)).current;
   const cropRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const gestureStart = useRef<Rect>(cropRef.current);
@@ -87,8 +96,12 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     setError(null);
     setImageReady(false);
     entrance.setValue(0);
+    if (reducedMotion) {
+      entrance.setValue(1);
+      return;
+    }
     Animated.spring(entrance, { toValue: 1, useNativeDriver: true, speed: 16, bounciness: 5 }).start();
-  }, [entrance, image, visible]);
+  }, [entrance, image, reducedMotion, visible]);
 
   useEffect(() => {
     if (!visible || imageRect.width <= 0 || imageRect.height <= 0) return;
@@ -131,6 +144,14 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     }
 
     setCrop({ x: left, y: top, width: right - left, height: bottom - top });
+  };
+
+  const adjustCropForAccessibility = (kind: GestureKind, actionName: string) => {
+    gestureStart.current = cropRef.current;
+    const dx = actionName === 'moveLeft' ? -CROP_A11Y_STEP : actionName === 'moveRight' ? CROP_A11Y_STEP : 0;
+    const dy = actionName === 'moveUp' ? -CROP_A11Y_STEP : actionName === 'moveDown' ? CROP_A11Y_STEP : 0;
+    updateCrop(kind, dx, dy);
+    void Haptics.selectionAsync();
   };
 
   const responders = useMemo(() => {
@@ -212,7 +233,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     <Modal visible={visible} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={busy ? undefined : onCancel}>
       <StatusBar style="light" />
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <Animated.View style={[styles.screen, {
+        <Animated.View accessibilityViewIsModal style={[styles.screen, {
           opacity: entrance,
           transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
         }]}>
@@ -237,6 +258,8 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
             })}
           >
             <Image
+              accessible
+              accessibilityLabel="Fotografia pe care o încadrezi"
               source={{ uri: workingImage.uri }}
               resizeMode="contain"
               onLoad={() => setImageReady(true)}
@@ -257,15 +280,24 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
                   width: absoluteCrop.width,
                   height: absoluteCrop.height,
                 }]}>
-                  <View accessibilityLabel="Mută zona selectată" style={StyleSheet.absoluteFill} {...responders.move.panHandlers} />
+                  <View
+                    accessible
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Mută zona selectată"
+                    accessibilityHint="Folosește acțiunile de accesibilitate pentru sus, jos, stânga sau dreapta"
+                    accessibilityActions={cropAccessibilityActions}
+                    onAccessibilityAction={(event) => adjustCropForAccessibility('move', event.nativeEvent.actionName)}
+                    style={StyleSheet.absoluteFill}
+                    {...responders.move.panHandlers}
+                  />
                   <View pointerEvents="none" style={[styles.gridLine, styles.gridVerticalOne]} />
                   <View pointerEvents="none" style={[styles.gridLine, styles.gridVerticalTwo]} />
                   <View pointerEvents="none" style={[styles.gridLine, styles.gridHorizontalOne]} />
                   <View pointerEvents="none" style={[styles.gridLine, styles.gridHorizontalTwo]} />
-                  <View style={[styles.handleTouch, styles.handleTopLeft]} {...responders.topLeft.panHandlers}><View style={[styles.handle, styles.handleBorderTopLeft]} /></View>
-                  <View style={[styles.handleTouch, styles.handleTopRight]} {...responders.topRight.panHandlers}><View style={[styles.handle, styles.handleBorderTopRight]} /></View>
-                  <View style={[styles.handleTouch, styles.handleBottomLeft]} {...responders.bottomLeft.panHandlers}><View style={[styles.handle, styles.handleBorderBottomLeft]} /></View>
-                  <View style={[styles.handleTouch, styles.handleBottomRight]} {...responders.bottomRight.panHandlers}><View style={[styles.handle, styles.handleBorderBottomRight]} /></View>
+                  <View accessible accessibilityRole="adjustable" accessibilityLabel="Colțul stânga sus" accessibilityActions={cropAccessibilityActions} onAccessibilityAction={(event) => adjustCropForAccessibility('topLeft', event.nativeEvent.actionName)} style={[styles.handleTouch, styles.handleTopLeft]} {...responders.topLeft.panHandlers}><View style={[styles.handle, styles.handleBorderTopLeft]} /></View>
+                  <View accessible accessibilityRole="adjustable" accessibilityLabel="Colțul dreapta sus" accessibilityActions={cropAccessibilityActions} onAccessibilityAction={(event) => adjustCropForAccessibility('topRight', event.nativeEvent.actionName)} style={[styles.handleTouch, styles.handleTopRight]} {...responders.topRight.panHandlers}><View style={[styles.handle, styles.handleBorderTopRight]} /></View>
+                  <View accessible accessibilityRole="adjustable" accessibilityLabel="Colțul stânga jos" accessibilityActions={cropAccessibilityActions} onAccessibilityAction={(event) => adjustCropForAccessibility('bottomLeft', event.nativeEvent.actionName)} style={[styles.handleTouch, styles.handleBottomLeft]} {...responders.bottomLeft.panHandlers}><View style={[styles.handle, styles.handleBorderBottomLeft]} /></View>
+                  <View accessible accessibilityRole="adjustable" accessibilityLabel="Colțul dreapta jos" accessibilityActions={cropAccessibilityActions} onAccessibilityAction={(event) => adjustCropForAccessibility('bottomRight', event.nativeEvent.actionName)} style={[styles.handleTouch, styles.handleBottomRight]} {...responders.bottomRight.panHandlers}><View style={[styles.handle, styles.handleBorderBottomRight]} /></View>
                 </View>
               </>
             ) : null}
@@ -276,7 +308,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
                 {busy ? <Text style={styles.loadingText}>Pregătesc fotografia…</Text> : null}
               </View>
             ) : null}
-            {error ? <View style={styles.error}><Text style={styles.errorText}>{error}</Text></View> : null}
+            {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}><Text style={styles.errorText}>{error}</Text></View> : null}
           </View>
 
           <Text style={styles.instruction}>Trage colțurile până rămâne doar exercițiul. Poți muta și rama întreagă.</Text>

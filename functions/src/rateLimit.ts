@@ -5,7 +5,7 @@ const DAILY_LIMIT = 30;
 const BURST_LIMIT = 4;
 const BURST_WINDOW_MS = 60_000;
 
-export async function consumeAnalysisQuota(db: Firestore, userId: string, now = Date.now()): Promise<void> {
+export async function consumeAnalysisQuota(db: Firestore, userId: string, requestId: string, now = Date.now()): Promise<void> {
   const day = new Date(now).toISOString().slice(0, 10);
   const ref = db.collection('_aiUsage').doc(`${userId}_${day}`);
 
@@ -13,6 +13,10 @@ export async function consumeAnalysisQuota(db: Firestore, userId: string, now = 
     const snapshot = await transaction.get(ref);
     const current = snapshot.data();
     const requests = typeof current?.requests === 'number' ? current.requests : 0;
+    const requestIds = Array.isArray(current?.requestIds)
+      ? current.requestIds.filter((value): value is string => typeof value === 'string')
+      : [];
+    if (requestIds.includes(requestId)) return;
     const windowStartedAt = current?.windowStartedAt instanceof Timestamp ? current.windowStartedAt.toMillis() : 0;
     const inCurrentWindow = now - windowStartedAt < BURST_WINDOW_MS;
     const burstRequests = inCurrentWindow && typeof current?.burstRequests === 'number' ? current.burstRequests : 0;
@@ -28,6 +32,7 @@ export async function consumeAnalysisQuota(db: Firestore, userId: string, now = 
       userId,
       day,
       requests: requests + 1,
+      requestIds: [...requestIds, requestId].slice(-DAILY_LIMIT),
       burstRequests: inCurrentWindow ? burstRequests + 1 : 1,
       windowStartedAt: Timestamp.fromMillis(inCurrentWindow ? windowStartedAt : now),
       updatedAt: FieldValue.serverTimestamp(),

@@ -5,6 +5,7 @@
   "dependencies": {
     "@expo-google-fonts/baloo-2": "^0.4.2",
     "@expo-google-fonts/balsamiq-sans": "^0.4.1",
+    "@expo-google-fonts/fira-sans": "^0.4.1",
     "@expo/metro-runtime": "~57.0.12",
     "@react-native-firebase/app": "^26.3.1",
     "@react-native-firebase/app-check": "^26.3.1",
@@ -15,6 +16,7 @@
     "@react-navigation/native": "^7.3.17",
     "@react-navigation/native-stack": "^7.18.9",
     "expo": "~57.0.15",
+    "expo-build-properties": "~57.0.13",
     "expo-camera": "~57.0.4",
     "expo-dev-client": "~57.0.14",
     "expo-file-system": "~57.0.5",
@@ -51,6 +53,7 @@
     "emulators": "firebase emulators:start --only auth,firestore,functions,storage",
     "functions:build": "npm --prefix functions run build",
     "functions:test": "npm --prefix functions test",
+    "legal:check": "node scripts/validate-legal.mjs",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/firestore.rules.test.mjs\""
   },
   "private": true

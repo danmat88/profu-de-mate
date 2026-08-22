@@ -8,6 +8,7 @@ import { ComicButton } from '../components/ComicButton';
 import { AppIcon } from '../components/AppIcon';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { analyzeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
 import { colors, fonts } from '../theme';
 import type { MathAnalysis, RootStackParamList } from '../types';
@@ -22,6 +23,7 @@ type ScreenState =
 export function ProcessingScreen({ navigation, route }: Props) {
   const { height, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const [active, setActive] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
   const [screenState, setScreenState] = useState<ScreenState>({ kind: 'analyzing' });
@@ -38,6 +40,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const bottomSpace = Math.max(insets.bottom, 12);
 
   useEffect(() => {
+    if (reducedMotion) {
+      orbit.setValue(0.12);
+      bob.setValue(0.5);
+      return;
+    }
     const orbiting = Animated.loop(Animated.timing(orbit, { toValue: 1, duration: 2400, useNativeDriver: true }));
     const floating = Animated.loop(Animated.sequence([
       Animated.timing(bob, { toValue: 1, duration: 900, useNativeDriver: true }),
@@ -46,7 +53,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
     orbiting.start();
     floating.start();
     return () => { orbiting.stop(); floating.stop(); };
-  }, [bob, orbit]);
+  }, [bob, orbit, reducedMotion]);
 
   useEffect(() => {
     let mounted = true;
@@ -54,16 +61,25 @@ export function ProcessingScreen({ navigation, route }: Props) {
     setActive(0);
     progress.stopAnimation();
     progress.setValue(0);
-    Animated.timing(progress, { toValue: 0.9, duration: 22_000, useNativeDriver: false }).start();
+    if (reducedMotion) progress.setValue(0.18);
+    else Animated.timing(progress, { toValue: 0.9, duration: 22_000, useNativeDriver: false }).start();
 
-    const secondStage = setTimeout(() => mounted && setActive(1), 1_400);
-    const thirdStage = setTimeout(() => mounted && setActive(2), 3_800);
+    const secondStage = setTimeout(() => {
+      if (!mounted) return;
+      setActive(1);
+      if (reducedMotion) progress.setValue(0.5);
+    }, 1_400);
+    const thirdStage = setTimeout(() => {
+      if (!mounted) return;
+      setActive(2);
+      if (reducedMotion) progress.setValue(0.76);
+    }, 3_800);
 
-    analyzeMathImage(route.params.mode, route.params.image)
+    analyzeMathImage(route.params.mode, route.params.image, route.params.requestId)
       .then(({ lessonId, result }) => {
         if (!mounted) return;
         progress.stopAnimation();
-        Animated.timing(progress, { toValue: 1, duration: 240, useNativeDriver: false }).start(() => {
+        const finish = () => {
           if (!mounted) return;
           if (result.status === 'ready' && lessonId) {
             navigation.replace('Lesson', { lesson: result, lessonId, source: 'flow', sourceImage: route.params.image });
@@ -72,7 +88,13 @@ export function ProcessingScreen({ navigation, route }: Props) {
           } else {
             setScreenState({ kind: 'error', message: 'Lecția nu a putut fi salvată. Încearcă din nou.' });
           }
-        });
+        };
+        if (reducedMotion) {
+          progress.setValue(1);
+          finish();
+        } else {
+          Animated.timing(progress, { toValue: 1, duration: 240, useNativeDriver: false }).start(finish);
+        }
       })
       .catch((error) => {
         if (!mounted) return;
@@ -86,7 +108,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
       clearTimeout(thirdStage);
       progress.stopAnimation();
     };
-  }, [navigation, progress, requestKey, route.params.image, route.params.mode]);
+  }, [navigation, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.requestId]);
 
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
@@ -108,14 +130,16 @@ export function ProcessingScreen({ navigation, route }: Props) {
         <View style={styles.messageArea}>
           <View style={styles.messageMascotWrap}>
             <View style={styles.messageHalo} />
-            <Image source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.messageMascot} />
+            <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.messageMascot} />
             <View style={styles.messageGlyph}>{rejected ? <AppIcon name="camera" size={40} /> : <MiniGlyph name="spark" size={26} />}</View>
           </View>
-          <View style={styles.messageCardShadow} />
-          <View style={styles.messageCard}>
-            <Text style={styles.messageEyebrow}>{rejected ? 'MAI ÎNCERCĂM O DATĂ' : 'NU E VINA TA'}</Text>
-            <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
-            <Text style={styles.messageText}>{message}</Text>
+          <View style={styles.messageCardWrap}>
+            <View style={styles.messageCardShadow} />
+            <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.messageCard}>
+              <Text style={styles.messageEyebrow}>{rejected ? 'MAI ÎNCERCĂM O DATĂ' : 'NU E VINA TA'}</Text>
+              <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
+              <Text style={styles.messageText}>{message}</Text>
+            </View>
           </View>
         </View>
         <View style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
@@ -146,13 +170,18 @@ export function ProcessingScreen({ navigation, route }: Props) {
         </Animated.View>
         <View style={[styles.halo, { width: haloSize, height: haloSize, borderRadius: haloSize / 2 }]} />
         <Animated.View style={{ transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [5, -7] }) }] }}>
-          <Image source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isCompact && styles.mascotCompact]} />
+          <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isCompact && styles.mascotCompact]} />
         </Animated.View>
         <View style={[styles.thought, isCompact && styles.thoughtCompact]}><Text style={styles.thoughtText}>{isCheck ? 'Hmm… verific fiecare pas.' : 'Aha! Citesc problema cu atenție.'}</Text></View>
       </View>
       <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fără să judec.' : 'Pun ideile în ordine.'}</Text>
       <Text style={styles.subtitle}>Durata depinde de problemă și de conexiune.</Text>
-      <View style={[styles.jobs, isShort && styles.jobsCompact]}>
+      <View
+        accessible
+        accessibilityLabel={`Analiză în curs. ${jobs[active]}. Pasul ${active + 1} din ${jobs.length}.`}
+        accessibilityLiveRegion="polite"
+        style={[styles.jobs, isShort && styles.jobsCompact]}
+      >
         {jobs.map((job, index) => {
           const done = index < active;
           const current = index === active;
@@ -210,7 +239,8 @@ const styles = StyleSheet.create({
   messageHalo: { position: 'absolute', width: 172, height: 172, borderRadius: 86, backgroundColor: '#302368', borderWidth: 3, borderStyle: 'dashed', borderColor: '#6557A1' },
   messageMascot: { width: 180, height: 190 },
   messageGlyph: { position: 'absolute', right: '20%', bottom: 13, width: 48, height: 48, borderRadius: 16, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '6deg' }] },
-  messageCardShadow: { position: 'absolute', left: 7, right: -7, bottom: 4, height: 190, borderRadius: 25, backgroundColor: '#09071A' },
+  messageCardWrap: { position: 'relative' },
+  messageCardShadow: { position: 'absolute', left: 7, right: -7, top: 8, bottom: -8, borderRadius: 25, backgroundColor: '#09071A' },
   messageCard: { minHeight: 190, borderWidth: 3, borderColor: colors.ink, borderRadius: 25, backgroundColor: colors.paper, padding: 20, justifyContent: 'center' },
   messageEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2 },
   messageTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 28, lineHeight: 31, marginTop: 5 },

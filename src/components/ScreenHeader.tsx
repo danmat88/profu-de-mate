@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
 import { AppIcon, AppIconName } from './AppIcon';
@@ -11,13 +12,18 @@ type Props = { title: string; eyebrow?: string; onBack: () => void; rightIcon?: 
 
 function HeaderButton({ label, onPress, dark, active, children }: { label: string; onPress?: () => void; dark?: boolean; active?: boolean; children: ReactNode }) {
   const press = useRef(new Animated.Value(0)).current;
-  const move = (value: number) => Animated.spring(press, { toValue: value, useNativeDriver: true, speed: 32, bounciness: 3 }).start();
+  const reducedMotion = useReducedMotion();
+  const move = (value: number) => {
+    if (reducedMotion) return;
+    Animated.spring(press, { toValue: value, useNativeDriver: true, speed: 32, bounciness: 3 }).start();
+  };
   return (
     <Animated.View style={{ opacity: onPress ? 1 : 0.66, transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 3] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.94] }) }] }}>
       <Pressable
         accessibilityLabel={label}
         accessibilityRole="button"
         disabled={!onPress}
+        hitSlop={4}
         onPressIn={() => move(1)}
         onPressOut={() => move(0)}
         onPress={() => { Haptics.selectionAsync(); onPress?.(); }}

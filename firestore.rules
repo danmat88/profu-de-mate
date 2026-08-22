@@ -68,12 +68,18 @@ service cloud.firestore {
         allow create: if false;
         allow update: if owns(userId)
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['isFavorite', 'userTitle', 'updatedAt'])
-          && (!('isFavorite' in request.resource.data)
-            || request.resource.data.isFavorite is bool)
+            .hasOnly(['isFavorite', 'userTitle', 'expiresAt', 'updatedAt'])
+          && ('isFavorite' in request.resource.data)
+          && request.resource.data.isFavorite is bool
           && (!('userTitle' in request.resource.data)
             || (request.resource.data.userTitle is string
               && request.resource.data.userTitle.size() <= 80))
+          && request.resource.data.expiresAt is timestamp
+          && request.resource.data.expiresAt > request.time
+          && ((request.resource.data.isFavorite == true
+              && request.resource.data.expiresAt <= request.time + duration.value(401, 'd'))
+            || (request.resource.data.isFavorite == false
+              && request.resource.data.expiresAt <= request.time + duration.value(8, 'd')))
           && request.resource.data.updatedAt == request.time;
         allow delete: if owns(userId);
       }

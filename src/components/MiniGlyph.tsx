@@ -14,7 +14,7 @@ const glyphs: Record<Glyph, string> = {
 };
 
 export function MiniGlyph({ name, size = 24, color = colors.ink, style }: { name: Glyph; size?: number; color?: string; style?: ViewStyle }) {
-  return <View style={[styles.wrap, style]}><Text style={[styles.glyph, { fontSize: size, lineHeight: size + 3, color }]}>{glyphs[name]}</Text></View>;
+  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.wrap, style]}><Text style={[styles.glyph, { fontSize: size, lineHeight: size + 3, color }]}>{glyphs[name]}</Text></View>;
 }
 
 const styles = StyleSheet.create({

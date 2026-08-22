@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Politica de confidențialitate Profu’ de mate.">
+  <title>Politica de confidențialitate — Profu’ de mate</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <a class="brand" href="/"><span class="mark" aria-hidden="true">P’</span><span>Profu’ de mate</span></a>
+      <nav aria-label="Documente"><a aria-current="page" href="/confidentialitate">Confidențialitate</a><a href="/termeni">Termeni</a><a href="/stergere-date">Ștergere date</a></nav>
+    </header>
+    <main>
+      <article class="document">
+        <p class="eyebrow">Politica de confidențialitate</p>
+        <h1>Date puține, scop clar.</h1>
+        <p class="lead">Această politică explică modul în care __OPERATOR_NAME__ operează aplicația Profu’ de mate și prelucrează datele utilizatorilor.</p>
+        <p class="meta">Versiune actualizată la 22 august 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
+
+        <div class="notice"><strong>Pe scurt:</strong> fotografia este folosită pentru analiza cerută, nu este pusă în Firebase Storage sau în Caiet, nu avem reclame și poți șterge datele aplicației din Setări.</div>
+
+        <h2>1. Cine este operatorul</h2>
+        <p>Operatorul aplicației este <strong>__OPERATOR_NAME__</strong>. Pentru întrebări despre confidențialitate sau drepturile tale poți scrie la <a href="mailto:__CONTACT_EMAIL__">__CONTACT_EMAIL__</a>.</p>
+
+        <h2>2. Ce date folosim</h2>
+        <ul>
+          <li>un identificator Firebase anonim asociat instalării, fără nume, parolă sau profil public;</li>
+          <li>fotografia problemei sau rezolvării pe care alegi să o trimiți;</li>
+          <li>enunțul extras, explicația structurată, formulele, verdictul și starea de salvare;</li>
+          <li>metadate tehnice minime pentru limitarea abuzului și evitarea procesării duble;</li>
+          <li>metadate standard de conexiune înregistrate automat de infrastructură, precum adresa IP, mărimea cererii, latența și codul răspunsului;</li>
+          <li>categoria raportului trimis de tine;</li>
+          <li>date tehnice de blocare numai dacă activezi voluntar Diagnosticarea din Setări.</li>
+        </ul>
+
+        <h2>3. Cum folosim fotografia</h2>
+        <p>Imaginea este orientată, decupată și comprimată pe telefon, apoi este transmisă printr-o funcție Firebase securizată către Gemini Developer API pentru analiza matematică solicitată. Aplicația nu scrie fotografia în Firebase Storage și nu o include în Caiet.</p>
+        <p>Într-un proiect Gemini cu facturare activă, Google declară că prompturile și răspunsurile nu sunt folosite pentru îmbunătățirea produselor sale, dar poate păstra loguri limitate pentru detectarea încălcărilor și a abuzului, conform termenilor serviciului aplicabili la momentul folosirii.</p>
+
+        <h2>4. Scopurile prelucrării</h2>
+        <ul>
+          <li>analiza problemei și afișarea unei explicații pas cu pas;</li>
+          <li>verificarea unei rezolvări și oferirea feedbackului;</li>
+          <li>sincronizarea lecțiilor alese în Caiet;</li>
+          <li>securitatea, limitarea abuzului și controlul costurilor;</li>
+          <li>investigarea rapoartelor de răspuns greșit, neclar sau nepotrivit;</li>
+          <li>diagnosticarea blocărilor, numai cu opțiunea activată.</li>
+        </ul>
+
+        <h2>5. Furnizori</h2>
+        <p>Folosim servicii Google Firebase pentru autentificare anonimă, Cloud Functions, Firestore, App Check și, opțional, Crashlytics. Analiza matematică folosește Gemini Developer API. Furnizorii pot prelucra date conform contractelor și documentației lor de confidențialitate.</p>
+
+        <h2>6. Retenție</h2>
+        <ul>
+          <li>lecțiile nesalvate și cache-ul unei cereri: maximum 7 zile;</li>
+          <li>contoarele de siguranță și limitare: maximum 35 de zile;</li>
+          <li>metadatele standard din bucket-ul implicit Cloud Logging: în mod normal 30 de zile;</li>
+          <li>lecțiile din Caiet: cât timp sunt folosite, dar maximum aproximativ 13 luni fără activitate;</li>
+          <li>rapoartele trimise: până când ștergi toate datele sau atât cât este necesar pentru investigare și obligații legale;</li>
+          <li>diagnosticarea opțională: conform retenției configurate în Firebase Crashlytics.</li>
+        </ul>
+
+        <h2>7. Controlul tău</h2>
+        <p>Poți opri Diagnosticarea și poți șterge lecțiile, rapoartele, istoricul tehnic și contul anonim al instalării din <strong>Setări → Șterge toate datele</strong>. Vezi și pagina <a href="/stergere-date">Ștergerea datelor</a>.</p>
+
+        <h2>8. Utilizatori 13–17 ani</h2>
+        <p>Aplicația este destinată persoanelor de minimum 13 ani. Nu fotografia fețe, nume, note, adrese, conversații sau alte informații personale; încadrează numai problema de matematică. Pentru utilizatorii minori se aplică și regulile legale locale privind autoritatea părintească și consimțământul.</p>
+
+        <h2>9. Securitate și limite</h2>
+        <p>Folosim criptare în tranzit, Firebase Auth, App Check, reguli deny-by-default, rate limiting și acces restricționat la secretul AI. Niciun sistem nu poate garanta securitate absolută; în caz de incident vom aplica obligațiile legale de notificare.</p>
+
+        <h2>10. Modificări</h2>
+        <p>Vom actualiza data și conținutul acestei pagini când se schimbă aplicația sau cerințele legale. Modificările importante vor fi reflectate și în aplicație.</p>
+      </article>
+    </main>
+    <footer>Operator: __OPERATOR_NAME__ · Contact: <a href="mailto:__CONTACT_EMAIL__">__CONTACT_EMAIL__</a></footer>
+  </div>
+</body>
+</html>

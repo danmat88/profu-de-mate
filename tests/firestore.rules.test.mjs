@@ -1,7 +1,7 @@
 import { after, before, describe, test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 
 const projectId = 'profu-de-mate-danmat88';
 let testEnvironment;
@@ -67,10 +67,37 @@ describe('Firestore rules', () => {
     const alice = testEnvironment.authenticatedContext('alice').firestore();
     await assertSucceeds(updateDoc(doc(alice, 'users/alice/lessons/lesson-1'), {
       isFavorite: true,
+      expiresAt: Timestamp.fromMillis(Date.now() + 400 * 24 * 60 * 60 * 1000),
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(doc(alice, 'users/alice/lessons/lesson-1'), {
+      expiresAt: Timestamp.fromMillis(Date.now() + 500 * 24 * 60 * 60 * 1000),
       updatedAt: serverTimestamp(),
     }));
     await assertFails(updateDoc(doc(alice, 'users/alice/lessons/lesson-1'), {
       answer: 'x = 999',
+      updatedAt: serverTimestamp(),
+    }));
+  });
+
+  test('permite expirarea apropiată a unei lecții nesalvate, dar nu o dată arbitrară', async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users/alice/lessons/lesson-2'), {
+        mode: 'solve',
+        isFavorite: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+
+    const alice = testEnvironment.authenticatedContext('alice').firestore();
+    await assertSucceeds(updateDoc(doc(alice, 'users/alice/lessons/lesson-2'), {
+      isFavorite: false,
+      expiresAt: Timestamp.fromMillis(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(updateDoc(doc(alice, 'users/alice/lessons/lesson-2'), {
+      expiresAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000),
       updatedAt: serverTimestamp(),
     }));
   });

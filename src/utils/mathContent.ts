@@ -9,7 +9,9 @@ function isRenderedMath(value: unknown): boolean {
     && typeof rendered.widthEx === 'number'
     && rendered.widthEx > 0
     && typeof rendered.heightEx === 'number'
-    && rendered.heightEx > 0;
+    && rendered.heightEx > 0
+    && (rendered.depthEx === undefined
+      || (typeof rendered.depthEx === 'number' && rendered.depthEx >= 0));
 }
 
 export function isContentBlock(value: unknown): value is ContentBlock {
@@ -64,6 +66,34 @@ export function contentToAccessibleText(content: RichContent): string {
 
 export function firstMathBlock(content: RichContent): MathContentBlock | undefined {
   return content.find((block): block is MathContentBlock => block.type === 'math');
+}
+
+export function representativeMathBlock(content: RichContent): MathContentBlock | undefined {
+  const mathBlocks = content.filter((block): block is MathContentBlock => block.type === 'math');
+  return mathBlocks.reduce<MathContentBlock | undefined>((best, candidate) => {
+    const score = (block: MathContentBlock) => {
+      const relation = /(?:=|<|>|\\le|\\ge|\\approx|\\sim|\\perp|\\parallel)/.test(block.latex) ? 34 : 0;
+      const structure = /\\(?:frac|sqrt|begin|angle|triangle|overline|vec|int|sum|lim)/.test(block.latex) ? 18 : 0;
+      const values = /\d/.test(block.latex) ? 10 : 0;
+      const bareSymbolPenalty = /^(?:[A-Za-z]|\\[A-Za-z]+)(?:_\{?\w+\}?)?$/.test(block.latex.trim()) ? 30 : 0;
+      return relation + structure + values + Math.min(block.latex.length, 32) - bareSymbolPenalty;
+    };
+    return !best || score(candidate) > score(best) ? candidate : best;
+  }, undefined);
+}
+
+export function compactProblemContent(content: RichContent): RichContent {
+  const firstMathIndex = content.findIndex((block) => block.type === 'math');
+  if (firstMathIndex < 0) return content.slice(0, 1);
+
+  const start = Math.max(0, firstMathIndex - 1);
+  const connector = content[firstMathIndex + 1];
+  const followingMath = content[firstMathIndex + 2];
+  const hasMathPair = connector?.type === 'text'
+    && /^(?:și|sau|ori|respectiv)$/.test(connector.text.trim().toLocaleLowerCase('ro-RO'))
+    && followingMath?.type === 'math';
+
+  return content.slice(start, firstMathIndex + (hasMathPair ? 3 : 1));
 }
 
 export function firstTextBlock(content: RichContent): string | undefined {

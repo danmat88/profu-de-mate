@@ -3,21 +3,24 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
 import type { FlowMode, RootStackParamList } from '../types';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function HomeScreen() {
   const navigation = useNavigation<Navigation>();
   const { width, height, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const [mode, setMode] = useState<FlowMode>('solve');
   const entrance = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
@@ -27,30 +30,42 @@ export function HomeScreen() {
   const modePop = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    if (reducedMotion) {
+      entrance.setValue(1);
+      float.setValue(0.45);
+      pulse.setValue(0);
+      beam.setValue(0);
+      return;
+    }
     Animated.spring(entrance, { toValue: 1, useNativeDriver: true, speed: 7, bounciness: 7 }).start();
     const floating = Animated.loop(Animated.sequence([
       Animated.timing(float, { toValue: 1, duration: 1650, useNativeDriver: true }),
       Animated.timing(float, { toValue: 0, duration: 1650, useNativeDriver: true }),
-    ]));
+    ]), { iterations: 2 });
     const breathing = Animated.loop(Animated.sequence([
       Animated.timing(pulse, { toValue: 1, duration: 1250, useNativeDriver: true }),
       Animated.timing(pulse, { toValue: 0, duration: 1250, useNativeDriver: true }),
-    ]));
+    ]), { iterations: 2 });
     const scanning = Animated.loop(Animated.sequence([
       Animated.timing(beam, { toValue: 1, duration: 1800, useNativeDriver: true }),
       Animated.delay(350),
       Animated.timing(beam, { toValue: 0, duration: 0, useNativeDriver: true }),
-    ]));
+    ]), { iterations: 2 });
     floating.start();
     breathing.start();
     scanning.start();
     return () => { floating.stop(); breathing.stop(); scanning.stop(); };
-  }, [beam, entrance, float, pulse]);
+  }, [beam, entrance, float, pulse, reducedMotion]);
 
   const chooseMode = (next: FlowMode) => {
     if (next === mode) return;
     Haptics.selectionAsync();
     setMode(next);
+    if (reducedMotion) {
+      modeMotion.setValue(next === 'solve' ? 0 : 1);
+      modePop.setValue(1);
+      return;
+    }
     Animated.parallel([
       Animated.spring(modeMotion, { toValue: next === 'solve' ? 0 : 1, useNativeDriver: false, speed: 18, bounciness: 7 }),
       Animated.sequence([
@@ -60,31 +75,43 @@ export function HomeScreen() {
     ]).start();
   };
 
+  const openCapture = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('Capture', { mode });
+  };
+
   const isSolve = mode === 'solve';
   const segmentWidth = (width - gutter * 2 - 8) / 2;
   const portalSize = isCompact ? 188 : 220;
-  const portalStageHeight = isShort ? 244 : Math.min(356, height * 0.445);
-  const mascotSize = isCompact ? 116 : 135;
+  const portalStageHeight = isShort ? 224 : Math.min(320, height * 0.39);
+  const mascotSize = isCompact ? 92 : 112;
   const bottomSpace = Math.max(insets.bottom, 10);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}>
+      <View style={[styles.content, { paddingHorizontal: gutter }]}>
         <View style={styles.header}>
           <View style={styles.brandRow}>
             <View style={styles.logoShadow} />
-            <View style={styles.logo}><Text style={styles.logoText}>P!</Text></View>
+            <View style={styles.logo}>
+              <Image accessible={false} source={require('../../assets/brand/profu-mark-v2.png')} resizeMode="contain" style={styles.logoImage} />
+            </View>
             <View>
               <Text style={styles.brand}>Profu’ de mate</Text>
               <Text style={styles.brandNote}>ÎȚI ARATĂ CUM GÂNDEȘTI</Text>
             </View>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Deschide caietul" onPress={() => navigation.navigate('Notebook')} style={styles.notebookButton}>
-            <AppIcon name="notebook" size={38} />
-            <Text style={styles.notebookLabel}>Caiet</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Deschide caietul" hitSlop={4} onPress={() => navigation.navigate('Notebook')} style={styles.notebookButton}>
+              <AppIcon name="notebook" size={38} />
+              <Text style={styles.notebookLabel}>Caiet</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Deschide setările" hitSlop={4} onPress={() => navigation.navigate('Settings')} style={styles.settingsButton}>
+              <AppIcon name="settings" size={39} />
+            </Pressable>
+          </View>
         </View>
 
         <Animated.View style={{ opacity: entrance, transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] }}>
@@ -108,7 +135,12 @@ export function HomeScreen() {
           </Pressable>
         </Animated.View>
 
-        <Animated.View style={[styles.portalStage, { height: portalStageHeight, opacity: entrance, transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}>
+        <AnimatedPressable
+          accessibilityRole="button"
+          accessibilityLabel={isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
+          onPress={openCapture}
+          style={[styles.portalStage, { height: portalStageHeight, opacity: entrance, transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}
+        >
           <Animated.View style={[styles.portalEcho, { width: portalSize + 8, height: portalSize + 8, borderRadius: (portalSize + 8) / 2, transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.055] }) }], opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.2] }) }]} />
           <View style={[styles.portalShadow, { width: portalSize, height: portalSize, borderRadius: portalSize / 2 }]} />
           <View style={[styles.portal, { width: portalSize, height: portalSize, borderRadius: portalSize / 2 }, !isSolve && styles.portalCheck]}>
@@ -124,14 +156,14 @@ export function HomeScreen() {
             </Animated.View>
           </View>
           <Animated.View style={[styles.mascotWrap, { width: mascotSize, height: mascotSize * 1.06, transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [4, -7] }) }, { rotate: '4deg' }] }]}>
-            <Image source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
+            <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
           </Animated.View>
           <View style={[styles.sticker, !isSolve && styles.stickerCheck]}>
             <Text style={styles.stickerText}>{isSolve ? 'PAS CU PAS' : 'FĂRĂ JUDECATĂ'}</Text>
           </View>
-        </Animated.View>
+        </AnimatedPressable>
 
-      </ScrollView>
+      </View>
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
         <ComicButton
           compact
@@ -139,7 +171,7 @@ export function HomeScreen() {
           subtitle={isSolve ? 'Profu’ explică, tu înțelegi.' : 'Vedem ce e bun și ce reparăm.'}
           icon={isSolve ? 'camera' : 'verify'}
           tone={isSolve ? 'lime' : 'peach'}
-          onPress={() => navigation.navigate('Capture', { mode })}
+          onPress={openCapture}
           style={styles.primary}
         />
 
@@ -154,16 +186,17 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: 18, paddingBottom: 10 },
+  content: { flex: 1, minHeight: 0, paddingHorizontal: 18 },
   header: { height: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, position: 'relative' },
-  logoShadow: { position: 'absolute', left: 3, top: 6, width: 43, height: 43, borderRadius: 14, backgroundColor: colors.ink },
-  logo: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-5deg' }] },
-  logoText: { fontFamily: fonts.display, color: colors.ink, fontSize: 21, lineHeight: 25 },
+  logoShadow: { position: 'absolute', left: 3, top: 5, width: 46, height: 46, borderRadius: 15, backgroundColor: colors.ink },
+  logo: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', transform: [{ rotate: '-3deg' }] },
+  logoImage: { width: 43, height: 43 },
   brand: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 20 },
   brandNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 0.9, marginTop: 2 },
   notebookButton: { height: 45, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  settingsButton: { width: 45, height: 45, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   notebookLabel: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
   kickerRow: { marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   kickerLine: { width: 27, height: 5, borderRadius: 4, backgroundColor: colors.peach, transform: [{ rotate: '-4deg' }] },
@@ -194,7 +227,7 @@ const styles = StyleSheet.create({
   cornerBR: { right: 0, bottom: 0, borderRightWidth: 4, borderBottomWidth: 4, borderBottomRightRadius: 8 },
   portalTitle: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16, marginTop: 3 },
   portalHint: { fontFamily: fonts.body, color: '#DDD4FF', fontSize: 10, marginTop: 1 },
-  mascotWrap: { position: 'absolute', width: 135, height: 143, right: 2, bottom: -3 },
+  mascotWrap: { position: 'absolute', width: 112, height: 119, right: 0, bottom: -9 },
   mascot: { width: '100%', height: '100%' },
   sticker: { position: 'absolute', left: 3, top: 35, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, paddingHorizontal: 10, paddingVertical: 5, transform: [{ rotate: '-8deg' }] },
   stickerCheck: { backgroundColor: colors.peach },

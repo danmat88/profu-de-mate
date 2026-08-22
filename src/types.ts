@@ -17,6 +17,7 @@ export type RenderedMath = {
   viewBox: string;
   widthEx: number;
   heightEx: number;
+  depthEx?: number;
 };
 
 export type TextContentBlock = {
@@ -47,6 +48,7 @@ export type LessonStep = {
 
 export type MathAnalysis = {
   schemaVersion: 3;
+  rendererVersion?: 'fira-v3';
   status: AnalysisStatus;
   mode: FlowMode;
   title: string;
@@ -69,9 +71,11 @@ export type StoredLesson = MathAnalysis & {
 export type RootStackParamList = {
   Home: undefined;
   Notebook: undefined;
+  Settings: undefined;
+  Legal: undefined;
   Capture: { mode: FlowMode };
   Review: { mode: FlowMode; image: CapturedImage };
-  Processing: { mode: FlowMode; image: CapturedImage };
+  Processing: { mode: FlowMode; image: CapturedImage; requestId: string };
   Lesson: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean; source?: 'flow' | 'notebook'; sourceImage?: CapturedImage };
   Summary: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean };
 };
