@@ -4,7 +4,7 @@ import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationBar } from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { CaptureScreen } from './src/screens/CaptureScreen';
@@ -14,6 +14,7 @@ import { NotebookScreen } from './src/screens/NotebookScreen';
 import { ProcessingScreen } from './src/screens/ProcessingScreen';
 import { ReviewScreen } from './src/screens/ReviewScreen';
 import { SummaryScreen } from './src/screens/SummaryScreen';
+import { initializeFirebaseServices } from './src/services/firebase';
 import { colors } from './src/theme';
 import type { RootStackParamList } from './src/types';
 
@@ -24,6 +25,12 @@ export default function App() {
   const [balsamiqLoaded] = useBalsamiqFonts({ BalsamiqSans_400Regular, BalsamiqSans_700Bold });
   const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>('Home');
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
+
+  useEffect(() => {
+    initializeFirebaseServices().catch(() => {
+      // Ecranele care au nevoie de rețea afișează eroarea și permit reîncercarea.
+    });
+  }, []);
 
   if (!balooLoaded || !balsamiqLoaded) {
     return <SafeAreaProvider initialMetrics={initialWindowMetrics}><NavigationBar hidden style="dark" /><View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.ink }}><ActivityIndicator size="large" color={colors.lime} /></View></SafeAreaProvider>;

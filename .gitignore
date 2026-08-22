@@ -40,6 +40,7 @@ yarn-error.*
 .env.*
 !.env.example
 .env*.local
+.secret.local
 
 # Firebase CLI diagnostics
 firebase-debug.log

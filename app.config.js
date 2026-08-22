@@ -6,6 +6,7 @@ module.exports = ({ config }) => ({
   },
   plugins: [
     ...config.plugins,
+    'expo-splash-screen',
     '@react-native-firebase/app',
     '@react-native-firebase/auth',
     '@react-native-firebase/app-check',
