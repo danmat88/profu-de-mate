@@ -24,8 +24,10 @@ module.exports = ({ config }) => ({
       'expo-splash-screen',
       {
         backgroundColor: '#171337',
-        image: './assets/brand/splash-mark-v2.png',
-        imageWidth: 220,
+        // Android still generates a real native splash resource, but the artwork
+        // stays invisible so the React scene can begin on the exact same color.
+        image: './assets/brand/splash-transparent.png',
+        imageWidth: 1,
         resizeMode: 'contain',
       },
     ],

@@ -1,7 +1,7 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { colors, fonts } from '../theme';
 
 type Props = {
@@ -10,10 +10,21 @@ type Props = {
 };
 
 export function LaunchSplash({ reducedMotion, onFinish }: Props) {
-  const heroReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const copyReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const progressReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const exitReveal = useRef(new Animated.Value(0)).current;
+  const { width, height } = useWindowDimensions();
+  const revealed = reducedMotion ? 1 : 0;
+  const orbsReveal = useRef(new Animated.Value(revealed)).current;
+  const symbolsReveal = useRef(new Animated.Value(revealed)).current;
+  const heroReveal = useRef(new Animated.Value(revealed)).current;
+  const kickerReveal = useRef(new Animated.Value(revealed)).current;
+  const brandReveal = useRef(new Animated.Value(revealed)).current;
+  const promiseReveal = useRef(new Animated.Value(revealed)).current;
+  const progressReveal = useRef(new Animated.Value(revealed)).current;
+  const sceneExit = useRef(new Animated.Value(0)).current;
+  const homeReveal = useRef(new Animated.Value(0)).current;
+  const wipeSize = Math.sqrt((width * width) + (height * height)) * 2.2;
+  const visualScale = Math.max(0.84, Math.min(1.18, width / 390, height / 760));
+  const heroLift = -60 * visualScale;
+  const copyOffset = 114 * visualScale;
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -21,46 +32,91 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
     let animation: Animated.CompositeAnimation | null = null;
 
     const frame = requestAnimationFrame(() => {
+      // The React layer is already painted in the same color as the native layer.
+      // Hiding the native splash here therefore cannot expose a blank frame.
       void SplashScreen.hideAsync();
 
       if (reducedMotion) {
+        orbsReveal.setValue(1);
+        symbolsReveal.setValue(1);
+        heroReveal.setValue(1);
+        kickerReveal.setValue(1);
+        brandReveal.setValue(1);
+        promiseReveal.setValue(1);
+        progressReveal.setValue(1);
         timer = setTimeout(() => {
           if (!cancelled) onFinish();
-        }, 320);
+        }, 520);
         return;
       }
 
       animation = Animated.sequence([
+        Animated.timing(orbsReveal, {
+          toValue: 1,
+          duration: 180,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
         Animated.parallel([
+          Animated.timing(symbolsReveal, {
+            toValue: 1,
+            duration: 260,
+            easing: Easing.out(Easing.back(1.7)),
+            useNativeDriver: true,
+          }),
           Animated.spring(heroReveal, {
             toValue: 1,
+            speed: 13,
+            bounciness: 10,
             useNativeDriver: true,
-            speed: 10,
-            bounciness: 7,
           }),
-          Animated.timing(copyReveal, {
+        ]),
+        Animated.stagger(85, [
+          Animated.timing(kickerReveal, {
             toValue: 1,
-            delay: 160,
-            duration: 360,
+            duration: 180,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
-          Animated.timing(progressReveal, {
+          Animated.spring(brandReveal, {
             toValue: 1,
-            delay: 360,
-            duration: 440,
+            speed: 18,
+            bounciness: 8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(promiseReveal, {
+            toValue: 1,
+            duration: 220,
             easing: Easing.out(Easing.cubic),
             useNativeDriver: true,
           }),
         ]),
-        Animated.delay(430),
-        Animated.timing(exitReveal, {
+        Animated.timing(progressReveal, {
           toValue: 1,
-          duration: 280,
-          easing: Easing.inOut(Easing.cubic),
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
+        Animated.delay(300),
+        Animated.parallel([
+          Animated.timing(sceneExit, {
+            toValue: 1,
+            duration: 270,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.delay(70),
+            Animated.spring(homeReveal, {
+              toValue: 1,
+              speed: 14,
+              bounciness: 0,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]),
       ]);
+
       animation.start(({ finished }) => {
         if (finished && !cancelled) onFinish();
       });
@@ -72,106 +128,184 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
       if (timer) clearTimeout(timer);
       animation?.stop();
     };
-  }, [copyReveal, exitReveal, heroReveal, onFinish, progressReveal, reducedMotion]);
+  }, [
+    brandReveal,
+    heroReveal,
+    homeReveal,
+    kickerReveal,
+    onFinish,
+    orbsReveal,
+    progressReveal,
+    promiseReveal,
+    reducedMotion,
+    sceneExit,
+    symbolsReveal,
+  ]);
 
   return (
-    <Animated.View
+    <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      renderToHardwareTextureAndroid
-      style={[
-        styles.root,
-        {
-          opacity: exitReveal.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.96, 0] }),
-          transform: [
-            { translateY: exitReveal.interpolate({ inputRange: [0, 1], outputRange: [0, -24] }) },
-            { scale: exitReveal.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) },
-          ],
-        },
-      ]}
+      pointerEvents="auto"
+      style={styles.root}
     >
       <StatusBar style="light" />
 
-      <Animated.View pointerEvents="none" style={[styles.decorations, { opacity: copyReveal }]}>
-        <View style={styles.orbTop} />
-        <View style={styles.orbBottom} />
-        <Text style={[styles.mathMark, styles.mathMarkLeft]}>x²</Text>
-        <Text style={[styles.mathMark, styles.mathMarkRight]}>π</Text>
-        <Text style={[styles.mathMark, styles.mathMarkBottom]}>√</Text>
-        <Text style={[styles.spark, styles.sparkTop]}>✦</Text>
-        <Text style={[styles.spark, styles.sparkBottom]}>✦</Text>
-      </Animated.View>
-
       <Animated.View
+        renderToHardwareTextureAndroid
         style={[
-          styles.hero,
+          styles.scene,
           {
+            opacity: sceneExit.interpolate({ inputRange: [0, 0.72, 1], outputRange: [1, 0.94, 0] }),
             transform: [
-              { translateY: heroReveal.interpolate({ inputRange: [0, 1], outputRange: [0, -60] }) },
-              { scale: heroReveal.interpolate({ inputRange: [0, 0.72, 1], outputRange: [1, 1.08, 1.045] }) },
+              { translateY: sceneExit.interpolate({ inputRange: [0, 1], outputRange: [0, -14] }) },
+              { scale: sceneExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0.985] }) },
             ],
           },
         ]}
       >
         <Animated.View
+          pointerEvents="none"
           style={[
-            styles.heroHaloOuter,
+            styles.decorations,
             {
-              opacity: heroReveal,
-              transform: [{ scale: heroReveal.interpolate({ inputRange: [0, 1], outputRange: [0.68, 1] }) }],
+              opacity: orbsReveal,
+              transform: [{ scale: orbsReveal.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) }],
             },
           ]}
-        />
+        >
+          <View style={styles.orbTop} />
+          <View style={styles.orbBottom} />
+        </Animated.View>
+
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.decorations,
+            {
+              opacity: symbolsReveal,
+              transform: [{ scale: symbolsReveal.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] }) }],
+            },
+          ]}
+        >
+          <Text style={[styles.mathMark, styles.mathMarkLeft]}>x²</Text>
+          <Text style={[styles.mathMark, styles.mathMarkRight]}>π</Text>
+          <Text style={[styles.mathMark, styles.mathMarkBottom]}>√</Text>
+          <Text style={[styles.spark, styles.sparkTop]}>✦</Text>
+          <Text style={[styles.spark, styles.sparkBottom]}>✦</Text>
+        </Animated.View>
+
         <Animated.View
           style={[
-            styles.heroHaloInner,
+            styles.hero,
             {
               opacity: heroReveal,
               transform: [
-                { rotate: '-5deg' },
-                { scale: heroReveal.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) },
+                { translateY: heroReveal.interpolate({ inputRange: [0, 1], outputRange: [28, heroLift] }) },
+                { scale: visualScale },
+                { scale: heroReveal.interpolate({ inputRange: [0, 0.72, 1], outputRange: [0.54, 1.1, 1.045] }) },
+                { rotate: heroReveal.interpolate({ inputRange: [0, 0.72, 1], outputRange: ['-9deg', '2deg', '0deg'] }) },
               ],
             },
           ]}
-        />
-        <Image
-          accessible={false}
-          source={require('../../assets/brand/splash-mark-v2.png')}
-          resizeMode="contain"
-          style={styles.heroImage}
-        />
+        >
+          <Animated.View
+            style={[
+              styles.heroHaloOuter,
+              { transform: [{ scale: heroReveal.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.heroHaloInner,
+              {
+                transform: [
+                  { rotate: '-5deg' },
+                  { scale: heroReveal.interpolate({ inputRange: [0, 1], outputRange: [0.78, 1] }) },
+                ],
+              },
+            ]}
+          />
+          <Image
+            accessible={false}
+            source={require('../../assets/brand/splash-mark-v2.png')}
+            resizeMode="contain"
+            style={styles.heroImage}
+          />
+        </Animated.View>
+
+        <View style={[styles.copy, { marginTop: copyOffset }]}>
+          <Animated.View
+            style={[
+              styles.kickerRow,
+              {
+                opacity: kickerReveal,
+                transform: [{ translateY: kickerReveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+              },
+            ]}
+          >
+            <View style={styles.kickerLine} />
+            <Text style={styles.kicker}>GATA DE MATEMATICĂ?</Text>
+            <View style={styles.kickerLine} />
+          </Animated.View>
+          <Animated.Text
+            style={[
+              styles.brand,
+              {
+                opacity: brandReveal,
+                transform: [
+                  { translateY: brandReveal.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+                  { scale: brandReveal.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) },
+                ],
+              },
+            ]}
+          >
+            Profu’ de mate
+          </Animated.Text>
+          <Animated.Text
+            style={[
+              styles.promise,
+              {
+                opacity: promiseReveal,
+                transform: [{ translateY: promiseReveal.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }],
+              },
+            ]}
+          >
+            Fotografiezi. Înțelegi. Reușești.
+          </Animated.Text>
+        </View>
+
+        <Animated.View
+          style={[
+            styles.progressWrap,
+            {
+              opacity: progressReveal,
+              transform: [{ translateY: progressReveal.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }],
+            },
+          ]}
+        >
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, { transform: [{ scaleX: progressReveal }] }]} />
+          </View>
+          <Text style={styles.loadingText}>PREGĂTIM CRETA</Text>
+        </Animated.View>
       </Animated.View>
 
       <Animated.View
+        pointerEvents="none"
         style={[
-          styles.copy,
+          styles.homeWipe,
           {
-            opacity: copyReveal,
-            transform: [{ translateY: copyReveal.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+            width: wipeSize,
+            height: wipeSize,
+            borderRadius: wipeSize / 2,
+            left: (width - wipeSize) / 2,
+            top: (height * 0.86) - (wipeSize / 2),
+            transform: [{ scale: homeReveal }],
           },
         ]}
-      >
-        <View style={styles.kickerRow}>
-          <View style={styles.kickerLine} />
-          <Text style={styles.kicker}>GATA DE MATEMATICĂ?</Text>
-          <View style={styles.kickerLine} />
-        </View>
-        <Text style={styles.brand}>Profu’ de mate</Text>
-        <Text style={styles.promise}>Fotografiezi. Înțelegi. Reușești.</Text>
-      </Animated.View>
-
-      <Animated.View style={[styles.progressWrap, { opacity: progressReveal }]}>
-        <View style={styles.progressTrack}>
-          <Animated.View
-            style={[
-              styles.progressFill,
-              { transform: [{ scaleX: progressReveal }] },
-            ]}
-          />
-        </View>
-        <Text style={styles.loadingText}>PREGĂTIM CRETA</Text>
-      </Animated.View>
-    </Animated.View>
+      />
+    </View>
   );
 }
 
@@ -186,6 +320,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.ink,
   },
+  scene: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   decorations: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   orbTop: {
     position: 'absolute',
@@ -297,4 +432,5 @@ const styles = StyleSheet.create({
   },
   progressFill: { width: '100%', height: '100%', borderRadius: 4, backgroundColor: colors.lime },
   loadingText: { marginTop: 7, fontFamily: fonts.bodyBold, color: '#AFA3CE', fontSize: 7.5, letterSpacing: 1.35 },
+  homeWipe: { position: 'absolute', backgroundColor: colors.canvas },
 });
