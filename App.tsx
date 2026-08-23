@@ -1,7 +1,11 @@
-import { Baloo2_700Bold, Baloo2_800ExtraBold, useFonts as useBalooFonts } from '@expo-google-fonts/baloo-2';
-import { FiraSans_400Regular, FiraSans_500Medium, FiraSans_600SemiBold, useFonts as useFiraFonts } from '@expo-google-fonts/fira-sans';
+import { BalsamiqSans_400Regular } from '@expo-google-fonts/balsamiq-sans/400Regular';
+import { BalsamiqSans_700Bold } from '@expo-google-fonts/balsamiq-sans/700Bold';
+import { FiraSans_400Regular } from '@expo-google-fonts/fira-sans/400Regular';
+import { FiraSans_500Medium } from '@expo-google-fonts/fira-sans/500Medium';
+import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -27,12 +31,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 void SplashScreen.preventAutoHideAsync();
 
 function AppRoot() {
-  const [balooLoaded, balooError] = useBalooFonts({ Baloo2_700Bold, Baloo2_800ExtraBold });
-  const [firaLoaded, firaError] = useFiraFonts({ FiraSans_400Regular, FiraSans_500Medium, FiraSans_600SemiBold });
+  const [fontsLoaded, fontError] = useFonts({
+    BalsamiqSans_400Regular,
+    BalsamiqSans_700Bold,
+    FiraSans_400Regular,
+    FiraSans_500Medium,
+    FiraSans_600SemiBold,
+  });
   const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>('Home');
   const reducedMotion = useReducedMotion();
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
-  const fontsReady = (balooLoaded || Boolean(balooError)) && (firaLoaded || Boolean(firaError));
+  const fontsReady = fontsLoaded || Boolean(fontError);
 
   useEffect(() => {
     initializeVerifiedFirebaseServices().catch(() => {

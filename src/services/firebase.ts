@@ -43,10 +43,20 @@ export function initializeFirebaseServices(): Promise<User> {
     const app = getApp();
     if (!appCheckInstance) {
       const useDebugAppCheck = __DEV__ || process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER === 'debug';
+      const sharedDebugToken = process.env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim();
+      if (!__DEV__ && useDebugAppCheck && !sharedDebugToken) {
+        throw new Error('Firebase App Check debug token is missing from the EAS build environment.');
+      }
       const provider = new ReactNativeFirebaseAppCheckProvider();
       provider.configure({
-        android: { provider: useDebugAppCheck ? 'debug' : 'playIntegrity' },
-        apple: { provider: useDebugAppCheck ? 'debug' : 'appAttestWithDeviceCheckFallback' },
+        android: {
+          provider: useDebugAppCheck ? 'debug' : 'playIntegrity',
+          ...(useDebugAppCheck && sharedDebugToken ? { debugToken: sharedDebugToken } : {}),
+        },
+        apple: {
+          provider: useDebugAppCheck ? 'debug' : 'appAttestWithDeviceCheckFallback',
+          ...(useDebugAppCheck && sharedDebugToken ? { debugToken: sharedDebugToken } : {}),
+        },
       });
       appCheckInstance = initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true });
     }

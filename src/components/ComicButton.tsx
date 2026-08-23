@@ -16,6 +16,8 @@ type Props = {
   trailingIcon?: 'next' | 'check' | 'close' | false;
   tone?: Tone;
   compact?: boolean;
+  disabled?: boolean;
+  accessibilityHint?: string;
   onPress: () => void;
   style?: ViewStyle;
 };
@@ -28,7 +30,7 @@ const fills: Record<Tone, string> = {
   peach: colors.peach,
 };
 
-export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone = 'lime', compact = false, onPress, style }: Props) {
+export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone = 'lime', compact = false, disabled = false, accessibilityHint, onPress, style }: Props) {
   const { isNarrow } = useResponsiveLayout();
   const reducedMotion = useReducedMotion();
   const press = useRef(new Animated.Value(0)).current;
@@ -52,12 +54,15 @@ export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone
   };
 
   return (
-    <View style={[styles.wrap, condensed && styles.wrapCompact, style]}>
+    <View style={[styles.wrap, condensed && styles.wrapCompact, disabled && styles.disabled, style]}>
       <View style={styles.shadow} />
       <Animated.View style={[styles.motion, { transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 5] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.985] }) }] }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={title}
+          accessibilityHint={accessibilityHint}
+          accessibilityState={{ disabled }}
+          disabled={disabled}
           onPressIn={() => move(1)}
           onPressOut={() => move(0)}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onPress(); }}
@@ -97,4 +102,5 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.inkSoft, fontFamily: fonts.body, fontSize: 12, lineHeight: 16, marginTop: 1 },
   light: { color: colors.paper },
   lightSoft: { color: '#E9E2FF' },
+  disabled: { opacity: 0.52 },
 });

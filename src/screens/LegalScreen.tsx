@@ -64,7 +64,7 @@ export function LegalScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title="Legal și siguranță" eyebrow="FĂRĂ TEXT MIC ASCUNS" onBack={() => navigation.goBack()} rightIcon="privacy" />
+      <ScreenHeader title="Legal și siguranță" eyebrow="INFORMAȚII CLARE" onBack={() => navigation.goBack()} rightIcon="privacy" />
 
       <View style={[styles.tabBar, { marginHorizontal: gutter }]} accessibilityRole="tablist">
         {tabs.map((item) => {
@@ -92,19 +92,19 @@ export function LegalScreen({ navigation }: Props) {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIcon}><AppIcon name="privacy" size={64} /></View>
-              <Text style={styles.heroEyebrow}>PROMISIUNEA PROFULUI</Text>
-              <Text style={styles.heroTitle}>Problema ta rămâne problema ta.</Text>
+              <Text style={styles.heroEyebrow}>PE SCURT</Text>
+              <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
               <Text style={styles.heroText}>Folosim fotografia doar ca să construim explicația. Nu avem reclame, nu cerem nume și nu vindem date.</Text>
               <View style={styles.chips}>
                 <View style={styles.chip}><Text style={styles.chipText}>13+</Text></View>
                 <View style={[styles.chip, styles.chipLime]}><Text style={styles.chipText}>Fără reclame</Text></View>
-                <View style={[styles.chip, styles.chipCyan]}><Text style={styles.chipText}>Ștergere în app</Text></View>
+                <View style={[styles.chip, styles.chipCyan]}><Text style={styles.chipText}>Ștergere din aplicație</Text></View>
               </View>
             </View>
 
             <Section number="01" title="Ce se întâmplă cu poza">
               <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
-              <Bullet>Este trimisă securizat prin backend către Gemini pentru o singură analiză.</Bullet>
+              <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză.</Bullet>
               <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
               <Bullet>Google poate păstra temporar cererea și răspunsul numai pentru siguranță și prevenirea abuzului, conform termenilor serviciului plătit.</Bullet>
             </Section>
@@ -113,7 +113,7 @@ export function LegalScreen({ navigation }: Props) {
               <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile din Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate.</Paragraph>
             </Section>
 
-            <Section number="03" title="AI-ul explică, nu decide">
+            <Section number="03" title="Inteligența artificială explică, nu decide">
               <Paragraph>Răspunsul este generat automat și poate greși. Profu’ de mate este un ajutor educațional, nu înlocuiește profesorul și nu produce decizii cu efect juridic sau academic.</Paragraph>
             </Section>
 
@@ -130,7 +130,7 @@ export function LegalScreen({ navigation }: Props) {
             </View>
 
             <Section number="01" title="Ce date folosim">
-              <Bullet>Un identificator anonim Firebase pentru această instalare.</Bullet>
+              <Bullet>Un identificator Firebase anonim pentru aplicația instalată pe telefon.</Bullet>
               <Bullet>Fotografia aleasă de tine și cererea de rezolvare sau verificare.</Bullet>
               <Bullet>Soluția, verdictul, materia și starea de salvare a lecției.</Bullet>
               <Bullet>Categoria unui raport trimis de tine și, doar dacă activezi opțiunea, date tehnice de blocare.</Bullet>
@@ -138,7 +138,7 @@ export function LegalScreen({ navigation }: Props) {
             </Section>
 
             <Section number="02" title="De ce le folosim">
-              <Paragraph>Pentru a analiza matematica, a afișa pașii, a sincroniza Caietul, a limita abuzul, a proteja serviciul și a repara răspunsurile raportate. Diagnosticarea opțională se bazează pe alegerea ta și poate fi oprită oricând.</Paragraph>
+              <Paragraph>Le folosim pentru a analiza problema, a afișa pașii, a sincroniza Caietul, a preveni abuzurile, a proteja serviciul și a îmbunătăți răspunsurile raportate. Rapoartele tehnice opționale sunt trimise numai dacă alegi acest lucru și le poți opri oricând.</Paragraph>
             </Section>
 
             <Section number="03" title="Cine procesează datele">
@@ -155,7 +155,7 @@ export function LegalScreen({ navigation }: Props) {
             </Section>
 
             <Section number="05" title="Drepturile tale">
-              <Paragraph>Poți retrage diagnosticarea și poți șterge contul instalării, lecțiile, rapoartele și istoricul tehnic din Setări → Șterge toate datele. După confirmare, acțiunea este definitivă.</Paragraph>
+              <Paragraph>Poți opri rapoartele tehnice și poți șterge contul anonim, lecțiile, raportările și istoricul tehnic din Setări → Șterge toate datele. După confirmare, datele nu mai pot fi recuperate.</Paragraph>
               {legalDocument.contactEmail ? <Paragraph>Pentru întrebări sau exercitarea drepturilor: {legalDocument.contactEmail}</Paragraph> : null}
             </Section>
 
@@ -174,7 +174,7 @@ export function LegalScreen({ navigation }: Props) {
             </View>
 
             <Section number="01" title="Scop educațional">
-              <Paragraph>Profu’ de mate explică și verifică exerciții. Răspunsurile AI pot conține erori, așa că verifică rezultatul înainte să îl folosești la teme, teste sau examene.</Paragraph>
+              <Paragraph>Profu’ de mate explică și verifică exerciții. Răspunsurile generate automat pot conține greșeli, așa că verifică rezultatul înainte să îl folosești la teme, teste sau examene.</Paragraph>
             </Section>
 
             <Section number="02" title="Folosire permisă">
@@ -189,14 +189,14 @@ export function LegalScreen({ navigation }: Props) {
             </Section>
 
             <Section number="04" title="Raportează o problemă">
-              <Paragraph>Din fiecare lecție sau recapitulare poți raporta un răspuns greșit, neclar ori nepotrivit fără să ieși din aplicație. Raportul ne ajută să corectăm filtrele și experiența.</Paragraph>
+              <Paragraph>Din fiecare lecție sau recapitulare poți semnala un răspuns greșit, neclar ori nepotrivit fără să ieși din aplicație. Mesajul tău ne ajută să îmbunătățim filtrele și explicațiile.</Paragraph>
             </Section>
 
             <View style={styles.safetyCard}>
               <AppIcon name="help" size={52} />
               <View style={styles.safetyCopy}>
                 <Text style={styles.safetyTitle}>Ai găsit o greșeală?</Text>
-                <Text style={styles.safetyText}>Folosește „Raportează răspunsul”. Nu afectează Caietul și durează câteva secunde.</Text>
+                <Text style={styles.safetyText}>Atinge „Ai observat o greșeală?”. Lecția rămâne în Caiet, iar trimiterea durează doar câteva secunde.</Text>
               </View>
             </View>
           </>

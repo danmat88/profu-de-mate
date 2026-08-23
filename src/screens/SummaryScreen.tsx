@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { ConfettiBurst } from '../components/ConfettiBurst';
@@ -12,6 +13,8 @@ import { MiniGlyph } from '../components/MiniGlyph';
 import { RichMathContent } from '../components/RichMathContent';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { setLessonFavorite } from '../services/lessons';
+import { hasSeenSaveCoach, markSaveCoachSeen } from '../services/localPreferences';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
 import { contentToAccessibleText } from '../utils/mathContent';
@@ -19,21 +22,25 @@ import { contentToAccessibleText } from '../utils/mathContent';
 type Props = NativeStackScreenProps<RootStackParamList, 'Summary'>;
 
 export function SummaryScreen({ navigation, route }: Props) {
-  const { width, gutter, isNarrow, isShort } = useResponsiveLayout();
+  const { contentWidth, gutter, isNarrow, isShort } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [saved, setSaved] = useState(route.params.isFavorite ?? false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [showSaveCoach, setShowSaveCoach] = useState(false);
   const pop = useRef(new Animated.Value(0.72)).current;
   const details = useRef(new Animated.Value(0)).current;
+  const coachReveal = useRef(new Animated.Value(0)).current;
   const lesson = route.params.lesson;
   const isCheck = lesson.mode === 'check';
   const isPositive = !isCheck || lesson.verdict === 'correct';
   const isPartial = lesson.verdict === 'partially_correct';
   const takeaways = lesson.takeaways;
   const bottomSpace = Math.max(insets.bottom, 10);
-  const summaryMathWidth = Math.max(120, width - gutter * 2 - 32);
-  const answerMathWidth = Math.max(120, width - gutter * 2 - 54);
-  const takeawayMathWidth = Math.max(100, width - gutter * 2 - 63);
+  const summaryMathWidth = Math.max(120, contentWidth - 32);
+  const answerMathWidth = Math.max(120, contentWidth - 54);
+  const takeawayMathWidth = Math.max(100, contentWidth - 63);
 
   useEffect(() => {
     Haptics.notificationAsync(isPositive
@@ -53,14 +60,56 @@ export function SummaryScreen({ navigation, route }: Props) {
     ]).start();
   }, [details, isPositive, pop, reducedMotion]);
 
+  useEffect(() => {
+    if (saved || hasSeenSaveCoach()) return;
+    const timer = setTimeout(() => {
+      setShowSaveCoach(true);
+      if (reducedMotion) {
+        coachReveal.setValue(1);
+        return;
+      }
+      Animated.spring(coachReveal, { toValue: 1, useNativeDriver: true, speed: 17, bounciness: 9 }).start();
+    }, 650);
+    return () => clearTimeout(timer);
+  }, [coachReveal, reducedMotion, saved]);
+
+  const dismissSaveCoach = () => {
+    markSaveCoachSeen();
+    if (reducedMotion) {
+      setShowSaveCoach(false);
+      return;
+    }
+    Animated.timing(coachReveal, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => setShowSaveCoach(false));
+  };
+
+  const toggleSaved = async () => {
+    if (saveBusy) return;
+    const nextSaved = !saved;
+    setSaved(nextSaved);
+    setSaveBusy(true);
+    if (showSaveCoach) dismissSaveCoach();
+    if (nextSaved) markSaveCoachSeen();
+    try {
+      await setLessonFavorite(route.params.lessonId, nextSaved);
+      await Haptics.notificationAsync(nextSaved
+        ? Haptics.NotificationFeedbackType.Success
+        : Haptics.NotificationFeedbackType.Warning);
+    } catch {
+      setSaved(!nextSaved);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSaveBusy(false);
+    }
+  };
+
   const verdictEyebrow = !isCheck
-    ? 'AI PRINS IDEEA'
+    ? 'REZOLVARE ÎNCHEIATĂ'
     : lesson.verdict === 'correct'
       ? 'REZOLVARE CORECTĂ'
       : isPartial
         ? 'EȘTI FOARTE APROAPE'
-        : 'AM GĂSIT CE TREBUIE REPARAT';
-  const sticker = !isCheck ? 'AHA!' : lesson.verdict === 'correct' ? 'BRAVO!' : isPartial ? 'APROAPE!' : 'AM GĂSIT!';
+        : 'ȘTIM CE TREBUIE CORECTAT';
+  const sticker = !isCheck ? 'GATA!' : lesson.verdict === 'correct' ? 'BRAVO!' : isPartial ? 'APROAPE!' : 'DE CORECTAT';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -71,7 +120,7 @@ export function SummaryScreen({ navigation, route }: Props) {
         <View style={styles.topRow}>
           <View>
             <Text style={styles.brand}>Profu’ de mate</Text>
-            <Text style={styles.topEyebrow}>{isCheck ? 'AI · VERIFICARE GATA' : 'AI · LECȚIE GATA'}</Text>
+            <Text style={styles.topEyebrow}>{isCheck ? 'VERIFICARE ÎNCHEIATĂ' : 'REZOLVARE ÎNCHEIATĂ'}</Text>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Închide recapitularea" onPress={() => navigation.popToTop()} style={styles.close}>
             <MiniGlyph name="close" size={25} />
@@ -127,7 +176,7 @@ export function SummaryScreen({ navigation, route }: Props) {
           </Animated.View>
 
           <View style={styles.takeawayBlock}>
-            <Text style={styles.sectionTitle}>Ce rămâne cu tine</Text>
+            <Text style={styles.sectionTitle}>Ideile importante</Text>
             <View style={styles.takeawayList}>
               {takeaways.map((item, index) => (
                 <Animated.View key={`${index}-${contentToAccessibleText(item.content)}`} style={[styles.takeaway, isShort && styles.takeawayShort, index === takeaways.length - 1 && styles.takeawayLast, { opacity: details.interpolate({ inputRange: [index * 0.14, 0.52 + index * 0.12], outputRange: [0, 1], extrapolate: 'clamp' }) }]}>
@@ -140,24 +189,65 @@ export function SummaryScreen({ navigation, route }: Props) {
           </View>
           <Pressable accessibilityRole="button" onPress={() => setFeedbackOpen(true)} style={styles.reportLink}>
             <MiniGlyph name="wrong" size={14} color={colors.inkSoft} />
-            <Text style={styles.reportText}>Raportează o problemă cu acest răspuns</Text>
+            <Text style={styles.reportText}>Ai observat o greșeală? Spune-ne</Text>
           </Pressable>
         </ScrollView>
       </View>
 
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
-        <ComicButton
-          compact
-          title={isCheck ? 'Verifică altă rezolvare' : 'Rezolvă una asemănătoare'}
-          icon={isCheck ? 'verify' : 'practice'}
-          tone="violet"
-          onPress={() => navigation.replace('Capture', { mode: lesson.mode })}
-        />
+        <View style={styles.actionRow}>
+          <ComicButton
+            compact
+            title={saved ? 'În Caiet' : 'Salvează'}
+            icon="bookmark"
+            trailingIcon={saved ? 'check' : false}
+            tone={saved ? 'paper' : 'lime'}
+            disabled={saveBusy}
+            accessibilityHint={saved ? 'Scoate lecția din Caiet' : 'Păstrează lecția ca să o poți revedea'}
+            onPress={() => void toggleSaved()}
+            style={styles.actionButton}
+          />
+          <ComicButton
+            compact
+            title={isCheck ? 'Altă verificare' : 'Altă problemă'}
+            icon={isCheck ? 'verify' : 'practice'}
+            trailingIcon={false}
+            tone="violet"
+            onPress={() => navigation.replace('Capture', { mode: lesson.mode })}
+            style={styles.actionButton}
+          />
+        </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Înapoi la început" onPress={() => navigation.popToTop()} style={styles.homeLink}>
           <MiniGlyph name="back" size={17} color={colors.inkSoft} />
-          <Text style={styles.homeLinkText}>Gata pentru acum</Text>
+          <Text style={styles.homeLinkText}>Înapoi la început</Text>
         </Pressable>
       </View>
+      {showSaveCoach && !saved ? (
+        <Animated.View
+          accessibilityLiveRegion="polite"
+          style={[styles.saveCoach, {
+            left: gutter,
+            right: gutter,
+            bottom: bottomSpace + 105,
+            opacity: coachReveal,
+            transform: [
+              { translateY: coachReveal.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+              { scale: coachReveal.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
+            ],
+          }]}
+        >
+          <View style={styles.saveCoachPointer} />
+          <View style={styles.saveCoachIcon}><AppIcon name="notebook" size={40} /></View>
+          <View style={styles.saveCoachCopy}>
+            <Text style={styles.saveCoachEyebrow}>MIC TRUC</Text>
+            <Text style={styles.saveCoachTitle}>Păstrează lecția în Caiet</Text>
+            <Text style={styles.saveCoachText}>O vei găsi acolo când vrei să repeți.</Text>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Am înțeles" onPress={dismissSaveCoach} style={styles.saveCoachClose}>
+            <MiniGlyph name="close" size={17} color={colors.ink} />
+          </Pressable>
+        </Animated.View>
+      ) : null}
       <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
     </SafeAreaView>
   );
@@ -169,7 +259,7 @@ const styles = StyleSheet.create({
   topRow: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18, lineHeight: 20 },
   topEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 1.2, marginTop: 1 },
-  close: { width: 40, height: 40, borderRadius: 14, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 48, height: 48, borderRadius: 16, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   resultScroll: { flex: 1 },
   resultBody: { flexGrow: 1, gap: 13, paddingTop: 4, paddingBottom: 14 },
   resultBodyShort: { gap: 7, paddingTop: 0, paddingBottom: 8 },
@@ -219,6 +309,16 @@ const styles = StyleSheet.create({
   reportLink: { alignSelf: 'center', minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10 },
   reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10.5 },
   actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 9 },
+  actionRow: { flexDirection: 'row', gap: 9 },
+  actionButton: { flex: 1 },
   homeLink: { alignSelf: 'center', minHeight: 31, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12 },
   homeLinkText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
+  saveCoach: { position: 'absolute', zIndex: 25, minHeight: 79, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 9, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
+  saveCoachPointer: { position: 'absolute', left: '22%', bottom: -8, width: 16, height: 16, borderRightWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, transform: [{ rotate: '45deg' }] },
+  saveCoachIcon: { width: 50, height: 50, borderRadius: 16, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  saveCoachCopy: { flex: 1, minWidth: 0 },
+  saveCoachEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 1.2 },
+  saveCoachTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 18 },
+  saveCoachText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 10.5, lineHeight: 14 },
+  saveCoachClose: { width: 32, height: 32, borderRadius: 11, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
 });

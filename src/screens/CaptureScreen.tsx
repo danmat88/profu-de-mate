@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
@@ -19,8 +19,11 @@ import type { CaptureSource, RootStackParamList } from '../types';
 type Props = NativeStackScreenProps<RootStackParamList, 'Capture'>;
 
 export function CaptureScreen({ navigation, route }: Props) {
-  const { gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
-  const insets = useSafeAreaInsets();
+  const responsiveLayout = useResponsiveLayout();
+  const liveInsets = useSafeAreaInsets();
+  const stableLayout = useRef(responsiveLayout).current;
+  const stableInsets = useRef(liveInsets).current;
+  const { height, gutter, isNarrow, isVeryShort, isShort, isCompact } = stableLayout;
   const reducedMotion = useReducedMotion();
   const [permission, requestPermission] = useCameraPermissions();
   const [flash, setFlash] = useState(false);
@@ -38,7 +41,8 @@ export function CaptureScreen({ navigation, route }: Props) {
   const capturing = useRef(false);
   const isCheck = route.params.mode === 'check';
   const scanTravel = Math.max(76, finderHeight * 0.31);
-  const bottomSpace = Math.max(insets.bottom, 10);
+  const topSpace = Math.max(stableInsets.top, 0);
+  const bottomSpace = Math.max(stableInsets.bottom, 10);
 
   useFocusEffect(useCallback(() => {
     capturing.current = false;
@@ -92,7 +96,7 @@ export function CaptureScreen({ navigation, route }: Props) {
     } catch {
       capturing.current = false;
       setWorking(false);
-      setCaptureError('N-am putut pregăti fotografia. Încearcă din nou.');
+      setCaptureError('Nu am putut pregăti fotografia. Încearcă din nou.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }, [navigation, route.params.mode]);
@@ -116,7 +120,7 @@ export function CaptureScreen({ navigation, route }: Props) {
       return;
     }
     if (!cameraReady || !cameraRef.current) {
-      setCaptureError('Camera încă pornește. Mai încearcă o dată.');
+      setCaptureError('Camera încă pornește. Așteaptă o clipă și încearcă din nou.');
       return;
     }
 
@@ -133,29 +137,34 @@ export function CaptureScreen({ navigation, route }: Props) {
     } catch {
       capturing.current = false;
       setWorking(false);
-      setCaptureError('Fotografia nu a reușit. Ține telefonul stabil și încearcă din nou.');
+      setCaptureError('Nu am putut face fotografia. Ține telefonul nemișcat și încearcă din nou.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
-  const pickFromGallery = async () => {
+  const pickFromGallery = useCallback(async () => {
     if (capturing.current || working) return;
     setCaptureError(null);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      allowsMultipleSelection: false,
-      quality: 1,
-      exif: false,
-    });
-    if (result.canceled) return;
-    const asset = result.assets?.[0];
-    if (!asset?.uri || asset.width <= 0 || asset.height <= 0) {
-      setCaptureError('Fotografia aleasă nu poate fi citită. Alege altă imagine.');
-      return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        quality: 1,
+        exif: false,
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri || asset.width <= 0 || asset.height <= 0) {
+        setCaptureError('Fotografia aleasă nu poate fi citită. Alege altă imagine.');
+        return;
+      }
+      await acceptImage(asset, 'gallery');
+    } catch {
+      setCaptureError('Galeria nu a putut fi deschisă. Încearcă din nou.');
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-    await acceptImage(asset, 'gallery');
-  };
+  }, [acceptImage, working]);
 
   const toggleHelp = () => {
     Haptics.selectionAsync();
@@ -176,7 +185,7 @@ export function CaptureScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { height, paddingTop: topSpace }]}>
       <StatusBar style="light" />
       <ComicBackdrop dark />
 
@@ -194,11 +203,11 @@ export function CaptureScreen({ navigation, route }: Props) {
       </View>
 
       <View style={[styles.copy, isShort && styles.copyCompact]}>
-        <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Încadrează toată rezolvarea' : 'Încadrează problema'}</Text>
-        <Text style={styles.hint}>Foaia întreagă, telefonul drept, iar toate marginile să rămână vizibile.</Text>
+        <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Fotografiază toată rezolvarea' : 'Fotografiază problema'}</Text>
+        {!isVeryShort ? <Text style={styles.hint}>Ține telefonul paralel cu foaia și păstrează tot exercițiul în cadru.</Text> : null}
       </View>
 
-      <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finderWrap, { marginHorizontal: gutter }]}>
+      <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finderWrap, isVeryShort && styles.finderWrapShort, { marginHorizontal: gutter }]}>
         <View style={styles.finderShadow} />
         <View style={styles.finder}>
           {permission?.granted && isFocused ? (
@@ -218,18 +227,20 @@ export function CaptureScreen({ navigation, route }: Props) {
               {permission === null ? (
                 <>
                   <ActivityIndicator size="large" color={colors.lime} />
-                  <Text style={styles.permissionTitle}>Pornesc camera…</Text>
+                  <Text style={styles.permissionTitle}>Camera pornește…</Text>
                 </>
               ) : (
                 <>
                   <View style={styles.permissionIcon}><AppIcon name="camera" size={67} /></View>
                   <Text style={styles.permissionEyebrow}>O SINGURĂ PERMISIUNE</Text>
-                  <Text style={styles.permissionTitle}>Activăm camera. Atât.</Text>
-                  <Text style={styles.permissionText}>Camera se deschide numai aici, când vrei să fotografiezi o problemă.</Text>
-                  <View style={styles.permissionPromise}>
-                    <MiniGlyph name="check" size={15} color={colors.ink} />
-                    <Text style={styles.permissionPromiseText}>Fără microfon · fără acces la toate pozele</Text>
-                  </View>
+                  <Text style={styles.permissionTitle}>Avem nevoie de cameră</Text>
+                  <Text style={styles.permissionText}>O folosim numai când fotografiezi o problemă sau o rezolvare.</Text>
+                  {!isVeryShort ? (
+                    <View style={styles.permissionPromise}>
+                      <MiniGlyph name="check" size={15} color={colors.ink} />
+                      <Text style={styles.permissionPromiseText}>Fără microfon · fără acces la toată galeria</Text>
+                    </View>
+                  ) : null}
                   <Pressable
                     accessibilityRole="button"
                     onPress={() => permission.canAskAgain ? void requestPermission() : void Linking.openSettings()}
@@ -247,14 +258,14 @@ export function CaptureScreen({ navigation, route }: Props) {
               <View style={styles.cameraShadeTop} />
               <View style={styles.alignmentStatus}>
                 <View style={[styles.alignmentDot, !cameraReady && styles.alignmentDotWaiting]} />
-                <Text style={styles.alignmentText}>{cameraReady ? 'CAMERA PREGĂTITĂ' : 'PORNESC CAMERA'}</Text>
+                <Text style={styles.alignmentText}>{cameraReady ? 'CAMERA ESTE GATA' : 'CAMERA PORNEȘTE'}</Text>
               </View>
               <Animated.View style={[styles.scanLine, { opacity: cameraReady ? 1 : 0.25, transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-scanTravel, scanTravel] }) }] }]} />
               <Animated.View style={[styles.corner, styles.cornerTL, { opacity: scan.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
               <Animated.View style={[styles.corner, styles.cornerTR, { opacity: scan.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
               <Animated.View style={[styles.corner, styles.cornerBL, { opacity: scan.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
               <Animated.View style={[styles.corner, styles.cornerBR, { opacity: scan.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
-              <View style={styles.detected}><MiniGlyph name="spark" size={15} /><Text style={styles.detectedText}>Ține foaia în cadru</Text></View>
+              <View style={styles.detected}><MiniGlyph name="spark" size={15} /><Text style={styles.detectedText}>Păstrează exercițiul în cadru</Text></View>
             </>
           ) : null}
           {working ? <View style={styles.workingBadge}><ActivityIndicator size="small" color={colors.ink} /><Text style={styles.workingText}>Pregătesc fotografia…</Text></View> : null}
@@ -278,26 +289,26 @@ export function CaptureScreen({ navigation, route }: Props) {
             <Text style={styles.sideLabel}>Ajutor</Text>
           </Pressable>
         </View>
-        <View style={styles.privacy}><AppIcon name="privacy" size={24} /><Text style={styles.privacyText}>Se trimite securizat pentru analiză și nu se salvează în Caiet</Text></View>
+        <View style={styles.privacy}><AppIcon name="privacy" size={24} /><Text style={styles.privacyText}>Fotografia este trimisă securizat și nu se salvează în Caiet</Text></View>
       </View>
 
       {showHelp ? (
         <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 106 : 118), opacity: helpPop, transform: [{ translateY: helpPop.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] }]}>
           <View style={styles.helpIcon}><AppIcon name="hint" size={40} /></View>
-          <View style={styles.helpCopy}><Text style={styles.helpTitle}>O poză clară, din prima</Text><Text style={styles.helpText}>Folosește lumină bună și ține telefonul paralel cu foaia.</Text></View>
+          <View style={styles.helpCopy}><Text style={styles.helpTitle}>Cum obții o fotografie clară</Text><Text style={styles.helpText}>Folosește lumină bună, evită umbrele și ține telefonul paralel cu foaia.</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Închide ajutorul" onPress={toggleHelp} style={styles.helpClose}><MiniGlyph name="close" size={18} /></Pressable>
         </Animated.View>
       ) : null}
       <Animated.View pointerEvents="none" style={[styles.captureFlash, { opacity: captureFlash }]} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.ink },
+  safe: { width: '100%', flexGrow: 0, flexShrink: 0, backgroundColor: colors.ink },
   topBar: { height: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   topBarNarrow: { height: 56 },
-  roundButton: { width: 43, height: 43, borderRadius: 15, backgroundColor: '#2A2351', borderWidth: 2, borderColor: '#766D99', alignItems: 'center', justifyContent: 'center' },
+  roundButton: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#2A2351', borderWidth: 2, borderColor: '#766D99', alignItems: 'center', justifyContent: 'center' },
   roundButtonActive: { backgroundColor: colors.lime, borderColor: colors.paper },
   modeChip: { maxWidth: 220, height: 34, borderRadius: 12, backgroundColor: '#2A2351', paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 7 },
   modeChipNarrow: { maxWidth: 185, paddingHorizontal: 8 },
@@ -310,6 +321,7 @@ const styles = StyleSheet.create({
   titleNarrow: { fontSize: 24, lineHeight: 27 },
   hint: { fontFamily: fonts.body, color: '#BDB5D6', fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 2 },
   finderWrap: { flex: 1, minHeight: 225, position: 'relative', marginBottom: 14 },
+  finderWrapShort: { minHeight: 156, marginBottom: 8 },
   finderShadow: { position: 'absolute', top: 6, left: 6, right: -6, bottom: -6, borderRadius: 25, backgroundColor: colors.violetDeep },
   finder: { flex: 1, borderRadius: 25, borderWidth: 2.5, borderColor: colors.paper, backgroundColor: '#393258', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   cameraShadeTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 76, backgroundColor: 'rgba(18,14,43,0.22)' },

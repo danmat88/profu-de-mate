@@ -23,7 +23,7 @@ function HeaderButton({ label, onPress, dark, active, children }: { label: strin
         accessibilityLabel={label}
         accessibilityRole="button"
         disabled={!onPress}
-        hitSlop={4}
+        hitSlop={6}
         onPressIn={() => move(1)}
         onPressOut={() => move(0)}
         onPress={() => { Haptics.selectionAsync(); onPress?.(); }}
@@ -57,9 +57,9 @@ export function ScreenHeader({ title, eyebrow, onBack, rightIcon, rightLabel = '
 }
 
 const styles = StyleSheet.create({
-  row: { height: 68, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 13 },
-  rowNarrow: { height: 62, gap: 9 },
-  button: { width: 43, height: 43, borderRadius: 15, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  row: { height: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, gap: 13 },
+  rowNarrow: { height: 66, gap: 9 },
+  button: { width: 48, height: 48, borderRadius: 16, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   buttonDark: { backgroundColor: '#292052', borderColor: colors.paper },
   buttonActive: { backgroundColor: colors.lime, transform: [{ rotate: '3deg' }] },
   copy: { flex: 1 },
@@ -68,5 +68,5 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 22 },
   titleNarrow: { fontSize: 17, lineHeight: 20 },
   titleDark: { color: colors.paper },
-  spacer: { width: 43 },
+  spacer: { width: 48 },
 });

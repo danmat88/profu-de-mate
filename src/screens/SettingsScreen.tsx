@@ -25,6 +25,7 @@ export function SettingsScreen({ navigation }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
+  const [deleteComplete, setDeleteComplete] = useState(false);
 
   const toggleDiagnostics = async () => {
     const next = !diagnostics;
@@ -45,7 +46,7 @@ export function SettingsScreen({ navigation }: Props) {
       await deleteAllUserData();
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
-      navigation.popToTop();
+      setDeleteComplete(true);
     } catch {
       setDeleteError(true);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -63,9 +64,9 @@ export function SettingsScreen({ navigation }: Props) {
         <View style={styles.identity}>
           <View style={styles.identityIcon}><AppIcon name="privacy" size={54} /></View>
           <View style={styles.identityCopy}>
-            <Text style={styles.identityLabel}>CONT PROTEJAT AL INSTALĂRII</Text>
-            <Text style={styles.identityTitle}>Caietul tău rămâne sincronizat</Text>
-            <Text style={styles.identityText}>Lecțiile salvate sunt legate de această instalare. Fotografiile problemelor nu sunt păstrate în Caiet.</Text>
+            <Text style={styles.identityLabel}>CONT ANONIM PE ACEST TELEFON</Text>
+            <Text style={styles.identityTitle}>Caietul este legat de acest telefon</Text>
+            <Text style={styles.identityText}>Nu îți cerem numele sau adresa de e-mail. Dacă ștergi aplicația ori datele ei, nu vei mai putea recupera Caietul. Fotografiile nu sunt păstrate în Caiet.</Text>
           </View>
         </View>
 
@@ -74,8 +75,8 @@ export function SettingsScreen({ navigation }: Props) {
           <Pressable accessibilityRole="switch" accessibilityState={{ checked: diagnostics }} onPress={() => void toggleDiagnostics()} style={styles.row}>
             <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="settings" size={36} /></View>
             <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>Diagnosticare opțională</Text>
-              <Text style={styles.rowText}>Trimite rapoarte tehnice de blocare, fără fotografia problemei.</Text>
+              <Text style={styles.rowTitle}>Rapoarte tehnice opționale</Text>
+              <Text style={styles.rowText}>Ne ajută să reparăm erorile aplicației. Fotografia problemei nu este inclusă.</Text>
             </View>
             <View style={[styles.toggle, diagnostics && styles.toggleActive]}><View style={[styles.toggleKnob, diagnostics && styles.toggleKnobActive]} /></View>
           </Pressable>
@@ -83,7 +84,7 @@ export function SettingsScreen({ navigation }: Props) {
             <View style={[styles.rowIcon, { backgroundColor: colors.lime }]}><AppIcon name="privacy" size={36} /></View>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>Fotografiile nu intră în Caiet</Text>
-              <Text style={styles.rowText}>Sunt comprimate local și trimise securizat, fără să ajungă în Firebase Storage. Jurnalele temporare sunt explicate la „Legal și siguranță”.</Text>
+              <Text style={styles.rowText}>Sunt micșorate pe telefon și trimise securizat, fără să ajungă în Firebase Storage. Detaliile sunt explicate la „Legal și siguranță”.</Text>
             </View>
             <MiniGlyph name="check" size={18} color={colors.violetDeep} />
           </View>
@@ -94,15 +95,15 @@ export function SettingsScreen({ navigation }: Props) {
           <View style={styles.row}>
             <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={36} /></View>
             <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>Păstrare controlată</Text>
-              <Text style={styles.rowText}>Lecțiile nesalvate expiră după 7 zile, iar contoarele de siguranță după cel mult 35. Caietul se șterge după circa 13 luni fără folosire.</Text>
+              <Text style={styles.rowTitle}>Cât timp păstrăm datele</Text>
+              <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar datele de siguranță după cel mult 35 de zile. Caietul se șterge după aproximativ 13 luni în care nu îl folosești.</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" onPress={() => { setDeleteError(false); setConfirmDelete(true); }} style={styles.deleteRow}>
             <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
             <View style={styles.rowCopy}>
               <Text style={styles.deleteTitle}>Șterge toate datele</Text>
-              <Text style={styles.rowText}>Elimină lecțiile, feedbackul, istoricul tehnic și contul acestei instalări.</Text>
+              <Text style={styles.rowText}>Șterge lecțiile, raportările, istoricul tehnic și contul anonim al aplicației.</Text>
             </View>
             <MiniGlyph name="next" size={18} color={colors.rose} />
           </Pressable>
@@ -114,7 +115,7 @@ export function SettingsScreen({ navigation }: Props) {
             <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="help" size={36} /></View>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>Legal și siguranță</Text>
-              <Text style={styles.rowText}>Confidențialitate, folosirea AI, retenția datelor și termenii aplicației.</Text>
+              <Text style={styles.rowText}>Confidențialitatea, folosirea inteligenței artificiale, păstrarea datelor și regulile aplicației.</Text>
             </View>
             <MiniGlyph name="next" size={18} color={colors.violetDeep} />
           </Pressable>
@@ -129,14 +130,30 @@ export function SettingsScreen({ navigation }: Props) {
           <View accessibilityViewIsModal style={[styles.confirmSheet, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
             <View style={styles.confirmIcon}><MiniGlyph name="wrong" size={28} color={colors.paper} /></View>
             <Text style={styles.confirmEyebrow}>ACȚIUNE DEFINITIVĂ</Text>
-            <Text style={styles.confirmTitle}>Ștergem tot ce îți aparține?</Text>
-            <Text style={styles.confirmText}>Caietul, lecțiile, feedbackul și contul instalării vor dispărea definitiv. Fotografiile nu sunt păstrate în Caiet sau Firebase Storage.</Text>
+            <Text style={styles.confirmTitle}>Ștergi toate datele?</Text>
+            <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul anonim vor fi șterse definitiv. Fotografiile nu sunt păstrate în Caiet sau în Firebase Storage.</Text>
             {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
             <Pressable accessibilityRole="button" disabled={deleting} onPress={() => void deleteData()} style={styles.confirmDelete}>
               {deleting ? <ActivityIndicator size="small" color={colors.paper} /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
               <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : 'Da, șterge definitiv'}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}><Text style={styles.cancelText}>Păstrează datele</Text></Pressable>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={deleteComplete} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setDeleteComplete(false); navigation.popToTop(); }}>
+        <SafeAreaView style={styles.modalLayer} edges={[]}>
+          <View style={styles.scrim} />
+          <View accessibilityViewIsModal accessibilityRole="alert" style={[styles.confirmSheet, { paddingBottom: Math.max(insets.bottom, 14) + 12 }]}>
+            <View style={styles.successIcon}><MiniGlyph name="check" size={29} color={colors.ink} /></View>
+            <Text style={styles.successEyebrow}>ȘTERGERE ÎNCHEIATĂ</Text>
+            <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
+            <Text style={styles.confirmText}>Caietul, istoricul și contul anonim au fost șterse. Poți folosi din nou aplicația oricând.</Text>
+            <Pressable accessibilityRole="button" onPress={() => { setDeleteComplete(false); navigation.popToTop(); }} style={styles.successButton}>
+              <Text style={styles.successButtonText}>Înapoi la început</Text>
+              <MiniGlyph name="next" size={19} color={colors.ink} />
+            </Pressable>
           </View>
         </SafeAreaView>
       </Modal>
@@ -147,7 +164,7 @@ export function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { gap: 10 },
-  identity: { borderWidth: 3, borderColor: colors.ink, borderRadius: 24, backgroundColor: colors.paper, flexDirection: 'row', gap: 10, padding: 14, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 6, marginBottom: 10 },
+  identity: { borderWidth: 2.5, borderColor: colors.ink, borderRadius: 24, backgroundColor: colors.paper, flexDirection: 'row', gap: 10, padding: 14, shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 0, shadowOffset: { width: 0, height: 4 }, elevation: 4, marginBottom: 10 },
   identityIcon: { width: 61, height: 61, borderRadius: 20, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
   identityCopy: { flex: 1 },
   identityLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.1 },
@@ -171,7 +188,7 @@ const styles = StyleSheet.create({
   version: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10 },
   modalLayer: { flex: 1, justifyContent: 'flex-end' },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(16, 12, 38, 0.68)' },
-  confirmSheet: { borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.canvas, alignItems: 'center', paddingHorizontal: 22, paddingTop: 20 },
+  confirmSheet: { width: '100%', maxWidth: 640, alignSelf: 'center', borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.canvas, alignItems: 'center', paddingHorizontal: 22, paddingTop: 20 },
   confirmIcon: { width: 58, height: 58, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.rose, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-4deg' }] },
   confirmEyebrow: { fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 8, letterSpacing: 1.2, marginTop: 10 },
   confirmTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 30, textAlign: 'center', marginTop: 2 },
@@ -181,4 +198,8 @@ const styles = StyleSheet.create({
   confirmDeleteText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16 },
   cancel: { minHeight: 42, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 5 },
   cancelText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
+  successIcon: { width: 58, height: 58, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-4deg' }] },
+  successEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2, marginTop: 10 },
+  successButton: { width: '100%', minHeight: 54, borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 16 },
+  successButtonText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16 },
 });

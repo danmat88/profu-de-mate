@@ -8,7 +8,6 @@ import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { FeedbackSheet } from '../components/FeedbackSheet';
-import { MathFormula } from '../components/MathFormula';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { RichMathContent } from '../components/RichMathContent';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -17,7 +16,7 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { setLessonFavorite } from '../services/lessons';
 import { colors, fonts } from '../theme';
 import type { LessonStep, RichContent, RootStackParamList } from '../types';
-import { contentToAccessibleText, firstTextBlock, representativeMathBlock } from '../utils/mathContent';
+import { compactProblemContent, contentToAccessibleText } from '../utils/mathContent';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lesson'>;
 
@@ -75,7 +74,7 @@ function splitExplanation(content: RichContent, capacity: number): RichContent[]
 }
 
 export function LessonScreen({ navigation, route }: Props) {
-  const { width, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
+  const { width, height, fontScale, contentWidth, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [step, setStep] = useState(0);
@@ -97,8 +96,12 @@ export function LessonScreen({ navigation, route }: Props) {
     : 1;
   const isCheck = lesson.mode === 'check';
   const isFromNotebook = route.params.source === 'notebook';
+  const pageCapacity = Math.max(
+    8.5,
+    Math.min(15.5, 9 + (height - 650) / 48) / Math.max(1, fontScale * 0.88),
+  );
   const pages = useMemo<LessonPage[]>(() => lesson.steps.flatMap((lessonStep) => {
-    const chunks = splitExplanation(lessonStep.explanation, isShort ? 13.3 : 15.5);
+    const chunks = splitExplanation(lessonStep.explanation, pageCapacity);
     return chunks.map((explanation, part) => ({
       step: lessonStep,
       explanation,
@@ -106,21 +109,20 @@ export function LessonScreen({ navigation, route }: Props) {
       partCount: chunks.length,
       showNote: part === chunks.length - 1,
     }));
-  }), [isShort, lesson.steps]);
+  }), [lesson.steps, pageCapacity]);
   const currentPage = pages[step];
   const current = currentPage.step;
   const tone = [colors.cyan, colors.peach, colors.lime, colors.mint, colors.violetSoft, colors.cyan][step % 6];
-  const problemMath = representativeMathBlock(lesson.problem);
-  const problemText = firstTextBlock(lesson.problem);
+  const problemPreview = compactProblemContent(lesson.problem);
   const problemAccessible = contentToAccessibleText(lesson.problem);
   const nextTitle = step === pages.length - 1
     ? 'Vezi rezultatul'
     : 'Continuă';
   const bottomSpace = Math.max(insets.bottom, 10);
-  const problemPreviewWidth = Math.max(110, width - gutter * 2 - 97);
-  const lessonMathWidth = Math.max(120, width - gutter * 2 - (isCompact ? 65 : 69));
-  const noteMathWidth = Math.max(100, width - gutter * 2 - 101);
-  const sheetMathWidth = Math.max(120, width - 62);
+  const problemPreviewWidth = Math.max(110, contentWidth - 97);
+  const lessonMathWidth = Math.max(120, contentWidth - (isCompact ? 65 : 69));
+  const noteMathWidth = Math.max(100, contentWidth - 101);
+  const sheetMathWidth = Math.max(120, Math.min(width, 640) - 62);
 
   useEffect(() => {
     setAlternate(false);
@@ -219,19 +221,34 @@ export function LessonScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title={isCheck ? 'Feedback pe rezolvare' : 'Lecția ta'} eyebrow={`AI · PASUL ${step + 1} DIN ${pages.length}`} onBack={back} rightIcon="bookmark" rightLabel={saved ? 'Elimină din caiet' : 'Salvează în caiet'} rightActive={saved} onRight={toggleSaved} />
-      {showSavedToast ? <Animated.View pointerEvents="none" style={[styles.savedToast, { opacity: savedReveal, transform: [{ translateY: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }, { scale: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}><MiniGlyph name="check" size={16} /><Text style={styles.savedText}>Salvat în caiet</Text></Animated.View> : null}
-      <View style={[styles.progress, { paddingHorizontal: gutter }]}>
-        {pages.map((_, index) => <View key={index} style={styles.progressPart}>{index <= step ? <Animated.View style={[styles.progressPartActive, index === step && { opacity: reveal, transform: [{ scaleX: reveal }] }]} /> : null}</View>)}
+      <ScreenHeader title={isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'} eyebrow={`PASUL ${step + 1} DIN ${pages.length}`} onBack={back} rightIcon="bookmark" rightLabel={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'} rightActive={saved} onRight={toggleSaved} />
+      {showSavedToast ? <Animated.View pointerEvents="none" style={[styles.savedToast, { opacity: savedReveal, transform: [{ translateY: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }, { scale: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}><MiniGlyph name="check" size={16} /><Text style={styles.savedText}>Lecție salvată</Text></Animated.View> : null}
+      <View
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 1, max: pages.length, now: step + 1, text: `Pasul ${step + 1} din ${pages.length}` }}
+        style={[styles.progress, { marginHorizontal: gutter }]}
+      >
+        <View style={[styles.progressPartActive, { width: `${((step + 1) / pages.length) * 100}%` }]} />
       </View>
       <ScrollView ref={scrollRef} style={styles.scroll} bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Deschide enunțul: ${problemAccessible}`} onPress={toggleProblem} style={styles.problemRow}>
           <View style={styles.problemIcon}><Text style={styles.problemIconText}>x</Text></View>
           <View style={styles.problemCopy}>
             <Text style={styles.problemLabel}>{lesson.topic.toLocaleUpperCase('ro-RO')}</Text>
-            {problemMath ? (
-              <MathFormula math={problemMath} color={colors.ink} fontSize={15} minHeight={25} containerWidth={problemPreviewWidth} align="left" style={styles.problemFormula} />
-            ) : <Text numberOfLines={2} style={styles.problem}>{problemText}</Text>}
+            <RichMathContent
+              content={problemPreview}
+              color={colors.ink}
+              textStyle={styles.problem}
+              textNumberOfLines={2}
+              mathFontSize={15}
+              inlineMathFontSize={12}
+              mathMinHeight={25}
+              mathContainerWidth={problemPreviewWidth}
+              mathAlign="left"
+              inlineCompactMath
+              gap={1}
+            />
           </View>
           <View style={styles.problemOpen}><MiniGlyph name="next" size={16} color={colors.violetDeep} /></View>
         </Pressable>
@@ -240,7 +257,7 @@ export function LessonScreen({ navigation, route }: Props) {
           <View style={styles.panelShadow} />
           <View style={[styles.panel, isCompact && styles.panelCompact]}>
             <View style={[styles.kicker, { backgroundColor: tone }]}><Text style={styles.kickerText}>{current.kicker}{currentPage.partCount > 1 ? ` · ${currentPage.part + 1}/${currentPage.partCount}` : ''}</Text></View>
-            <Text style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}>{current.title}</Text>
+            <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={3} style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}>{current.title}</Text>
             <RichMathContent
               content={currentPage.explanation}
               color={colors.ink}
@@ -273,8 +290,8 @@ export function LessonScreen({ navigation, route }: Props) {
             >
               <View style={styles.explainIcon}><AppIcon name="hint" size={28} /></View>
               <View style={styles.explainCopy}>
-                <Text style={styles.explainTitle}>Nu s-a legat încă?</Text>
-                <Text style={styles.explainText}>Vezi aceeași idee explicată altfel</Text>
+                <Text style={styles.explainTitle}>Vrei o explicație mai simplă?</Text>
+                <Text style={styles.explainText}>Îți arăt aceeași idee în alt mod</Text>
               </View>
               <MiniGlyph name="next" size={16} color={colors.violetDeep} />
             </Pressable>
@@ -283,7 +300,7 @@ export function LessonScreen({ navigation, route }: Props) {
 
         <Pressable accessibilityRole="button" onPress={() => setFeedbackOpen(true)} style={styles.reportLink}>
           <MiniGlyph name="wrong" size={14} color={colors.inkSoft} />
-          <Text style={styles.reportText}>Ceva nu pare corect? Raportează răspunsul</Text>
+          <Text style={styles.reportText}>Ai observat o greșeală? Spune-ne</Text>
         </Pressable>
 
       </ScrollView>
@@ -297,7 +314,7 @@ export function LessonScreen({ navigation, route }: Props) {
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeading}>
               <View style={styles.alternateIcon}><AppIcon name="hint" size={42} /></View>
-              <View style={styles.sheetCopy}><Text style={styles.sheetEyebrow}>ALTFEL, MAI VIZUAL</Text><Text style={styles.sheetTitle}>Hai s-o vedem mai simplu</Text></View>
+              <View style={styles.sheetCopy}><Text style={styles.sheetEyebrow}>O ALTĂ EXPLICAȚIE</Text><Text style={styles.sheetTitle}>Aceeași idee, mai simplu</Text></View>
               <Pressable accessibilityRole="button" accessibilityLabel="Închide explicația" onPress={explainDifferently} style={styles.sheetClose}><MiniGlyph name="close" size={19} /></Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.alternateScroll} contentContainerStyle={styles.alternateScrollContent}>
@@ -312,7 +329,7 @@ export function LessonScreen({ navigation, route }: Props) {
                 gap={8}
               />
             </ScrollView>
-            <ComicButton compact title="Acum e mai clar" trailingIcon="check" tone="lime" onPress={explainDifferently} />
+            <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={explainDifferently} />
           </Animated.View>
         </View>
       ) : null}
@@ -345,7 +362,7 @@ export function LessonScreen({ navigation, route }: Props) {
               ) : null}
               <View style={styles.transcriptionHeading}>
                 <View style={styles.transcriptionDot} />
-                <Text style={styles.transcriptionLabel}>{sourceImage ? 'TRANSCRIERE CLARĂ' : 'ENUNȚ'}</Text>
+                <Text style={styles.transcriptionLabel}>{sourceImage ? 'ENUNȚ TRANSCRIS' : 'ENUNȚ'}</Text>
               </View>
               <RichMathContent
                 content={lesson.problem}
@@ -368,11 +385,10 @@ export function LessonScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   scroll: { flex: 1 },
-  progress: { flexDirection: 'row', gap: 6, paddingHorizontal: 20, marginBottom: 9 },
+  progress: { height: 6, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden', marginBottom: 9 },
   savedToast: { position: 'absolute', zIndex: 20, right: 18, top: 59, minHeight: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9 },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
-  progressPart: { flex: 1, height: 6, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden' },
-  progressPartActive: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 4, backgroundColor: colors.violet },
+  progressPartActive: { height: '100%', borderRadius: 4, backgroundColor: colors.violet },
   content: { flexGrow: 1, paddingHorizontal: 19, paddingBottom: 0 },
   problemRow: { minHeight: 61, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 3 },
   problemIcon: { width: 41, height: 41, borderRadius: 14, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-5deg' }] },
@@ -381,7 +397,6 @@ const styles = StyleSheet.create({
   problemOpen: { width: 28, height: 28, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
   problemLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2 },
   problem: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 15 },
-  problemFormula: { marginTop: 1 },
   panelWrap: { marginTop: 8, marginBottom: 16, position: 'relative' },
   panelShadow: { position: 'absolute', left: 8, right: -8, top: 9, bottom: -9, borderRadius: 28, backgroundColor: colors.ink },
   panel: { borderRadius: 28, borderWidth: 3, borderColor: colors.ink, backgroundColor: colors.paper, padding: 17, overflow: 'hidden' },
@@ -416,7 +431,7 @@ const styles = StyleSheet.create({
   nextAction: { flex: 1, minWidth: 0 },
   alternateLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.42)' },
-  alternateSheet: { maxHeight: '82%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 19, paddingTop: 9 },
+  alternateSheet: { width: '100%', maxWidth: 640, maxHeight: '82%', alignSelf: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 19, paddingTop: 9 },
   sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 12 },
   sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   alternateIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.cyan, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
@@ -428,7 +443,7 @@ const styles = StyleSheet.create({
   alternateScrollContent: { paddingBottom: 2 },
   alternateText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19 },
   alternateMath: { minHeight: 48, borderRadius: 15, backgroundColor: '#F7F3FF', borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 7, paddingVertical: 3 },
-  problemSheet: { maxHeight: '84%', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 19, paddingTop: 9 },
+  problemSheet: { width: '100%', maxWidth: 640, maxHeight: '84%', alignSelf: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 19, paddingTop: 9 },
   problemSheetScroll: { flexShrink: 1, marginTop: 14 },
   problemSheetContent: { paddingBottom: 10 },
   sourceImageCard: { position: 'relative', borderRadius: 18, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: '#F4EEFF', padding: 8, overflow: 'hidden' },

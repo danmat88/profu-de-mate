@@ -39,15 +39,15 @@ export class AppErrorBoundary extends Component<Props, State> {
               style={styles.mascot}
             />
           </View>
-          <Text style={styles.eyebrow}>APLICAȚIA ESTE ÎN SIGURANȚĂ</Text>
-          <Text style={styles.title}>S-a rupt o bucățică de cretă.</Text>
+          <Text style={styles.eyebrow}>APLICAȚIA A ÎNTÂMPINAT O PROBLEMĂ</Text>
+          <Text style={styles.title}>Ceva nu a mers.</Text>
           <Text style={styles.message}>
-            Nu ai făcut nimic greșit. Încearcă să refaci ecranul; dacă problema rămâne, închide complet aplicația și redeschide-o.
+            Încearcă să încarci din nou ecranul. Dacă problema apare iar, închide complet aplicația și deschide-o din nou.
           </Text>
           <View style={styles.buttonWrap}>
             <View style={styles.buttonShadow} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Reîncearcă să deschizi aplicația" onPress={this.retry} style={styles.button}>
-              <Text style={styles.buttonText}>Reîncearcă</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Încarcă din nou ecranul" onPress={this.retry} style={styles.button}>
+              <Text style={styles.buttonText}>Încarcă din nou</Text>
             </Pressable>
           </View>
         </View>

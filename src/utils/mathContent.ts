@@ -45,6 +45,7 @@ export function isMathAnalysis(value: unknown): value is MathAnalysis {
     && isRichContent(data.summary)
     && isRichContent(data.finalAnswer)
     && Array.isArray(data.steps)
+    && (data.status !== 'ready' || data.steps.length > 0)
     && data.steps.every((step) => Boolean(step)
       && typeof step.title === 'string'
       && typeof step.kicker === 'string'

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import type { LayoutChangeEvent, StyleProp, ViewStyle } from 'react-native';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
@@ -80,7 +80,17 @@ export function latexToInlineText(latex: string): string | null {
   return value;
 }
 
-export function InlineMathFormula({ math, color, fontSize = 16, style }: InlineProps) {
+function sameMath(previous: MathContentBlock, next: MathContentBlock) {
+  return previous.latex === next.latex
+    && previous.spoken === next.spoken
+    && previous.rendered.svg === next.rendered.svg
+    && previous.rendered.viewBox === next.rendered.viewBox
+    && previous.rendered.widthEx === next.rendered.widthEx
+    && previous.rendered.heightEx === next.rendered.heightEx
+    && previous.rendered.depthEx === next.rendered.depthEx;
+}
+
+function InlineMathFormulaComponent({ math, color, fontSize = 16, style }: InlineProps) {
   const inlineText = useMemo(() => latexToInlineText(math.latex), [math.latex]);
   const window = useWindowDimensions();
   const naturalWidth = Math.max(10, math.rendered.widthEx * fontSize * 0.5);
@@ -121,7 +131,14 @@ export function InlineMathFormula({ math, color, fontSize = 16, style }: InlineP
   );
 }
 
-export function MathFormula({
+export const InlineMathFormula = memo(InlineMathFormulaComponent, (previous, next) => (
+  sameMath(previous.math, next.math)
+  && previous.color === next.color
+  && previous.fontSize === next.fontSize
+  && previous.style === next.style
+));
+
+function MathFormulaComponent({
   math,
   color,
   fontSize = 20,
@@ -184,6 +201,17 @@ export function MathFormula({
     </View>
   );
 }
+
+export const MathFormula = memo(MathFormulaComponent, (previous, next) => (
+  sameMath(previous.math, next.math)
+  && previous.color === next.color
+  && previous.fontSize === next.fontSize
+  && previous.minHeight === next.minHeight
+  && previous.horizontalPadding === next.horizontalPadding
+  && previous.containerWidth === next.containerWidth
+  && previous.align === next.align
+  && previous.style === next.style
+));
 
 export function MissingMath({ label }: { label: string }) {
   return <Text accessibilityRole="alert" style={styles.missing}>{label}</Text>;

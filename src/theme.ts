@@ -17,8 +17,9 @@ export const colors = {
 } as const;
 
 export const fonts = {
-  display: 'Baloo2_800ExtraBold',
-  displaySemi: 'Baloo2_700Bold',
+  display: 'BalsamiqSans_700Bold',
+  displaySemi: 'BalsamiqSans_700Bold',
+  displayRegular: 'BalsamiqSans_400Regular',
   body: 'FiraSans_400Regular',
   bodyBold: 'FiraSans_600SemiBold',
   bodyMedium: 'FiraSans_500Medium',

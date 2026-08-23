@@ -44,20 +44,20 @@ export function friendlyAnalysisError(error: unknown): string {
   const code = (value.code ?? '').toLocaleLowerCase('en-US');
   const message = (value.message ?? '').toLocaleLowerCase('en-US');
 
-  if (code.includes('app-check')) return 'Telefonul nu a putut porni conexiunea verificată. Închide complet aplicația și încearcă din nou.';
-  if (code.includes('resource-exhausted')) return 'Ai ajuns la limita temporară de analize. Mai încearcă puțin mai târziu.';
-  if (code.includes('unauthenticated')) return 'Conexiunea sigură nu a pornit. Redeschide aplicația și încearcă din nou.';
-  if (code.includes('permission-denied') || code.includes('unauthorized') || code.includes('failed-precondition')) return 'Telefonul nu a putut fi verificat. Repornește aplicația și încearcă din nou.';
-  if (code.includes('invalid-argument')) return 'Fotografia nu a putut fi citită corect. Repetă poza, cu problema completă și bine luminată.';
-  if (code.includes('aborted') || code.includes('already-exists')) return 'Analiza acestei fotografii este încă în curs. Mai așteaptă câteva secunde și încearcă din nou.';
+  if (code.includes('app-check')) return 'Nu am putut verifica această instalare. Închide complet aplicația, apoi deschide-o din nou.';
+  if (code.includes('resource-exhausted')) return 'Ai ajuns la limita de analize pentru moment. Încearcă din nou mai târziu.';
+  if (code.includes('unauthenticated')) return 'Sesiunea securizată nu a pornit. Închide aplicația, apoi deschide-o din nou.';
+  if (code.includes('permission-denied') || code.includes('unauthorized') || code.includes('failed-precondition')) return 'Nu am putut verifica această instalare. Repornește aplicația și încearcă din nou.';
+  if (code.includes('invalid-argument')) return 'Nu am putut citi fotografia. Fotografiază din nou problema completă, într-o lumină bună.';
+  if (code.includes('aborted') || code.includes('already-exists')) return 'Fotografia este încă analizată. Așteaptă câteva secunde și încearcă din nou.';
   if (
     code.includes('unavailable')
     || code.includes('deadline-exceeded')
     || code.includes('network-request-failed')
     || message.includes('network request failed')
     || message.includes('failed to fetch')
-  ) return 'Nu pot ajunge la Profu’ acum. Verifică internetul și încearcă din nou; fotografia rămâne pe telefon.';
-  if (code.includes('internal') || code.includes('unknown')) return 'Serviciul a întâmpinat o problemă temporară. Încearcă din nou peste câteva momente.';
-  if (message.includes('file') || message.includes('no such')) return 'Fotografia nu mai poate fi citită de pe telefon. Repetă captura sau alege din nou imaginea.';
-  return 'Nu am putut analiza fotografia acum. Ea nu a fost adăugată în Caiet sau în Firebase Storage. Încearcă din nou.';
+  ) return 'Profu’ nu poate răspunde acum. Verifică internetul și încearcă din nou. Fotografia rămâne pe telefon.';
+  if (code.includes('internal') || code.includes('unknown')) return 'A apărut o problemă temporară. Încearcă din nou peste câteva momente.';
+  if (message.includes('file') || message.includes('no such')) return 'Fotografia nu mai poate fi citită de pe telefon. Fă altă fotografie sau alege din nou imaginea.';
+  return 'Nu am putut analiza fotografia. Ea nu a fost salvată în Caiet. Încearcă din nou.';
 }

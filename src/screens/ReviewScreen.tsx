@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
@@ -17,7 +17,7 @@ import type { RootStackParamList } from '../types';
 type Props = NativeStackScreenProps<RootStackParamList, 'Review'>;
 
 export function ReviewScreen({ navigation, route }: Props) {
-  const { width, height, gutter, isNarrow, isCompact } = useResponsiveLayout();
+  const { height, contentWidth, gutter, isNarrow, isVeryShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const isCheck = route.params.mode === 'check';
@@ -28,11 +28,11 @@ export function ReviewScreen({ navigation, route }: Props) {
   const [imageError, setImageError] = useState(false);
   const reveal = useRef(new Animated.Value(0)).current;
   const continuing = useRef(false);
-  const photoWidth = width - gutter * 2;
+  const photoWidth = contentWidth;
   const sourceRatio = currentImage.height / currentImage.width;
   const photoHeight = Math.min(
-    isCompact ? 250 : 290,
-    Math.max(190, Math.min(height * 0.33, photoWidth * Math.min(sourceRatio, 0.9))),
+    isCompact ? 248 : 300,
+    Math.max(isVeryShort ? 150 : 180, Math.min(height * 0.32, photoWidth * Math.min(sourceRatio, 0.9))),
   );
   const bottomSpace = Math.max(insets.bottom, 10);
 
@@ -64,10 +64,16 @@ export function ReviewScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title="Confirmă captura" eyebrow="PASUL 2 DIN 4" onBack={() => navigation.goBack()} rightIcon="crop" rightLabel="Ajustează" onRight={() => setCropOpen(true)} />
-      <View style={[styles.content, { paddingHorizontal: gutter }]}>
-        <Text style={[styles.title, isNarrow && styles.titleNarrow, isCompact && styles.titleCompact]}>Verifică înainte să continui</Text>
-        <Text style={[styles.subtitle, isCompact && styles.subtitleCompact]}>Confirmă că problema este clară și încadrată complet.</Text>
+      <ScreenHeader title="Verifică fotografia" eyebrow="PASUL 2 DIN 4" onBack={() => navigation.goBack()} rightIcon="crop" rightLabel="Decupează fotografia" onRight={() => setCropOpen(true)} />
+      <ScrollView
+        style={styles.content}
+        bounces={false}
+        overScrollMode="never"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.contentBody, { paddingHorizontal: gutter }]}
+      >
+        <Text style={[styles.title, isNarrow && styles.titleNarrow, isCompact && styles.titleCompact]}>Se vede tot exercițiul?</Text>
+        <Text style={[styles.subtitle, isCompact && styles.subtitleCompact]}>{isCheck ? 'Asigură-te că fotografia este clară și cuprinde toată rezolvarea.' : 'Asigură-te că fotografia este clară și cuprinde întregul enunț.'}</Text>
 
         <Animated.View style={[styles.photoWrap, isCompact && styles.photoWrapCompact, { opacity: reveal, transform: [{ scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1] }) }] }]}>
           <View style={styles.photoShadow} />
@@ -75,7 +81,7 @@ export function ReviewScreen({ navigation, route }: Props) {
             <View style={styles.tape}><Text style={styles.tapeText}>{currentImage.source === 'camera' ? 'FOTOGRAFIE' : 'GALERIE'}</Text></View>
             {!imageLoaded && !imageError ? <ActivityIndicator size="large" color={colors.lime} /> : null}
             {imageError ? (
-              <View style={styles.imageError}><AppIcon name="retake" size={52} /><Text style={styles.imageErrorTitle}>Nu pot afișa fotografia</Text><Text style={styles.imageErrorText}>Repetă captura sau alege altă imagine.</Text></View>
+              <View style={styles.imageError}><AppIcon name="retake" size={52} /><Text style={styles.imageErrorTitle}>Fotografia nu se poate afișa</Text><Text style={styles.imageErrorText}>Fă altă fotografie sau alege altă imagine.</Text></View>
             ) : (
               <Image
                 accessible
@@ -89,29 +95,37 @@ export function ReviewScreen({ navigation, route }: Props) {
             )}
             <View style={[styles.cropCorner, styles.cropTL]} /><View style={[styles.cropCorner, styles.cropTR]} />
             <View style={[styles.cropCorner, styles.cropBL]} /><View style={[styles.cropCorner, styles.cropBR]} />
-            {wasAdjusted ? <View style={styles.cropBadge}><AppIcon name="crop" size={29} /><Text style={styles.cropBadgeText}>ÎNCADRARE AJUSTATĂ</Text></View> : null}
+            {wasAdjusted ? <View style={styles.cropBadge}><AppIcon name="crop" size={29} /><Text style={styles.cropBadgeText}>FOTOGRAFIE DECUPATĂ</Text></View> : null}
           </View>
         </Animated.View>
 
         <Animated.View style={[styles.ocrRow, isCompact && styles.ocrRowCompact, { opacity: reveal, transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }] }]}>
           <View style={styles.ocrIcon}><AppIcon name="scan" size={56} /></View>
           <View style={styles.ocrCopy}>
-            <Text style={styles.ocrLabel}>FOTOGRAFIE PREGĂTITĂ</Text>
-            <Text style={[styles.ocrText, isNarrow && styles.ocrTextNarrow]}>{isCheck ? 'Rezolvarea este gata de verificat' : 'Problema este gata de citit'}</Text>
+            <Text style={styles.ocrLabel}>FOTOGRAFIE CLARĂ</Text>
+            <Text style={[styles.ocrText, isNarrow && styles.ocrTextNarrow]}>{isCheck ? 'Pot verifica rezolvarea' : 'Pot citi problema'}</Text>
           </View>
           <View style={styles.confidence}><Text style={styles.confidenceText}>GATA</Text></View>
         </Animated.View>
 
         <View style={styles.tip}>
           <AppIcon name="hint" size={31} />
-          <Text style={styles.tipText}>{isCheck ? 'La pasul următor voi compara fiecare rând, nu doar răspunsul final.' : 'La pasul următor citesc enunțul și îți arăt ce am înțeles.'}</Text>
+          <Text style={styles.tipText}>{isCheck ? 'Voi verifica fiecare pas, nu doar răspunsul final.' : 'Voi citi enunțul și apoi îți voi explica rezolvarea, pas cu pas.'}</Text>
         </View>
-      </View>
+      </ScrollView>
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
-        <ComicButton compact title="Da, continuă" subtitle={isCheck ? 'Verificăm fiecare pas.' : 'Construim explicația.'} icon="scan" tone="lime" onPress={continueToAnalysis} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Repetă fotografia" onPress={() => navigation.goBack()} style={styles.retakeLink}>
+        <ComicButton
+          compact
+          title={imageLoaded && !imageError ? 'Continuă' : 'Fotografia se încarcă…'}
+          subtitle={imageLoaded && !imageError ? (isCheck ? 'Verific fiecare pas.' : 'Îți explic rezolvarea.') : 'Așteaptă o clipă.'}
+          icon="scan"
+          tone="lime"
+          disabled={!imageLoaded || imageError}
+          onPress={continueToAnalysis}
+        />
+        <Pressable accessibilityRole="button" accessibilityLabel="Fă altă fotografie" onPress={() => navigation.goBack()} style={styles.retakeLink}>
           <AppIcon name="retake" size={30} />
-          <Text style={styles.retakeText}>Repetă fotografia</Text>
+          <Text style={styles.retakeText}>Fă altă fotografie</Text>
         </Pressable>
       </View>
       <ImageCropEditor
@@ -130,7 +144,8 @@ export function ReviewScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  content: { flex: 1, minHeight: 0, paddingHorizontal: 19, paddingBottom: 2 },
+  content: { flex: 1, minHeight: 0 },
+  contentBody: { flexGrow: 1, paddingBottom: 4 },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 34, lineHeight: 37, marginTop: 8 },
   titleNarrow: { fontSize: 30, lineHeight: 33 },
   titleCompact: { fontSize: 27, lineHeight: 29, marginTop: 2 },

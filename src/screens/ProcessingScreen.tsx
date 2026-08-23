@@ -1,7 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
@@ -21,7 +21,7 @@ type ScreenState =
   | { kind: 'error'; message: string };
 
 export function ProcessingScreen({ navigation, route }: Props) {
-  const { height, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
+  const { height, gutter, isNarrow, isVeryShort, isShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [active, setActive] = useState(0);
@@ -32,11 +32,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const progress = useRef(new Animated.Value(0)).current;
   const isCheck = route.params.mode === 'check';
   const jobs = isCheck
-    ? ['Citesc fiecare rând', 'Compar pașii', 'Pregătesc feedbackul']
-    : ['Citesc enunțul', 'Aleg metoda', 'Construiesc explicația'];
-  const stageHeight = Math.max(280, Math.min(360, height * 0.42));
-  const orbitSize = isCompact ? 222 : 264;
-  const haloSize = isCompact ? 173 : 204;
+    ? ['Citesc rezolvarea', 'Verific fiecare pas', 'Pregătesc explicațiile']
+    : ['Citesc enunțul', 'Aleg metoda', 'Scriu explicația'];
+  const stageHeight = Math.max(isVeryShort ? 210 : 260, Math.min(350, height * (isVeryShort ? 0.33 : 0.4)));
+  const orbitSize = isVeryShort ? 188 : isCompact ? 222 : 264;
+  const haloSize = isVeryShort ? 148 : isCompact ? 173 : 204;
   const bottomSpace = Math.max(insets.bottom, 12);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           } else if (result.status !== 'ready') {
             setScreenState({ kind: 'rejected', result });
           } else {
-            setScreenState({ kind: 'error', message: 'Lecția nu a putut fi salvată. Încearcă din nou.' });
+            setScreenState({ kind: 'error', message: 'Nu am putut salva lecția. Încearcă din nou.' });
           }
         };
         if (reducedMotion) {
@@ -113,8 +113,8 @@ export function ProcessingScreen({ navigation, route }: Props) {
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
     const title = rejected
-      ? screenState.result.status === 'not_math' ? 'Aici nu văd încă matematică.' : 'Am nevoie de o poză mai clară.'
-      : 'S-a împiedicat creta.';
+      ? screenState.result.status === 'not_math' ? 'În fotografie nu apare matematică.' : 'Fotografia nu este suficient de clară.'
+      : 'Ceva nu a mers.';
     const message = rejected ? contentToAccessibleText(screenState.result.summary) : screenState.message;
 
     return (
@@ -127,7 +127,13 @@ export function ProcessingScreen({ navigation, route }: Props) {
             <MiniGlyph name="close" size={20} color={colors.paper} />
           </Pressable>
         </View>
-        <View style={styles.messageArea}>
+        <ScrollView
+          style={styles.messageScroll}
+          bounces={false}
+          overScrollMode="never"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.messageArea, isVeryShort && styles.messageAreaShort]}
+        >
           <View style={styles.messageMascotWrap}>
             <View style={styles.messageHalo} />
             <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.messageMascot} />
@@ -136,17 +142,17 @@ export function ProcessingScreen({ navigation, route }: Props) {
           <View style={styles.messageCardWrap}>
             <View style={styles.messageCardShadow} />
             <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.messageCard}>
-              <Text style={styles.messageEyebrow}>{rejected ? 'MAI ÎNCERCĂM O DATĂ' : 'NU E VINA TA'}</Text>
+              <Text style={styles.messageEyebrow}>{rejected ? 'HAI SĂ MAI ÎNCERCĂM' : 'A APĂRUT O PROBLEMĂ'}</Text>
               <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
               <Text style={styles.messageText}>{message}</Text>
             </View>
           </View>
-        </View>
+        </ScrollView>
         <View style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
           {!rejected ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
           <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={() => navigation.replace('Capture', { mode: route.params.mode })} />
           <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Înapoi la fotografia editată</Text>
+            <Text style={styles.backLinkText}>Înapoi la fotografia aleasă</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -161,7 +167,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
         <Text style={styles.brand}>Profu’ lucrează</Text>
         <View style={styles.live}>
           <Animated.View style={[styles.liveDot, { opacity: bob.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: bob.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1.1] }) }] }]} />
-          <Text style={styles.liveText}>ÎN DIRECT</Text>
+          <Text style={styles.liveText}>ÎN LUCRU</Text>
         </View>
       </View>
       <View style={[styles.stage, { height: stageHeight }]}>
@@ -170,12 +176,12 @@ export function ProcessingScreen({ navigation, route }: Props) {
         </Animated.View>
         <View style={[styles.halo, { width: haloSize, height: haloSize, borderRadius: haloSize / 2 }]} />
         <Animated.View style={{ transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [5, -7] }) }] }}>
-          <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isCompact && styles.mascotCompact]} />
+          <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isCompact && styles.mascotCompact, isVeryShort && styles.mascotShort]} />
         </Animated.View>
-        <View style={[styles.thought, isCompact && styles.thoughtCompact]}><Text style={styles.thoughtText}>{isCheck ? 'Hmm… verific fiecare pas.' : 'Aha! Citesc problema cu atenție.'}</Text></View>
+        <View style={[styles.thought, isCompact && styles.thoughtCompact]}><Text style={styles.thoughtText}>{isCheck ? 'Mă uit cu atenție la fiecare pas.' : 'Citesc cu atenție enunțul.'}</Text></View>
       </View>
-      <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fără să judec.' : 'Pun ideile în ordine.'}</Text>
-      <Text style={styles.subtitle}>Durata depinde de problemă și de conexiune.</Text>
+      <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}</Text>
+      <Text style={styles.subtitle}>Poate dura puțin, în funcție de problemă și de conexiune.</Text>
       <View
         accessible
         accessibilityLabel={`Analiză în curs. ${jobs[active]}. Pasul ${active + 1} din ${jobs.length}.`}
@@ -217,6 +223,7 @@ const styles = StyleSheet.create({
   orbitDotC: { position: 'absolute', width: 13, height: 13, backgroundColor: colors.cyan, borderWidth: 2, borderColor: colors.ink, top: 109, right: -7, transform: [{ rotate: '14deg' }] },
   mascot: { width: 205, height: 216 },
   mascotCompact: { width: 176, height: 186 },
+  mascotShort: { width: 148, height: 156 },
   thought: { position: 'absolute', right: 0, top: 35, maxWidth: 135, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 17, paddingHorizontal: 10, paddingVertical: 8, transform: [{ rotate: '4deg' }] },
   thoughtCompact: { top: 23, right: -2, maxWidth: 121 },
   thoughtText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11, lineHeight: 14, textAlign: 'center' },
@@ -234,7 +241,9 @@ const styles = StyleSheet.create({
   now: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1 },
   progressTrack: { height: 7, marginHorizontal: 10, marginTop: 15, borderRadius: 5, backgroundColor: '#38305C', overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 5, backgroundColor: colors.lime },
-  messageArea: { flex: 1, justifyContent: 'center', paddingBottom: 10 },
+  messageScroll: { flex: 1 },
+  messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 10 },
+  messageAreaShort: { paddingTop: 8 },
   messageMascotWrap: { height: 205, alignItems: 'center', justifyContent: 'center' },
   messageHalo: { position: 'absolute', width: 172, height: 172, borderRadius: 86, backgroundColor: '#302368', borderWidth: 3, borderStyle: 'dashed', borderColor: '#6557A1' },
   messageMascot: { width: 180, height: 190 },

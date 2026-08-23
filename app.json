@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Profu' de mate",
+    "name": "Profu’ de mate",
     "slug": "profu-de-mate",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -43,7 +43,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Permite aplicației Profu' de Mate să fotografieze problema de matematică.",
+          "cameraPermission": "Permite aplicației „Profu’ de mate” să folosească camera pentru a fotografia problema sau rezolvarea.",
           "recordAudioAndroid": false,
           "barcodeScannerEnabled": false
         }
@@ -51,7 +51,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Permite aplicației Profu' de Mate să aleagă o fotografie cu problema de matematică.",
+          "photosPermission": "Permite aplicației „Profu’ de mate” să aleagă fotografia unei probleme sau rezolvări.",
           "microphonePermission": false
         }
       ],

@@ -12,8 +12,9 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { cropCapturedImage, rotateCapturedImage } from '../services/imagePipeline';
 import { colors, fonts } from '../theme';
 import type { CapturedImage } from '../types';
@@ -69,11 +70,18 @@ function getInitialCrop(imageRect: Rect): Rect {
 }
 
 export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
-  const insets = useSafeAreaInsets();
+  const responsiveLayout = useResponsiveLayout();
+  const liveInsets = useSafeAreaInsets();
+  const stableLayout = useRef(responsiveLayout).current;
+  const stableInsets = useRef(liveInsets).current;
+  const { height, gutter, isNarrow, isVeryShort } = stableLayout;
+  const topSpace = Math.max(stableInsets.top, 0);
+  const bottomSpace = Math.max(stableInsets.bottom, 12);
   const reducedMotion = useReducedMotion();
   const entrance = useRef(new Animated.Value(0)).current;
   const cropRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const gestureStart = useRef<Rect>(cropRef.current);
+  const initializedCropFor = useRef<string | null>(null);
   const [workspace, setWorkspace] = useState<Size>({ width: 0, height: 0 });
   const [workingImage, setWorkingImage] = useState(image);
   const [crop, setCrop] = useState<Rect>(cropRef.current);
@@ -95,6 +103,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     setBusy(false);
     setError(null);
     setImageReady(false);
+    initializedCropFor.current = null;
     entrance.setValue(0);
     if (reducedMotion) {
       entrance.setValue(1);
@@ -105,7 +114,10 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
 
   useEffect(() => {
     if (!visible || imageRect.width <= 0 || imageRect.height <= 0) return;
+    const imageKey = `${workingImage.uri}:${workingImage.width}x${workingImage.height}`;
+    if (initializedCropFor.current === imageKey) return;
     const initial = getInitialCrop(imageRect);
+    initializedCropFor.current = imageKey;
     cropRef.current = initial;
     setCrop(initial);
   }, [imageRect.height, imageRect.width, visible, workingImage.uri]);
@@ -216,7 +228,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onApply(edited);
     } catch {
-      setError('Nu am putut aplica încadrarea. Fotografia originală este în siguranță.');
+      setError('Nu am putut decupa fotografia. Fotografia originală nu a fost modificată.');
     } finally {
       setBusy(false);
     }
@@ -228,34 +240,35 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     width: crop.width,
     height: crop.height,
   };
+  const cropPercent = imageRect.width && imageRect.height
+    ? Math.round((crop.width * crop.height * 100) / (imageRect.width * imageRect.height))
+    : 0;
 
   return (
     <Modal visible={visible} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={busy ? undefined : onCancel}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={[styles.safe, { height, paddingTop: topSpace }]}>
         <Animated.View accessibilityViewIsModal style={[styles.screen, {
           opacity: entrance,
-          transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+          transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.992, 1] }) }],
         }]}>
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingHorizontal: gutter }]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Anulează încadrarea" disabled={busy} onPress={onCancel} style={styles.headerButton}>
               <MiniGlyph name="close" size={25} color={colors.paper} />
             </Pressable>
             <View style={styles.headerCopy}>
-              <Text style={styles.eyebrow}>AJUSTEAZĂ FOTOGRAFIA</Text>
-              <Text style={styles.title}>Încadrează problema</Text>
+              <Text style={styles.eyebrow}>PREGĂTEȘTE FOTOGRAFIA</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={[styles.title, isNarrow && styles.titleNarrow]}>Păstrează doar exercițiul</Text>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Resetează încadrarea" disabled={busy} onPress={resetCrop} style={styles.resetButton}>
-              <Text style={styles.resetText}>Reset</Text>
-            </Pressable>
+            <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>PASUL 1/1</Text></View>
           </View>
 
           <View
-            style={styles.workspace}
-            onLayout={(event) => setWorkspace({
-              width: event.nativeEvent.layout.width,
-              height: event.nativeEvent.layout.height,
-            })}
+            style={[styles.workspace, isVeryShort && styles.workspaceShort, { marginHorizontal: Math.max(gutter - 5, 8) }]}
+            onLayout={(event) => {
+              const next = { width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height };
+              setWorkspace((current) => Math.abs(current.width - next.width) < 0.5 && Math.abs(current.height - next.height) < 0.5 ? current : next);
+            }}
           >
             <Image
               accessible
@@ -280,6 +293,9 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
                   width: absoluteCrop.width,
                   height: absoluteCrop.height,
                 }]}>
+                  <View pointerEvents="none" style={styles.cropLabel}>
+                    <Text style={styles.cropLabelText}>ZONA PĂSTRATĂ · {cropPercent}%</Text>
+                  </View>
                   <View
                     accessible
                     accessibilityRole="adjustable"
@@ -311,61 +327,87 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
             {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}><Text style={styles.errorText}>{error}</Text></View> : null}
           </View>
 
-          <Text style={styles.instruction}>Trage colțurile până rămâne doar exercițiul. Poți muta și rama întreagă.</Text>
-
-          <View style={[styles.dock, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Rotește fotografia" disabled={busy} onPress={() => void rotate()} style={styles.rotateButton}>
-              <AppIcon name="retake" size={34} />
-              <Text style={styles.rotateText}>Rotește</Text>
-            </Pressable>
+          <View style={[styles.dock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
+            <View style={styles.hintRow}>
+              <View style={styles.hintIcon}><AppIcon name="crop" size={30} /></View>
+              <View style={styles.hintCopy}>
+                <Text style={styles.hintTitle}>Alege ce păstrăm</Text>
+                <Text numberOfLines={2} style={styles.instruction}>Trage colțurile sau mută rama până cuprinde numai exercițiul.</Text>
+              </View>
+            </View>
+            <View style={styles.actionRow}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Resetează încadrarea" disabled={busy} onPress={resetCrop} style={styles.toolButton}>
+                <MiniGlyph name="close" size={18} color={colors.paper} />
+                <Text style={styles.toolText}>De la început</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Rotește fotografia" disabled={busy} onPress={() => void rotate()} style={styles.toolButton}>
+                <AppIcon name="retake" size={30} />
+                <Text style={styles.toolText}>Rotește</Text>
+              </Pressable>
+            </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Folosește fotografia încadrată" disabled={busy} onPress={() => void applyCrop()} style={styles.applyButton}>
-              {busy ? <ActivityIndicator size="small" color={colors.ink} /> : <AppIcon name="crop" size={34} />}
-              <Text style={styles.applyText}>Folosește poza</Text>
+              <View style={styles.applyIcon}>{busy ? <ActivityIndicator size="small" color={colors.ink} /> : <AppIcon name="crop" size={31} />}</View>
+              <View style={styles.applyCopy}>
+                <Text style={styles.applyText}>Folosește fotografia</Text>
+                {!isVeryShort ? <Text style={styles.applyNote}>Apoi verifici dacă se vede tot</Text> : null}
+              </View>
               <MiniGlyph name="next" size={22} color={colors.ink} />
             </Pressable>
           </View>
         </Animated.View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#17132E' },
+  safe: { width: '100%', flexGrow: 0, flexShrink: 0, backgroundColor: '#17132E' },
   screen: { flex: 1, backgroundColor: '#17132E' },
-  header: { minHeight: 82, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  headerButton: { width: 44, height: 44, borderRadius: 15, borderWidth: 2, borderColor: '#71688F', backgroundColor: '#292346', alignItems: 'center', justifyContent: 'center' },
+  header: { minHeight: 76, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerButton: { width: 46, height: 46, borderRadius: 15, borderWidth: 2, borderColor: '#777090', backgroundColor: '#292346', alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1 },
-  eyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 9, letterSpacing: 1.2 },
-  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 23, lineHeight: 26 },
-  resetButton: { minWidth: 58, minHeight: 40, borderRadius: 13, borderWidth: 2, borderColor: '#71688F', backgroundColor: '#292346', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
-  resetText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11 },
-  workspace: { flex: 1, minHeight: 260, marginHorizontal: 12, borderWidth: 2, borderColor: '#6E668A', borderRadius: 22, overflow: 'hidden', backgroundColor: '#090817' },
-  shade: { position: 'absolute', backgroundColor: 'rgba(6, 5, 18, 0.7)' },
-  cropFrame: { position: 'absolute', borderWidth: 3, borderColor: colors.lime, shadowColor: colors.lime, shadowOpacity: 0.45, shadowRadius: 7, elevation: 5 },
-  gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.42)' },
+  eyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1.15 },
+  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 21, lineHeight: 24 },
+  titleNarrow: { fontSize: 18.5, lineHeight: 22 },
+  stepBadge: { minWidth: 57, minHeight: 31, borderRadius: 10, borderWidth: 1.5, borderColor: colors.lime, backgroundColor: '#292346', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 7, transform: [{ rotate: '2deg' }] },
+  stepBadgeText: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 7, letterSpacing: 0.7 },
+  workspace: { flex: 1, minHeight: 250, borderWidth: 2.5, borderColor: '#847AA6', borderRadius: 20, overflow: 'hidden', backgroundColor: '#090817', shadowColor: '#080615', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 7 },
+  workspaceShort: { minHeight: 180 },
+  shade: { position: 'absolute', backgroundColor: 'rgba(6, 5, 18, 0.76)' },
+  cropFrame: { position: 'absolute', borderWidth: 2.5, borderColor: colors.lime, shadowColor: colors.lime, shadowOpacity: 0.55, shadowRadius: 9, elevation: 5 },
+  cropLabel: { position: 'absolute', left: 6, top: 6, zIndex: 3, borderRadius: 7, backgroundColor: colors.lime, paddingHorizontal: 7, paddingVertical: 3 },
+  cropLabelText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 6.5, letterSpacing: 0.65 },
+  gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.5)' },
   gridVerticalOne: { top: 0, bottom: 0, left: '33.333%', width: 1 },
   gridVerticalTwo: { top: 0, bottom: 0, left: '66.666%', width: 1 },
   gridHorizontalOne: { left: 0, right: 0, top: '33.333%', height: 1 },
   gridHorizontalTwo: { left: 0, right: 0, top: '66.666%', height: 1 },
   handleTouch: { position: 'absolute', zIndex: 5, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  handle: { width: 22, height: 22, borderColor: colors.lime },
+  handle: { width: 24, height: 24, borderColor: colors.lime },
   handleTopLeft: { left: -24, top: -24 },
   handleTopRight: { right: -24, top: -24 },
   handleBottomLeft: { left: -24, bottom: -24 },
   handleBottomRight: { right: -24, bottom: -24 },
-  handleBorderTopLeft: { borderLeftWidth: 6, borderTopWidth: 6, borderTopLeftRadius: 5 },
-  handleBorderTopRight: { borderRightWidth: 6, borderTopWidth: 6, borderTopRightRadius: 5 },
-  handleBorderBottomLeft: { borderLeftWidth: 6, borderBottomWidth: 6, borderBottomLeftRadius: 5 },
-  handleBorderBottomRight: { borderRightWidth: 6, borderBottomWidth: 6, borderBottomRightRadius: 5 },
+  handleBorderTopLeft: { borderLeftWidth: 7, borderTopWidth: 7, borderTopLeftRadius: 6 },
+  handleBorderTopRight: { borderRightWidth: 7, borderTopWidth: 7, borderTopRightRadius: 6 },
+  handleBorderBottomLeft: { borderLeftWidth: 7, borderBottomWidth: 7, borderBottomLeftRadius: 6 },
+  handleBorderBottomRight: { borderRightWidth: 7, borderBottomWidth: 7, borderBottomRightRadius: 6 },
   loading: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(12,10,28,0.7)' },
   loadingText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 12, borderWidth: 2, borderColor: colors.paper, borderRadius: 14, backgroundColor: colors.rose, paddingHorizontal: 12, paddingVertical: 9 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11, lineHeight: 15, textAlign: 'center' },
-  instruction: { minHeight: 54, paddingHorizontal: 30, paddingTop: 10, fontFamily: fonts.body, color: '#C6BEDA', fontSize: 11.5, lineHeight: 16, textAlign: 'center' },
-  dock: { minHeight: 84, paddingTop: 10, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: '#393253', flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  rotateButton: { minWidth: 92, height: 54, borderRadius: 17, borderWidth: 2, borderColor: '#71688F', backgroundColor: '#292346', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 10 },
-  rotateText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11 },
-  applyButton: { flex: 1, height: 54, borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, shadowColor: '#080615', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
-  applyText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17 },
+  dock: { minHeight: 166, paddingTop: 10, paddingHorizontal: 14, gap: 9 },
+  hintRow: { minHeight: 43, maxWidth: 560, width: '100%', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 9 },
+  hintIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: colors.violet, borderWidth: 1.5, borderColor: '#8C81AE', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  hintCopy: { flex: 1, minWidth: 0 },
+  hintTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 13, lineHeight: 16 },
+  instruction: { marginTop: 1, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 9.5, lineHeight: 13 },
+  actionRow: { maxWidth: 560, width: '100%', alignSelf: 'center', flexDirection: 'row', gap: 8 },
+  toolButton: { flex: 1, minHeight: 42, borderRadius: 13, borderWidth: 1.5, borderColor: '#777090', backgroundColor: '#292346', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  toolText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 9.5 },
+  applyButton: { maxWidth: 560, width: '100%', minHeight: 57, alignSelf: 'center', borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 8, shadowColor: '#080615', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
+  applyIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  applyCopy: { flex: 1, minWidth: 0 },
+  applyText: { fontFamily: fonts.display, color: colors.ink, fontSize: 15.5, lineHeight: 18 },
+  applyNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 8.5 },
 });
