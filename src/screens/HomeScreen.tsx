@@ -2,6 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -207,7 +208,13 @@ export function HomeScreen() {
               { height: stageHeight, opacity: entrance, transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] },
             ]}
           >
-            <View style={[styles.cameraStage, !isSolve && styles.cameraStageCheck]}>
+            <LinearGradient
+              colors={isSolve ? ['#8450FF', '#5C27D8'] : ['#7750EE', '#5429C6']}
+              start={{ x: 0.04, y: 0 }}
+              end={{ x: 0.96, y: 1 }}
+              style={[styles.cameraStage, !isSolve && styles.cameraStageCheck]}
+            >
+              <View pointerEvents="none" style={styles.stageGlow} />
               <View style={[styles.stageSticker, !isSolve && styles.stageStickerCheck]}>
                 <Text style={styles.stageStickerText}>{isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
               </View>
@@ -263,7 +270,7 @@ export function HomeScreen() {
               }]}>
                 <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
               </Animated.View>
-            </View>
+            </LinearGradient>
           </Animated.View>
 
           <Pressable
@@ -358,7 +365,8 @@ const styles = StyleSheet.create({
   selectedCheckOnDark: { color: colors.ink },
   cameraStageShadow: { width: '100%', borderRadius: 28, backgroundColor: colors.ink, paddingBottom: 7 },
   cameraStage: { flex: 1, overflow: 'hidden', borderWidth: 3, borderColor: colors.ink, borderRadius: 27, backgroundColor: '#6F37E8' },
-  cameraStageCheck: { backgroundColor: '#6A36D7' },
+  cameraStageCheck: { backgroundColor: '#6332CE' },
+  stageGlow: { position: 'absolute', zIndex: 0, width: 220, height: 220, borderRadius: 110, top: -112, right: -64, backgroundColor: 'rgba(255,255,255,0.1)' },
   stageSticker: { position: 'absolute', left: 15, top: 13, zIndex: 3, borderWidth: 2, borderColor: colors.ink, borderRadius: 9, backgroundColor: colors.lime, paddingHorizontal: 9, paddingVertical: 4, transform: [{ rotate: '-2deg' }] },
   stageStickerCheck: { backgroundColor: colors.peach },
   stageStickerText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 7.5, letterSpacing: 0.9 },
@@ -385,7 +393,7 @@ const styles = StyleSheet.create({
   galleryButtonBusy: { opacity: 0.72 },
   galleryButtonText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 12 },
   actionPressed: { transform: [{ translateY: 2 }], opacity: 0.92 },
-  mascotWrap: { position: 'absolute', zIndex: 0, right: -13, bottom: 45, opacity: 0.13 },
+  mascotWrap: { position: 'absolute', zIndex: 0, right: -13, bottom: 45, opacity: 0.16 },
   mascot: { width: '100%', height: '100%' },
   notebookShadow: { height: 73, marginTop: 13, borderRadius: 20, backgroundColor: colors.ink },
   notebookShelf: { height: 68, overflow: 'hidden', borderRadius: 19, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', paddingRight: 10 },

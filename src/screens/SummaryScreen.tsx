@@ -195,32 +195,31 @@ export function SummaryScreen({ navigation, route }: Props) {
       </View>
 
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
-        <View style={styles.actionRow}>
-          <ComicButton
-            compact
-            title={saved ? 'În Caiet' : 'Salvează'}
-            icon="bookmark"
-            trailingIcon={saved ? 'check' : false}
-            tone={saved ? 'paper' : 'lime'}
+        <View style={styles.secondaryActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={saved ? 'Scoate lecția din Caiet' : 'Salvează lecția în Caiet'}
             disabled={saveBusy}
-            accessibilityHint={saved ? 'Scoate lecția din Caiet' : 'Păstrează lecția ca să o poți revedea'}
             onPress={() => void toggleSaved()}
-            style={styles.actionButton}
-          />
-          <ComicButton
-            compact
-            title={isCheck ? 'Altă verificare' : 'Altă problemă'}
-            icon={isCheck ? 'verify' : 'practice'}
-            trailingIcon={false}
-            tone="violet"
-            onPress={() => navigation.replace('Capture', { mode: lesson.mode })}
-            style={styles.actionButton}
-          />
+            style={({ pressed }) => [styles.saveAction, saved && styles.saveActionActive, (pressed || saveBusy) && styles.secondaryPressed]}
+          >
+            <AppIcon name="bookmark" size={30} />
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.secondaryText}>{saved ? 'Salvat în Caiet' : 'Salvează în Caiet'}</Text>
+            <MiniGlyph name={saved ? 'check' : 'next'} size={16} color={colors.violetDeep} />
+          </Pressable>
+          <View style={styles.secondaryDivider} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Înapoi la început" onPress={() => navigation.popToTop()} style={({ pressed }) => [styles.homeAction, pressed && styles.secondaryPressed]}>
+            <MiniGlyph name="back" size={17} color={colors.inkSoft} />
+            <Text style={styles.homeLinkText}>La început</Text>
+          </Pressable>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Înapoi la început" onPress={() => navigation.popToTop()} style={styles.homeLink}>
-          <MiniGlyph name="back" size={17} color={colors.inkSoft} />
-          <Text style={styles.homeLinkText}>Înapoi la început</Text>
-        </Pressable>
+        <ComicButton
+          compact
+          title={isCheck ? 'Verifică altă rezolvare' : 'Rezolvă altă problemă'}
+          icon={isCheck ? 'verify' : 'practice'}
+          tone="violet"
+          onPress={() => navigation.replace('Capture', { mode: lesson.mode })}
+        />
       </View>
       {showSaveCoach && !saved ? (
         <Animated.View
@@ -228,7 +227,7 @@ export function SummaryScreen({ navigation, route }: Props) {
           style={[styles.saveCoach, {
             left: gutter,
             right: gutter,
-            bottom: bottomSpace + 105,
+            bottom: bottomSpace + 128,
             opacity: coachReveal,
             transform: [
               { translateY: coachReveal.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
@@ -308,10 +307,14 @@ const styles = StyleSheet.create({
   takeawayContent: { flex: 1 },
   reportLink: { alignSelf: 'center', minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10 },
   reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10.5 },
-  actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 9 },
-  actionRow: { flexDirection: 'row', gap: 9 },
-  actionButton: { flex: 1 },
-  homeLink: { alignSelf: 'center', minHeight: 31, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12 },
+  actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 7, gap: 5 },
+  secondaryActions: { height: 43, flexDirection: 'row', alignItems: 'center' },
+  saveAction: { flex: 1.35, minWidth: 0, height: 39, borderRadius: 13, borderWidth: 1.5, borderColor: colors.line, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 7 },
+  saveActionActive: { borderColor: '#BCD94B', backgroundColor: colors.limeSoft },
+  homeAction: { flex: 0.85, minWidth: 0, height: 39, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 7 },
+  secondaryDivider: { width: 1.5, height: 23, backgroundColor: colors.line, marginHorizontal: 5 },
+  secondaryPressed: { opacity: 0.62, transform: [{ translateY: 1 }] },
+  secondaryText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10.5 },
   homeLinkText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
   saveCoach: { position: 'absolute', zIndex: 25, minHeight: 79, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 10, paddingVertical: 9, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
   saveCoachPointer: { position: 'absolute', left: '22%', bottom: -8, width: 16, height: 16, borderRightWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, transform: [{ rotate: '45deg' }] },

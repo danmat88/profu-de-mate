@@ -9,9 +9,11 @@ import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
+import { LaunchSplash } from './src/components/LaunchSplash';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -39,9 +41,11 @@ function AppRoot() {
     FiraSans_600SemiBold,
   });
   const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>('Home');
+  const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const reducedMotion = useReducedMotion();
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
   const fontsReady = fontsLoaded || Boolean(fontError);
+  const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
 
   useEffect(() => {
     initializeVerifiedFirebaseServices().catch(() => {
@@ -49,38 +53,46 @@ function AppRoot() {
     });
   }, []);
 
-  useEffect(() => {
-    if (fontsReady) void SplashScreen.hideAsync();
-  }, [fontsReady]);
-
   if (!fontsReady) return null;
 
   return (
-    <>
+    <View style={styles.app}>
       <NavigationBar hidden style={darkSystemBars ? 'dark' : 'light'} />
-      <NavigationContainer
-        theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
-        onStateChange={(state) => {
-          const route = state?.routes[state.index];
-          if (route) setActiveRoute(route.name as keyof RootStackParamList);
-        }}
+      <View
+        style={styles.navigator}
+        pointerEvents={showLaunchSplash ? 'none' : 'auto'}
+        importantForAccessibility={showLaunchSplash ? 'no-hide-descendants' : 'auto'}
       >
-        <StatusBar style="dark" />
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
-          <Stack.Screen name="Home" component={HomeScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-          <Stack.Screen name="Notebook" component={NotebookScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-          <Stack.Screen name="Legal" component={LegalScreen} />
-          <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
-          <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-          <Stack.Screen name="Processing" component={ProcessingScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
-          <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
-          <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </>
+        <NavigationContainer
+          theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
+          onStateChange={(state) => {
+            const route = state?.routes[state.index];
+            if (route) setActiveRoute(route.name as keyof RootStackParamList);
+          }}
+        >
+          <StatusBar style="dark" />
+          <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+            <Stack.Screen name="Home" component={HomeScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+            <Stack.Screen name="Notebook" component={NotebookScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Legal" component={LegalScreen} />
+            <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
+            <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+            <Stack.Screen name="Processing" component={ProcessingScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </View>
+      {showLaunchSplash ? <LaunchSplash reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  app: { flex: 1, backgroundColor: colors.canvas },
+  navigator: { flex: 1 },
+});
 
 export default function App() {
   return (
