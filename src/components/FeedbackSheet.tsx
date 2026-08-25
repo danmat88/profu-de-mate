@@ -1,13 +1,14 @@
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { submitLessonFeedback, type FeedbackCategory } from '../services/feedback';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { colors, fonts } from '../theme';
 import { MiniGlyph } from './MiniGlyph';
+import { PlayfulLoader } from './PlayfulLoader';
 import { Text } from './Typography';
 
 type Props = {
@@ -166,7 +167,7 @@ export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
                     >
                       <View style={[styles.optionNumber, { backgroundColor: [colors.cyan, colors.peach, colors.lime, colors.violetSoft][index] }]}>
                         {sending === option.category
-                          ? <ActivityIndicator size="small" color={colors.ink} />
+                          ? <PlayfulLoader micro />
                           : <Text style={styles.optionNumberText}>0{index + 1}</Text>}
                       </View>
                       <View style={styles.optionCopy}>

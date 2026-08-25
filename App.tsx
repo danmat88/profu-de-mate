@@ -14,12 +14,14 @@ import { StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LaunchSplash } from './src/components/LaunchSplash';
+import { CommercialProvider } from './src/context/CommercialContext';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LessonScreen } from './src/screens/LessonScreen';
 import { LegalScreen } from './src/screens/LegalScreen';
 import { NotebookScreen } from './src/screens/NotebookScreen';
+import { PaywallScreen } from './src/screens/PaywallScreen';
 import { ProcessingScreen } from './src/screens/ProcessingScreen';
 import { ReviewScreen } from './src/screens/ReviewScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
@@ -71,26 +73,29 @@ function AppRoot() {
         pointerEvents={showLaunchSplash ? 'none' : 'auto'}
         importantForAccessibility={showLaunchSplash ? 'no-hide-descendants' : 'auto'}
       >
-        <NavigationContainer
-          theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
-          onStateChange={(state) => {
-            const route = state?.routes[state.index];
-            if (route) setActiveRoute(route.name as keyof RootStackParamList);
-          }}
-        >
-          <StatusBar style="dark" />
-          <Stack.Navigator initialRouteName={pendingAnalysis ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
-            <Stack.Screen name="Home" component={HomeScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-            <Stack.Screen name="Notebook" component={NotebookScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="Legal" component={LegalScreen} />
-            <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
-            <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-            <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={pendingAnalysis ?? undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
-            <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
-            <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <CommercialProvider>
+          <NavigationContainer
+            theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
+            onStateChange={(state) => {
+              const route = state?.routes[state.index];
+              if (route) setActiveRoute(route.name as keyof RootStackParamList);
+            }}
+          >
+            <StatusBar style="dark" />
+            <Stack.Navigator initialRouteName={pendingAnalysis ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+              <Stack.Screen name="Home" component={HomeScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              <Stack.Screen name="Notebook" component={NotebookScreen} />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="Legal" component={LegalScreen} />
+              <Stack.Screen name="Paywall" component={PaywallScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
+              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={pendingAnalysis ?? undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+              <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+              <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </CommercialProvider>
       </View>
       {showLaunchSplash ? <LaunchSplash reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
     </View>

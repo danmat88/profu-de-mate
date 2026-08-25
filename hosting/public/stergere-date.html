@@ -16,10 +16,10 @@
     <main>
       <article class="document">
         <p class="eyebrow">Controlul datelor</p>
-        <h1>Ștergi totul direct din aplicație.</h1>
-        <p class="lead">Profu’ de mate nu cere un cont vizibil. Firebase creează numai un identificator tehnic anonim pentru instalarea ta.</p>
+        <h1>Ștergi contul direct din aplicație.</h1>
+        <p class="lead">Poți începe cu un cont tehnic anonim și poți alege ulterior conectarea Google. Ambele se șterg din același loc.</p>
 
-        <div class="notice"><strong>Acțiune definitivă:</strong> ștergerea elimină lecțiile, feedbackul, istoricul tehnic controlat de aplicație și contul anonim al instalării. Datele nu pot fi recuperate.</div>
+        <div class="notice"><strong>Acțiune definitivă:</strong> ștergerea elimină lecțiile, raportările și contul Firebase, apoi cere ștergerea profilului RevenueCat. Numai cota opacă a zilei poate rămâne temporar pentru prevenirea abuzului. Datele contului nu pot fi recuperate. Un abonament Google Play trebuie oprit separat.</div>
 
         <h2>Pașii de ștergere</h2>
         <ol>
@@ -34,19 +34,23 @@
         <ul>
           <li>toate lecțiile, inclusiv cele din Caiet;</li>
           <li>rapoartele și categoriile de feedback asociate instalării;</li>
-          <li>contoarele de siguranță și cache-ul cererilor;</li>
-          <li>utilizatorul anonim Firebase al instalării.</li>
+          <li>cache-ul cererilor și contoarele asociate UID-ului; numai cota opacă a zilei poate urma retenția anti-abuz de mai jos;</li>
+          <li>utilizatorul Firebase anonim sau conectat cu Google;</li>
+          <li>profilul RevenueCat asociat identificatorului aplicației; dacă serviciul nu răspunde, cererea este reîncercată automat de backend.</li>
         </ul>
+
+        <h2>Ce nu anulează și ce poate rămâne limitat</h2>
+        <p>Ștergerea nu anulează abonamentul din Google Play și nu șterge totalurile agregate care nu identifică un utilizator. Pentru un cont Google, codul HMAC opac și numărul problemelor folosite în ziua curentă pot rămâne până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi. Nu conțin e-mailul sau UID-ul Firebase. Logurile de securitate și semnalele anti-abuz Play Integrity/Device Recall pot urma perioadele limitate descrise în Politica de confidențialitate.</p>
 
         <h2>Ce nu este stocat de aplicație</h2>
         <p>Fotografiile nu sunt păstrate în Firebase Storage sau Caiet. Furnizorul AI poate avea loguri limitate de siguranță care urmează termenii și retenția sa și nu sunt controlate direct de butonul din aplicație.</p>
 
         <h2>Dacă nu mai ai aplicația instalată</h2>
-        <p>Identitatea este anonimă și legată de instalare, deci operatorul nu poate identifica în siguranță vechile date doar după numele sau e-mailul tău. Lecțiile nesalvate expiră în 7 zile, contoarele în maximum 35 de zile, iar Caietul după aproximativ 13 luni fără activitate.</p>
-        <p>Dacă aplicația este încă instalată, folosește ștergerea din Setări. Pentru o întrebare despre o situație specială poți scrie la <a href="mailto:__CONTACT_EMAIL__">__CONTACT_EMAIL__</a>.</p>
+        <p>Dacă ai conectat Google, reinstalează aplicația, conectează același cont și folosește ștergerea din Setări. Dacă ai folosit numai contul anonim și aplicația nu mai este instalată, operatorul nu poate identifica în siguranță vechile date doar după nume sau e-mail; datele expiră conform Politicii de confidențialitate.</p>
+        <p>Pentru o situație specială poți scrie la <a href="mailto:info@danielmatei.dev">info@danielmatei.dev</a>. Nu trimite parola, fotografia problemei sau date de plată.</p>
       </article>
     </main>
-    <footer>Operator: __OPERATOR_NAME__ · Contact: <a href="mailto:__CONTACT_EMAIL__">__CONTACT_EMAIL__</a></footer>
+    <footer>Operator: __OPERATOR_NAME__ · Contact: <a href="mailto:info@danielmatei.dev">info@danielmatei.dev</a></footer>
   </div>
 </body>
 </html>

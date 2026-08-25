@@ -1,6 +1,7 @@
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../components/Typography';
@@ -10,23 +11,27 @@ import { AppIcon } from '../components/AppIcon';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useCommercial } from '../context/CommercialContext';
+import { commercialGateFromError } from '../services/commercial';
 import { analyzeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
 import { colors, fonts } from '../theme';
-import type { MathAnalysis, RootStackParamList } from '../types';
+import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../types';
 import { contentToAccessibleText } from '../utils/mathContent';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
 type ScreenState =
   | { kind: 'analyzing' }
   | { kind: 'rejected'; result: MathAnalysis }
+  | { kind: 'commercial'; message: string; reason: string; access: CommercialAccess | null }
   | { kind: 'error'; message: string };
 
 export function ProcessingScreen({ navigation, route }: Props) {
   const { height, gutter, isNarrow, isVeryShort, isShort, isCompact } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { access: commercialAccess, refresh: refreshCommercialAccess } = useCommercial();
   const [active, setActive] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
   const [takingLong, setTakingLong] = useState(false);
@@ -34,6 +39,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const orbit = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current;
+  const resumeAfterPaywall = useRef(false);
   const isCheck = route.params.mode === 'check';
   const jobs = isCheck
     ? ['Citesc rezolvarea', 'Verific fiecare pas', 'Pregătesc explicațiile']
@@ -82,6 +88,14 @@ export function ProcessingScreen({ navigation, route }: Props) {
     clearPendingAnalysis();
   }), [navigation]);
 
+  useFocusEffect(useCallback(() => {
+    if (resumeAfterPaywall.current && commercialAccess?.canAnalyze) {
+      resumeAfterPaywall.current = false;
+      setRequestKey((value) => value + 1);
+    }
+    return () => undefined;
+  }, [commercialAccess?.canAnalyze]));
+
   useEffect(() => {
     let mounted = true;
     savePendingAnalysis(route.params.mode, route.params.image, route.params.requestId);
@@ -114,6 +128,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
         const finish = () => {
           if (!mounted) return;
           clearPendingAnalysis();
+          void refreshCommercialAccess();
           if (result.status === 'ready' && lessonId) {
             navigation.replace('Lesson', { lesson: result, lessonId, source: 'flow', sourceImage: route.params.image });
           } else if (result.status !== 'ready') {
@@ -134,7 +149,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
         recordDiagnosticError('analysis_request', error);
         clearPendingAnalysis();
         progress.stopAnimation();
-        setScreenState({ kind: 'error', message: friendlyAnalysisError(error) });
+        const commercial = commercialGateFromError(error);
+        setScreenState(commercial
+          ? { kind: 'commercial', message: commercial.message, reason: commercial.reason, access: commercial.access }
+          : { kind: 'error', message: friendlyAnalysisError(error) });
       });
 
     return () => {
@@ -144,13 +162,14 @@ export function ProcessingScreen({ navigation, route }: Props) {
       clearTimeout(slowStage);
       progress.stopAnimation();
     };
-  }, [navigation, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.requestId]);
+  }, [navigation, progress, reducedMotion, refreshCommercialAccess, requestKey, route.params.image, route.params.mode, route.params.requestId]);
 
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
+    const commercialBlocked = screenState.kind === 'commercial';
     const title = rejected
       ? screenState.result.status === 'not_math' ? 'În fotografie nu apare matematică.' : 'Fotografia nu este suficient de clară.'
-      : 'Ceva nu a mers.';
+      : commercialBlocked ? 'Ai ajuns la capătul problemelor disponibile.' : 'Ceva nu a mers.';
     const message = rejected ? contentToAccessibleText(screenState.result.summary) : screenState.message;
 
     return (
@@ -178,15 +197,19 @@ export function ProcessingScreen({ navigation, route }: Props) {
           <View style={styles.messageCardWrap}>
             <View style={styles.messageCardShadow} />
             <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.messageCard}>
-              <Text style={styles.messageEyebrow}>{rejected ? 'HAI SĂ MAI ÎNCERCĂM' : 'A APĂRUT O PROBLEMĂ'}</Text>
+              <Text style={styles.messageEyebrow}>{rejected ? 'HAI SĂ MAI ÎNCERCĂM' : commercialBlocked ? 'ACCESUL TĂU' : 'A APĂRUT O PROBLEMĂ'}</Text>
               <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
               <Text style={styles.messageText}>{message}</Text>
             </View>
           </View>
         </ScrollView>
         <View style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
-          {!rejected ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
-          <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={retakePhoto} />
+          {commercialBlocked ? <ComicButton compact title="Vezi opțiunile" subtitle="Probleme gratuite sau Premium." icon="trophy" tone="lime" onPress={() => {
+            resumeAfterPaywall.current = true;
+            navigation.navigate('Paywall', { source: 'quota', ...(screenState.access ? { access: screenState.access } : {}) });
+          }} /> : null}
+          {!rejected && !commercialBlocked ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
+          {!commercialBlocked ? <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={retakePhoto} /> : null}
           <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
             <Text style={styles.backLinkText}>{navigation.canGoBack() ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
           </Pressable>

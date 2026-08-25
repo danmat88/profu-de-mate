@@ -1,5 +1,35 @@
 export type FlowMode = 'solve' | 'check';
 
+export type CommercialIdentity = 'anonymous' | 'google';
+export type CommercialTier = 'guest' | 'free' | 'premium';
+export type CommercialBlockReason = 'available' | 'welcome_exhausted' | 'daily_exhausted' | 'account_required';
+
+export type CommercialAccess = {
+  identity: CommercialIdentity;
+  tier: CommercialTier;
+  limit: number;
+  used: number;
+  remaining: number;
+  canAnalyze: boolean;
+  reason: CommercialBlockReason;
+  resetAt: string | null;
+  purchaseUserId: string;
+  allowances: {
+    welcome: number;
+    freeDaily: number;
+    premiumDaily: number;
+  };
+  premium: {
+    active: boolean;
+    productId: string | null;
+    expiresAt: string | null;
+  };
+  deviceRecall: {
+    shouldVerify: boolean;
+    verified: boolean;
+  };
+};
+
 export type CaptureSource = 'camera' | 'gallery';
 
 export type CapturedImage = {
@@ -127,6 +157,7 @@ export type RootStackParamList = {
   Notebook: undefined;
   Settings: undefined;
   Legal: undefined;
+  Paywall: { source: 'quota' | 'settings' | 'home'; access?: CommercialAccess };
   Capture: { mode: FlowMode };
   Review: { mode: FlowMode; image: CapturedImage };
   Processing: { mode: FlowMode; image: CapturedImage; requestId: string };

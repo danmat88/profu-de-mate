@@ -14,6 +14,7 @@ import {
   buildMathDocumentMarkup,
   buildMathDocumentUpdateScript,
 } from '../utils/mathDocument';
+import { PlayfulLoader } from './PlayfulLoader';
 import { Text } from './Typography';
 
 type Props = {
@@ -89,11 +90,8 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
 
   if (!fontsReady || !source) {
     return (
-      <View accessibilityLabel="Se pregătește documentul matematic" style={[styles.frame, styles.loading, style]}>
-        <View style={[styles.skeleton, styles.skeletonLong]} />
-        <View style={[styles.skeleton, styles.skeletonMedium]} />
-        <View style={[styles.skeleton, styles.skeletonFormula]} />
-        <View style={[styles.skeleton, styles.skeletonLong]} />
+      <View style={[styles.frame, styles.loading, style]}>
+        <PlayfulLoader compact label="Așez matematica în pagină" />
       </View>
     );
   }
@@ -161,9 +159,7 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
       />
       {!documentReady ? (
         <View pointerEvents="none" style={styles.loadingOverlay}>
-          <View style={[styles.skeleton, styles.skeletonLong]} />
-          <View style={[styles.skeleton, styles.skeletonMedium]} />
-          <View style={[styles.skeleton, styles.skeletonFormula]} />
+          <PlayfulLoader compact label="Așez matematica în pagină" />
         </View>
       ) : null}
     </View>
@@ -175,12 +171,8 @@ const styles = StyleSheet.create({
   webViewContainer: { backgroundColor: 'transparent' },
   webView: { flex: 1, backgroundColor: 'transparent', opacity: 1 },
   webViewLoading: { opacity: 0 },
-  loading: { padding: 18, gap: 12 },
-  loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.paper, padding: 18, gap: 12 },
-  skeleton: { borderRadius: 8, backgroundColor: colors.violetSoft, opacity: 0.72 },
-  skeletonLong: { width: '92%', height: 15 },
-  skeletonMedium: { width: '65%', height: 15 },
-  skeletonFormula: { width: '74%', height: 54, alignSelf: 'center', marginVertical: 6, borderRadius: 14 },
+  loading: { alignItems: 'center', justifyContent: 'center', padding: 18 },
+  loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', padding: 18 },
   error: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19, textAlign: 'center' },
   errorText: { marginTop: 4, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, textAlign: 'center' },

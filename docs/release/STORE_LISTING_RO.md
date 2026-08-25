@@ -7,6 +7,7 @@
 - Categorie propusă: **Educație**
 - Public: **13+**
 - Reclame: **Nu**
+- Achiziții în aplicație: **Da, abonament Premium lunar sau anual**
 
 ## Descriere scurtă
 
@@ -25,6 +26,7 @@ Ce poți face:
 - primești o rezolvare explicată pas cu pas;
 - verifici o rezolvare și vezi ce este corect sau ce trebuie reparat;
 - salvezi lecțiile utile în Caiet;
+- începi fără conectare, iar Google rămâne opțional pentru recuperarea Caietului și problemele gratuite zilnice;
 - cauți și filtrezi problemele salvate;
 - raportezi rapid un răspuns greșit, neclar sau nepotrivit.
 
@@ -32,15 +34,16 @@ Creat pentru claritate și control:
 
 - interfață în română;
 - fără reclame în prima versiune;
+- variantă gratuită și Premium cu limită zilnică mai mare;
 - fotografiile nu sunt păstrate în Caiet sau Firebase Storage;
 - diagnosticarea tehnică este opțională și implicit oprită;
-- toate datele aplicației pot fi șterse din Setări.
+- contul aplicației și datele asociate pot fi șterse din Setări; abonamentul se administrează separat în Google Play.
 
 Profu’ de mate folosește inteligență artificială. Răspunsurile pot conține greșeli și trebuie verificate înainte de a fi folosite la teme, teste sau examene. Aplicația este un ajutor educațional și nu înlocuiește profesorul.
 
 ## Texte și câmpuri care lipsesc
 
-- E-mail suport: **[DE COMPLETAT]**
+- E-mail suport: **info@danielmatei.dev**
 - URL politică de confidențialitate: **[DE COMPLETAT]**
 - Nume legal dezvoltator: **[DE COMPLETAT]**
 

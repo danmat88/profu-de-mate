@@ -1,9 +1,13 @@
 export type DiagnosticContext =
   | 'analysis_request'
   | 'app_render'
+  | 'commercial_access'
+  | 'commercial_initialization'
+  | 'commercial_preflight'
   | 'data_deletion'
   | 'feedback_submission'
   | 'firebase_initialization'
+  | 'google_disconnect'
   | 'notebook_update'
   | 'notebook_subscription';
 

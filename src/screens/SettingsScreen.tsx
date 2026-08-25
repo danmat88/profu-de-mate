@@ -4,21 +4,34 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text } from '../components/Typography';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
+import { GoogleAccountButton } from '../components/GoogleAccountButton';
 import { MiniGlyph } from '../components/MiniGlyph';
+import { PlayfulLoader } from '../components/PlayfulLoader';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { Text } from '../components/Typography';
+import { useCommercial } from '../context/CommercialContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { getAppVersionLabel } from '../services/appInfo';
-import { deleteAllUserData } from '../services/dataManagement';
+import { DataDeletionCancelledError, deleteAllUserData } from '../services/dataManagement';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
+
+function SettingsSectionTitle({ children, tone }: { children: string; tone: string }) {
+  return (
+    <View style={styles.sectionHeading}>
+      <View style={[styles.sectionMark, { backgroundColor: tone }]} />
+      <Text style={styles.sectionTitle}>{children}</Text>
+      <View style={styles.sectionLine} />
+    </View>
+  );
+}
 
 export function SettingsScreen({ navigation }: Props) {
   const { gutter } = useResponsiveLayout();
@@ -29,8 +42,40 @@ export function SettingsScreen({ navigation }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleteComplete, setDeleteComplete] = useState(false);
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const { access, loading: accessLoading, connectGoogle, disconnectGoogle, refresh } = useCommercial();
+  const freeDailyLimit = access?.allowances.freeDaily ?? 5;
   const diagnosticsLocked = useRef(false);
   const deletionLocked = useRef(false);
+  const accountLabel = access?.premium.active ? 'PROFU’ PREMIUM' : access?.identity === 'google' ? 'CONT GOOGLE CONECTAT' : 'CONT TEMPORAR';
+  const accountTitle = access?.premium.active
+    ? 'Premium și Caietul sunt legate de contul tău'
+    : access?.identity === 'google'
+      ? 'Caietul poate fi recuperat'
+      : access?.reason === 'account_required'
+        ? 'Reconectează-te pentru limita zilnică'
+      : 'Caietul este legat de această instalare';
+  const accountText = access?.identity === 'google'
+    ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează accesul după reinstalare și pe celelalte telefoane ale tale.`
+    : access?.reason === 'account_required'
+      ? `Problemele de bun-venit ale acestei instalări nu se reactivează prin deconectare. Reconectează-te pentru cele ${freeDailyLimit} probleme gratuite zilnic și pentru Caietul tău.`
+      : `Poți folosi problemele de bun-venit fără să te conectezi. Pentru a recupera Caietul după reinstalare și pentru ${freeDailyLimit} probleme gratuite zilnic, conectează-te cu Google.`;
+
+  const connectAccount = async () => {
+    if (connectingGoogle) return;
+    setConnectingGoogle(true);
+    setAccountError(null);
+    try {
+      await connectGoogle();
+    } catch {
+      setAccountError('Conectarea nu a reușit. Verifică internetul și încearcă din nou.');
+    } finally {
+      setConnectingGoogle(false);
+    }
+  };
 
   const toggleDiagnostics = async () => {
     if (diagnosticsLocked.current) return;
@@ -57,13 +102,33 @@ export function SettingsScreen({ navigation }: Props) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
       setDeleteComplete(true);
+      await refresh();
     } catch (deletionError) {
+      if (deletionError instanceof DataDeletionCancelledError) return;
       recordDiagnosticError('data_deletion', deletionError);
       setDeleteError(true);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       deletionLocked.current = false;
       setDeleting(false);
+    }
+  };
+
+  const disconnectAccount = async () => {
+    if (disconnectingGoogle) return;
+    setDisconnectingGoogle(true);
+    setAccountError(null);
+    try {
+      await disconnectGoogle();
+      setConfirmLogout(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      recordDiagnosticError('google_disconnect', error);
+      setAccountError('Deconectarea nu a reușit. Verifică internetul și încearcă din nou.');
+      setConfirmLogout(false);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setDisconnectingGoogle(false);
     }
   };
 
@@ -75,14 +140,38 @@ export function SettingsScreen({ navigation }: Props) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 14) + 18 }]}>
         <View style={styles.identity}>
           <View style={styles.identityIcon}><AppIcon name="privacy" size={54} /></View>
-          <View style={styles.identityCopy}>
-            <Text style={styles.identityLabel}>CONT ANONIM PE ACEST TELEFON</Text>
-            <Text style={styles.identityTitle}>Caietul este legat de acest telefon</Text>
-            <Text style={styles.identityText}>Nu îți cerem numele sau adresa de e-mail. Dacă ștergi aplicația ori datele ei, nu vei mai putea recupera Caietul. Fotografiile nu sunt păstrate în Caiet.</Text>
-          </View>
+          {accessLoading && !access
+            ? <PlayfulLoader compact label="Verific spațiul tău" style={styles.identityLoader} />
+            : <View style={styles.identityCopy}>
+                <Text style={styles.identityLabel}>{accountLabel}</Text>
+                <Text style={styles.identityTitle}>{accountTitle}</Text>
+                <Text style={styles.identityText}>{accountText}</Text>
+              </View>}
         </View>
 
-        <Text style={styles.sectionTitle}>Confidențialitate</Text>
+        {!accessLoading && access?.identity !== 'google' ? (
+          <GoogleAccountButton
+            busy={connectingGoogle}
+            note={`Păstrezi Caietul și primești ${freeDailyLimit} probleme gratuite zilnic`}
+            onPress={() => void connectAccount()}
+            style={styles.settingsGoogleButton}
+          />
+        ) : null}
+        {!accessLoading && access?.identity === 'google' ? (
+          <Pressable accessibilityRole="button" onPress={() => setConfirmLogout(true)} style={styles.accountAction}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="profile" size={36} /></View>
+            <View style={styles.rowCopy}><Text style={styles.rowTitle}>Deconectează contul Google</Text><Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Spațiul guest nu primește un nou pachet de bun-venit.</Text></View>
+            <MiniGlyph name="next" size={18} color={colors.violetDeep} />
+          </Pressable>
+        ) : null}
+        <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Paywall', { source: 'settings', ...(access ? { access } : {}) })} style={styles.accountAction}>
+          <View style={[styles.rowIcon, { backgroundColor: access?.premium.active ? colors.lime : colors.violetSoft }]}><AppIcon name="trophy" size={36} /></View>
+          <View style={styles.rowCopy}><Text style={styles.rowTitle}>{access?.premium.active ? 'Administrează Premium' : 'Vezi Profu’ Premium'}</Text><Text style={styles.rowText}>{access?.premium.active ? 'Vezi limita de azi sau deschide abonamentul în Google Play.' : 'O limită zilnică mai mare, fără reclame și fără pachete de credite.'}</Text></View>
+          <MiniGlyph name="next" size={18} color={colors.violetDeep} />
+        </Pressable>
+        {accountError ? <Text accessibilityRole="alert" style={styles.accountError}>{accountError}</Text> : null}
+
+        <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
         <View style={styles.list}>
           <Pressable accessibilityRole="switch" accessibilityState={{ checked: diagnostics }} onPress={() => void toggleDiagnostics()} style={styles.row}>
             <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="settings" size={36} /></View>
@@ -102,26 +191,26 @@ export function SettingsScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Datele tale</Text>
+        <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
         <View style={styles.list}>
           <View style={styles.row}>
             <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={36} /></View>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>Cât timp păstrăm datele</Text>
-              <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar datele de siguranță după cel mult 35 de zile. Caietul se șterge după aproximativ 13 luni în care nu îl folosești.</Text>
+              <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergerea contului, numai cota opacă a zilei poate rămâne până după următoarea resetare, pentru prevenirea abuzului.</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" onPress={() => { setDeleteError(false); setConfirmDelete(true); }} style={styles.deleteRow}>
             <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
             <View style={styles.rowCopy}>
               <Text style={styles.deleteTitle}>Șterge toate datele</Text>
-              <Text style={styles.rowText}>Șterge lecțiile, raportările trimise, contoarele de utilizare și contul anonim al aplicației.</Text>
+              <Text style={styles.rowText}>Șterge contul, Caietul și raportările. Marcajul opac al cotei de azi poate rămâne temporar pentru a împiedica resetarea artificială. Abonamentul Play se oprește separat.</Text>
             </View>
             <MiniGlyph name="next" size={18} color={colors.rose} />
           </Pressable>
         </View>
 
-        <Text style={styles.sectionTitle}>Despre aplicație</Text>
+        <SettingsSectionTitle tone={colors.lime}>Despre aplicație</SettingsSectionTitle>
         <View style={styles.list}>
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Legal')} style={styles.deleteRow}>
             <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="help" size={36} /></View>
@@ -149,14 +238,33 @@ export function SettingsScreen({ navigation }: Props) {
               <View style={styles.confirmIcon}><MiniGlyph name="wrong" size={28} color={colors.paper} /></View>
               <Text style={styles.confirmEyebrow}>ACȚIUNE DEFINITIVĂ</Text>
               <Text style={styles.confirmTitle}>Ștergi toate datele?</Text>
-              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul anonim vor fi șterse definitiv. Fotografiile nu sunt păstrate în Caiet sau în Firebase Storage.</Text>
+              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul aplicației vor fi șterse definitiv. Pentru a împiedica resetarea artificială a accesului gratuit, numărul problemelor folosite azi poate rămâne temporar sub un cod opac, fără e-mail sau UID. Un abonament activ se oprește separat în Google Play.</Text>
               {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
               <Pressable accessibilityRole="button" disabled={deleting} onPress={() => void deleteData()} style={styles.confirmDelete}>
-                {deleting ? <ActivityIndicator size="small" color={colors.paper} /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
+                {deleting ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
                 <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : 'Da, șterge definitiv'}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}><Text style={styles.cancelText}>Păstrează datele</Text></Pressable>
             </ScrollView>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={confirmLogout} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={disconnectingGoogle ? undefined : () => setConfirmLogout(false)}>
+        <SafeAreaView style={styles.modalLayer} edges={[]}>
+          <Pressable accessible={false} disabled={disconnectingGoogle} onPress={() => setConfirmLogout(false)} style={styles.scrim} />
+          <View accessibilityViewIsModal style={styles.confirmSheet}>
+            <View style={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
+              <View style={styles.logoutIcon}><AppIcon name="profile" size={44} /></View>
+              <Text style={styles.logoutEyebrow}>SCHIMBI CONTUL DE PE TELEFON</Text>
+              <Text style={styles.confirmTitle}>Te deconectezi?</Text>
+              <Text style={styles.confirmText}>Nu se șterge nimic și nu se resetează nicio limită. Caietul, problemele folosite azi și Premium rămân legate de contul Google și reapar când îl conectezi din nou.</Text>
+              <Pressable accessibilityRole="button" disabled={disconnectingGoogle} onPress={() => void disconnectAccount()} style={styles.confirmLogout}>
+                {disconnectingGoogle ? <PlayfulLoader micro /> : <MiniGlyph name="next" size={18} color={colors.ink} />}
+                <Text style={styles.confirmLogoutText}>{disconnectingGoogle ? 'Deconectez…' : 'Da, deconectează-mă'}</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" disabled={disconnectingGoogle} onPress={() => setConfirmLogout(false)} style={styles.cancel}><Text style={styles.cancelText}>Rămân conectat</Text></Pressable>
+            </View>
           </View>
         </SafeAreaView>
       </Modal>
@@ -174,7 +282,7 @@ export function SettingsScreen({ navigation }: Props) {
               <View style={styles.successIcon}><MiniGlyph name="check" size={29} color={colors.ink} /></View>
               <Text style={styles.successEyebrow}>ȘTERGERE ÎNCHEIATĂ</Text>
               <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
-              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul anonim au fost șterse. La următoarea folosire, aplicația va crea automat un cont anonim nou și gol.</Text>
+              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul aplicației au fost șterse. La următoarea folosire, aplicația va crea automat un spațiu nou și gol.</Text>
               <Pressable accessibilityRole="button" onPress={() => { setDeleteComplete(false); navigation.popToTop(); }} style={styles.successButton}>
                 <Text style={styles.successButtonText}>Înapoi la început</Text>
                 <MiniGlyph name="next" size={19} color={colors.ink} />
@@ -190,13 +298,20 @@ export function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { gap: 10 },
-  identity: { borderWidth: 2.5, borderColor: colors.ink, borderRadius: 24, backgroundColor: colors.paper, flexDirection: 'row', gap: 10, padding: 14, shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 0, shadowOffset: { width: 0, height: 4 }, elevation: 4, marginBottom: 10 },
+  identity: { minHeight: 118, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 24, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, shadowColor: colors.ink, shadowOpacity: 0.18, shadowRadius: 0, shadowOffset: { width: 0, height: 4 }, elevation: 4, marginBottom: 10 },
   identityIcon: { width: 61, height: 61, borderRadius: 20, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
   identityCopy: { flex: 1 },
+  identityLoader: { flex: 1 },
   identityLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.1 },
   identityTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 20, marginTop: 2 },
   identityText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, marginTop: 3 },
-  sectionTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 22, marginTop: 4 },
+  settingsGoogleButton: { marginBottom: 3 },
+  accountAction: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1.5, borderBottomColor: colors.line, paddingVertical: 7 },
+  accountError: { borderRadius: 13, backgroundColor: '#FFE1E5', padding: 10, fontFamily: fonts.bodyBold, color: '#9E2135', fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  sectionHeading: { minHeight: 38, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionMark: { width: 13, height: 13, borderRadius: 4, borderWidth: 1.5, borderColor: colors.ink, transform: [{ rotate: '-5deg' }] },
+  sectionTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 22 },
+  sectionLine: { flex: 1, height: 1.5, backgroundColor: colors.line },
   list: { borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: colors.line },
   row: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 8 },
   rowIcon: { width: 44, height: 44, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
@@ -224,6 +339,10 @@ const styles = StyleSheet.create({
   confirmError: { fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: 8 },
   confirmDelete: { width: '100%', minHeight: 52, borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.rose, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14 },
   confirmDeleteText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16 },
+  logoutIcon: { width: 58, height: 58, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.cyan, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  logoutEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2, marginTop: 10 },
+  confirmLogout: { width: '100%', minHeight: 52, borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 14 },
+  confirmLogoutText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16 },
   cancel: { minHeight: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 5 },
   cancelText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 13 },
   successIcon: { width: 58, height: 58, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-4deg' }] },

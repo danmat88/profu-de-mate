@@ -5,12 +5,13 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../components/Typography';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
+import { PlayfulLoader } from '../components/PlayfulLoader';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { prepareCapturedImage } from '../services/imagePipeline';
@@ -227,7 +228,7 @@ export function CaptureScreen({ navigation, route }: Props) {
             <View style={styles.permissionPanel}>
               {permission === null ? (
                 <>
-                  <ActivityIndicator size="large" color={colors.lime} />
+                  <PlayfulLoader inverse />
                   <Text style={styles.permissionTitle}>Camera pornește…</Text>
                 </>
               ) : (
@@ -269,7 +270,7 @@ export function CaptureScreen({ navigation, route }: Props) {
               <View style={styles.detected}><MiniGlyph name="spark" size={15} /><Text style={styles.detectedText}>Păstrează exercițiul în cadru</Text></View>
             </>
           ) : null}
-          {working ? <View style={styles.workingBadge}><ActivityIndicator size="small" color={colors.ink} /><Text style={styles.workingText}>Pregătesc fotografia…</Text></View> : null}
+          {working ? <View style={styles.workingBadge}><PlayfulLoader micro /><Text style={styles.workingText}>Pregătesc fotografia…</Text></View> : null}
           {captureError ? <View style={styles.errorBanner}><MiniGlyph name="wrong" size={16} color={colors.paper} /><Text style={styles.errorText}>{captureError}</Text></View> : null}
         </View>
       </View>

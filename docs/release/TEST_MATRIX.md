@@ -7,9 +7,10 @@ Ultima actualizare: 25 august 2026
 | Suită | Comandă | Stare curentă |
 |---|---|---|
 | TypeScript + compatibilitate Expo | `npm run check` | 21/21 Expo Doctor, trece |
-| Backend/schemă/randare matematică | `npm run functions:test` | 40/40, trece; corpus simbolic extins la 41 de familii/expresii |
-| Logică mobilă, configurație Android, tipografie, lifecycle, calitatea textelor și Caiet | `npm run test:mobile` | 44/44, trece |
-| Firestore Rules | `npm run test:rules` | 8/8, trece |
+| Backend/schemă/randare matematică | `npm run functions:test` | 56/56, trece; include identitățile comerciale stabile și recent-auth la ștergere |
+| Logică mobilă, configurație Android, tipografie, lifecycle, calitatea textelor și Caiet | `npm run test:mobile` | 53/53, trece; include ciclul de viață al contului și logout-ul sigilat |
+| Contract EAS/Metro | `npm run env:check:development`, `npm run env:check:preview`, `npm run env:check:production` | toate cele trei medii trec; production interzice App Check debug |
+| Firestore Rules + tranzacții comerciale | `npm run test:rules` | Rules 8/8 și integrare comercială 9/9, trec |
 
 ## Dispozitive și layout
 
@@ -38,8 +39,20 @@ Ultima actualizare: 25 august 2026
 - [~] Vizualuri: baseline determinist la 390 px pentru geometrie, grafic, tabel cu celule matematice și axă numerică; mai trebuie QA fizic pe telefon mic/mare și comparație automată.
 - [~] Caiet: salvare, listă normală, filă goală, filtre, deschidere și sheet-ul de scoatere/anulare verificate fizic; confirmarea scoaterii, căutarea, cold start offline și reconectarea rămân deschise.
 - [ ] Raportare: toate categoriile, eroare offline și succes.
-- [ ] Ștergere totală: anulare, succes, eroare și confirmarea că UID-ul/data au dispărut.
+- [ ] Ștergere totală: anulare, reconfirmare Google, succes, eroare și confirmarea că UID-ul/conținutul au dispărut, iar cota opacă a zilei a rămas fără UID sau request IDs.
 - [ ] Lansare forțată cu o eroare de randare: fallbackul global apare și „Reîncearcă” remontează aplicația.
+
+## Conturi și acces comercial
+
+- [ ] Vizitator nou: 5/5, o problemă `ready` → 4/5, `not_math`/`unclear`/timeout → fără consum.
+- [ ] Închidere, process-kill, restart telefon și actualizare păstrează sesiunea Google și cota.
+- [ ] Vizitator cu probleme folosite → Google nou/existent: consumul se unește fără bonus.
+- [ ] Același Google pe două telefoane consumă aceeași cotă zilnică; două cereri simultane nu depășesc limita.
+- [ ] Deconectare: contul și Caietul rămân pe server, telefonul primește un spațiu temporar separat, reconectarea recuperează exact starea anterioară.
+- [ ] 5/5 Google → o problemă `ready` → 4/5 → ștergere definitivă → același Google în aceeași zi → 4/5, nu 5/5.
+- [ ] Ștergere date Android/reinstalare → reconectare Google: Caiet, Premium și cota zilei sunt recuperate.
+- [ ] Device Recall pe artefact Play: un vizitator nu poate revendica din nou pachetul după reinstalare/reset; `UNEVALUATED` urmează fallbackul către Google.
+- [ ] Purchase/restore/renewal/cancel/expiration/refund/transfer sunt verificate din trackul Play, inclusiv după ștergerea contului aplicației.
 
 ## Lifecycle imagini — probe fizice
 

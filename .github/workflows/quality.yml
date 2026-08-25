@@ -52,7 +52,7 @@ jobs:
       - name: Test pure mobile logic
         run: npm run test:mobile
 
-      - name: Test Firestore rules
+      - name: Test Firestore rules and commercial transactions
         run: npm run test:rules
 
       - name: Reject high or critical runtime advisories in the app

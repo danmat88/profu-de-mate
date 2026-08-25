@@ -51,6 +51,13 @@ describe('Firestore rules', () => {
     await assertFails(setDoc(doc(database, '_runtimeConfig/ai'), { enabled: false }));
     await assertFails(getDoc(doc(database, '_aiUsage/alice_2026-08-24')));
     await assertFails(getDoc(doc(database, '_analysisRequests/alice_request')));
+    await assertFails(getDoc(doc(database, '_commercialUsers/alice')));
+    await assertFails(getDoc(doc(database, '_commercialUsage/alice_2026-08-25')));
+    await assertFails(getDoc(doc(database, '_commercialEntitlements/alice')));
+    await assertFails(getDoc(doc(database, '_commercialReservations/alice_request')));
+    await assertFails(getDoc(doc(database, '_commercialEvents/event-1')));
+    await assertFails(getDoc(doc(database, '_accountMergeTickets/ticket-1')));
+    await assertFails(getDoc(doc(database, '_pendingRevenueCatDeletions/alice')));
   });
 
   test('refuză crearea unei soluții direct din aplicație', async () => {

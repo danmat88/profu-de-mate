@@ -64,10 +64,12 @@ Rotație obligatorie: suspiciune de expunere, schimbarea publisherului/colaborat
 ## Incident de ștergere a datelor
 
 1. Nu confirma utilizatorului ștergerea până când `deleteMyData` nu răspunde cu `deleted: true`.
-2. Dacă funcția cade, datele locale sunt deja curățate, iar interfața trebuie să permită reîncercarea ștergerii remote.
-3. Verifică agregat: subcolecția utilizatorului, feedback, `_aiUsage`, `_analysisRequests` și identitatea anonimă.
-4. Nu recrea automat identitatea până la confirmarea ștergerii; după succes, următoarea folosire creează un cont anonim nou și gol.
-5. Pentru o cerere publică DSAR se folosește procedura juridică din Faza 6, nu acces manual improvizat la date.
+2. Dacă RevenueCat nu răspunde, confirmă numai după ce documentul `_pendingRevenueCatDeletions/{uid}` a fost creat; jobul `retryRevenueCatDeletions` reia ștergerea profilului terț.
+3. Dacă funcția cade, datele locale și sesiunea rămân disponibile pentru reîncercare; clientul curăță local numai după confirmarea serverului.
+4. Verifică agregat: subcolecția utilizatorului, feedback, `_aiUsage`, `_analysisRequests`, profilul/entitlement-ul și identitatea Firebase.
+5. Pentru Google, verifică separat că documentul cotei zilei nu mai conține UID, `requestIds` sau alte metadate vechi, are `retainedFor: quota-abuse-prevention` și devine eligibil pentru ștergere exact la următoarea resetare.
+6. După confirmarea serverului, clientul închide sesiunea veche și creează imediat un cont anonim nou și gol; nu afișează datele contului șters.
+7. Pentru o cerere publică DSAR se folosește procedura juridică din Faza 6, nu acces manual improvizat la date.
 
 ## Cost anormal sau abuz
 

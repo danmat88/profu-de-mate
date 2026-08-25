@@ -5,12 +5,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../components/Typography';
 import { AppIcon, type AppIconName } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
+import { PlayfulLoader } from '../components/PlayfulLoader';
+import { useCommercial } from '../context/CommercialContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { prepareCapturedImage } from '../services/imagePipeline';
@@ -75,6 +77,7 @@ export function HomeScreen() {
   const { contentWidth, gutter, isNarrow, isVeryNarrow, isVeryShort, isShort, isLargeText, isVeryLargeText } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { access, refresh: refreshCommercialAccess } = useCommercial();
   const [mode, setMode] = useState<FlowMode>('solve');
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
@@ -91,7 +94,8 @@ export function HomeScreen() {
     // Home is outside a capture/analysis session. This also covers an Android
     // activity reopened inside the same JavaScript process.
     clearTemporaryCapturedImages();
-  }, []));
+    void refreshCommercialAccess();
+  }, [refreshCommercialAccess]));
 
   useEffect(() => {
     if (reducedMotion) {
@@ -167,6 +171,13 @@ export function HomeScreen() {
   const baseStageHeight = isVeryShort ? 226 : isShort ? 252 : 278;
   const stageHeight = baseStageHeight + (isVeryLargeText ? 360 : isLargeText ? 72 : 0);
   const mascotWidth = isVeryNarrow ? 128 : 148;
+  const allowanceLabel = access
+    ? access.reason === 'account_required'
+      ? 'Conectează-te'
+      : access.tier === 'guest'
+      ? `${access.remaining} din ${access.limit} cadou`
+      : `${access.remaining} din ${access.limit} azi`
+    : 'Verific…';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -189,6 +200,17 @@ export function HomeScreen() {
                 <Text style={styles.brandNote}>EXPLICAȚII PAS CU PAS</Text>
               </View>
             </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${allowanceLabel}. Deschide opțiunile de acces.`}
+              onPress={() => navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) })}
+              style={({ pressed }) => [styles.allowanceShadow, pressed && styles.pressed]}
+            >
+              <View style={[styles.allowancePill, access?.premium.active && styles.allowancePillPremium]}>
+                <MiniGlyph name={access?.premium.active ? 'spark' : 'dot'} size={13} color={colors.ink} />
+                <View><Text style={styles.allowanceText}>{allowanceLabel}</Text><Text style={styles.allowanceNote}>{access?.premium.active ? 'PREMIUM' : access?.reason === 'account_required' ? 'CONT' : 'PROBLEME'}</Text></View>
+              </View>
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Deschide setările"
@@ -278,7 +300,7 @@ export function HomeScreen() {
                   onPress={() => void openGallery()}
                   style={({ pressed }) => [styles.galleryButton, isVeryLargeText && styles.galleryButtonVeryLargeText, galleryBusy && styles.galleryButtonBusy, pressed && styles.actionPressed]}
                 >
-                  {galleryBusy ? <ActivityIndicator size="small" color={colors.violetDeep} /> : <AppIcon name="gallery" size={30} />}
+                  {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={30} />}
                   <Text style={styles.galleryButtonText}>{galleryBusy ? 'Deschid…' : 'Galerie'}</Text>
                 </Pressable>
               </View>
@@ -355,6 +377,11 @@ const styles = StyleSheet.create({
   brandNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 0.9, marginTop: -1 },
   settingsShadow: { width: 48, height: 51, borderRadius: 15, backgroundColor: colors.ink, marginLeft: 9 },
   settingsButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  allowanceShadow: { height: 44, borderRadius: 14, backgroundColor: colors.ink, marginLeft: 7, paddingBottom: 3 },
+  allowancePill: { minWidth: 78, height: 41, borderRadius: 13, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 6 },
+  allowancePillPremium: { backgroundColor: colors.lime },
+  allowanceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 11 },
+  allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6.5, letterSpacing: 0.65, lineHeight: 8 },
   intro: { marginTop: 8 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   kickerMark: { width: 24, height: 24, borderRadius: 8, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-7deg' }] },

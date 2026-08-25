@@ -95,7 +95,7 @@ export function LegalScreen({ navigation }: Props) {
               <View style={styles.heroIcon}><AppIcon name="privacy" size={64} /></View>
               <Text style={styles.heroEyebrow}>PE SCURT</Text>
               <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
-              <Text style={styles.heroText}>Folosim fotografia doar ca să construim explicația. Nu avem reclame, nu cerem nume și nu vindem date.</Text>
+              <Text style={styles.heroText}>Folosim fotografia doar ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
               <View style={styles.chips}>
                 <View style={styles.chip}><Text style={styles.chipText}>13+</Text></View>
                 <View style={[styles.chip, styles.chipLime]}><Text style={styles.chipText}>Fără reclame</Text></View>
@@ -131,10 +131,12 @@ export function LegalScreen({ navigation }: Props) {
             </View>
 
             <Section number="01" title="Ce date folosim">
-              <Bullet>Un identificator Firebase anonim pentru aplicația instalată pe telefon.</Bullet>
+              <Bullet>Un identificator Firebase pentru spațiul aplicației; dacă alegi Google, adresa de e-mail, numele și identificatorul contului furnizate de Google. Pentru cota zilnică, backendul transformă identificatorul Google într-un cod HMAC opac, care nu conține e-mailul.</Bullet>
               <Bullet>Fotografia aleasă de tine și cererea de rezolvare sau verificare.</Bullet>
               <Bullet>Soluția, verdictul, materia și starea de salvare a lecției.</Bullet>
               <Bullet>Categoria unui raport trimis de tine și, doar dacă activezi opțiunea, date tehnice de blocare.</Bullet>
+              <Bullet>Starea abonamentului și produsul cumpărat, fără numărul cardului sau datele de plată.</Bullet>
+              <Bullet>Semnale Play Integrity și un bit Device Recall, când sunt disponibile, folosite numai pentru siguranță și prevenirea repetării abuzive a ofertei de bun-venit.</Bullet>
               <Bullet>Infrastructura poate înregistra automat metadate de conexiune, precum adresa IP, mărimea cererii, latența și codul răspunsului, fără conținutul fotografiei.</Bullet>
             </Section>
 
@@ -143,20 +145,22 @@ export function LegalScreen({ navigation }: Props) {
             </Section>
 
             <Section number="03" title="Cine procesează datele">
-              <Paragraph>Folosim Google Firebase pentru autentificare anonimă, funcții și baza de date; Firebase Crashlytics doar dacă îl activezi; și Gemini Developer API pentru analiza matematică. Nu folosim rețele publicitare și nu vindem date.</Paragraph>
+              <Paragraph>Folosim Google Firebase pentru autentificare, funcții și baza de date; Google Sign-In dacă îl alegi; Google Play pentru plăți și verificarea integrității; RevenueCat pentru starea abonamentului; Firebase Crashlytics doar dacă îl activezi; și Gemini Developer API pentru analiza matematică. Nu folosim rețele publicitare și nu vindem date.</Paragraph>
             </Section>
 
             <Section number="04" title="Cât timp le păstrăm">
               <Bullet>Fotografia nu este stocată de aplicație în Cloud Storage sau Caiet.</Bullet>
               <Bullet>Lecția nesalvată și rezultatul tehnic temporar: maximum 7 zile.</Bullet>
-              <Bullet>Contoarele anti-abuz: maximum 35 de zile.</Bullet>
+              <Bullet>Contoarele zilnice și rezervările anti-abuz: maximum 35 de zile.</Bullet>
+              <Bullet>După ștergerea unui cont Google, numai codul HMAC și numărul folosit în ziua curentă pot rămâne până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>
+              <Bullet>Profilul tehnic minim de bun-venit, semnalele de securitate și evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există.</Bullet>
               <Bullet>Metadatele standard din Cloud Logging: în mod normal 30 de zile.</Bullet>
               <Bullet>Lecțiile salvate: până le ștergi sau după aproximativ 13 luni fără folosirea Caietului.</Bullet>
               <Bullet>Rapoartele tale: până ștergi toate datele din aplicație.</Bullet>
             </Section>
 
             <Section number="05" title="Drepturile tale">
-              <Paragraph>Poți opri rapoartele tehnice și poți șterge contul anonim, lecțiile, raportările și istoricul tehnic din Setări → Șterge toate datele. După confirmare, datele nu mai pot fi recuperate.</Paragraph>
+              <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile și raportările din Setări. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Cota opacă a zilei, totalurile anonime și semnalele ori logurile strict necesare securității pot urma retențiile limitate descrise aici. După confirmare, datele contului nu mai pot fi recuperate.</Paragraph>
               {legalDocument.contactEmail ? <Paragraph>Pentru întrebări sau exercitarea drepturilor: {legalDocument.contactEmail}</Paragraph> : null}
             </Section>
 
@@ -189,7 +193,15 @@ export function LegalScreen({ navigation }: Props) {
               <Paragraph>Serviciul are nevoie de internet și poate avea limite zilnice, perioade de mentenanță sau întreruperi ale furnizorilor. Putem opri accesul automat când detectăm abuz sau risc de securitate.</Paragraph>
             </Section>
 
-            <Section number="04" title="Raportează o problemă">
+            <Section number="04" title="Abonamentul Premium">
+              <Bullet>Plata este procesată exclusiv de Google Play; noi nu primim datele cardului.</Bullet>
+              <Bullet>Prețul, moneda, perioada și eventualele oferte sunt cele afișate de Google Play înainte de confirmare.</Bullet>
+              <Bullet>Abonamentul se reînnoiește automat până când îl oprești din Google Play. Oprirea reînnoirii păstrează Premium până la sfârșitul perioadei plătite.</Bullet>
+              <Bullet>Poți restaura o achiziție din ecranul Premium folosind același cont Google Play.</Bullet>
+              <Bullet>Ștergerea aplicației sau a datelor nu anulează abonamentul.</Bullet>
+            </Section>
+
+            <Section number="05" title="Raportează o problemă">
               <Paragraph>Din fiecare lecție sau recapitulare poți semnala un răspuns greșit, neclar ori nepotrivit fără să ieși din aplicație. Mesajul tău ne ajută să îmbunătățim filtrele și explicațiile.</Paragraph>
             </Section>
 

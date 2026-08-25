@@ -5,12 +5,14 @@ import type { CapturedImage, FlowMode, MathAnalysis } from '../types';
 export { friendlyAnalysisError } from '../utils/analysisErrors';
 import { isMathAnalysis } from '../utils/mathContent';
 import { initializeVerifiedFirebaseServices } from './firebase';
+import { getInstallationToken } from './installationIdentity';
 
 type AnalyzeMathRequest = {
   mode: FlowMode;
   imageBase64: string;
   mimeType: 'image/jpeg';
   requestId: string;
+  installationToken: string;
 };
 
 type AnalyzeMathResponse = {
@@ -30,12 +32,13 @@ export function createAnalysisRequestId(): string {
 
 export async function analyzeMathImage(mode: FlowMode, image: CapturedImage, requestId: string): Promise<AnalyzeMathResponse> {
   await initializeVerifiedFirebaseServices();
+  const installationToken = await getInstallationToken();
 
   const imageFile = new File(image.uri);
   const imageBase64 = await imageFile.base64();
   const functions = getFunctions(getApp(), 'europe-west1');
   const analyze = httpsCallable<AnalyzeMathRequest, AnalyzeMathResponse>(functions, 'analyzeMathImage', { timeout: ANALYSIS_CLIENT_TIMEOUT_MS });
-  const response = await analyze({ mode, imageBase64, mimeType: 'image/jpeg', requestId });
+  const response = await analyze({ mode, imageBase64, mimeType: 'image/jpeg', requestId, installationToken });
 
   if (!isMathAnalysis(response.data?.result) || response.data.result.mode !== mode) {
     throw new Error('Răspunsul primit nu este valid.');

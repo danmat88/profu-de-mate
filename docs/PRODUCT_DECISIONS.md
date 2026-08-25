@@ -1,6 +1,6 @@
 # Profu' de Mate — decizii de produs
 
-Ultima actualizare: 24 august 2026
+Ultima actualizare: 25 august 2026
 
 ## Public și distribuție
 
@@ -14,11 +14,24 @@ Ultima actualizare: 24 august 2026
 
 - Utilizarea de bază nu va cere autentificare vizibilă.
 - Firebase Anonymous Auth va crea identitatea tehnică necesară pentru securizarea datelor.
-- Google Sign-In nu intră în v1; poate fi adăugat ulterior prin account linking dacă testele arată că sincronizarea între telefoane este necesară.
+- Google Sign-In este opțional: aplicația pornește anonim, iar conectarea apare numai când oferă valoare clară — recuperarea Caietului, 5 probleme gratuite zilnic și Premium.
+- Sesiunea Google rămâne conectată după închiderea, repornirea și actualizarea aplicației. La pornire, sesiunea este reverificată online; dacă telefonul este offline se poate folosi tokenul local încă valid, iar un cont șters este înlocuit cu un spațiu temporar nou imediat ce serverul confirmă starea. „Deconectează-te” păstrează datele; „Șterge contul și toate datele” este o acțiune definitivă separată.
+- Cota Google este legată de un HMAC stabil al identității furnizorului, nu de Firebase UID. După ștergere și recreare, același Google păstrează consumul zilei; documentul anti-abuz nu conține e-mailul sau UID-ul, devine eligibil pentru curățare la resetarea zilei și nu participă la cota zilei următoare.
+- Pachetul guest este legat de un principal opac al instalării, nu de UID-ul anonim. După prima asociere Google, instalarea rămâne blocată pentru un nou pachet de bun-venit; logout-ul doar schimbă sesiunea și nu resetează limita.
 - Fotografiile problemelor nu vor fi păstrate după procesare.
 - În caiet se vor salva numai problema extrasă, explicația structurată și metadate minimale.
 - Lecțiile nesalvate expiră după 7 zile, iar Caietul după aproximativ 13 luni fără activitate, pentru a evita date orfane după dezinstalare.
 - Proiectul folosește un singur Firebase de producție și Firebase Emulator Suite pentru dezvoltare.
+
+## Model comercial
+
+- Vizitatorul primește 5 probleme de bun-venit în total.
+- Contul Google gratuit primește 5 probleme pe zi, resetate la miezul nopții în Europe/Bucharest.
+- Premium oferă implicit 30 de probleme pe zi și are plan lunar și anual.
+- „Problemă” înseamnă o rezolvare sau verificare finalizată cu rezultat valid; respingerile și erorile nu consumă.
+- Nu există reclame, credite, pachete, plan săptămânal, lifetime sau promisiunea „nelimitat”.
+- Google Play procesează plata, RevenueCat gestionează entitlement-ul, iar Firebase aplică server-side limita.
+- Contractul și pașii externi sunt în `docs/COMMERCIAL_SYSTEM.md`.
 
 ## Fluxul principal
 
@@ -43,7 +56,7 @@ V1 analizează o singură problemă sau rezolvare completă într-o fotografie. 
 - Firestore Standard este activ în multi-regiunea europeană `eur3`.
 - Delete protection este activată, iar PITR este oprit până la aprobarea costurilor.
 - Aplicația Android finală este `ro.profudemate.app`.
-- Autentificarea anonimă este activă; Google Sign-In rămâne opțional.
+- Autentificarea anonimă rămâne intrarea implicită; Google Sign-In opțional și fuziunea sigură a conturilor sunt implementate în repository.
 - Regulile și indexurile testate local au fost publicate în producție.
 - Funcțiile AI, ștergerea completă, curățarea automată, App Check debug și limitele de cost sunt active.
 

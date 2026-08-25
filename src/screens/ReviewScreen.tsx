@@ -2,16 +2,19 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Image, InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../components/Typography';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { ImageCropEditor } from '../components/ImageCropEditor';
+import { PlayfulLoader } from '../components/PlayfulLoader';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import { commercialGateFromError, preflightAnalysisAccess } from '../services/commercial';
+import { recordDiagnosticError } from '../services/diagnostics';
 import { createAnalysisRequestId } from '../services/mathAnalysis';
 import { savePendingAnalysis } from '../services/pendingAnalysis';
 import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
@@ -31,6 +34,7 @@ export function ReviewScreen({ navigation, route }: Props) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [continuing, setContinuing] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
   const reveal = useRef(new Animated.Value(0)).current;
   const continueLocked = useRef(false);
   const photoWidth = contentWidth;
@@ -65,17 +69,31 @@ export function ReviewScreen({ navigation, route }: Props) {
     });
   }), [currentImage.uri, navigation]);
 
-  const continueToAnalysis = useCallback(() => {
+  const continueToAnalysis = useCallback(async () => {
     if (continueLocked.current || imageError || !imageLoaded) return;
     continueLocked.current = true;
     setContinuing(true);
+    setAccessError(null);
     const requestId = createAnalysisRequestId();
-    savePendingAnalysis(route.params.mode, currentImage, requestId);
-    navigation.navigate('Processing', {
-      mode: route.params.mode,
-      image: currentImage,
-      requestId,
-    });
+    try {
+      await preflightAnalysisAccess(requestId);
+      savePendingAnalysis(route.params.mode, currentImage, requestId);
+      navigation.navigate('Processing', {
+        mode: route.params.mode,
+        image: currentImage,
+        requestId,
+      });
+    } catch (error) {
+      const gate = commercialGateFromError(error);
+      if (gate) {
+        navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
+      } else {
+        recordDiagnosticError('commercial_preflight', error);
+        setAccessError('Nu am putut verifica problemele disponibile. Verifică internetul și încearcă din nou.');
+      }
+      continueLocked.current = false;
+      setContinuing(false);
+    }
   }, [currentImage, imageError, imageLoaded, navigation, route.params.mode]);
 
   return (
@@ -97,7 +115,7 @@ export function ReviewScreen({ navigation, route }: Props) {
           <View style={styles.photoShadow} />
           <View style={[styles.photo, { height: photoHeight }, wasAdjusted && styles.photoCrop]}>
             <View style={styles.tape}><Text style={styles.tapeText}>{currentImage.source === 'camera' ? 'FOTOGRAFIE' : 'GALERIE'}</Text></View>
-            {!imageLoaded && !imageError ? <ActivityIndicator size="large" color={colors.lime} /> : null}
+            {!imageLoaded && !imageError ? <PlayfulLoader inverse label="Așez fotografia" /> : null}
             {imageError ? (
               <View style={styles.imageError}><AppIcon name="retake" size={52} /><Text style={styles.imageErrorTitle}>Fotografia nu se poate afișa</Text><Text style={styles.imageErrorText}>Fă altă fotografie sau alege altă imagine.</Text></View>
             ) : (
@@ -128,7 +146,7 @@ export function ReviewScreen({ navigation, route }: Props) {
 
         <View style={styles.tip}>
           <AppIcon name="hint" size={31} />
-          <Text style={styles.tipText}>{isCheck ? 'Voi verifica fiecare pas, nu doar răspunsul final.' : 'Voi citi enunțul și apoi îți voi explica rezolvarea, pas cu pas.'}</Text>
+          <Text accessibilityRole={accessError ? 'alert' : undefined} style={[styles.tipText, accessError && styles.tipError]}>{accessError ?? (isCheck ? 'Voi verifica fiecare pas, nu doar răspunsul final.' : 'Voi citi enunțul și apoi îți voi explica rezolvarea, pas cu pas.')}</Text>
         </View>
       </ScrollView>
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
@@ -205,6 +223,7 @@ const styles = StyleSheet.create({
   confidenceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
   tip: { flexDirection: 'row', gap: 8, marginTop: 13, paddingTop: 2, paddingBottom: 10, paddingHorizontal: 5 },
   tipText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16 },
+  tipError: { color: colors.rose, fontFamily: fonts.bodyBold },
   actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 10 },
   retakeLink: { alignSelf: 'center', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 16 },
   retakeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 13 },

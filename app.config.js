@@ -1,11 +1,28 @@
-module.exports = ({ config }) => ({
-  ...config,
-  android: {
-    ...config.android,
-    googleServicesFile: process.env.GOOGLE_SERVICES_JSON || './google-services.json',
-  },
-  plugins: [
-    ...config.plugins,
+const { validateClientEnvironment } = require('./scripts/validate-client-env.cjs');
+
+const PROFILE_ENVIRONMENT = {
+  development: 'development',
+  preview: 'preview',
+  'production-apk': 'preview',
+  production: 'production',
+};
+
+module.exports = ({ config }) => {
+  const buildProfile = process.env.EAS_BUILD_PROFILE;
+  if (buildProfile) {
+    const environment = PROFILE_ENVIRONMENT[buildProfile];
+    if (!environment) throw new Error(`Profil EAS necunoscut: ${buildProfile}`);
+    validateClientEnvironment(environment);
+  }
+
+  return ({
+    ...config,
+    android: {
+      ...config.android,
+      googleServicesFile: process.env.GOOGLE_SERVICES_JSON || './google-services.json',
+    },
+    plugins: [
+      ...config.plugins,
     [
       'expo-build-properties',
       {
@@ -35,6 +52,9 @@ module.exports = ({ config }) => ({
     '@react-native-firebase/auth',
     '@react-native-firebase/app-check',
     '@react-native-firebase/crashlytics',
+    'react-native-nitro-google-signin',
     'expo-asset',
-  ],
-});
+    'expo-secure-store',
+    ],
+  });
+};

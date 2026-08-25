@@ -1,6 +1,6 @@
 # Profu' de mate — Master Roadmap
 
-Ultima actualizare: 24 august 2026
+Ultima actualizare: 25 august 2026
 Stare produs: **beta tehnic — nu este încă pregătit pentru publicare**
 
 Acesta este documentul principal de lucru al aplicației. După fiecare etapă:
@@ -9,6 +9,8 @@ Acesta este documentul principal de lucru al aplicației. După fiecare etapă:
 2. se adaugă dovada verificării în secțiunea „Jurnal de progres”;
 3. punctele blocate rămân vizibile, nu sunt declarate finalizate prin presupunere;
 4. documentele specializate din `docs/` oferă detalii, dar acest roadmap stabilește ordinea.
+
+Pentru clonare, configurare și continuarea lucrului pe alt laptop, urmează mai întâi `docs/DEVELOPMENT_HANDOFF.md`.
 
 ## Legendă
 
@@ -26,7 +28,8 @@ Acesta este documentul principal de lucru al aplicației. După fiecare etapă:
 - [x] Publisherul inițial este persoană fizică.
 - [x] Publicul declarat al produsului este 13+.
 - [x] V1 nu conține reclame.
-- [x] V1 folosește autentificare anonimă; Google Sign-In nu este obligatoriu.
+- [x] V1 începe anonim; Google Sign-In este opțional și apare contextual pentru recuperarea Caietului, alocația zilnică și Premium.
+- [x] Model comercial: 5 probleme de bun-venit, 5/zi cu Google și Premium 30/zi, lunar sau anual; fără reclame ori pachete de credite.
 - [x] Fotografiile nu sunt păstrate în Caiet sau Firebase Storage.
 - [x] Proiectul folosește un singur Firebase de producție și emulatoare locale pentru dezvoltare.
 - [x] Documentele juridice, Play Console, App Check cu Play Integrity și AAB-ul public se închid în faza finală.
@@ -39,7 +42,7 @@ Acesta este documentul principal de lucru al aplicației. După fiecare etapă:
 - [x] Domeniu disponibil: **danielmatei.dev**.
 - [x] E-mail disponibil pentru conturi tehnice/administrative: **mathosting@gmail.com**.
 - [~] E-mail public recomandat pentru suport și confidențialitate: **info@danielmatei.dev**; trebuie verificată livrarea și monitorizarea lui înainte de publicare.
-- [ ] 👤 Numele legal complet al operatorului, exact ca în actul de identitate.
+- [ ] 👤 Numele legal complet al operatorului, exact ca în actul de identitate; nu este dedus din domeniu și nu este publicat automat.
 - [ ] 👤 Adresa și celelalte date cerute la verificarea Play Console.
 
 Recomandare: `mathosting@gmail.com` rămâne adresa contului administrativ/recovery, iar `info@danielmatei.dev` devine contactul profesional vizibil public.
@@ -87,7 +90,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Package Android stabil: `ro.profudemate.app`.
 - [x] Firebase de producție activ pe Blaze.
 - [x] Functions, Firestore Rules și indexuri publicate.
-- [x] Teste backend 40/40, logică mobilă/configurație Android/randare document/Caiet 44/44 și Rules 8/8.
+- [x] Teste backend 56/56, logică mobilă/configurație Android/randare document/Caiet 53/53, Rules 8/8 și tranzacții comerciale Firestore 9/9.
 - [x] Identitate vizuală, iconuri și splash implementate.
 - [x] Documente specializate existente inventariate.
 - [x] Master roadmap creat și adoptat drept sursă principală.
@@ -107,8 +110,8 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 
 - [x] 🤖 Android Auto Backup dezactivat în configurația Expo (`allowBackup=false`).
 - [x] 🤖 Proiectul declară explicit Android drept platforma V1.
-- [~] 🤖 Configurația și testul de regresie impun `allowBackup=false`; ultimul APK intern existent, construit înainte de hardening, are încă `true`, deci manifestul trebuie reverificat pe următorul artefact release.
-- [~] 🤖 `SYSTEM_ALERT_WINDOW` este blocată explicit și protejată prin test; ultimul APK intern vechi încă o conține, iar eliminarea trebuie confirmată pe următorul APK/AAB.
+- [x] 🤖 Configurația și testul de regresie impun `allowBackup=false`; development APK versionCode 7 confirmă `android:allowBackup=false` direct în manifestul compilat.
+- [~] 🤖 `SYSTEM_ALERT_WINDOW` este blocată explicit pentru release; development clientul versionCode 7 o include intenționat împreună cu cleartext/debug pentru instrumentele Expo, iar eliminarea trebuie confirmată pe APK-ul/AAB-ul de producție.
 - [x] 🤖 Versiunea și build number sunt citite din artefactul nativ, nu hardcodate în Setări/feedback.
 
 ## 1.3 Medii EAS/App Check
@@ -119,6 +122,8 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [~] 🤖 `production`: conține numai Firebase config și selectează Play Integrity; configurarea Play rămâne pentru Faza 7.
 - [x] 🤖 Debug tokenul a fost eliminat din mediul EAS production; tokenurile buildurilor release interne vechi au fost revocate.
 - [x] 🤖 `.env.example` documentează numai numele variabilelor, fără valori secrete.
+- [x] 🤖 `npm start` sincronizează mediul EAS development în `.env.local`, validează Google OAuth, Play Integrity, App Check și `google-services.json`, apoi pornește Metro în LAN; un mediu incomplet oprește pornirea.
+- [x] 🤖 `app.config.js` validează obligatoriu contractul mediului asociat fiecărui profil EAS înainte de build; debug App Check este permis numai pentru development/preview.
 
 **Gate Faza 1:** nicio fotografie temporară nu supraviețuiește fluxului normal, iar niciun secret/debug token nu ajunge în configurația unui build public.
 
@@ -209,7 +214,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Teste Functions.
 - [x] Teste Firestore Rules.
 - [x] Teste pentru schema/randarea matematică backend.
-- [~] 🤖 Suita pentru logica mobilă pură, configurația Android, erori, diagnosticare sigură, tipografie, lifecycle, calitatea textelor, documentul matematic și Caiet trece 44/44; serviciile native mai necesită teste pe artefacte/dispozitive.
+- [~] 🤖 Suita pentru logica mobilă pură, configurația Android, erori, diagnosticare sigură, tipografie, lifecycle, calitatea textelor, documentul matematic, Caiet și ciclul comercial trece 53/53; serviciile native mai necesită teste pe artefacte/dispozitive.
 - [ ] 🤖 Teste de componente pentru ecranele P0.
 - [ ] 🤖 Teste E2E Android pentru toate fluxurile principale.
 - [ ] 🤖 Teste de regresie vizuală.
@@ -235,6 +240,23 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [~] 🤖 Triggerul raportărilor este publicat și verificat end-to-end: adaugă status, severitate și expirare la 180 de zile; alerta pentru severitate mare rămâne deschisă.
 - [~] 🤖 Erorile recuperabile și Error Boundary ajung în Crashlytics numai după opt-in, cu descriptor și stack sanitizate; verificarea pe build release rămâne deschisă.
 - [x] 🤖 Runbook de incident, rotație secrete și rollback creat în `docs/release/INCIDENT_RUNBOOK.md`; pragurile de alertare rămân în punctele separate.
+
+## 4.4 Acces, conturi și abonamente
+
+- [x] 🤖 Contractul 5 bun-venit / 5 zilnic / 30 Premium este aplicat server-side, în fusul Europe/Bucharest, cu rezervare și refund idempotent.
+- [x] 🤖 Numai rezultatul `ready` consumă o problemă; `not_math`, `unclear`, timeoutul și erorile restituie atomic rezervarea și plafonul global.
+- [x] 🤖 Google account linking păstrează același UID când poate; atât legarea directă, cât și coliziunea cu un Google existent unesc conservator consumul fără bonus, iar biletul criptat local permite reluarea după restart.
+- [x] 🤖 Cota Google este legată de un HMAC stabil al identității furnizorului: recrearea contului Firebase după ștergere nu resetează ziua, iar documentul reținut temporar nu conține e-mailul, UID-ul sau ID-urile problemelor.
+- [x] 🤖 Cota guest este legată de un principal opac al instalării, nu de UID-ul anonim; orice sesiune Google sigilează instalarea, iar logout-ul nu continuă fără confirmarea serverului și nu poate redeschide pachetul de bun-venit.
+- [x] 🤖 Sesiunea validă persistă nativ și este reverificată online la pornire, cu fallback numai la tokenul local când rețeaua lipsește; deconectarea este separată de ștergere, iar un cont terminal șters în Console sau pe alt dispozitiv este înlocuit sigur cu un spațiu temporar nou.
+- [x] 🤖 Clientul RevenueCat folosește principalul comercial opac stabil, ofertele Google Play dinamice, purchase, restore și management URL; paywall-ul nu hardcodează prețuri și cere Google înainte de plată.
+- [x] 🤖 Webhook-ul verifică autorizarea și HMAC-ul corpului brut, deduplică event ID-ul și sincronizează starea canonică RevenueCat.
+- [x] 🤖 Device Recall este implementat feature-gated cu hash legat de UID/cerere, verificarea verdictului și modurile `off/monitor/enforce`; implicit rămâne `off`.
+- [x] 🤖 Home, Confirmare, Procesare și Setări au stări comerciale coerente, iar atingerea limitei nu pierde fotografia.
+- [x] 🤖 Contractul, colecțiile, secretele și ordinea de activare sunt documentate în `docs/COMMERCIAL_SYSTEM.md`.
+- [~] 🤖 Verificările trec: backend 56/56, mobil 53/53, Rules 8/8, integrare Firestore 9/9, TypeScript și Expo Doctor 21/21; revizia cu principal de instalare și logout sigilat este publicată, ștergerea verifică server-side autentificarea Google recentă, iar QA-ul pe telefon este în curs.
+- [~] 🤖 Google Auth este configurat complet pentru cheia EAS și backendul Guest/Google este publicat; Play App Signing, produsele, proiectul RevenueCat, secretele și webhook-ul rămân blocate de conturile externe.
+- [ ] ⛔ 🤖 Purchase/restore/renewal/expiration/refund/reinstall trebuie verificate pe un build instalat din trackul Google Play.
 
 **Gate Faza 4:** fiecare regresie critică este detectabilă automat sau printr-o procedură reproductibilă înainte de release.
 
@@ -350,7 +372,7 @@ Această fază este intenționat după finalizarea produsului, dar înainte de l
 
 - Adăugat `npm run test:mobile` fără framework suplimentar, folosind test runner-ul Node 22 și type stripping.
 - Sunt acoperite fraza TalkBack pentru conținut mixt, identificarea și căutarea lecțiilor din Caiet, lipsa rendererelor matematice grele în listă, scoaterea directă din Caiet și respingerea lecțiilor fără pași.
-- Verificare la momentul implementării: teste mobile 4/4; suita curentă a crescut la 44/44 și workflow-ul CI o rulează înainte de testele Firestore Rules.
+- Verificare la momentul implementării: teste mobile 4/4; suita curentă a crescut la 45/45 și workflow-ul CI o rulează înainte de testele Firestore Rules.
 
 ## 24 august 2026 — Remedierea auditului Metro
 
@@ -459,6 +481,28 @@ Această fază este intenționat după finalizarea produsului, dar înainte de l
 - Căutarea folosește în continuare enunțul original, titlul, topicul, LaTeX și citirea accesibilă; filele afișează numărători reale și au stări goale cu acțiunea relevantă.
 - Promptul backend cere acum un titlu de 3-10 cuvinte care identifică exercițiul concret, nu doar capitolul. Schimbarea este validată în suita backend 40/40 și a fost publicată controlat pe 25 august 2026 în revizia `analyzemathimage-00019-lon`, cu 100% trafic.
 - QA fizic: cold reload, patru lecții (inclusiv matrice, puteri și geometrie), fila goală „Verificate”, deschiderea lecției și deschiderea/anularea sheet-ului „Scoate” au trecut pe Xiaomi 25078RA3EE. Nicio lecție nu a fost eliminată în timpul testului.
+
+## 25 august 2026 — Sistem comercial complet în repository
+
+- Modelul decis este 5 probleme de bun-venit, 5 probleme gratuite zilnic după conectarea Google și Premium configurabil implicit la 30/zi, cu plan lunar și anual.
+- Backendul rezervă tranzacțional fiecare `requestId`, păstrează plafonul global și consumă numai răspunsul `ready`; toate celelalte rezultate sau erori restituie idempotent rezervarea.
+- Ziua comercială și resetarea folosesc `Europe/Bucharest`, cu teste separate pentru ora de vară și ora de iarnă.
+- Google linking păstrează Caietul; legarea directă mută consumul welcome în cota zilei, iar un cont Google existent folosește un tichet scurt server-side, copiere idempotentă și consum conservator, apoi curăță UID-ul anonim sursă.
+- RevenueCat este integrat cu principalul comercial stabil, ofertă dinamică, purchase/restore, sincronizare canonică, webhook Authorization + HMAC și event lease/idempotency.
+- Device Recall este pregătit în `off/monitor/enforce`, fără fingerprinting și fără a declara beta activ înainte de aprobarea Play.
+- Home afișează discret problemele rămase; Confirmarea verifică accesul înainte de Procesare; fotografia rămâne recuperabilă; Setările și paywall-ul disting cont temporar, Google Gratuit și Premium.
+- Biletul de fuziune Google este păstrat criptat în SecureStore, reluat automat și acceptat numai împreună cu secretul instalării emitente; deconectarea sigilează mai întâi instalarea pe server și nu șterge datele ori resetează 5/5, iar ștergerea definitivă reconfirmă Google, elimină UID-ul și conținutul și păstrează numai cota HMAC a zilei până la resetare. Ștergerea RevenueCat are coadă server-side de retry.
+- Noul cod nativ este încărcat defensiv pentru ca un development build vechi să poată deschide interfața și să raporteze configurația lipsă, în loc să producă un ecran alb.
+- Verificări: backend 56/56, mobil 53/53, Rules 8/8, integrare comercială Firestore 9/9, TypeScript și Expo Doctor 21/21. Secretul HMAC este activ numai pe runtime-urile necesare, iar cele 9 Functions — inclusiv `prepareAccountLogout`, `getCommercialAccess`, `completeAccountMergeWithGoogle`, `analyzeMathImage` și `deleteMyData` — au fost republicate și verificate `ACTIVE` cu 0 erori la 25 august 2026. Activarea externă Premium și QA-ul Play rămân deschise în `docs/COMMERCIAL_SYSTEM.md`.
+
+## 25 august 2026 — Development APK local și handoff reproductibil
+
+- Buildul EAS `development` al acestei revizii nu a intrat în coadă deoarece cota Android gratuită era epuizată; resetarea indicată de EAS este 1 septembrie 2026.
+- A fost generat și compilat local un development APK pentru toate cele patru ABI-uri Android, cu minSdk 24, targetSdk 36 și semnătură debug validă. Google Sign-In Nitro, SecureStore, Firebase App Check/Auth/Firestore/Functions/Crashlytics și RevenueCat sunt prezente în artefact.
+- SHA-1 și SHA-256 ale certificatului debug local au fost înregistrate în aplicația Android Firebase. APK-ul a fost instalat pe Xiaomi `25078RA3EE`, Metro a livrat bundle-ul Android în LAN, Home s-a randat complet și logul procesului a avut zero erori fatale.
+- APK-ul, cheia debug și folderul nativ generat rămân în afara Git. Un laptop nou trebuie să înregistreze noul certificat debug sau să folosească buildul semnat de EAS.
+- A fost adăugat `docs/DEVELOPMENT_HANDOFF.md`, cu pașii de clone, restaurarea mediului privat, build, conectarea telefonului și ordinea concretă P0–P4. Scripturile EAS folosesc versiunea fixă `22.2.0` prin `npx`, fără dependență de o instalare globală.
+- QA-ul comercial end-to-end pe APK-ul nou rămâne deschis: consum Guest, Google link/merge, logout sigilat, reinstalare, ștergere și analiza reală Cameră/Galerie.
 
 ## Documente asociate
 

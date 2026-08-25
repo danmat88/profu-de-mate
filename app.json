@@ -37,7 +37,8 @@
       },
       "predictiveBackGestureEnabled": true,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "com.android.vending.BILLING"
       ]
     },
     "web": {

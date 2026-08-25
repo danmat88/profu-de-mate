@@ -2,7 +2,6 @@ import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Image,
   Modal,
@@ -20,6 +19,7 @@ import { colors, fonts } from '../theme';
 import type { CapturedImage } from '../types';
 import { AppIcon } from './AppIcon';
 import { MiniGlyph } from './MiniGlyph';
+import { PlayfulLoader } from './PlayfulLoader';
 import { Text } from './Typography';
 
 type Props = {
@@ -335,8 +335,11 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
 
             {!imageReady || busy ? (
               <View style={styles.loading}>
-                <ActivityIndicator size="large" color={colors.lime} />
-                {busy ? <Text style={styles.loadingText}>Pregătesc fotografia…</Text> : null}
+                <PlayfulLoader
+                  inverse
+                  label={busy ? 'Pregătesc fotografia' : 'Deschid fotografia'}
+                  note={busy ? 'Păstrez încadrarea aleasă.' : 'Așez imaginea fără să schimb poziția instrumentelor.'}
+                />
               </View>
             ) : null}
             {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}><Text style={styles.errorText}>{error}</Text></View> : null}
@@ -361,7 +364,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
               </Pressable>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Folosește fotografia încadrată" disabled={busy} onPress={() => void applyCrop()} style={styles.applyButton}>
-              <View style={styles.applyIcon}>{busy ? <ActivityIndicator size="small" color={colors.ink} /> : <AppIcon name="crop" size={31} />}</View>
+              <View style={styles.applyIcon}>{busy ? <PlayfulLoader micro /> : <AppIcon name="crop" size={31} />}</View>
               <View style={styles.applyCopy}>
                 <Text style={styles.applyText}>Folosește fotografia</Text>
                 {!isVeryShort ? <Text style={styles.applyNote}>Apoi verifici dacă se vede tot</Text> : null}
@@ -409,7 +412,6 @@ const styles = StyleSheet.create({
   handleBorderBottomLeft: { borderLeftWidth: 7, borderBottomWidth: 7, borderBottomLeftRadius: 6 },
   handleBorderBottomRight: { borderRightWidth: 7, borderBottomWidth: 7, borderBottomRightRadius: 6 },
   loading: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(12,10,28,0.7)' },
-  loadingText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 12, borderWidth: 2, borderColor: colors.paper, borderRadius: 14, backgroundColor: colors.rose, paddingHorizontal: 12, paddingVertical: 9 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   dock: { minHeight: 166, paddingTop: 10, paddingHorizontal: 14, gap: 9 },

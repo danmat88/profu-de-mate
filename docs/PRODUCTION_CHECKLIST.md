@@ -15,7 +15,7 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [~] Geometria, graficele, tabelele și axele numerice au blocuri structurate validate; testul vizual pe build/dispozitiv este încă necesar.
 - [x] Există ștergere completă în aplicație, raportare a răspunsurilor și diagnosticare opțională implicit oprită.
 - [ ] Nu există încă un cont Google Play Console, o politică publicată, un AAB de producție sau testarea închisă obligatorie.
-- [ ] Pentru documentele publice lipsesc numele legal complet al operatorului și e-mailul public de contact.
+- [ ] Pentru documentele publice lipsește numele legal complet al operatorului; `info@danielmatei.dev` este introdus, dar livrarea și monitorizarea adresei trebuie verificate.
 
 ## 1. Produs și interfață
 
@@ -34,7 +34,7 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [x] Cameră reală, flash, galerie, permisiune modernă, stare „deschide setările”, cameră indisponibilă și retry.
 - [x] Rotire, crop manual și comprimare locală înainte de upload.
 - [x] Imaginile procesate au lifecycle privat și cleanup explicit; Galerie/Camera → Review lasă numai copia controlată, ieșirea/refotografierea o șterge, cinci rotiri nu acumulează revizii, cropul înlocuiește corect originalul, Back Android + redeschidere `WARM` curăță restul, iar process-kill în Procesare păstrează numai analiza validă și ajunge la zero fișiere după rezultat/ieșire.
-- [x] Aplicația cere numai permisiunea Camera; microfonul, locația, notificările, Advertising ID și accesul general la poze sunt blocate explicit.
+- [x] Aplicația cere numai Camera și permisiunea tehnică Google Play Billing; microfonul, locația, notificările, Advertising ID și accesul general la poze sunt blocate explicit.
 - [~] Configurația curentă blochează explicit `SYSTEM_ALERT_WINDOW` și impune `allowBackup=false`; APK-ul intern build 6, anterior hardeningului, nu reflectă încă aceste două setări, deci următorul artefact release trebuie reaudiat.
 - [x] Fotografia nu este salvată în Firebase Storage sau în Caiet.
 - [x] Cererile sunt autentificate anonim, protejate prin App Check și trimise unei funcții callable din `europe-west1`.
@@ -58,35 +58,49 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 ## 4. Firebase și securitate
 
 - [x] Firestore Standard în `eur3`, delete protection activ, PITR oprit.
-- [x] Anonymous Auth activ și obligatoriu pentru datele utilizatorului.
+- [x] Anonymous Auth rămâne intrarea implicită; Google linking opțional este implementat, dar providerul extern nu este încă activat.
 - [x] App Check activ în development prin debug provider și impus de funcțiile callable.
 - [x] Secretul Gemini este în Secret Manager; cheia nu este în aplicație sau Git.
 - [x] `analyzeMathImage`: Node 22, 512 MiB, timeout 120 s, `maxInstances: 3`, concurrency 10.
-- [x] Limită de cost publicată: 30 analize/zi/instalare, maximum 4 într-un minut și plafon agregat implicit de 300/zi; duplicatele nu consumă din nou cota, iar eșecurile restituie cotele zilnice.
+- [x] Contractul live este 5 probleme de bun-venit / 5 gratuite zilnic cu Google / 30 Premium implicit, maximum 4/minut și plafon global; numai rezultatul `ready` consumă. Guest folosește un principal de instalare, iar Google un principal HMAC stabil; niciunul nu depinde de UID-ul Firebase recreabil.
 - [x] Kill switch privat, circuit breaker, `store:false` și gardă de 840 KB sunt implementate, testate și publicate.
-- [x] `deleteMyData` șterge lecții, feedback, contoare, cache-ul cererilor și utilizatorul anonim.
+- [x] `deleteMyData` șterge lecții, feedback, cache, profil și utilizatorul Firebase, indiferent dacă RevenueCat este activ. Cota HMAC a zilei este sanitizată și reținută numai până după resetare; revizia este publicată și testul de regresie 4/5 → ștergere → recreare → 4/5 trece în integrarea Firestore.
 - [x] `cleanupExpiredData` rulează zilnic la 03:15 Europe/Bucharest.
 - [x] Jobul Scheduler, OIDC și indexul collection-group pentru retenție au fost testate live cu HTTP 200.
-- [x] Retenție: 7 zile pentru lecții nesalvate/cache, 35 zile pentru contoare și aproximativ 13 luni de inactivitate pentru Caiet.
+- [x] Retenție: 7 zile pentru lecții nesalvate/cache, 35 zile pentru contoare zilnice/rezervări și aproximativ 13 luni pentru profilul comercial minim, entitlement/evenimente și Caiet inactiv.
 - [x] Firestore și Storage sunt deny-by-default; clientul nu poate crea sau modifica răspunsul matematic.
 - [x] Audit al logurilor: fără fotografie/Base64/enunț; loggerul propriu păstrează numai statusuri și descriptori de eroare fără mesaj.
-- [x] 8 teste de reguli, 40 teste backend și 44 teste de logică mobilă/configurație Android/lifecycle/text/Caiet trec local; Expo Doctor trece 21/21.
+- [x] 8 teste de reguli, 7 teste tranzacționale Firestore, 55 teste backend și 50 teste de logică mobilă/configurație Android/lifecycle/text/Caiet trec local; Expo Doctor trece 21/21.
 - [ ] După primul upload în Play: adăugarea SHA-1/SHA-256 ale certificatului Play App Signing în Firebase.
 - [ ] După certificatul Play: înregistrarea aplicației în Play Integrity și verificarea App Check pe build release.
 - [ ] Buget Google Cloud și alerte de cost configurate la praguri explicite.
-- [~] Runtime-urile sunt separate și least-privilege, contul Compute nu mai are `Editor`, iar secretul este limitat la runtime-ul AI; mai trebuie review IAM Recommender pentru rolurile implicite Google APIs/App Engine.
+- [~] Runtime-urile sunt separate și least-privilege, contul Compute nu mai are `Editor`, cheia Gemini este limitată la runtime-ul AI, iar secretul identității comerciale este limitat la runtime-urile AI/date care îl folosesc; mai trebuie review IAM Recommender pentru rolurile implicite Google APIs/App Engine.
 - [ ] Alertare operațională pentru erori 5xx, latență, invocări, cost și raportări `unsafe`.
 - [~] Triage server-side și expirare la 180 de zile sunt publicate și verificate end-to-end printr-o raportare reală; alerta automată pentru severitate mare rămâne de configurat.
 
+## 4.1 Comercial, Google și abonamente
+
+- [x] Modelul, nomenclatura și toate stările sunt documentate în `docs/COMMERCIAL_SYSTEM.md`.
+- [x] Quota server-side, fusul București, refundul, entitlement-ul, fuziunea conturilor și webhook-ul semnat sunt implementate și testate.
+- [x] Tranzacțiile comerciale trec 9/9 pe emulator: concurență, idempotency, refund, plafon, bilet legat de instalare, Google fără bonus, rotația UID-ului guest fără 5/5 nou, instalări legacy sigilate și ștergere/recreare fără resetarea cotei Google.
+- [x] Fuziunea Google se reia din SecureStore după restart și biletul poate fi finalizat numai de instalarea emitentă; sesiunea persistă, logout-ul cere mai întâi sigilarea instalării pe server și nu acordă un nou 5/5, ștergerea definitivă cere reconfirmare Google, iar ștergerea RevenueCat are retry server-side.
+- [x] Home, Confirmare, Procesare, paywall și Setări au fluxuri comerciale fără pierderea fotografiei.
+- [x] Prețurile sunt citite din Google Play/RevenueCat; aplicația nu inventează prețuri sau reduceri.
+- [~] Provider Google, OAuth/Web Client ID și SHA-urile EAS sunt verificate; certificatul Play App Signing se adaugă după primul AAB.
+- [ ] Abonament Google Play cu base plans lunar/anual, proiect RevenueCat, entitlement `premium` și offering curent.
+- [ ] Secrete RevenueCat, webhook Authorization + HMAC și restore behavior configurate.
+- [ ] Purchase, restore, renewal, expiration, refund și transfer testate dintr-un track Google Play.
+- [ ] Device Recall aprobat, verificat întâi în `monitor`, apoi activat în `enforce`.
+
 ## 5. Date, minori și legal
 
-- [x] Public țintă declarat: 13+, fără reclame și fără autentificare vizibilă în v1.
+- [x] Public țintă declarat: 13+, fără reclame; aplicația începe fără login, iar Google apare contextual și rămâne opțional pentru folosirea inițială.
 - [x] Ecran în aplicație pentru confidențialitate, retenție, utilizarea AI și termeni simpli.
 - [x] Diagnosticarea Crashlytics este implicit oprită și controlată de utilizator.
-- [x] Ștergerea datelor este disponibilă în aplicație, cu confirmare clară și stare de eroare.
+- [x] Deconectarea și ștergerea sunt acțiuni separate; ștergerea are confirmare clară, reconfirmare Google, stare de eroare și explică retenția minimă anti-abuz.
 - [x] Draftul Data Safety este în `docs/release/DATA_SAFETY.md`.
 - [ ] Numele legal complet al operatorului persoană fizică.
-- [ ] E-mail public de suport/confidențialitate.
+- [~] E-mail public propus: `info@danielmatei.dev`; livrarea și monitorizarea trebuie confirmate înainte de publicare.
 - [ ] Politică de confidențialitate și termeni găzduiți pe un URL public, activ și nemodificabil fără versionare.
 - [ ] Revizuire juridică pentru GDPR, utilizatori 13–15 ani, temeiul prelucrării și mecanismul potrivit de consimțământ/autoritate parentală.
 - [ ] DPIA/LIA și registru al activităților de prelucrare, dacă review-ul juridic stabilește că sunt necesare.

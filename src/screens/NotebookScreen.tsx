@@ -3,13 +3,13 @@ import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   View,
   type ListRenderItem,
@@ -19,6 +19,7 @@ import Svg, { Path } from 'react-native-svg';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
+import { PlayfulLoader } from '../components/PlayfulLoader';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Text, TextInput } from '../components/Typography';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -176,17 +177,39 @@ function LessonSeparator() {
   return <View style={styles.lessonSeparator} />;
 }
 
-function NotebookSkeleton() {
+function NotebookIllustration({ error = false }: { error?: boolean }) {
   return (
-    <View accessibilityLabel="Se încarcă lecțiile" style={styles.loadingList}>
-      {[0, 1, 2].map((index) => (
-        <View key={index} style={styles.skeletonRow}>
-          <View style={[styles.skeletonShape, styles.skeletonMeta]} />
-          <View style={[styles.skeletonShape, styles.skeletonTitle]} />
-          <View style={[styles.skeletonShape, styles.skeletonTitleShort]} />
-          <View style={[styles.skeletonShape, styles.skeletonDetail]} />
+    <View style={styles.emptyIllustration}>
+      <View style={styles.emptyDeskSpot} />
+      <View style={styles.emptyPageBack} />
+      <View style={styles.emptyPage}>
+        <View style={styles.emptyBinding}>
+          {[0, 1, 2, 3].map((ring) => <View key={ring} style={styles.emptyRing} />)}
         </View>
-      ))}
+        <View style={styles.emptyPageCopy}>
+          <View style={styles.emptyLineLong} />
+          <View style={styles.emptyLineShort} />
+          <View style={styles.emptyFormula}><Text style={styles.emptyFormulaText}>x + ?</Text></View>
+        </View>
+        <View style={styles.emptyBookmark} />
+      </View>
+      <View style={styles.emptyIcon}><AppIcon name={error ? 'help' : 'notebook'} size={66} /></View>
+      <View style={styles.emptySpark}><MiniGlyph name="spark" size={18} color={colors.violetDeep} /></View>
+    </View>
+  );
+}
+
+function NotebookLoading() {
+  return (
+    <View style={styles.loadingState}>
+      <NotebookIllustration />
+      <Text style={styles.fullStateEyebrow}>CAIETUL TĂU</Text>
+      <Text style={styles.loadingTitle}>Așez lecțiile în ordine</Text>
+      <PlayfulLoader
+        label="Deschid Caietul"
+        note="Aduc enunțurile și pașii salvați, fără să mut ecranul din loc."
+        style={styles.notebookLoader}
+      />
     </View>
   );
 }
@@ -200,21 +223,30 @@ type FullStateProps = {
 function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
   const error = kind === 'error';
   return (
-    <View style={styles.fullState}>
-      <View style={styles.emptyIllustration}>
-        <View style={styles.emptyPageBack} />
-        <View style={styles.emptyPage}>
-          <View style={styles.emptyLineLong} />
-          <View style={styles.emptyLineShort} />
-          <View style={styles.emptyAccentLine} />
-        </View>
-        <View style={styles.emptyIcon}><AppIcon name={error ? 'help' : 'notebook'} size={62} /></View>
-      </View>
+    <ScrollView
+      alwaysBounceVertical={false}
+      contentContainerStyle={styles.fullState}
+      showsVerticalScrollIndicator={false}
+    >
+      <NotebookIllustration error={error} />
       <Text style={styles.fullStateEyebrow}>{error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}</Text>
-      <Text style={styles.fullStateTitle}>{error ? 'Caietul nu s-a încărcat' : 'Caietul tău începe aici'}</Text>
+      <Text style={styles.fullStateTitle}>{error ? 'Caietul e încă pe raft' : 'Prima lecție merită un loc bun'}</Text>
       <Text style={styles.fullStateText}>{error
         ? 'Lecțiile tale rămân în siguranță. Verifică internetul și încearcă din nou.'
-        : 'Rezolvă o problemă și salveaz-o. O vei găsi aici, cu enunțul și toți pașii.'}</Text>
+        : 'Rezolvă ori verifică o problemă, apoi salveaz-o. Revii oricând la enunț și la pașii explicați.'}</Text>
+      {!error ? (
+        <View style={styles.emptyJourney}>
+          {['Rezolvă', 'Salvează', 'Revino'].map((label, index) => (
+            <View key={label} style={styles.emptyJourneyItem}>
+              <View style={[styles.emptyJourneyDot, index === 1 && styles.emptyJourneyDotPeach, index === 2 && styles.emptyJourneyDotCyan]}>
+                <Text style={styles.emptyJourneyNumber}>{index + 1}</Text>
+              </View>
+              <Text style={styles.emptyJourneyText}>{label}</Text>
+              {index < 2 ? <View style={styles.emptyJourneyLine} /> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
       <Pressable accessibilityRole="button" onPress={onPrimary} style={({ pressed }) => [styles.primaryEmptyAction, pressed && styles.actionPressed]}>
         <Text style={styles.primaryEmptyText}>{error ? 'Reîncearcă' : 'Rezolvă prima problemă'}</Text>
         <MiniGlyph name={error ? 'spark' : 'next'} size={18} color={colors.ink} />
@@ -225,7 +257,7 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
           <MiniGlyph name="next" size={15} color={colors.violetDeep} />
         </Pressable>
       ) : null}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -415,7 +447,7 @@ export function NotebookScreen({ navigation }: Props) {
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        <View style={{ paddingHorizontal: gutter }}><NotebookSkeleton /></View>
+        <NotebookLoading />
       </SafeAreaView>
     );
   }
@@ -539,7 +571,7 @@ export function NotebookScreen({ navigation }: Props) {
             <Text style={styles.removeDescription}>Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet.</Text>
             {removeError ? <Text accessibilityRole="alert" style={styles.removeError}>Nu am putut actualiza Caietul. Verifică internetul și încearcă din nou.</Text> : null}
             <Pressable accessibilityRole="button" disabled={removing} onPress={() => void confirmRemoval()} style={({ pressed }) => [styles.confirmRemove, pressed && styles.actionPressed]}>
-              {removing ? <ActivityIndicator size="small" color={colors.paper} /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
+              {removing ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
               <Text style={styles.confirmRemoveText}>{removing ? 'Actualizez Caietul…' : 'Da, scoate problema'}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" disabled={removing} onPress={() => closeRemoval()} style={({ pressed }) => [styles.keepLesson, pressed && styles.actionPressed]}>
@@ -608,25 +640,36 @@ const styles = StyleSheet.create({
   openAction: { minHeight: 38, borderRadius: 12, backgroundColor: colors.violet, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 10, paddingRight: 5 },
   openText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10 },
   openArrow: { width: 25, height: 25, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
-  loadingList: { gap: 9, paddingTop: 10 },
-  skeletonRow: { height: 174, borderRadius: 17, borderWidth: 1.5, borderColor: colors.line, backgroundColor: 'rgba(255,255,255,0.72)', padding: 13 },
-  skeletonShape: { borderRadius: 7, backgroundColor: colors.violetSoft, opacity: 0.72 },
-  skeletonMeta: { width: '43%', height: 9 },
-  skeletonTitle: { width: '92%', height: 13, marginTop: 18 },
-  skeletonTitleShort: { width: '70%', height: 13, marginTop: 7 },
-  skeletonDetail: { width: '76%', height: 38, marginTop: 12 },
-  fullState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30, paddingBottom: 32 },
-  emptyIllustration: { width: 184, height: 154, alignItems: 'center', justifyContent: 'center', marginBottom: 7 },
-  emptyPageBack: { position: 'absolute', width: 114, height: 128, borderRadius: 17, backgroundColor: colors.violetSoft, transform: [{ rotate: '7deg' }] },
-  emptyPage: { width: 114, height: 128, borderRadius: 17, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, padding: 17, transform: [{ rotate: '-4deg' }] },
-  emptyLineLong: { height: 6, borderRadius: 3, backgroundColor: colors.cyan },
-  emptyLineShort: { width: '67%', height: 6, borderRadius: 3, backgroundColor: colors.line, marginTop: 12 },
-  emptyAccentLine: { width: '78%', height: 22, borderRadius: 7, backgroundColor: colors.violetSoft, marginTop: 21, alignSelf: 'center' },
-  emptyIcon: { position: 'absolute', right: 0, bottom: 4, width: 76, height: 76, borderRadius: 24, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '5deg' }] },
+  loadingState: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 34 },
+  loadingTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 28, textAlign: 'center' },
+  notebookLoader: { marginTop: 17 },
+  fullState: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingTop: 16, paddingBottom: 32 },
+  emptyIllustration: { width: 224, height: 172, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyDeskSpot: { position: 'absolute', bottom: 5, width: 195, height: 42, borderRadius: 22, backgroundColor: colors.violetSoft, opacity: 0.75 },
+  emptyPageBack: { position: 'absolute', width: 139, height: 135, borderRadius: 19, backgroundColor: colors.cyan, transform: [{ rotate: '8deg' }, { translateX: 6 }] },
+  emptyPage: { width: 144, height: 139, borderRadius: 19, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', overflow: 'hidden', transform: [{ rotate: '-4deg' }, { translateX: -5 }] },
+  emptyBinding: { width: 28, borderRightWidth: 1.5, borderRightColor: colors.line, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 9 },
+  emptyRing: { width: 18, height: 6, borderRadius: 4, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.peach, transform: [{ translateX: -8 }] },
+  emptyPageCopy: { flex: 1, paddingHorizontal: 12, paddingTop: 20 },
+  emptyLineLong: { height: 7, borderRadius: 4, backgroundColor: colors.cyan },
+  emptyLineShort: { width: '67%', height: 6, borderRadius: 3, backgroundColor: colors.line, marginTop: 11 },
+  emptyFormula: { width: '88%', height: 37, borderRadius: 10, backgroundColor: colors.violetSoft, marginTop: 16, alignItems: 'center', justifyContent: 'center' },
+  emptyFormulaText: { fontFamily: fonts.displaySemi, color: colors.violetDeep, fontSize: 17 },
+  emptyBookmark: { position: 'absolute', top: -2, right: 15, width: 19, height: 34, borderWidth: 1.5, borderTopWidth: 0, borderColor: colors.ink, borderBottomLeftRadius: 7, borderBottomRightRadius: 7, backgroundColor: colors.peach },
+  emptyIcon: { position: 'absolute', right: 1, bottom: 7, width: 80, height: 80, borderRadius: 26, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '5deg' }] },
+  emptySpark: { position: 'absolute', left: 9, top: 12, width: 34, height: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-9deg' }] },
   fullStateEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.25 },
   fullStateTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 27, textAlign: 'center' },
-  fullStateText: { maxWidth: 330, marginTop: 5, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
-  primaryEmptyAction: { width: '100%', maxWidth: 360, minHeight: 54, marginTop: 16, borderRadius: 17, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fullStateText: { maxWidth: 342, marginTop: 5, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
+  emptyJourney: { width: '100%', maxWidth: 350, marginTop: 15, flexDirection: 'row', justifyContent: 'center' },
+  emptyJourneyItem: { flex: 1, alignItems: 'center', position: 'relative' },
+  emptyJourneyDot: { zIndex: 1, width: 29, height: 29, borderRadius: 10, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  emptyJourneyDotPeach: { backgroundColor: colors.peach, transform: [{ rotate: '3deg' }] },
+  emptyJourneyDotCyan: { backgroundColor: colors.cyan, transform: [{ rotate: '-2deg' }] },
+  emptyJourneyNumber: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
+  emptyJourneyText: { marginTop: 4, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 9.5 },
+  emptyJourneyLine: { position: 'absolute', top: 14, left: '66%', width: '68%', height: 2, backgroundColor: colors.line },
+  primaryEmptyAction: { width: '100%', maxWidth: 360, minHeight: 54, marginTop: 15, borderRadius: 17, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   primaryEmptyText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16 },
   secondaryEmptyAction: { minHeight: 42, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12 },
   secondaryEmptyText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },

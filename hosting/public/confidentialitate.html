@@ -18,21 +18,23 @@
         <p class="eyebrow">Politica de confidențialitate</p>
         <h1>Date puține, scop clar.</h1>
         <p class="lead">Această politică explică modul în care __OPERATOR_NAME__ operează aplicația Profu’ de mate și prelucrează datele utilizatorilor.</p>
-        <p class="meta">Versiune actualizată la 22 august 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
+        <p class="meta">Versiune actualizată la 25 august 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
 
         <div class="notice"><strong>Pe scurt:</strong> fotografia este folosită pentru analiza cerută, nu este pusă în Firebase Storage sau în Caiet, nu avem reclame și poți șterge datele aplicației din Setări.</div>
 
         <h2>1. Cine este operatorul</h2>
-        <p>Operatorul aplicației este <strong>__OPERATOR_NAME__</strong>. Pentru întrebări despre confidențialitate sau drepturile tale poți scrie la <a href="mailto:__CONTACT_EMAIL__">__CONTACT_EMAIL__</a>.</p>
+        <p>Operatorul aplicației este <strong>__OPERATOR_NAME__</strong>. Pentru întrebări despre confidențialitate sau drepturile tale poți scrie la <a href="mailto:info@danielmatei.dev">info@danielmatei.dev</a>.</p>
 
         <h2>2. Ce date folosim</h2>
         <ul>
-          <li>un identificator Firebase anonim asociat instalării, fără nume, parolă sau profil public;</li>
+          <li>un identificator Firebase anonim; dacă alegi conectarea Google, identificatorul, adresa de e-mail, numele și fotografia de profil furnizate de Google către Firebase Authentication; pentru cota zilnică, identificatorul Google este transformat server-side într-un cod HMAC opac;</li>
           <li>fotografia problemei sau rezolvării pe care alegi să o trimiți;</li>
           <li>enunțul extras, explicația structurată, formulele, verdictul și starea de salvare;</li>
           <li>metadate tehnice minime pentru limitarea abuzului și evitarea procesării duble;</li>
           <li>metadate standard de conexiune înregistrate automat de infrastructură, precum adresa IP, mărimea cererii, latența și codul răspunsului;</li>
           <li>categoria raportului trimis de tine;</li>
+          <li>starea abonamentului, produsul cumpărat și evenimentele tehnice necesare activării ori restaurării Premium, fără numărul cardului;</li>
+          <li>verdicturi Play Integrity și, după aprobarea funcției, un bit Device Recall folosit pentru a împiedica repetarea abuzivă a ofertei de bun-venit;</li>
           <li>date tehnice de blocare numai dacă activezi voluntar Diagnosticarea din Setări.</li>
         </ul>
 
@@ -51,12 +53,14 @@
         </ul>
 
         <h2>5. Furnizori</h2>
-        <p>Folosim servicii Google Firebase pentru autentificare anonimă, Cloud Functions, Firestore, App Check și, opțional, Crashlytics. Analiza matematică folosește Gemini Developer API. Furnizorii pot prelucra date conform contractelor și documentației lor de confidențialitate.</p>
+        <p>Folosim Google Firebase pentru autentificare, Cloud Functions, Firestore, App Check și, opțional, Crashlytics; Google Sign-In dacă alegi conectarea; Google Play pentru plăți și verificarea integrității; RevenueCat pentru validarea și starea abonamentului; Gemini Developer API pentru analiza matematică. Nu folosim rețele publicitare și nu vindem date.</p>
 
         <h2>6. Retenție</h2>
         <ul>
           <li>lecțiile nesalvate și cache-ul unei cereri: maximum 7 zile;</li>
-          <li>contoarele de siguranță și limitare: maximum 35 de zile;</li>
+          <li>contoarele zilnice și rezervările de siguranță: maximum 35 de zile;</li>
+          <li>după ștergerea unui cont Google, codul HMAC și numărul problemelor folosite în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi;</li>
+          <li>profilul tehnic minim de bun-venit, semnalele de securitate și evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există;</li>
           <li>metadatele standard din bucket-ul implicit Cloud Logging: în mod normal 30 de zile;</li>
           <li>lecțiile din Caiet: cât timp sunt folosite, dar maximum aproximativ 13 luni fără activitate;</li>
           <li>rapoartele trimise: până când ștergi toate datele sau atât cât este necesar pentru investigare și obligații legale;</li>
@@ -64,7 +68,7 @@
         </ul>
 
         <h2>7. Controlul tău</h2>
-        <p>Poți opri Diagnosticarea și poți șterge lecțiile, rapoartele, istoricul tehnic și contul anonim al instalării din <strong>Setări → Șterge toate datele</strong>. Vezi și pagina <a href="/stergere-date">Ștergerea datelor</a>.</p>
+        <p>Poți opri Diagnosticarea, te poți deconecta fără ștergere sau poți șterge definitiv contul, lecțiile și rapoartele din <strong>Setări → Șterge toate datele</strong>. Ștergerea cere și eliminarea profilului RevenueCat, dar nu anulează abonamentul din Google Play. Cota opacă a zilei, totalurile anonime, logurile și semnalele strict necesare securității pot urma retențiile limitate explicate aici. Vezi și pagina <a href="/stergere-date">Ștergerea datelor</a>.</p>
 
         <h2>8. Utilizatori 13–17 ani</h2>
         <p>Aplicația este destinată persoanelor de minimum 13 ani. Nu fotografia fețe, nume, note, adrese, conversații sau alte informații personale; încadrează numai problema de matematică. Pentru utilizatorii minori se aplică și regulile legale locale privind autoritatea părintească și consimțământul.</p>
@@ -76,7 +80,7 @@
         <p>Vom actualiza data și conținutul acestei pagini când se schimbă aplicația sau cerințele legale. Modificările importante vor fi reflectate și în aplicație.</p>
       </article>
     </main>
-    <footer>Operator: __OPERATOR_NAME__ · Contact: <a href="mailto:__CONTACT_EMAIL__">__CONTACT_EMAIL__</a></footer>
+    <footer>Operator: __OPERATOR_NAME__ · Contact: <a href="mailto:info@danielmatei.dev">info@danielmatei.dev</a></footer>
   </div>
 </body>
 </html>
