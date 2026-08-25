@@ -24,7 +24,7 @@ export type RenderedContentBlock = ContentBlock & {
 export type RenderedRichContent = RenderedContentBlock[];
 
 export type RenderedMathAnalysis = Omit<MathAnalysis, 'problem' | 'summary' | 'finalAnswer' | 'steps' | 'takeaways'> & {
-  schemaVersion: 3;
+  schemaVersion: 4;
   rendererVersion: 'fira-v3';
   problem: RenderedRichContent;
   summary: RenderedRichContent;
@@ -115,9 +115,17 @@ export async function renderLatex(latex: string): Promise<RenderedMath> {
 }
 
 async function renderContent(content: RichContent): Promise<RenderedRichContent> {
-  return Promise.all(content.map(async (block) => block.type === 'math'
-    ? { ...block, rendered: await renderLatex(block.latex) }
-    : block));
+  return Promise.all(content.map(async (block) => {
+    if (block.type === 'math') return { ...block, rendered: await renderLatex(block.latex) };
+    if (block.type !== 'visual' || block.visual.kind !== 'table') return block;
+
+    const rows = await Promise.all(block.visual.rows.map(async (row) => ({
+      cells: await Promise.all(row.cells.map(async (cell) => cell.latex
+        ? { ...cell, rendered: await renderLatex(cell.latex) }
+        : cell)),
+    })));
+    return { ...block, visual: { ...block.visual, rows } };
+  }));
 }
 
 export async function renderMathAnalysis(value: MathAnalysis): Promise<RenderedMathAnalysis> {
@@ -136,7 +144,7 @@ export async function renderMathAnalysis(value: MathAnalysis): Promise<RenderedM
 
   return {
     ...value,
-    schemaVersion: 3,
+    schemaVersion: 4,
     rendererVersion: 'fira-v3',
     problem,
     summary,

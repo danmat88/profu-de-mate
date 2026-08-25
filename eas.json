@@ -21,7 +21,7 @@
     },
     "production-apk": {
       "distribution": "internal",
-      "environment": "production",
+      "environment": "preview",
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_APP_CHECK_PROVIDER": "debug"

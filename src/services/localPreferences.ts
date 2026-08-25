@@ -18,3 +18,11 @@ export function markSaveCoachSeen(): void {
     // The hint remains non-critical if local persistence is unavailable.
   }
 }
+
+export function clearLocalPreferences(): void {
+  try {
+    if (saveCoachMarker.exists) saveCoachMarker.delete();
+  } catch {
+    // Local preference cleanup will be retried on the next deletion request.
+  }
+}

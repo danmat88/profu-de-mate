@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { StyleSheet, View, ViewStyle } from 'react-native';
+import { Text } from './Typography';
 import { colors, fonts } from '../theme';
 
 type Glyph = 'back' | 'next' | 'close' | 'check' | 'wrong' | 'spark' | 'dot';

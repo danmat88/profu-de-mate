@@ -1,6 +1,8 @@
 # Profu’ de mate — registru de producție
 
-Ultima actualizare: 22 august 2026
+Ultima actualizare: 25 august 2026
+
+> Ordinea și starea principală sunt menținute în `docs/MASTER_ROADMAP.md`; acest document rămâne registrul tehnic detaliat.
 
 Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verificare de lansare, `[ ]` nefăcut sau blocat de o informație/acțiune externă.
 
@@ -9,7 +11,8 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [x] Aplicația Android este funcțională pe telefonul fizic Xiaomi 25078RA3EE, Android 15, 720 × 1600 px.
 - [x] Fluxul fotografie/galerie → crop → analiză → lecție → recapitulare → Caiet funcționează cu backendul real.
 - [x] Firebase de producție `profu-de-mate-danmat88` este activ pe Blaze; funcțiile, regulile și indexurile sunt publicate.
-- [x] Matematica este structurată separat de text și randată prin SVG pregătit de MathJax pe backend.
+- [x] Matematica este structurată separat de text, iar formulele sunt randate prin SVG pregătit de MathJax pe backend.
+- [~] Geometria, graficele, tabelele și axele numerice au blocuri structurate validate; testul vizual pe build/dispozitiv este încă necesar.
 - [x] Există ștergere completă în aplicație, raportare a răspunsurilor și diagnosticare opțională implicit oprită.
 - [ ] Nu există încă un cont Google Play Console, o politică publicată, un AAB de producție sau testarea închisă obligatorie.
 - [ ] Pentru documentele publice lipsesc numele legal complet al operatorului și e-mailul public de contact.
@@ -18,22 +21,25 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 
 - [x] Interfață originală în română, fonturi cu diacritice corecte, iconuri proprii și identitate vizuală cartoonish coerentă.
 - [x] Navigație scurtă, fără tab bar inutil: Acasă, Cameră, Confirmare, Analiză, Lecție, Rezumat și Caiet.
-- [x] Layout responsiv pentru ecrane înguste/scurte și dock-uri de acțiuni care nu acoperă conținutul.
-- [x] Caiet cu listă stabilă, cache, filtrare, căutare și formule fără flash-ul vechi.
+- [~] Layout adaptiv pentru ecrane înguste/scurte și dock-uri separate de conținut; 360×640 și 360×800 dp sunt verificate, iar telefoanele fizice mari/tabletele rămân în matrice.
+- [x] Caiet ca bibliotecă stabilă, cu cache, filtrare, căutare, titluri specifice și acțiuni directe; lista nu mai montează formule sau WebView-uri.
 - [x] Splash, icon adaptiv, icon monocrom, logo și mascotă finale în `assets/brand`.
 - [x] Preferința Android „Reduce animations” este respectată de navigație și animațiile principale.
 - [x] Există fallback global, în română, pentru erorile de randare; utilizatorul nu mai rămâne pe un ecran alb.
 - [~] Semantica de bază TalkBack, rolurile, stările și ferestrele modale sunt implementate; testul manual complet cu TalkBack este încă necesar.
-- [ ] Teste vizuale pe cel puțin un telefon mic, unul mediu și unul mare, cu font 100%, 130% și 200%.
+- [~] Tipografia fixă a design system-ului este verificată fizic cu setarea sistemului la 100% și 200%; mai sunt necesare telefoane fizice mici și mari, nu alte layouturi bazate pe font scale.
 
 ## 2. Captură și flux AI
 
 - [x] Cameră reală, flash, galerie, permisiune modernă, stare „deschide setările”, cameră indisponibilă și retry.
 - [x] Rotire, crop manual și comprimare locală înainte de upload.
+- [x] Imaginile procesate au lifecycle privat și cleanup explicit; Galerie/Camera → Review lasă numai copia controlată, ieșirea/refotografierea o șterge, cinci rotiri nu acumulează revizii, cropul înlocuiește corect originalul, Back Android + redeschidere `WARM` curăță restul, iar process-kill în Procesare păstrează numai analiza validă și ajunge la zero fișiere după rezultat/ieșire.
 - [x] Aplicația cere numai permisiunea Camera; microfonul, locația, notificările, Advertising ID și accesul general la poze sunt blocate explicit.
+- [~] Configurația curentă blochează explicit `SYSTEM_ALERT_WINDOW` și impune `allowBackup=false`; APK-ul intern build 6, anterior hardeningului, nu reflectă încă aceste două setări, deci următorul artefact release trebuie reaudiat.
 - [x] Fotografia nu este salvată în Firebase Storage sau în Caiet.
 - [x] Cererile sunt autentificate anonim, protejate prin App Check și trimise unei funcții callable din `europe-west1`.
 - [x] Retry-ul reutilizează același `requestId`; backendul previne taxarea și salvarea dublă.
+- [x] Analiza activă este reluată cu același `requestId` după restart timp de maximum 30 de minute; process-kill, cold reopen, retry și cleanup au fost verificate fizic.
 - [x] Mesaje distincte pentru offline, timeout, App Check, limită, imagine invalidă și eroare temporară de server.
 - [x] Răspunsurile AI sunt etichetate vizibil cu „AI” și pot fi raportate din Lecție și Rezumat.
 - [ ] Test manual cu mod avion, rețea foarte lentă, timeout de 120 secunde și reluare după revenirea conexiunii.
@@ -42,7 +48,7 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 
 - [x] Schema separă proza de LaTeX și refuză notația matematică brută ascunsă în text.
 - [x] Backendul validează JSON-ul, LaTeX-ul și dimensiunile SVG înainte să trimită lecția în aplicație.
-- [x] Corpus automat de randare pentru 28 de expresii din aritmetică, algebră, analiză, geometrie, trigonometrie, probabilități, matrici și vectori.
+- [x] Corpus automat de randare pentru 41 de familii/expresii din aritmetică, algebră, analiză, geometrie, trigonometrie, probabilități, matrici, vectori, logică, ecuații diferențiale și matematică financiară.
 - [x] Formulele inline folosesc același ritm tipografic cu textul; formulele complexe sunt SVG stabile, fără schimbare ulterioară de font.
 - [x] Moduri separate „Rezolvă” și „Verifică”, cu verdict `correct`, `partially_correct` sau `incorrect`.
 - [ ] Benchmark de acuratețe pe minimum 200 de fotografii reale, împărțite pe clase, domenii, scris de mână, tipar și calitatea pozei.
@@ -56,19 +62,21 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [x] App Check activ în development prin debug provider și impus de funcțiile callable.
 - [x] Secretul Gemini este în Secret Manager; cheia nu este în aplicație sau Git.
 - [x] `analyzeMathImage`: Node 22, 512 MiB, timeout 120 s, `maxInstances: 3`, concurrency 10.
-- [x] Limită de cost: 30 analize/zi/instalare și maximum 4 într-un minut; cererile duplicate nu consumă din nou cota.
+- [x] Limită de cost publicată: 30 analize/zi/instalare, maximum 4 într-un minut și plafon agregat implicit de 300/zi; duplicatele nu consumă din nou cota, iar eșecurile restituie cotele zilnice.
+- [x] Kill switch privat, circuit breaker, `store:false` și gardă de 840 KB sunt implementate, testate și publicate.
 - [x] `deleteMyData` șterge lecții, feedback, contoare, cache-ul cererilor și utilizatorul anonim.
 - [x] `cleanupExpiredData` rulează zilnic la 03:15 Europe/Bucharest.
 - [x] Jobul Scheduler, OIDC și indexul collection-group pentru retenție au fost testate live cu HTTP 200.
 - [x] Retenție: 7 zile pentru lecții nesalvate/cache, 35 zile pentru contoare și aproximativ 13 luni de inactivitate pentru Caiet.
 - [x] Firestore și Storage sunt deny-by-default; clientul nu poate crea sau modifica răspunsul matematic.
 - [x] Audit al logurilor: fără fotografie/Base64/enunț; loggerul propriu păstrează numai statusuri și descriptori de eroare fără mesaj.
-- [x] 7 teste de reguli și 9 teste backend trec local.
+- [x] 8 teste de reguli, 40 teste backend și 44 teste de logică mobilă/configurație Android/lifecycle/text/Caiet trec local; Expo Doctor trece 21/21.
 - [ ] După primul upload în Play: adăugarea SHA-1/SHA-256 ale certificatului Play App Signing în Firebase.
 - [ ] După certificatul Play: înregistrarea aplicației în Play Integrity și verificarea App Check pe build release.
 - [ ] Buget Google Cloud și alerte de cost configurate la praguri explicite.
 - [~] Runtime-urile sunt separate și least-privilege, contul Compute nu mai are `Editor`, iar secretul este limitat la runtime-ul AI; mai trebuie review IAM Recommender pentru rolurile implicite Google APIs/App Engine.
 - [ ] Alertare operațională pentru erori 5xx, latență, invocări, cost și raportări `unsafe`.
+- [~] Triage server-side și expirare la 180 de zile sunt publicate și verificate end-to-end printr-o raportare reală; alerta automată pentru severitate mare rămâne de configurat.
 
 ## 5. Date, minori și legal
 
@@ -89,6 +97,7 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 
 - [x] Expo SDK 57, React Native 0.86, Android package `ro.profudemate.app`.
 - [x] `compileSdkVersion` și `targetSdkVersion` 36; minify și resource shrinking activate pentru release; cleartext dezactivat.
+- [x] Android Auto Backup este dezactivat și proiectul declară explicit numai platforma Android pentru V1.
 - [x] Profile EAS: development APK, preview APK și production AAB cu `autoIncrement`.
 - [x] Un development APK EAS este construit și instalat pe telefon.
 - [ ] Cont personal Google Play Console, taxa unică și verificarea identității.

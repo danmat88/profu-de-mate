@@ -35,7 +35,61 @@ export type MathContentBlock = {
   rendered: RenderedMath;
 };
 
-export type ContentBlock = TextContentBlock | MathContentBlock;
+export type VisualColor = 'violet' | 'cyan' | 'lime' | 'peach' | 'rose';
+
+export type GeometryVisual = {
+  kind: 'geometry';
+  title: string;
+  points: Array<{ id: string; label: string; x: number; y: number }>;
+  segments: Array<{ from: string; to: string; style: 'solid' | 'dashed'; color: VisualColor }>;
+  circles: Array<{ center: string; radius: number; color: VisualColor }>;
+  polygons: Array<{ points: string[]; color: VisualColor }>;
+};
+
+export type GraphVisual = {
+  kind: 'graph';
+  title: string;
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  xStep: number;
+  yStep: number;
+  series: Array<{ label: string; color: VisualColor; points: Array<{ x: number; y: number }> }>;
+};
+
+export type TableCell =
+  | { text: string; latex: ''; spoken: '' }
+  | { text: ''; latex: string; spoken: string; rendered: RenderedMath };
+
+export type TableVisual = {
+  kind: 'table';
+  title: string;
+  headers: string[];
+  rows: Array<{ cells: TableCell[] }>;
+};
+
+export type NumberLineVisual = {
+  kind: 'number_line';
+  title: string;
+  min: number;
+  max: number;
+  step: number;
+  markers: Array<{ value: number; label: string; closed: boolean; color: VisualColor }>;
+  intervals: Array<{ start: number; end: number; startClosed: boolean; endClosed: boolean; color: VisualColor }>;
+};
+
+export type StructuredVisual = GeometryVisual | GraphVisual | TableVisual | NumberLineVisual;
+
+export type VisualContentBlock = {
+  type: 'visual';
+  text: '';
+  latex: '';
+  spoken: string;
+  visual: StructuredVisual;
+};
+
+export type ContentBlock = TextContentBlock | MathContentBlock | VisualContentBlock;
 export type RichContent = ContentBlock[];
 
 export type LessonStep = {
@@ -47,7 +101,7 @@ export type LessonStep = {
 };
 
 export type MathAnalysis = {
-  schemaVersion: 3;
+  schemaVersion: 3 | 4;
   rendererVersion?: 'fira-v3';
   status: AnalysisStatus;
   mode: FlowMode;

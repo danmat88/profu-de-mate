@@ -1,25 +1,26 @@
 # Matrice de testare înainte de release
 
-Ultima actualizare: 22 august 2026
+Ultima actualizare: 25 august 2026
 
 ## Gate automat existent
 
 | Suită | Comandă | Stare curentă |
 |---|---|---|
 | TypeScript + compatibilitate Expo | `npm run check` | 21/21 Expo Doctor, trece |
-| Backend/schemă/randare matematică | `npm run functions:test` | 9/9, trece |
-| Firestore Rules | `npm run test:rules` | 7/7, trece |
+| Backend/schemă/randare matematică | `npm run functions:test` | 40/40, trece; corpus simbolic extins la 41 de familii/expresii |
+| Logică mobilă, configurație Android, tipografie, lifecycle, calitatea textelor și Caiet | `npm run test:mobile` | 44/44, trece |
+| Firestore Rules | `npm run test:rules` | 8/8, trece |
 
 ## Dispozitive și layout
 
 | Caz | Cerință | Stare |
 |---|---|---|
-| Telefon fizic curent | Xiaomi 25078RA3EE, Android 15, 720 × 1600, densitate 320 | Testat fluxul principal |
-| Android mic | aprox. 360 × 640 dp | De testat |
-| Android mediu | aprox. 360 × 800 dp | Testat parțial pe telefonul curent |
+| Telefon fizic curent | Xiaomi 25078RA3EE, Android 15, 720 × 1600, densitate 320 | Fluxurile P0 auditate vizual pe development build EAS |
+| Android mic | aprox. 360 × 640 dp | Home și Cameră testate prin override controlat pe telefonul fizic; dispozitiv mic separat rămâne necesar |
+| Android mediu | aprox. 360 × 800 dp | Testat pe dimensiunea nativă a telefonului curent |
 | Android mare | aprox. 412 × 915 dp | De testat |
 | Tabletă/landscape | decizie de suport și layout controlat | De decis/testat |
-| Font sistem | 100%, 130%, 200% | De testat |
+| Font sistem | 100% și 200% | Verificat fizic: design system-ul păstrează layout și tipografie identice; matematica are zoom propriu |
 | TalkBack | ordine focus, etichete, modale, formule, acțiuni crop | De testat manual |
 | Reduce animations | fără loops/tranziții decorative | Implementat; de confirmat manual |
 | Dark mode/contrast | aplicația păstrează tema proprie și contrastul | De auditat |
@@ -33,11 +34,22 @@ Ultima actualizare: 22 august 2026
 - [ ] Crop: mutare, toate cele 4 colțuri, rotire, reset, anulare și eroare de fișier.
 - [ ] Rezolvă: problemă validă, non-matematică, poză neclară, timeout, offline și retry.
 - [ ] Verifică: corect, parțial corect, greșit și rezolvare incompletă.
-- [ ] Lecție: fiecare pas, enunț expandat, explicație alternativă, formule lungi și scroll controlat.
-- [ ] Caiet: salvează, scoate, listă goală, căutare, filtre, offline cache și reconectare fără flash.
+- [~] Lecție: pașii, enunțul, explicația alternativă, matricea, formula lată, vizualizarea mărită și scrollul controlat sunt implementate/verificate parțial; matricea completă P0 rămâne deschisă.
+- [~] Vizualuri: baseline determinist la 390 px pentru geometrie, grafic, tabel cu celule matematice și axă numerică; mai trebuie QA fizic pe telefon mic/mare și comparație automată.
+- [~] Caiet: salvare, listă normală, filă goală, filtre, deschidere și sheet-ul de scoatere/anulare verificate fizic; confirmarea scoaterii, căutarea, cold start offline și reconectarea rămân deschise.
 - [ ] Raportare: toate categoriile, eroare offline și succes.
 - [ ] Ștergere totală: anulare, succes, eroare și confirmarea că UID-ul/data au dispărut.
 - [ ] Lansare forțată cu o eroare de randare: fallbackul global apare și „Reîncearcă” remontează aplicația.
+
+## Lifecycle imagini — probe fizice
+
+- [x] Galerie → Review: există exact o copie în directorul privat controlat și zero fișiere brute în cache-urile `ImagePicker`/`ImageManipulator`.
+- [x] Săgeata aplicației din Review → Acasă: copia controlată este ștearsă imediat.
+- [x] Back Android din Review → launcher → redeschidere `WARM`: restul abandonat este șters la inițializare.
+- [x] Cameră → Review → refotografiere/anulare: exact o copie controlată în Review, zero fișiere brute, apoi zero fișiere rămase.
+- [x] Cinci rotiri consecutive → anulare: maximum original + revizia curentă, apoi zero revizii intermediare și zero fișiere după ieșirea din Review.
+- [x] Aplică un crop: rămâne numai rezultatul aplicat, apoi zero fișiere la abandon; combinat cu proba de cinci rotiri confirmă că reviziile nu se acumulează.
+- [x] Process-kill în Procesare → cold reopen: markerul și fotografia validă supraviețuiesc, retry-ul păstrează același `requestId`, lecția este livrată, iar ieșirea lasă zero fișiere controlate/brute și zero markere pending.
 
 ## Corpus matematic pentru benchmark
 

@@ -9,17 +9,18 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { cropCapturedImage, rotateCapturedImage } from '../services/imagePipeline';
+import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
 import type { CapturedImage } from '../types';
 import { AppIcon } from './AppIcon';
 import { MiniGlyph } from './MiniGlyph';
+import { Text } from './Typography';
 
 type Props = {
   visible: boolean;
@@ -74,7 +75,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
   const liveInsets = useSafeAreaInsets();
   const stableLayout = useRef(responsiveLayout).current;
   const stableInsets = useRef(liveInsets).current;
-  const { height, gutter, isNarrow, isVeryShort } = stableLayout;
+  const { height, gutter, isNarrow, isVeryShort, isLargeText } = stableLayout;
   const topSpace = Math.max(stableInsets.top, 0);
   const bottomSpace = Math.max(stableInsets.bottom, 12);
   const reducedMotion = useReducedMotion();
@@ -82,6 +83,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
   const cropRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const gestureStart = useRef<Rect>(cropRef.current);
   const initializedCropFor = useRef<string | null>(null);
+  const operationLocked = useRef(false);
   const [workspace, setWorkspace] = useState<Size>({ width: 0, height: 0 });
   const [workingImage, setWorkingImage] = useState(image);
   const [crop, setCrop] = useState<Rect>(cropRef.current);
@@ -195,25 +197,36 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     void Haptics.selectionAsync();
   };
 
+  const cancelEditing = () => {
+    if (operationLocked.current || busy) return;
+    deleteTemporaryCapturedImages([workingImage.uri], [image.uri]);
+    onCancel();
+  };
+
   const rotate = async () => {
-    if (busy) return;
+    if (operationLocked.current) return;
+    operationLocked.current = true;
     setBusy(true);
     setError(null);
     setImageReady(false);
     try {
+      const previousUri = workingImage.uri;
       const rotated = await rotateCapturedImage(workingImage);
       setWorkingImage(rotated);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      deleteTemporaryCapturedImages([previousUri], [image.uri, rotated.uri]);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     } catch {
       setImageReady(true);
       setError('Nu am putut roti fotografia. Încearcă din nou.');
     } finally {
+      operationLocked.current = false;
       setBusy(false);
     }
   };
 
   const applyCrop = async () => {
-    if (busy || !imageRect.width || !crop.width) return;
+    if (operationLocked.current || !imageRect.width || !crop.width) return;
+    operationLocked.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -225,11 +238,13 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
         width: crop.width * scaleX,
         height: crop.height * scaleY,
       });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onApply(edited);
+      deleteTemporaryCapturedImages([image.uri, workingImage.uri], [edited.uri]);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } catch {
       setError('Nu am putut decupa fotografia. Fotografia originală nu a fost modificată.');
     } finally {
+      operationLocked.current = false;
       setBusy(false);
     }
   };
@@ -245,20 +260,20 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
     : 0;
 
   return (
-    <Modal visible={visible} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={busy ? undefined : onCancel}>
+    <Modal visible={visible} animationType="none" statusBarTranslucent navigationBarTranslucent onRequestClose={busy ? undefined : cancelEditing}>
       <StatusBar style="light" />
       <View style={[styles.safe, { height, paddingTop: topSpace }]}>
         <Animated.View accessibilityViewIsModal style={[styles.screen, {
           opacity: entrance,
           transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.992, 1] }) }],
         }]}>
-          <View style={[styles.header, { paddingHorizontal: gutter }]}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Anulează încadrarea" disabled={busy} onPress={onCancel} style={styles.headerButton}>
+          <View style={[styles.header, isLargeText && styles.headerLargeText, { paddingHorizontal: gutter }]}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Anulează încadrarea" disabled={busy} onPress={cancelEditing} style={styles.headerButton}>
               <MiniGlyph name="close" size={25} color={colors.paper} />
             </Pressable>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>PREGĂTEȘTE FOTOGRAFIA</Text>
-              <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78} style={[styles.title, isNarrow && styles.titleNarrow]}>Păstrează doar exercițiul</Text>
+              <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.78} style={[styles.title, isNarrow && styles.titleNarrow]}>Păstrează doar exercițiul</Text>
             </View>
             <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>PASUL 1/1</Text></View>
           </View>
@@ -327,12 +342,12 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
             {error ? <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.error}><Text style={styles.errorText}>{error}</Text></View> : null}
           </View>
 
-          <View style={[styles.dock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
+          <View style={[styles.dock, isLargeText && styles.dockLargeText, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
             <View style={styles.hintRow}>
               <View style={styles.hintIcon}><AppIcon name="crop" size={30} /></View>
               <View style={styles.hintCopy}>
                 <Text style={styles.hintTitle}>Alege ce păstrăm</Text>
-                <Text numberOfLines={2} style={styles.instruction}>Trage colțurile sau mută rama până cuprinde numai exercițiul.</Text>
+                <Text numberOfLines={isLargeText ? 4 : 2} style={styles.instruction}>Trage colțurile sau mută rama până cuprinde numai exercițiul.</Text>
               </View>
             </View>
             <View style={styles.actionRow}>
@@ -364,7 +379,8 @@ const styles = StyleSheet.create({
   safe: { width: '100%', flexGrow: 0, flexShrink: 0, backgroundColor: '#17132E' },
   screen: { flex: 1, backgroundColor: '#17132E' },
   header: { minHeight: 76, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerButton: { width: 46, height: 46, borderRadius: 15, borderWidth: 2, borderColor: '#777090', backgroundColor: '#292346', alignItems: 'center', justifyContent: 'center' },
+  headerLargeText: { minHeight: 104 },
+  headerButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2, borderColor: '#777090', backgroundColor: '#292346', alignItems: 'center', justifyContent: 'center' },
   headerCopy: { flex: 1 },
   eyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1.15 },
   title: { fontFamily: fonts.display, color: colors.paper, fontSize: 21, lineHeight: 24 },
@@ -395,19 +411,20 @@ const styles = StyleSheet.create({
   loading: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(12,10,28,0.7)' },
   loadingText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 12, borderWidth: 2, borderColor: colors.paper, borderRadius: 14, backgroundColor: colors.rose, paddingHorizontal: 12, paddingVertical: 9 },
-  errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11, lineHeight: 15, textAlign: 'center' },
+  errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   dock: { minHeight: 166, paddingTop: 10, paddingHorizontal: 14, gap: 9 },
+  dockLargeText: { minHeight: 226 },
   hintRow: { minHeight: 43, maxWidth: 560, width: '100%', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 9 },
   hintIcon: { width: 40, height: 40, borderRadius: 13, backgroundColor: colors.violet, borderWidth: 1.5, borderColor: '#8C81AE', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
   hintCopy: { flex: 1, minWidth: 0 },
   hintTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 13, lineHeight: 16 },
-  instruction: { marginTop: 1, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 9.5, lineHeight: 13 },
+  instruction: { marginTop: 1, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 12, lineHeight: 16 },
   actionRow: { maxWidth: 560, width: '100%', alignSelf: 'center', flexDirection: 'row', gap: 8 },
-  toolButton: { flex: 1, minHeight: 42, borderRadius: 13, borderWidth: 1.5, borderColor: '#777090', backgroundColor: '#292346', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  toolText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 9.5 },
+  toolButton: { flex: 1, minHeight: 48, borderRadius: 13, borderWidth: 1.5, borderColor: '#777090', backgroundColor: '#292346', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  toolText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12 },
   applyButton: { maxWidth: 560, width: '100%', minHeight: 57, alignSelf: 'center', borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 8, shadowColor: '#080615', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
   applyIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   applyCopy: { flex: 1, minWidth: 0 },
   applyText: { fontFamily: fonts.display, color: colors.ink, fontSize: 15.5, lineHeight: 18 },
-  applyNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 8.5 },
+  applyNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12 },
 });

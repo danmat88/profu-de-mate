@@ -2,84 +2,42 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { FeedbackSheet } from '../components/FeedbackSheet';
+import { MathDocumentView } from '../components/MathDocumentView';
 import { MiniGlyph } from '../components/MiniGlyph';
-import { RichMathContent } from '../components/RichMathContent';
 import { ScreenHeader } from '../components/ScreenHeader';
+import { Text } from '../components/Typography';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { setLessonFavorite } from '../services/lessons';
+import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
-import type { LessonStep, RichContent, RootStackParamList } from '../types';
-import { compactProblemContent, contentToAccessibleText } from '../utils/mathContent';
+import type { RootStackParamList } from '../types';
+import { contentToAccessibleText } from '../utils/mathContent';
+import type { MathDocumentDefinition, MathDocumentTone } from '../utils/mathDocument';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lesson'>;
+type ProblemView = 'statement' | 'photo';
 
-type LessonPage = {
-  step: LessonStep;
-  explanation: RichContent;
-  part: number;
-  partCount: number;
-  showNote: boolean;
-};
-
-function contentWeight(content: RichContent) {
-  return content.reduce((total, block) => total + (block.type === 'text'
-    ? 1 + Math.min(block.text.length / 180, 0.7)
-    : 1.25 + Math.min(block.rendered.heightEx / 4, 1.4)), 0);
-}
-
-function splitExplanation(content: RichContent, capacity: number): RichContent[] {
-  // Eight blocks still fit comfortably on the compact lesson canvas. Longer
-  // explanations are split at semantic boundaries even when their text is
-  // unusually terse, so the bottom action never covers the last formula.
-  if (content.length <= 8 && contentWeight(content) <= capacity) return [content];
-
-  const groups: RichContent[] = [];
-  let group: RichContent = [];
-  content.forEach((block, index) => {
-    group.push(block);
-    if (block.type !== 'math') return;
-
-    const next = content[index + 1];
-    const following = content[index + 2];
-    const atomicMath = /^(?:[A-Za-z]|\\[A-Za-z]+)(?:_(?:[A-Za-z0-9]|\{[A-Za-z0-9]+\}))?$/.test(block.latex.trim());
-    const shortConnector = next?.type === 'text'
-      && /^(?:și|sau|ori|respectiv)$/.test(next.text.trim().toLocaleLowerCase('ro-RO'))
-      && following?.type === 'math';
-    if ((atomicMath && next?.type === 'text') || shortConnector) return;
-
-    groups.push(group);
-    group = [];
-  });
-  if (group.length > 0) groups.push(group);
-
-  const chunks: RichContent[] = [];
-  let current: RichContent = [];
-  for (const semanticGroup of groups) {
-    if (current.length > 0 && contentWeight([...current, ...semanticGroup]) > capacity) {
-      chunks.push(current);
-      current = [...semanticGroup];
-    } else {
-      current.push(...semanticGroup);
-    }
-  }
-  if (current.length > 0) chunks.push(current);
-  return chunks;
-}
+const documentTones: MathDocumentTone[] = ['cyan', 'peach', 'lime', 'violet'];
 
 export function LessonScreen({ navigation, route }: Props) {
-  const { width, height, fontScale, contentWidth, gutter, isNarrow, isShort, isCompact } = useResponsiveLayout();
+  const { gutter } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const lesson = route.params.lesson;
+  const sourceImage = route.params.sourceImage;
+  const isCheck = lesson.mode === 'check';
+  const isFromNotebook = route.params.source === 'notebook';
   const [step, setStep] = useState(0);
   const [alternate, setAlternate] = useState(false);
   const [problemOpen, setProblemOpen] = useState(false);
+  const [problemView, setProblemView] = useState<ProblemView>('statement');
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -88,132 +46,162 @@ export function LessonScreen({ navigation, route }: Props) {
   const problemReveal = useRef(new Animated.Value(0)).current;
   const savedReveal = useRef(new Animated.Value(0)).current;
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
-  const lesson = route.params.lesson;
-  const sourceImage = route.params.sourceImage;
-  const sourceAspectRatio = sourceImage
-    ? Math.max(0.68, Math.min(1.65, sourceImage.width / sourceImage.height))
-    : 1;
-  const isCheck = lesson.mode === 'check';
-  const isFromNotebook = route.params.source === 'notebook';
-  const pageCapacity = Math.max(
-    8.5,
-    Math.min(15.5, 9 + (height - 650) / 48) / Math.max(1, fontScale * 0.88),
-  );
-  const pages = useMemo<LessonPage[]>(() => lesson.steps.flatMap((lessonStep) => {
-    const chunks = splitExplanation(lessonStep.explanation, pageCapacity);
-    return chunks.map((explanation, part) => ({
-      step: lessonStep,
-      explanation,
-      part,
-      partCount: chunks.length,
-      showNote: part === chunks.length - 1,
-    }));
-  }), [lesson.steps, pageCapacity]);
-  const currentPage = pages[step];
-  const current = currentPage.step;
-  const tone = [colors.cyan, colors.peach, colors.lime, colors.mint, colors.violetSoft, colors.cyan][step % 6];
-  const problemPreview = compactProblemContent(lesson.problem);
-  const problemAccessible = contentToAccessibleText(lesson.problem);
-  const nextTitle = step === pages.length - 1
-    ? 'Vezi rezultatul'
-    : 'Continuă';
+  const saveLocked = useRef(false);
+  const pagingLocked = useRef(false);
+  const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const current = lesson.steps[step];
+  const tone = documentTones[step % documentTones.length];
   const bottomSpace = Math.max(insets.bottom, 10);
-  const problemPreviewWidth = Math.max(110, contentWidth - 97);
-  const lessonMathWidth = Math.max(120, contentWidth - (isCompact ? 65 : 69));
-  const noteMathWidth = Math.max(100, contentWidth - 101);
-  const sheetMathWidth = Math.max(120, Math.min(width, 640) - 62);
+  const problemAccessible = contentToAccessibleText(lesson.problem);
+  const nextTitle = step === lesson.steps.length - 1 ? 'Vezi rezultatul' : 'Continuă';
+
+  const lessonDocument = useMemo<MathDocumentDefinition>(() => ({
+    accessibilityLabel: `${current.title}. ${contentToAccessibleText(current.explanation)}. ${contentToAccessibleText(current.note)}`,
+    variant: 'lesson',
+    sections: [
+      { kind: 'heading', eyebrow: current.kicker, title: current.title, tone },
+      { kind: 'content', content: current.explanation },
+      ...(current.note.length > 0
+        ? [{ kind: 'note' as const, label: 'DE ȚINUT MINTE', content: current.note, tone: 'lime' as const }]
+        : []),
+    ],
+  }), [current, tone]);
+
+  const alternateDocument = useMemo<MathDocumentDefinition>(() => ({
+    accessibilityLabel: `O altă explicație. ${contentToAccessibleText(current.alternative)}`,
+    variant: 'alternate',
+    sections: [{ kind: 'content', content: current.alternative }],
+  }), [current.alternative]);
+
+  const problemDocument = useMemo<MathDocumentDefinition>(() => ({
+    accessibilityLabel: `Enunțul complet. ${problemAccessible}`,
+    variant: 'problem',
+    sections: [{ kind: 'content', content: lesson.problem }],
+  }), [lesson.problem, problemAccessible]);
 
   useEffect(() => {
     setAlternate(false);
     alternateReveal.setValue(0);
     reveal.setValue(0);
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
     if (reducedMotion) {
       reveal.setValue(1);
       return;
     }
-    Animated.spring(reveal, { toValue: 1, useNativeDriver: true, speed: 9, bounciness: 6 }).start();
+    Animated.spring(reveal, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 5 }).start();
   }, [alternateReveal, reducedMotion, reveal, step]);
 
-  useEffect(() => () => { if (savedTimer.current) clearTimeout(savedTimer.current); }, []);
+  useEffect(() => () => {
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    if (pagingTimer.current) clearTimeout(pagingTimer.current);
+  }, []);
+
+  useEffect(() => navigation.addListener('beforeRemove', () => {
+    deleteTemporaryCapturedImages([sourceImage?.uri]);
+  }), [navigation, sourceImage?.uri]);
+
+  const lockPaging = () => {
+    if (pagingLocked.current) return false;
+    pagingLocked.current = true;
+    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 420);
+    return true;
+  };
 
   const next = () => {
+    if (!lockPaging()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (step < pages.length - 1) setStep((value) => value + 1);
-    else navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
+    if (step < lesson.steps.length - 1) {
+      setStep((value) => value + 1);
+      return;
+    }
+    if (isFromNotebook) {
+      navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
+      return;
+    }
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'Home' },
+        { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved } },
+      ],
+    });
   };
 
   const back = () => {
+    if (!lockPaging()) return;
     Haptics.selectionAsync();
     if (step > 0) {
       setStep((value) => value - 1);
       return;
     }
     if (isFromNotebook) navigation.goBack();
-    else navigation.popToTop();
+    else if (navigation.canGoBack()) navigation.popToTop();
+    else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
+  const closeAlternate = () => {
+    if (reducedMotion) {
+      setAlternate(false);
+      return;
+    }
+    Animated.timing(alternateReveal, { toValue: 0, duration: 140, useNativeDriver: true })
+      .start(() => setAlternate(false));
   };
 
   const explainDifferently = () => {
     Haptics.selectionAsync();
     if (alternate) {
-      if (reducedMotion) {
-        setAlternate(false);
-        return;
-      }
-      Animated.timing(alternateReveal, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => setAlternate(false));
+      closeAlternate();
       return;
     }
     setAlternate(true);
+    alternateReveal.setValue(0);
+    if (reducedMotion) alternateReveal.setValue(1);
+    else Animated.spring(alternateReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 7 }).start();
+  };
+
+  const closeProblem = () => {
     if (reducedMotion) {
-      alternateReveal.setValue(1);
+      setProblemOpen(false);
       return;
     }
-    Animated.spring(alternateReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 8 }).start();
+    Animated.timing(problemReveal, { toValue: 0, duration: 140, useNativeDriver: true })
+      .start(() => setProblemOpen(false));
   };
 
   const toggleProblem = () => {
     Haptics.selectionAsync();
     if (problemOpen) {
-      if (reducedMotion) {
-        setProblemOpen(false);
-        return;
-      }
-      Animated.timing(problemReveal, { toValue: 0, duration: 140, useNativeDriver: true }).start(() => setProblemOpen(false));
+      closeProblem();
       return;
     }
+    setProblemView('statement');
     setProblemOpen(true);
     problemReveal.setValue(0);
-    if (reducedMotion) {
-      problemReveal.setValue(1);
-      return;
-    }
-    Animated.spring(problemReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 7 }).start();
+    if (reducedMotion) problemReveal.setValue(1);
+    else Animated.spring(problemReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 7 }).start();
   };
 
   const toggleSaved = async () => {
+    if (saveLocked.current) return;
+    saveLocked.current = true;
     const nextSaved = !saved;
     setSaved(nextSaved);
     if (savedTimer.current) clearTimeout(savedTimer.current);
-    if (!nextSaved) {
-      setShowSavedToast(false);
-      try {
-        await setLessonFavorite(route.params.lessonId, false);
-      } catch {
-        setSaved(true);
-      }
-      return;
+    if (!nextSaved) setShowSavedToast(false);
+    else {
+      setShowSavedToast(true);
+      savedReveal.setValue(0);
+      if (reducedMotion) savedReveal.setValue(1);
+      else Animated.spring(savedReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 9 }).start();
+      savedTimer.current = setTimeout(() => setShowSavedToast(false), 1700);
     }
-    setShowSavedToast(true);
-    savedReveal.setValue(0);
-    if (reducedMotion) savedReveal.setValue(1);
-    else Animated.spring(savedReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 9 }).start();
-    savedTimer.current = setTimeout(() => setShowSavedToast(false), 1700);
     try {
-      await setLessonFavorite(route.params.lessonId, true);
+      await setLessonFavorite(route.params.lessonId, nextSaved);
     } catch {
-      setSaved(false);
+      setSaved(!nextSaved);
       setShowSavedToast(false);
+    } finally {
+      saveLocked.current = false;
     }
   };
 
@@ -221,159 +209,128 @@ export function LessonScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title={isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'} eyebrow={`PASUL ${step + 1} DIN ${pages.length}`} onBack={back} rightIcon="bookmark" rightLabel={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'} rightActive={saved} onRight={toggleSaved} />
-      {showSavedToast ? <Animated.View pointerEvents="none" style={[styles.savedToast, { opacity: savedReveal, transform: [{ translateY: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }, { scale: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }]}><MiniGlyph name="check" size={16} /><Text style={styles.savedText}>Lecție salvată</Text></Animated.View> : null}
+      <ScreenHeader
+        title={isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'}
+        eyebrow={`PASUL ${step + 1} DIN ${lesson.steps.length}`}
+        onBack={back}
+        rightIcon="bookmark"
+        rightLabel={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'}
+        rightActive={saved}
+        onRight={toggleSaved}
+      />
+      {showSavedToast ? (
+        <Animated.View pointerEvents="none" style={[styles.savedToast, {
+          opacity: savedReveal,
+          transform: [
+            { translateY: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) },
+            { scale: savedReveal.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
+          ],
+        }]}>
+          <MiniGlyph name="check" size={16} />
+          <Text style={styles.savedText}>Lecție salvată</Text>
+        </Animated.View>
+      ) : null}
       <View
         accessible
         accessibilityRole="progressbar"
-        accessibilityValue={{ min: 1, max: pages.length, now: step + 1, text: `Pasul ${step + 1} din ${pages.length}` }}
+        accessibilityValue={{ min: 1, max: lesson.steps.length, now: step + 1, text: `Pasul ${step + 1} din ${lesson.steps.length}` }}
         style={[styles.progress, { marginHorizontal: gutter }]}
       >
-        <View style={[styles.progressPartActive, { width: `${((step + 1) / pages.length) * 100}%` }]} />
+        <View style={[styles.progressPartActive, { width: `${((step + 1) / lesson.steps.length) * 100}%` }]} />
       </View>
-      <ScrollView ref={scrollRef} style={styles.scroll} bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Deschide enunțul: ${problemAccessible}`} onPress={toggleProblem} style={styles.problemRow}>
-          <View style={styles.problemIcon}><Text style={styles.problemIconText}>x</Text></View>
+
+      <View style={[styles.stage, { paddingHorizontal: gutter }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Deschide enunțul: ${problemAccessible}`}
+          onPress={toggleProblem}
+          style={({ pressed }) => [styles.problemRow, pressed && styles.pressed]}
+        >
+          <View style={styles.problemIcon}><Text style={styles.problemIconText}>x²</Text></View>
           <View style={styles.problemCopy}>
-            <Text style={styles.problemLabel}>{lesson.topic.toLocaleUpperCase('ro-RO')}</Text>
-            <RichMathContent
-              content={problemPreview}
-              color={colors.ink}
-              textStyle={styles.problem}
-              textNumberOfLines={2}
-              mathFontSize={15}
-              inlineMathFontSize={12}
-              mathMinHeight={25}
-              mathContainerWidth={problemPreviewWidth}
-              mathAlign="left"
-              inlineCompactMath
-              gap={1}
-            />
+            <Text style={styles.problemLabel}>PROBLEMA CURENTĂ</Text>
+            <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
           </View>
-          <View style={styles.problemOpen}><MiniGlyph name="next" size={16} color={colors.violetDeep} /></View>
+          <Text style={styles.problemAction}>Enunț</Text>
+          <MiniGlyph name="next" size={15} color={colors.violetDeep} />
         </Pressable>
 
-        <Animated.View style={[styles.panelWrap, { opacity: reveal, transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) }, { rotate: '-0.5deg' }] }]}>
-          <View style={styles.panelShadow} />
-          <View style={[styles.panel, isCompact && styles.panelCompact]}>
-            <View style={[styles.kicker, { backgroundColor: tone }]}><Text style={styles.kickerText}>{current.kicker}{currentPage.partCount > 1 ? ` · ${currentPage.part + 1}/${currentPage.partCount}` : ''}</Text></View>
-            <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={3} style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}>{current.title}</Text>
-            <RichMathContent
-              content={currentPage.explanation}
-              color={colors.ink}
-              textStyle={[styles.body, isShort && styles.bodyShort]}
-              mathFontSize={isShort ? 18 : isNarrow ? 19 : 21}
-              inlineMathFontSize={isShort ? 12.5 : 14}
-              mathMinHeight={isShort ? 31 : 36}
-              mathContainerWidth={lessonMathWidth}
-              mathBlockStyle={[styles.mathBox, isShort && styles.mathBoxShort, { borderLeftColor: tone }]}
-              containerStyle={[styles.stepContent, isShort && styles.stepContentShort]}
-              gap={isShort ? 4 : 7}
-            />
-            {currentPage.showNote ? (
-              <View style={[styles.noteRow, isShort && styles.noteRowShort]}>
-                <View style={styles.noteMark}>
-                  <Image accessible={false} source={require('../../assets/brand/profu-mark-v2.png')} resizeMode="contain" style={styles.noteMarkImage} />
-                </View>
-                <View style={styles.noteCopy}>
-                  <Text style={styles.noteLabel}>DE ȚINUT MINTE</Text>
-                  <RichMathContent content={current.note} color={colors.ink} textStyle={[styles.note, isShort && styles.noteShort]} mathFontSize={isShort ? 14 : 15} inlineMathFontSize={isShort ? 11.5 : 13} mathMinHeight={isShort ? 21 : 24} mathContainerWidth={noteMathWidth} mathAlign="left" inlineCompactMath gap={isShort ? 1 : 3} />
-                </View>
-              </View>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Explică-mi altfel"
-              accessibilityState={{ expanded: alternate }}
-              onPress={explainDifferently}
-              style={styles.explainAction}
-            >
-              <View style={styles.explainIcon}><AppIcon name="hint" size={28} /></View>
-              <View style={styles.explainCopy}>
-                <Text style={styles.explainTitle}>Vrei o explicație mai simplă?</Text>
-                <Text style={styles.explainText}>Îți arăt aceeași idee în alt mod</Text>
-              </View>
-              <MiniGlyph name="next" size={16} color={colors.violetDeep} />
-            </Pressable>
-          </View>
+        <Animated.View style={[styles.documentFrame, {
+          opacity: reveal,
+          transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }],
+        }]}>
+          <MathDocumentView definition={lessonDocument} testID="lesson-math-document" />
         </Animated.View>
-
-        <Pressable accessibilityRole="button" onPress={() => setFeedbackOpen(true)} style={styles.reportLink}>
-          <MiniGlyph name="wrong" size={14} color={colors.inkSoft} />
-          <Text style={styles.reportText}>Ai observat o greșeală? Spune-ne</Text>
-        </Pressable>
-
-      </ScrollView>
-      <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
-        <ComicButton compact title={nextTitle} trailingIcon={step === pages.length - 1 ? 'check' : 'next'} tone="lime" onPress={next} style={styles.nextAction} />
       </View>
+
+      <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
+        <View style={styles.secondaryRow}>
+          <Pressable accessibilityRole="button" onPress={explainDifferently} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}>
+            <AppIcon name="hint" size={23} />
+            <View style={styles.secondaryCopy}>
+              <Text style={styles.secondaryTitle}>Explică-mi altfel</Text>
+            </View>
+            <MiniGlyph name="next" size={15} color={colors.violetDeep} />
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => setFeedbackOpen(true)} style={({ pressed }) => [styles.reportAction, pressed && styles.pressed]}>
+            <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
+            <Text style={styles.reportText}>Raportează</Text>
+          </Pressable>
+        </View>
+        <ComicButton compact title={nextTitle} trailingIcon={step === lesson.steps.length - 1 ? 'check' : 'next'} tone="lime" onPress={next} />
+      </View>
+
       {alternate ? (
-        <View style={styles.alternateLayer}>
-          <Pressable accessible={false} onPress={explainDifferently} style={styles.scrim} />
-          <Animated.View accessibilityViewIsModal style={[styles.alternateSheet, { paddingBottom: bottomSpace + 14, opacity: alternateReveal, transform: [{ translateY: alternateReveal.interpolate({ inputRange: [0, 1], outputRange: [42, 0] }) }] }]}>
+        <View style={styles.modalLayer}>
+          <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: alternateReveal }]} />
+          <Pressable accessible={false} onPress={closeAlternate} style={StyleSheet.absoluteFill} />
+          <Animated.View accessibilityViewIsModal style={[styles.sheet, {
+            paddingBottom: bottomSpace + 14,
+            opacity: alternateReveal,
+            transform: [{ translateY: alternateReveal.interpolate({ inputRange: [0, 1], outputRange: [54, 0] }) }],
+          }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeading}>
-              <View style={styles.alternateIcon}><AppIcon name="hint" size={42} /></View>
-              <View style={styles.sheetCopy}><Text style={styles.sheetEyebrow}>O ALTĂ EXPLICAȚIE</Text><Text style={styles.sheetTitle}>Aceeași idee, mai simplu</Text></View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Închide explicația" onPress={explainDifferently} style={styles.sheetClose}><MiniGlyph name="close" size={19} /></Pressable>
+              <View style={styles.sheetIcon}><AppIcon name="hint" size={37} /></View>
+              <View style={styles.sheetCopy}><Text style={styles.sheetEyebrow}>PROFU’ ÎȚI ARATĂ ALTFEL</Text><Text style={styles.sheetTitle}>O explicație mai simplă</Text></View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Închide explicația" hitSlop={8} onPress={closeAlternate} style={styles.sheetClose}><MiniGlyph name="close" size={19} /></Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.alternateScroll} contentContainerStyle={styles.alternateScrollContent}>
-              <RichMathContent
-                content={current.alternative}
-                color={colors.ink}
-                textStyle={styles.alternateText}
-                mathFontSize={18}
-                mathContainerWidth={sheetMathWidth}
-                inlineCompactMath
-                mathBlockStyle={styles.alternateMath}
-                gap={8}
-              />
-            </ScrollView>
-            <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={explainDifferently} />
+            <MathDocumentView definition={alternateDocument} style={styles.sheetDocument} testID="alternate-math-document" />
+            <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={closeAlternate} />
           </Animated.View>
         </View>
       ) : null}
+
       {problemOpen ? (
-        <View style={styles.alternateLayer}>
-          <Pressable accessible={false} onPress={toggleProblem} style={styles.scrim} />
-          <Animated.View accessibilityViewIsModal style={[styles.problemSheet, { paddingBottom: bottomSpace + 14, opacity: problemReveal, transform: [{ translateY: problemReveal.interpolate({ inputRange: [0, 1], outputRange: [42, 0] }) }] }]}>
+        <View style={styles.modalLayer}>
+          <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: problemReveal }]} />
+          <Pressable accessible={false} onPress={closeProblem} style={StyleSheet.absoluteFill} />
+          <Animated.View accessibilityViewIsModal style={[styles.problemSheet, {
+            paddingBottom: bottomSpace + 14,
+            opacity: problemReveal,
+            transform: [{ translateY: problemReveal.interpolate({ inputRange: [0, 1], outputRange: [54, 0] }) }],
+          }]}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeading}>
-              <View style={styles.alternateIcon}><AppIcon name="notebook" size={42} /></View>
-              <View style={styles.sheetCopy}><Text style={styles.sheetEyebrow}>ENUNȚUL COMPLET</Text><Text style={styles.sheetTitle}>{lesson.title}</Text></View>
-              <Pressable accessibilityRole="button" accessibilityLabel="Închide enunțul" onPress={toggleProblem} style={styles.sheetClose}><MiniGlyph name="close" size={19} /></Pressable>
+              <View style={[styles.sheetIcon, styles.problemSheetIcon]}><AppIcon name="notebook" size={37} /></View>
+              <View style={styles.sheetCopy}><Text style={styles.sheetEyebrow}>PROBLEMA TA</Text><Text numberOfLines={2} style={styles.sheetTitle}>{lesson.title}</Text></View>
+              <Pressable accessibilityRole="button" accessibilityLabel="Închide enunțul" hitSlop={8} onPress={closeProblem} style={styles.sheetClose}><MiniGlyph name="close" size={19} /></Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.problemSheetScroll} contentContainerStyle={styles.problemSheetContent}>
-              {sourceImage ? (
-                <View
-                  accessible
-                  accessibilityRole="image"
-                  accessibilityLabel="Fotografia originală a problemei"
-                  style={styles.sourceImageCard}
-                >
-                  <View style={styles.sourceImageBadge}><Text style={styles.sourceImageBadgeText}>FOTOGRAFIA TA</Text></View>
-                  <Image
-                    accessible={false}
-                    source={{ uri: sourceImage.uri }}
-                    resizeMode="contain"
-                    style={[styles.sourceImage, { aspectRatio: sourceAspectRatio }]}
-                  />
-                </View>
-              ) : null}
-              <View style={styles.transcriptionHeading}>
-                <View style={styles.transcriptionDot} />
-                <Text style={styles.transcriptionLabel}>{sourceImage ? 'ENUNȚ TRANSCRIS' : 'ENUNȚ'}</Text>
+            {sourceImage ? (
+              <View accessibilityRole="tablist" style={styles.problemTabs}>
+                <Pressable accessibilityRole="tab" accessibilityState={{ selected: problemView === 'statement' }} onPress={() => setProblemView('statement')} style={[styles.problemTab, problemView === 'statement' && styles.problemTabActive]}><Text style={[styles.problemTabText, problemView === 'statement' && styles.problemTabTextActive]}>Enunț citit</Text></Pressable>
+                <Pressable accessibilityRole="tab" accessibilityState={{ selected: problemView === 'photo' }} onPress={() => setProblemView('photo')} style={[styles.problemTab, problemView === 'photo' && styles.problemTabActive]}><Text style={[styles.problemTabText, problemView === 'photo' && styles.problemTabTextActive]}>Fotografia ta</Text></Pressable>
               </View>
-              <RichMathContent
-                content={lesson.problem}
-                color={colors.ink}
-                textStyle={styles.problemSheetText}
-                mathFontSize={19}
-                mathContainerWidth={sheetMathWidth}
-                mathBlockStyle={styles.problemSheetMath}
-                gap={9}
-              />
-            </ScrollView>
+            ) : null}
+            <View style={styles.problemContent}>
+              {problemView === 'photo' && sourceImage ? (
+                <View accessible accessibilityRole="image" accessibilityLabel="Fotografia originală a problemei" style={styles.sourceImageCard}>
+                  <Image accessible={false} source={{ uri: sourceImage.uri }} resizeMode="contain" style={styles.sourceImage} />
+                </View>
+              ) : (
+                <MathDocumentView definition={problemDocument} testID="problem-math-document" />
+              )}
+            </View>
           </Animated.View>
         </View>
       ) : null}
@@ -384,75 +341,46 @@ export function LessonScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  scroll: { flex: 1 },
-  progress: { height: 6, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden', marginBottom: 9 },
-  savedToast: { position: 'absolute', zIndex: 20, right: 18, top: 59, minHeight: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9 },
-  savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
+  progress: { height: 6, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden', marginBottom: 8 },
   progressPartActive: { height: '100%', borderRadius: 4, backgroundColor: colors.violet },
-  content: { flexGrow: 1, paddingHorizontal: 19, paddingBottom: 0 },
-  problemRow: { minHeight: 61, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 3 },
-  problemIcon: { width: 41, height: 41, borderRadius: 14, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-5deg' }] },
-  problemIconText: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 23 },
+  savedToast: { position: 'absolute', zIndex: 20, right: 18, top: 59, minHeight: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9 },
+  savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
+  stage: { flex: 1, minHeight: 0, paddingBottom: 4 },
+  problemRow: { height: 45, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 2 },
+  problemIcon: { width: 31, height: 31, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  problemIconText: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 15 },
   problemCopy: { flex: 1, minWidth: 0 },
-  problemOpen: { width: 28, height: 28, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
-  problemLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2 },
-  problem: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 15 },
-  panelWrap: { marginTop: 8, marginBottom: 16, position: 'relative' },
-  panelShadow: { position: 'absolute', left: 8, right: -8, top: 9, bottom: -9, borderRadius: 28, backgroundColor: colors.ink },
-  panel: { borderRadius: 28, borderWidth: 3, borderColor: colors.ink, backgroundColor: colors.paper, padding: 17, overflow: 'hidden' },
-  panelCompact: { borderRadius: 24, padding: 15 },
-  reportLink: { alignSelf: 'center', minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, marginBottom: 8 },
-  reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10.5 },
-  kicker: { alignSelf: 'flex-start', borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 10, paddingVertical: 5, transform: [{ rotate: '-3deg' }] },
-  kickerText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9, letterSpacing: 1.2 },
-  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 30, marginTop: 12 },
-  titleNarrow: { fontSize: 24, lineHeight: 27 },
-  titleShort: { fontSize: 22, lineHeight: 24, marginTop: 9 },
-  body: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19, marginTop: 4 },
-  bodyShort: { fontSize: 12.5, lineHeight: 17, marginTop: 2 },
-  stepContent: { marginTop: 5 },
-  stepContentShort: { marginTop: 3 },
-  mathBox: { minHeight: 48, backgroundColor: '#F7F4FF', borderRadius: 12, borderLeftWidth: 5, paddingHorizontal: 12, paddingVertical: 4, overflow: 'hidden' },
-  mathBoxShort: { minHeight: 42, paddingVertical: 2 },
-  noteRow: { minHeight: 62, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 9, borderRadius: 15, borderWidth: 1.5, borderColor: '#BCD94B', backgroundColor: colors.limeSoft, paddingHorizontal: 9, paddingVertical: 7 },
-  noteRowShort: { minHeight: 54, marginTop: 7, paddingVertical: 5 },
-  noteMark: { width: 38, height: 38, borderRadius: 12, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  noteMarkImage: { width: 34, height: 34 },
-  noteCopy: { flex: 1, minWidth: 0 },
-  noteLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 1 },
-  note: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 15 },
-  noteShort: { fontSize: 10.5, lineHeight: 13.5 },
-  explainAction: { minHeight: 49, marginTop: 10, borderRadius: 14, backgroundColor: '#F3EEFF', paddingHorizontal: 9, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  explainIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
-  explainCopy: { flex: 1, minWidth: 0 },
-  explainTitle: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10.5, lineHeight: 13 },
-  explainText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 9.5, lineHeight: 12 },
-  actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 10 },
-  nextAction: { flex: 1, minWidth: 0 },
-  alternateLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
-  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.42)' },
-  alternateSheet: { width: '100%', maxWidth: 640, maxHeight: '82%', alignSelf: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 19, paddingTop: 9 },
-  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 12 },
-  sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  alternateIcon: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.cyan, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
-  sheetCopy: { flex: 1 },
-  sheetEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2 },
-  sheetTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 23 },
-  sheetClose: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
-  alternateScroll: { flexShrink: 1, marginTop: 14, marginBottom: 14 },
-  alternateScrollContent: { paddingBottom: 2 },
-  alternateText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19 },
-  alternateMath: { minHeight: 48, borderRadius: 15, backgroundColor: '#F7F3FF', borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 7, paddingVertical: 3 },
-  problemSheet: { width: '100%', maxWidth: 640, maxHeight: '84%', alignSelf: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 19, paddingTop: 9 },
-  problemSheetScroll: { flexShrink: 1, marginTop: 14 },
-  problemSheetContent: { paddingBottom: 10 },
-  sourceImageCard: { position: 'relative', borderRadius: 18, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: '#F4EEFF', padding: 8, overflow: 'hidden' },
-  sourceImageBadge: { position: 'absolute', top: 8, left: 8, zIndex: 2, borderRadius: 8, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.lime, paddingHorizontal: 8, paddingVertical: 4 },
-  sourceImageBadgeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 7, letterSpacing: 0.9 },
-  sourceImage: { width: '100%', minHeight: 150, maxHeight: 310, borderRadius: 11 },
-  transcriptionHeading: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 13, marginBottom: 7 },
-  transcriptionDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.violet },
-  transcriptionLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.1 },
-  problemSheetText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 20 },
-  problemSheetMath: { minHeight: 52, borderRadius: 15, backgroundColor: '#F7F3FF', borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 8, paddingVertical: 4 },
+  problemLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 1.05 },
+  problem: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 14 },
+  problemAction: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10 },
+  documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.paper },
+  actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 5 },
+  secondaryRow: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
+  secondaryAction: { flex: 1, minWidth: 0, height: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 4 },
+  secondaryCopy: { flex: 1, minWidth: 0 },
+  secondaryTitle: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11 },
+  reportAction: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
+  reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10 },
+  pressed: { opacity: 0.62, transform: [{ translateY: 1 }] },
+  modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
+  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.46)' },
+  sheet: { width: '100%', maxWidth: 640, height: '82%', alignSelf: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 16, paddingTop: 9 },
+  problemSheet: { width: '100%', maxWidth: 640, height: '86%', alignSelf: 'center', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.paper, paddingHorizontal: 16, paddingTop: 9 },
+  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 10 },
+  sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 8 },
+  sheetIcon: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.cyan, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  problemSheetIcon: { backgroundColor: colors.violetSoft },
+  sheetCopy: { flex: 1, minWidth: 0 },
+  sheetEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 1.1 },
+  sheetTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 20 },
+  sheetClose: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
+  sheetDocument: { marginBottom: 8 },
+  problemTabs: { flexDirection: 'row', borderRadius: 14, backgroundColor: colors.violetSoft, padding: 3, marginBottom: 9 },
+  problemTab: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  problemTabActive: { borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.paper },
+  problemTabText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
+  problemTabTextActive: { color: colors.violetDeep },
+  problemContent: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
+  sourceImageCard: { flex: 1, padding: 8, backgroundColor: '#F4EEFF' },
+  sourceImage: { width: '100%', height: '100%', borderRadius: 12 },
 });

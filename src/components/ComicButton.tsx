@@ -1,11 +1,12 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts } from '../theme';
 import { AppIcon, AppIconName } from './AppIcon';
 import { MiniGlyph } from './MiniGlyph';
+import { Text } from './Typography';
 
 type Tone = 'lime' | 'violet' | 'ink' | 'paper' | 'peach';
 
@@ -31,12 +32,12 @@ const fills: Record<Tone, string> = {
 };
 
 export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone = 'lime', compact = false, disabled = false, accessibilityHint, onPress, style }: Props) {
-  const { isNarrow } = useResponsiveLayout();
+  const { isNarrow, isLargeText } = useResponsiveLayout();
   const reducedMotion = useReducedMotion();
   const press = useRef(new Animated.Value(0)).current;
   const shine = useRef(new Animated.Value(0)).current;
   const light = tone === 'violet' || tone === 'ink';
-  const condensed = compact || isNarrow;
+  const condensed = (compact || isNarrow) && !isLargeText;
 
   useEffect(() => {
     if (tone === 'paper' || reducedMotion) return;

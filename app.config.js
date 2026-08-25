@@ -35,5 +35,6 @@ module.exports = ({ config }) => ({
     '@react-native-firebase/auth',
     '@react-native-firebase/app-check',
     '@react-native-firebase/crashlytics',
+    'expo-asset',
   ],
 });

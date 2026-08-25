@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Profu’ de mate — concept renderer matematic</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['\\(', '\\)']],
+        displayMath: [['\\[', '\\]']],
+        packages: { '[+]': ['ams', 'mathtools'] }
+      },
+      output: {
+        displayOverflow: 'linebreak',
+        linebreaks: { inline: true, width: '100%', lineleading: 0.18 }
+      },
+      chtml: { scale: 1, matchFontHeight: true },
+      options: { enableMenu: false },
+      startup: {
+        ready() {
+          MathJax.startup.defaultReady();
+          MathJax.startup.promise.then(() => document.documentElement.classList.add('math-ready'));
+        }
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4.0.0/tex-mml-chtml.js"></script>
+  <script defer src="./prototype.js"></script>
+</head>
+<body>
+  <header class="review-header">
+    <div class="review-brand">
+      <img src="../../assets/brand/profu-mark-v2.png" alt="" />
+      <div>
+        <p>CONCEPT DE RANDĂRE</p>
+        <h1>Matematica devine document,<br />nu colecție de cutii.</h1>
+      </div>
+    </div>
+    <p class="review-note">Interfața rămâne cartoonish. Conținutul devine calm, cursiv și tipărit corect.</p>
+    <nav class="review-nav" aria-label="Alege artefactul">
+      <button data-screen="lesson">Pas de rezolvare</button>
+      <button data-screen="problem">Enunț complet</button>
+      <button data-screen="summary">Recapitulare</button>
+      <button data-screen="notebook">Caiet</button>
+    </nav>
+  </header>
+
+  <main class="artboard-grid">
+    <section class="artifact" data-artifact="lesson">
+      <div class="artifact-label"><span>01</span><div><strong>Pas de rezolvare</strong><small>Un singur document matematic</small></div></div>
+      <div class="phone-shell">
+        <div class="phone-screen lesson-screen">
+          <div class="status-bar"><span>16:24</span><span>● ··· 4G ▮▮▮ 97%</span></div>
+          <header class="app-header">
+            <button class="icon-button" aria-label="Înapoi">←</button>
+            <div class="header-title"><span>PASUL 3 DIN 6</span><strong>Rezolvarea pas cu pas</strong></div>
+            <div class="header-glyph"><img src="../../assets/icons/notebook-ui.png" alt="" /></div>
+          </header>
+          <div class="progress-track"><i style="width:50%"></i></div>
+          <button class="problem-strip">
+            <span class="problem-mark">x</span>
+            <span><small>GEOMETRIE ÎN SPAȚIU</small><strong>Piramidă patrulateră regulată</strong></span>
+            <b>↗</b>
+          </button>
+
+          <div class="document-viewport">
+            <article class="math-document lesson-document">
+              <div class="step-kicker">PASUL 3 · PLANURI</div>
+              <h2>Unghiul dintre cele două plane</h2>
+              <p>Planele \((VAC)\) și \((VBD)\) se intersectează pe dreapta \(VO\).</p>
+
+              <figure class="geometry-figure">
+                <svg viewBox="0 0 320 186" role="img" aria-label="Piramidă patrulateră regulată cu diagonalele bazei">
+                  <defs><linearGradient id="face" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#8b5cf6" stop-opacity=".3"/><stop offset="1" stop-color="#5ae1ef" stop-opacity=".08"/></linearGradient></defs>
+                  <polygon points="160,18 52,126 160,168" fill="url(#face)" />
+                  <polygon points="160,18 268,126 160,168" fill="#ff9b7d" opacity=".12" />
+                  <path d="M160 18L52 126L160 168L268 126Z M52 126L160 98L268 126 M160 168L160 18 M86 145L234 145" fill="none" stroke="#171238" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M160 98L160 168" stroke="#7c3aed" stroke-width="4" stroke-dasharray="7 7" />
+                  <circle cx="160" cy="98" r="5" fill="#c9ff35" stroke="#171238" stroke-width="2" />
+                  <g class="svg-labels"><text x="153" y="13">V</text><text x="36" y="130">A</text><text x="272" y="130">B</text><text x="150" y="183">C</text><text x="151" y="91">O</text></g>
+                </svg>
+                <figcaption>Intersecția celor două plane este \(VO\).</figcaption>
+              </figure>
+
+              <p>Pentru a măsura unghiul diedru, alegem în fiecare plan câte o dreaptă perpendiculară pe muchia comună.</p>
+              <div class="derivation">
+                \[
+                  AO \perp VO,\qquad BO \perp VO
+                \]
+                \[
+                  \angle\big((VAC),(VBD)\big)=\angle AOB=90^{\circ}
+                \]
+              </div>
+              <aside class="teacher-note"><span>✦</span><p><strong>Ideea importantă</strong>Unghiul dintre plane se citește prin două drepte perpendiculare pe intersecția lor.</p></aside>
+            </article>
+          </div>
+
+          <footer class="action-dock"><button class="ghost-action">Explică altfel</button><button class="primary-action">Continuă <span>→</span></button></footer>
+        </div>
+      </div>
+    </section>
+
+    <section class="artifact" data-artifact="problem">
+      <div class="artifact-label"><span>02</span><div><strong>Enunț complet</strong><small>Text și matematică în același flux</small></div></div>
+      <div class="phone-shell">
+        <div class="phone-screen problem-screen">
+          <div class="status-bar ghost-status"><span>16:24</span><span>● ··· 4G ▮▮▮ 97%</span></div>
+          <div class="dimmed-lesson"><span>PASUL 1 DIN 6</span><h3>Rezolvarea pas cu pas</h3><div></div></div>
+          <div class="sheet-backdrop"></div>
+          <section class="problem-sheet">
+            <div class="sheet-handle"></div>
+            <header class="sheet-header">
+              <div class="sheet-icon"><img src="../../assets/icons/scan-ui.png" alt="" /></div>
+              <div><span>CE A CITIT PROFU’</span><h2>Enunțul problemei</h2></div>
+              <button aria-label="Închide">×</button>
+            </header>
+            <div class="sheet-rule"><span>ENUNȚ TRANSCRIS</span></div>
+            <div class="sheet-scroll">
+              <article class="math-document transcription-document">
+                <p>În Figura 1 este reprezentat schematic un acoperiș în formă de piramidă patrulateră regulată \(VABCD\).</p>
+                <p>Înălțimea piramidei este \(VO=3\sqrt2\,\mathrm m\), muchia laterală este \(VA=6\,\mathrm m\), iar diagonala bazei este \(AC=6\sqrt2\,\mathrm m\).</p>
+                <ol class="subproblems">
+                  <li><span>a)</span><p>Verificați dacă latura bazei este \(AB=6\,\mathrm m\).</p></li>
+                  <li><span>b)</span><p>Determinați măsura unghiului format de planele \((VAC)\) și \((VBD)\).</p></li>
+                  <li><span>c)</span><p>Demonstrați că dreptele \(DM\) și \(AN\) sunt coplanare, unde \(M\) este mijlocul muchiei \(BV\), iar \(N\) este mijlocul muchiei \(CV\).</p></li>
+                </ol>
+                <aside class="read-confidence"><span>✓</span><p><strong>Enunț citit complet</strong>Toate datele și cele trei cerințe sunt vizibile.</p></aside>
+              </article>
+            </div>
+            <footer class="sheet-footer"><button>Arată fotografia</button><button class="primary-action">Începe rezolvarea →</button></footer>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="artifact" data-artifact="summary">
+      <div class="artifact-label"><span>03</span><div><strong>Recapitulare</strong><small>Răspunsuri pe subpuncte, fără fragmente</small></div></div>
+      <div class="phone-shell">
+        <div class="phone-screen summary-screen">
+          <div class="status-bar"><span>16:24</span><span>● ··· 4G ▮▮▮ 97%</span></div>
+          <header class="summary-header"><div><span>REZOLVARE ÎNCHEIATĂ</span><h2>Ai dus problema până la capăt.</h2></div><button aria-label="Închide">×</button></header>
+          <div class="summary-scroll">
+            <div class="summary-hero">
+              <img src="../../assets/profu-mascot-v2.png" alt="Profu’, mascota aplicației" />
+              <div><span>GATA!</span><p>Trei cerințe rezolvate, fiecare cu justificarea ei.</p></div>
+            </div>
+            <article class="math-document summary-document">
+              <section class="recap-intro"><small>PE SCURT</small><p>Am folosit proprietățile pătratului, unghiul dintre plane și criteriul de coplanaritate.</p></section>
+              <h3>Răspunsuri finale</h3>
+              <ol class="answer-list">
+                <li><span>a)</span><div><p>Latura bazei:</p>\[AB=6\,\mathrm m\]</div><b>✓</b></li>
+                <li><span>b)</span><div><p>Unghiul dintre plane:</p>\[\angle\big((VAC),(VBD)\big)=90^{\circ}\]</div><b>✓</b></li>
+                <li><span>c)</span><div><p>Dreptele cerute sunt coplanare:</p>\[MN\parallel BC\parallel AD\]</div><b>✓</b></li>
+              </ol>
+              <div class="takeaway-line"><span>01</span><p>Într-un pătrat, diagonala este latura înmulțită cu \(\sqrt2\).</p></div>
+              <div class="takeaway-line"><span>02</span><p>Două drepte paralele determină un plan unic.</p></div>
+            </article>
+          </div>
+          <footer class="summary-actions"><button class="save-action"><img src="../../assets/icons/bookmark-ui.png" alt="" /> Salvează în Caiet</button><button class="primary-action">Rezolvă altă problemă →</button></footer>
+        </div>
+      </div>
+    </section>
+
+    <section class="artifact" data-artifact="notebook">
+      <div class="artifact-label"><span>04</span><div><strong>Caiet</strong><small>Listă scanabilă, fără WebView-uri repetate</small></div></div>
+      <div class="phone-shell">
+        <div class="phone-screen notebook-screen">
+          <div class="status-bar"><span>16:24</span><span>● ··· 4G ▮▮▮ 97%</span></div>
+          <header class="notebook-header"><button class="icon-button">←</button><div><span>3 LECȚII SALVATE</span><h2>Caietul meu</h2></div><div class="header-glyph"><img src="../../assets/icons/notebook-ui.png" alt="" /></div></header>
+          <div class="notebook-tools"><label><img src="../../assets/icons/search-ui.png" alt="" /><input value="" placeholder="Caută o problemă sau o noțiune" /></label><div><button class="active">Toate</button><button>Rezolvate</button><button>Verificate</button></div></div>
+          <div class="lesson-list">
+            <button class="lesson-row">
+              <div class="lesson-accent violet"></div><div class="lesson-main"><div class="lesson-meta"><span>GEOMETRIE ÎN SPAȚIU</span><time>AZI</time></div><h3>Piramidă patrulateră regulată</h3><p>Unghiul dintre două plane diagonale</p><div class="formula-preview">\[\angle\big((VAC),(VBD)\big)=90^{\circ}\]</div></div><b>→</b>
+            </button>
+            <button class="lesson-row">
+              <div class="lesson-accent cyan"></div><div class="lesson-main"><div class="lesson-meta"><span>ALGEBRĂ</span><time>IERI</time></div><h3>Sistem de două ecuații</h3><p>Metoda reducerii, explicată pas cu pas</p><div class="formula-preview">\[\begin{cases}2x+y=5\\x-y=1\end{cases}\]</div></div><b>→</b>
+            </button>
+            <button class="lesson-row compact-row">
+              <div class="lesson-accent peach"></div><div class="lesson-main"><div class="lesson-meta"><span>ANALIZĂ</span><time>20 AUG.</time></div><h3>Derivata unei funcții</h3><p>Regula produsului</p><div class="formula-preview">\[(fg)'=f'g+fg'\]</div></div><b>→</b>
+            </button>
+          </div>
+          <button class="floating-scan"><img src="../../assets/icons/scan-ui.png" alt="" /><span>Problemă nouă</span></button>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

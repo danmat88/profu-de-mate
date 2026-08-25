@@ -1,8 +1,9 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '../components/Typography';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { AppIcon } from '../components/AppIcon';
@@ -10,6 +11,8 @@ import { MiniGlyph } from '../components/MiniGlyph';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { analyzeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
+import { recordDiagnosticError } from '../services/diagnostics';
+import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
 import { colors, fonts } from '../theme';
 import type { MathAnalysis, RootStackParamList } from '../types';
 import { contentToAccessibleText } from '../utils/mathContent';
@@ -26,6 +29,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const reducedMotion = useReducedMotion();
   const [active, setActive] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
+  const [takingLong, setTakingLong] = useState(false);
   const [screenState, setScreenState] = useState<ScreenState>({ kind: 'analyzing' });
   const orbit = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;
@@ -38,6 +42,25 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const orbitSize = isVeryShort ? 188 : isCompact ? 222 : 264;
   const haloSize = isVeryShort ? 148 : isCompact ? 173 : 204;
   const bottomSpace = Math.max(insets.bottom, 12);
+  const returnToPhotoOrHome = () => {
+    clearPendingAnalysis();
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+  const retakePhoto = () => {
+    clearPendingAnalysis();
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'Home' },
+        { name: 'Capture', params: { mode: route.params.mode } },
+      ],
+    });
+  };
+  const leaveAnalysis = () => {
+    clearPendingAnalysis();
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
 
   useEffect(() => {
     if (reducedMotion) {
@@ -55,9 +78,15 @@ export function ProcessingScreen({ navigation, route }: Props) {
     return () => { orbiting.stop(); floating.stop(); };
   }, [bob, orbit, reducedMotion]);
 
+  useEffect(() => navigation.addListener('beforeRemove', () => {
+    clearPendingAnalysis();
+  }), [navigation]);
+
   useEffect(() => {
     let mounted = true;
+    savePendingAnalysis(route.params.mode, route.params.image, route.params.requestId);
     setScreenState({ kind: 'analyzing' });
+    setTakingLong(false);
     setActive(0);
     progress.stopAnimation();
     progress.setValue(0);
@@ -74,6 +103,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
       setActive(2);
       if (reducedMotion) progress.setValue(0.76);
     }, 3_800);
+    const slowStage = setTimeout(() => {
+      if (mounted) setTakingLong(true);
+    }, 20_000);
 
     analyzeMathImage(route.params.mode, route.params.image, route.params.requestId)
       .then(({ lessonId, result }) => {
@@ -81,6 +113,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
         progress.stopAnimation();
         const finish = () => {
           if (!mounted) return;
+          clearPendingAnalysis();
           if (result.status === 'ready' && lessonId) {
             navigation.replace('Lesson', { lesson: result, lessonId, source: 'flow', sourceImage: route.params.image });
           } else if (result.status !== 'ready') {
@@ -98,6 +131,8 @@ export function ProcessingScreen({ navigation, route }: Props) {
       })
       .catch((error) => {
         if (!mounted) return;
+        recordDiagnosticError('analysis_request', error);
+        clearPendingAnalysis();
         progress.stopAnimation();
         setScreenState({ kind: 'error', message: friendlyAnalysisError(error) });
       });
@@ -106,6 +141,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
       mounted = false;
       clearTimeout(secondStage);
       clearTimeout(thirdStage);
+      clearTimeout(slowStage);
       progress.stopAnimation();
     };
   }, [navigation, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.requestId]);
@@ -123,7 +159,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
         <ComicBackdrop dark />
         <View style={styles.top}>
           <Text style={styles.brand}>Profu’ de mate</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Înapoi" onPress={() => navigation.goBack()} style={styles.closeButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel={navigation.canGoBack() ? 'Înapoi la fotografie' : 'Înapoi acasă'} onPress={returnToPhotoOrHome} style={styles.closeButton}>
             <MiniGlyph name="close" size={20} color={colors.paper} />
           </Pressable>
         </View>
@@ -150,9 +186,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
         </ScrollView>
         <View style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
           {!rejected ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
-          <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={() => navigation.replace('Capture', { mode: route.params.mode })} />
-          <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Înapoi la fotografia aleasă</Text>
+          <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={retakePhoto} />
+          <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
+            <Text style={styles.backLinkText}>{navigation.canGoBack() ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -165,10 +201,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
       <ComicBackdrop dark />
       <View style={styles.top}>
         <Text style={styles.brand}>Profu’ lucrează</Text>
-        <View style={styles.live}>
-          <Animated.View style={[styles.liveDot, { opacity: bob.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: bob.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1.1] }) }] }]} />
-          <Text style={styles.liveText}>ÎN LUCRU</Text>
-        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Oprește analiza și revino acasă" onPress={leaveAnalysis} style={styles.stopButton}>
+          <MiniGlyph name="close" size={15} color={colors.paper} />
+          <Text style={styles.stopText}>OPREȘTE</Text>
+        </Pressable>
       </View>
       <View style={[styles.stage, { height: stageHeight }]}>
         <Animated.View style={[styles.orbit, { width: orbitSize, height: orbitSize, borderRadius: orbitSize / 2, transform: [{ rotate: orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }]}>
@@ -181,7 +217,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
         <View style={[styles.thought, isCompact && styles.thoughtCompact]}><Text style={styles.thoughtText}>{isCheck ? 'Mă uit cu atenție la fiecare pas.' : 'Citesc cu atenție enunțul.'}</Text></View>
       </View>
       <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}</Text>
-      <Text style={styles.subtitle}>Poate dura puțin, în funcție de problemă și de conexiune.</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.subtitle}>
+        {takingLong ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.' : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
+      </Text>
       <View
         accessible
         accessibilityLabel={`Analiză în curs. ${jobs[active]}. Pasul ${active + 1} din ${jobs.length}.`}
@@ -211,10 +249,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.ink },
   top: { height: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18 },
-  closeButton: { width: 38, height: 38, borderRadius: 13, borderWidth: 2, borderColor: '#6557A1', backgroundColor: '#2C2457', alignItems: 'center', justifyContent: 'center' },
-  live: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#2C2457', borderRadius: 12, paddingHorizontal: 9, paddingVertical: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime },
-  liveText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 8, letterSpacing: 1 },
+  closeButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2, borderColor: '#6557A1', backgroundColor: '#2C2457', alignItems: 'center', justifyContent: 'center' },
+  stopButton: { minWidth: 88, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderColor: '#6557A1', backgroundColor: '#2C2457', borderRadius: 15, paddingHorizontal: 10 },
+  stopText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
   stage: { alignItems: 'center', justifyContent: 'center' },
   orbit: { position: 'absolute', borderWidth: 3, borderColor: '#6557A1', borderStyle: 'dashed' },
   halo: { position: 'absolute', backgroundColor: '#302368' },
@@ -226,10 +263,10 @@ const styles = StyleSheet.create({
   mascotShort: { width: 148, height: 156 },
   thought: { position: 'absolute', right: 0, top: 35, maxWidth: 135, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 17, paddingHorizontal: 10, paddingVertical: 8, transform: [{ rotate: '4deg' }] },
   thoughtCompact: { top: 23, right: -2, maxWidth: 121 },
-  thoughtText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11, lineHeight: 14, textAlign: 'center' },
+  thoughtText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, lineHeight: 17, textAlign: 'center' },
   title: { fontFamily: fonts.display, color: colors.paper, fontSize: 31, lineHeight: 34, textAlign: 'center' },
   titleNarrow: { fontSize: 27, lineHeight: 30 },
-  subtitle: { fontFamily: fonts.body, color: '#B9B0D2', fontSize: 13, textAlign: 'center', marginTop: 3 },
+  subtitle: { minHeight: 36, paddingHorizontal: 8, fontFamily: fonts.body, color: '#B9B0D2', fontSize: 13, lineHeight: 17, textAlign: 'center', marginTop: 3 },
   jobs: { marginTop: 25, marginHorizontal: 10 },
   jobsCompact: { marginTop: 17 },
   job: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: '#39305F' },
@@ -256,6 +293,6 @@ const styles = StyleSheet.create({
   messageTitleNarrow: { fontSize: 25, lineHeight: 28 },
   messageText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 20, marginTop: 8 },
   messageActions: { gap: 9 },
-  backLink: { minHeight: 38, alignItems: 'center', justifyContent: 'center' },
-  backLinkText: { fontFamily: fonts.bodyBold, color: '#B9B0D2', fontSize: 11 },
+  backLink: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  backLinkText: { fontFamily: fonts.bodyBold, color: '#B9B0D2', fontSize: 12 },
 });

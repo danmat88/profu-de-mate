@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './Typography';
 import { colors, fonts } from '../theme';
 
 export function ComicBackdrop({ dark = false }: { dark?: boolean }) {

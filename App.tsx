@@ -25,6 +25,8 @@ import { ReviewScreen } from './src/screens/ReviewScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SummaryScreen } from './src/screens/SummaryScreen';
 import { initializeVerifiedFirebaseServices } from './src/services/firebase';
+import { recordDiagnosticError } from './src/services/diagnostics';
+import { preparePendingAnalysisOnStartup, type PendingAnalysis } from './src/services/pendingAnalysis';
 import { colors } from './src/theme';
 import type { RootStackParamList } from './src/types';
 
@@ -41,6 +43,7 @@ function AppRoot() {
     FiraSans_600SemiBold,
   });
   const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>('Home');
+  const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null | undefined>(undefined);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const reducedMotion = useReducedMotion();
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
@@ -48,12 +51,17 @@ function AppRoot() {
   const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
 
   useEffect(() => {
-    initializeVerifiedFirebaseServices().catch(() => {
+    preparePendingAnalysisOnStartup().then((pending) => {
+      setPendingAnalysis(pending);
+      if (pending) setActiveRoute('Processing');
+    });
+    initializeVerifiedFirebaseServices().catch((error) => {
+      recordDiagnosticError('firebase_initialization', error);
       // Ecranele care au nevoie de rețea afișează eroarea și permit reîncercarea.
     });
   }, []);
 
-  if (!fontsReady) return null;
+  if (!fontsReady || pendingAnalysis === undefined) return null;
 
   return (
     <View style={styles.app}>
@@ -71,14 +79,14 @@ function AppRoot() {
           }}
         >
           <StatusBar style="dark" />
-          <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+          <Stack.Navigator initialRouteName={pendingAnalysis ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
             <Stack.Screen name="Home" component={HomeScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
             <Stack.Screen name="Notebook" component={NotebookScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="Legal" component={LegalScreen} />
             <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
             <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-            <Stack.Screen name="Processing" component={ProcessingScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+            <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={pendingAnalysis ?? undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
             <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
             <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
           </Stack.Navigator>
@@ -97,7 +105,10 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AppErrorBoundary onError={() => { void SplashScreen.hideAsync(); }}>
+      <AppErrorBoundary onError={(error) => {
+        void SplashScreen.hideAsync();
+        recordDiagnosticError('app_render', error);
+      }}>
         <AppRoot />
       </AppErrorBoundary>
     </SafeAreaProvider>

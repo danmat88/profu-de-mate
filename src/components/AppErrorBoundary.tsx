@@ -1,10 +1,11 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Typography';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 
-type Props = { children: ReactNode; onError?: () => void };
+type Props = { children: ReactNode; onError?: (error: Error, info: ErrorInfo) => void };
 type State = { error: Error | null; resetKey: number };
 
 export class AppErrorBoundary extends Component<Props, State> {
@@ -15,7 +16,7 @@ export class AppErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    this.props.onError?.();
+    this.props.onError?.(error, info);
     if (__DEV__) console.error('App render error', error, info.componentStack);
   }
 

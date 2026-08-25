@@ -1,9 +1,12 @@
 import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
-import { StyleSheet, Text, View } from 'react-native';
-import type { ContentBlock, MathContentBlock, RichContent } from '../types';
-import { fonts } from '../theme';
-import { contentToAccessibleText } from '../utils/mathContent';
-import { InlineMathFormula, latexToInlineText, MathFormula } from './MathFormula';
+import { StyleSheet, View } from 'react-native';
+import type { ContentBlock, MathContentBlock, RichContent, VisualContentBlock } from '../types';
+import { contentToAccessibleText, prepareRichContentForPresentation } from '../utils/mathContent';
+import { InlineMathFormula, MathFormula } from './MathFormula';
+import { StructuredVisual } from './StructuredVisual';
+import { Text } from './Typography';
+
+type FlowContentBlock = Exclude<ContentBlock, VisualContentBlock>;
 
 type Props = {
   content: RichContent;
@@ -28,15 +31,7 @@ function isAtomicMath(latex: string) {
   return symbol || scalar;
 }
 
-function separatorBefore(previous: ContentBlock | undefined, current: ContentBlock, currentText: string) {
-  if (!previous) return '';
-  if (/^[,.;:!?…%)\]}]/.test(currentText)) return '';
-  if (previous.type === 'math' && current.type === 'math') return ', ';
-  const previousText = previous.type === 'text'
-    ? previous.text.trim()
-    : latexToInlineText(previous.latex) ?? '';
-  return /[([{\u201e\u201c]$/.test(previousText) ? '' : ' ';
-}
+const subproblemLabelPattern = /^(?:[a-z]|[ivxlcdm]+|\d+)[).:]$/iu;
 
 export function RichMathContent({
   content,
@@ -53,15 +48,16 @@ export function RichMathContent({
   inlineCompactMath = false,
   gap = 6,
 }: Props) {
-  const visibleContent = content
-    .filter((block) => block.type === 'math' || block.text.trim().length > 0);
+  const visibleContent = prepareRichContentForPresentation(content)
+    .filter((block) => block.type === 'math' || block.type === 'visual' || block.text.trim().length > 0);
 
   const rows: Array<
-    | { kind: 'flow'; blocks: ContentBlock[] }
-    | { kind: 'phrase'; blocks: ContentBlock[] }
-    | { kind: 'display'; block: MathContentBlock }
+    | { kind: 'flow'; blocks: FlowContentBlock[] }
+    | { kind: 'phrase'; blocks: FlowContentBlock[] }
+    | { kind: 'display'; block: MathContentBlock; prefix?: Extract<FlowContentBlock, { type: 'text' }> }
+    | { kind: 'visual'; block: VisualContentBlock }
   > = [];
-  let flow: ContentBlock[] = [];
+  let flow: FlowContentBlock[] = [];
   const flushFlow = () => {
     if (flow.length > 0) rows.push({ kind: 'flow', blocks: flow });
     flow = [];
@@ -71,15 +67,14 @@ export function RichMathContent({
     const block = visibleContent[index];
     const previous = visibleContent[index - 1];
     const next = visibleContent[index + 1];
-    const nativeInlineValue = block.type === 'math' ? latexToInlineText(block.latex) : null;
+    if (block.type === 'visual') {
+      flushFlow();
+      rows.push({ kind: 'visual', block });
+      continue;
+    }
     const inlineMath = block.type === 'math'
       && (previous?.type === 'text' || next?.type === 'text')
-      && (isAtomicMath(block.latex)
-        || (nativeInlineValue !== null && block.rendered.widthEx <= (inlineCompactMath ? 13 : 9) && block.rendered.heightEx <= 3.4)
-        || (inlineCompactMath
-        && block.rendered.widthEx <= 7
-        && block.rendered.heightEx <= 3.4
-        && !/\\begin\{|\\(?:aligned|cases|matrix|pmatrix|bmatrix|array)/.test(block.latex)))
+      && isAtomicMath(block.latex)
       && block.rendered.heightEx <= 3.2;
 
     if (block.type === 'text' || inlineMath) {
@@ -87,6 +82,11 @@ export function RichMathContent({
       continue;
     }
 
+    const possiblePrefix = flow.at(-1);
+    const prefix = possiblePrefix?.type === 'text' && subproblemLabelPattern.test(possiblePrefix.text.trim())
+      ? possiblePrefix
+      : undefined;
+    if (prefix) flow.pop();
     flushFlow();
 
     const connector = visibleContent[index + 1];
@@ -106,14 +106,15 @@ export function RichMathContent({
       continue;
     }
 
-    rows.push({ kind: 'display', block });
+    rows.push({ kind: 'display', block, prefix });
   }
   flushFlow();
 
   const groupedRows: Array<
-    | { kind: 'flow'; blocks: ContentBlock[] }
-    | { kind: 'phrase'; blocks: ContentBlock[] }
-    | { kind: 'derivation'; blocks: MathContentBlock[] }
+    | { kind: 'flow'; blocks: FlowContentBlock[] }
+    | { kind: 'phrase'; blocks: FlowContentBlock[] }
+    | { kind: 'derivation'; blocks: MathContentBlock[]; prefix?: Extract<FlowContentBlock, { type: 'text' }> }
+    | { kind: 'visual'; block: VisualContentBlock }
   > = [];
   rows.forEach((row) => {
     if (row.kind !== 'display') {
@@ -121,43 +122,27 @@ export function RichMathContent({
       return;
     }
     const previous = groupedRows[groupedRows.length - 1];
-    if (previous?.kind === 'derivation') previous.blocks.push(row.block);
-    else groupedRows.push({ kind: 'derivation', blocks: [row.block] });
+    if (!row.prefix && previous?.kind === 'derivation' && !previous.prefix) previous.blocks.push(row.block);
+    else groupedRows.push({ kind: 'derivation', blocks: [row.block], prefix: row.prefix });
   });
 
   return (
     <View style={[styles.content, { gap }, containerStyle]}>
-      {groupedRows.map((row, index) => row.kind === 'flow' ? (() => {
-        const inlineValues = row.blocks.map((block) => block.type === 'math' ? latexToInlineText(block.latex) : block.text.trim());
-        const isNativeParagraph = inlineValues.every((value) => Boolean(value));
-
-        return isNativeParagraph ? (
-          <Text
-            key={`flow-${index}`}
-            accessible
-            accessibilityRole="text"
-            accessibilityLabel={contentToAccessibleText(row.blocks)}
-            numberOfLines={textNumberOfLines}
-            style={textStyle}
-          >
-            {row.blocks.map((block, blockIndex) => {
-              const value = inlineValues[blockIndex] ?? '';
-              const prefix = separatorBefore(row.blocks[blockIndex - 1], block, value);
-              return block.type === 'math' ? (
-                <Text key={`inline-${blockIndex}`} style={[styles.nativeMath, { color, fontSize: inlineMathFontSize }]}>
-                  {prefix}{value}
-                </Text>
-              ) : <Text key={`text-${blockIndex}`}>{prefix}{value}</Text>;
-            })}
-          </Text>
-        ) : (
-          <View key={`flow-${index}`} style={[styles.flow, { rowGap: Math.max(1, gap / 3) }]}>
-            {row.blocks.map((block, blockIndex) => block.type === 'math'
-              ? <InlineMathFormula key={`inline-${blockIndex}`} math={block} color={color} fontSize={inlineMathFontSize} />
-              : <Text key={`text-${blockIndex}`} numberOfLines={textNumberOfLines} style={[textStyle, styles.textChunk]}>{block.text.trim()}</Text>)}
-          </View>
-        );
-      })() : row.kind === 'phrase' ? (
+      {groupedRows.map((row, index) => row.kind === 'visual' ? (
+        <StructuredVisual key={`visual-${index}`} block={row.block} containerWidth={mathContainerWidth} />
+      ) : row.kind === 'flow' ? (
+        <View
+          key={`flow-${index}`}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={contentToAccessibleText(row.blocks)}
+          style={[styles.flow, { rowGap: Math.max(1, gap / 3) }]}
+        >
+          {row.blocks.map((block, blockIndex) => block.type === 'math'
+            ? <InlineMathFormula key={`inline-${blockIndex}`} math={block} color={color} fontSize={inlineMathFontSize} />
+            : <Text key={`text-${blockIndex}`} numberOfLines={textNumberOfLines} style={[textStyle, styles.textChunk]}>{block.text.trim()}</Text>)}
+        </View>
+      ) : row.kind === 'phrase' ? (
         <View key={`phrase-${index}`} style={[styles.phrase, mathBlockStyle]}>
           {row.blocks.map((block, blockIndex) => block.type === 'math'
             ? <InlineMathFormula key={`phrase-math-${blockIndex}`} math={block} color={color} fontSize={Math.max(inlineMathFontSize, mathFontSize * 0.86)} />
@@ -165,7 +150,25 @@ export function RichMathContent({
         </View>
       ) : (
         <View key={`math-${index}`} style={[mathBlockStyle, styles.derivation]}>
-          {row.blocks.map((block, blockIndex) => (
+          {row.prefix ? (
+            <View style={styles.labeledDerivation}>
+              <Text style={[textStyle, styles.displayPrefix]}>{row.prefix.text.trim()}</Text>
+              <View style={styles.labeledFormula}>
+                {row.blocks.map((block, blockIndex) => (
+                  <View key={`derivation-${blockIndex}`} style={blockIndex > 0 && styles.derivationLine}>
+                    <MathFormula
+                      math={block}
+                      color={color}
+                      fontSize={mathFontSize}
+                      minHeight={mathMinHeight}
+                      containerWidth={mathContainerWidth === undefined ? undefined : Math.max(80, mathContainerWidth - 28)}
+                      align={mathAlign}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : row.blocks.map((block, blockIndex) => (
             <View key={`derivation-${blockIndex}`} style={blockIndex > 0 && styles.derivationLine}>
               <MathFormula
                 math={block}
@@ -188,7 +191,9 @@ const styles = StyleSheet.create({
   flow: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 3 },
   phrase: { width: '100%', minHeight: 28, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 5 },
   derivation: { width: '100%' },
+  labeledDerivation: { width: '100%', flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  displayPrefix: { flexShrink: 0, paddingTop: 5 },
+  labeledFormula: { flex: 1, minWidth: 0 },
   derivationLine: { borderTopWidth: 1, borderTopColor: '#DED7ED' },
   textChunk: { flexShrink: 1 },
-  nativeMath: { fontFamily: fonts.bodyMedium, includeFontPadding: false },
 });

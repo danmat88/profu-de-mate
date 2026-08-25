@@ -2,11 +2,14 @@ import { useWindowDimensions } from 'react-native';
 import { layout } from '../theme';
 
 export function useResponsiveLayout() {
-  const { width, height, fontScale } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isVeryNarrow = width < 350;
   const isNarrow = width < 390;
   const isVeryShort = height < 700;
-  const isShort = height < 800 || fontScale > 1.1;
+  const isShort = height < 800;
+  const fontScale = 1;
+  const isLargeText = false;
+  const isVeryLargeText = false;
   const isCompact = isNarrow || isShort;
   const baseGutter = isVeryNarrow ? 13 : isNarrow ? layout.gutterNarrow : layout.gutter;
   const maxContentWidth = 560;
@@ -25,6 +28,8 @@ export function useResponsiveLayout() {
     isVeryShort,
     isShort,
     isCompact,
+    isLargeText,
+    isVeryLargeText,
     isTablet: width >= 600,
     gutter,
   };

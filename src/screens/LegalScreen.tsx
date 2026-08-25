@@ -1,8 +1,9 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '../components/Typography';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
   tabBar: { height: 48, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 17, backgroundColor: colors.paper, flexDirection: 'row', padding: 3, marginBottom: 8 },
   tab: { flex: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   tabActive: { backgroundColor: colors.violet },
-  tabText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
+  tabText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
   tabTextActive: { color: colors.paper },
   content: { paddingTop: 4, gap: 14 },
   hero: { borderWidth: 3, borderColor: colors.ink, borderRadius: 28, backgroundColor: colors.paper, alignItems: 'center', paddingHorizontal: 18, paddingVertical: 20, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 6 },
@@ -235,7 +236,7 @@ const styles = StyleSheet.create({
   bulletDot: { width: 8, height: 8, borderWidth: 1.5, borderColor: colors.ink, borderRadius: 3, backgroundColor: colors.peach, marginTop: 5 },
   bulletText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 18 },
   updated: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  updatedText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10 },
+  updatedText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
   documentIntro: { paddingVertical: 7 },
   documentEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8.5, letterSpacing: 1.25 },
   documentTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 28, lineHeight: 31, marginTop: 2 },
@@ -243,5 +244,5 @@ const styles = StyleSheet.create({
   safetyCard: { borderWidth: 2.5, borderColor: colors.ink, borderRadius: 21, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
   safetyCopy: { flex: 1 },
   safetyTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17 },
-  safetyText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 11, lineHeight: 15, marginTop: 1 },
+  safetyText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 17, marginTop: 1 },
 });

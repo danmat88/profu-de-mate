@@ -1,6 +1,6 @@
 # Profu' de Mate — decizii de produs
 
-Ultima actualizare: 22 august 2026
+Ultima actualizare: 24 august 2026
 
 ## Public și distribuție
 
@@ -29,6 +29,15 @@ Ultima actualizare: 22 august 2026
 5. Aplicația prezintă explicația în pași, în limba română.
 6. Utilizatorul salvează opțional lecția în caiet.
 
+V1 analizează o singură problemă sau rezolvare completă într-o fotografie. Această limită păstrează captura rapidă, costul și retenția predictibile și reduce amestecarea accidentală a două exerciții. Dacă enunțul ori rezolvarea sunt tăiate, backendul răspunde `unclear`; suportul pentru seturi multi-pagină poate fi proiectat separat după benchmarkul V1.
+
+## Tipografie și accesibilitate vizuală
+
+- Fonturile interfeței sunt fixe și controlate de design system, pentru ca identitatea, ierarhia și layoutul să rămână identice indiferent de font scale din sistem.
+- Toate componentele `Text` și `TextInput` trec prin `src/components/Typography.tsx`; importurile native directe sunt blocate de test.
+- Formulele nu folosesc font scale al telefonului. Ele au randare stabilă în context, scroll pentru expresii lungi și o vizualizare mărită dedicată.
+- Păstrăm TalkBack, descrierile accesibile, contrastul, „Reduce animations” și zonele tactile de minimum 48 dp; decizia privește numai scalarea vizuală a fontului.
+
 ## Starea Firebase de producție
 
 - Firestore Standard este activ în multi-regiunea europeană `eur3`.
@@ -42,5 +51,6 @@ Ultima actualizare: 22 august 2026
 
 - Nicio cheie AI nu este inclusă în aplicația mobilă sau în Git.
 - Răspunsurile AI pot greși; v1 nu va pretinde verificare deterministă universală.
-- Nu se publică aplicația înainte de clarificarea juridică pentru publicul 13–15 ani și utilizarea Gemini.
+- Furnizorul AI curent este temporar; înainte de publicare se alege și se testează un furnizor compatibil contractual cu publicul 13+, EEA și fluxul real de date.
+- Nu se publică aplicația înainte de clarificarea juridică pentru publicul 13–15 ani și furnizorul AI final.
 - Nu se publică Hosting înainte de completarea identității legale și a e-mailului public.

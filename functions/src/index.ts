@@ -5,11 +5,16 @@ import { FieldValue, getFirestore, type Query, Timestamp } from 'firebase-admin/
 import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { mathAnalysisJsonSchema, mathAnalysisSchema } from './analysisSchema.js';
-import { buildPrompt } from './prompt.js';
-import { renderMathAnalysis, type RenderedMathAnalysis } from './mathRenderer.js';
-import { consumeAnalysisQuota } from './rateLimit.js';
+import { mathAnalysisJsonSchema } from './analysisSchema.js';
+import { assertFirestoreSafeAnalysis } from './documentSize.js';
+import { FEEDBACK_RETENTION_MS, feedbackSeverity, isFeedbackCategory } from './feedbackTriage.js';
+import { ProviderCircuitBreaker } from './providerCircuitBreaker.js';
+import { runProviderPipeline } from './providerPipeline.js';
+import type { RenderedMathAnalysis } from './mathRenderer.js';
+import { consumeAnalysisQuota, refundDailyAnalysisQuota } from './rateLimit.js';
+import { getAIAnalysisConfig } from './runtimeConfig.js';
 import { parseAnalyzeRequest } from './validation.js';
 
 initializeApp();
@@ -22,6 +27,7 @@ const DATA_RUNTIME_SERVICE_ACCOUNT = 'profu-data-runtime@profu-de-mate-danmat88.
 const CLEANUP_RUNTIME_SERVICE_ACCOUNT = 'profu-cleanup-runtime@profu-de-mate-danmat88.iam.gserviceaccount.com';
 const REQUEST_LEASE_MS = 130_000;
 const REQUEST_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+const providerCircuit = new ProviderCircuitBreaker();
 
 type CachedResponse = {
   lessonId: string | null;
@@ -100,42 +106,67 @@ export const analyzeMathImage = onCall({
   if (cached) return cached;
 
   try {
-    await consumeAnalysisQuota(db, request.auth.uid, input.requestId);
-    const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
-    let result: RenderedMathAnalysis | null = null;
-    let lastValidationError: unknown = new Error('Gemini returned an empty response.');
-
-    for (let attempt = 0; attempt < 2 && !result; attempt += 1) {
-      const retryInstruction = attempt === 0
-        ? ''
-        : '\n\nValidarea răspunsului anterior a eșuat. Generează din nou toate câmpurile. Mută fiecare expresie matematică într-un bloc type="math" și verifică fiecare câmp latex ca LaTeX MathJax valid, fără delimitatori.';
-      const interaction = await client.interactions.create({
-        model: 'gemini-3.7-flash',
-        input: [
-          { type: 'text', text: `${buildPrompt(input.mode)}${retryInstruction}` },
-          { type: 'image', data: input.imageBase64, mime_type: input.mimeType },
-        ],
-        response_format: {
-          type: 'text',
-          mime_type: 'application/json',
-          schema: mathAnalysisJsonSchema,
-        },
-        generation_config: {
-          thinking_level: 'low',
-        },
-      });
-
-      try {
-        if (!interaction.output_text) throw new Error('Gemini returned an empty response.');
-        const candidate = mathAnalysisSchema.parse(JSON.parse(interaction.output_text));
-        result = await renderMathAnalysis(candidate);
-      } catch (error) {
-        lastValidationError = error;
-        logger.warn('Structured math response rejected', { attempt: attempt + 1, mode: input.mode });
-      }
+    const aiConfig = await getAIAnalysisConfig(db);
+    if (!aiConfig.enabled) {
+      throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste câteva minute.');
+    }
+    if (!providerCircuit.canRequest()) {
+      throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste un minut.');
     }
 
-    if (!result) throw lastValidationError;
+    await consumeAnalysisQuota(db, request.auth.uid, input.requestId, Date.now(), aiConfig.maxDailyRequests);
+    const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+    let result: RenderedMathAnalysis;
+
+    try {
+      result = await runProviderPipeline({
+        mode: input.mode,
+        imageBase64: input.imageBase64,
+        mimeType: input.mimeType,
+        generate: async (providerRequest) => {
+          const interaction = await client.interactions.create({
+            model: 'gemini-3.7-flash',
+            // Stateless requests prevent the provider from retaining the uploaded
+            // photograph, candidate JSON and generated response as Interaction resources.
+            store: false,
+            input: providerRequest.kind === 'repair'
+              ? [
+                { type: 'text', text: providerRequest.prompt },
+                { type: 'text', text: `OBIECT JSON DE CORECTAT:\n${providerRequest.source}` },
+              ]
+              : [
+                { type: 'text', text: providerRequest.prompt },
+                { type: 'image', data: providerRequest.imageBase64, mime_type: providerRequest.mimeType },
+              ],
+            response_format: {
+              type: 'text',
+              mime_type: 'application/json',
+              schema: mathAnalysisJsonSchema,
+            },
+            generation_config: {
+              thinking_level: 'low',
+            },
+          });
+          return interaction.output_text;
+        },
+        onRejected: (event, error) => {
+          logger.warn('Structured math response rejected', {
+            call: event.call,
+            mode: input.mode,
+            requestKind: event.requestKind,
+            stage: event.stage,
+            issues: event.issues,
+            ...(event.stage === 'schema' ? {} : safeErrorDescriptor(error)),
+          });
+        },
+      });
+      providerCircuit.recordSuccess();
+    } catch (error) {
+      providerCircuit.recordFailure();
+      throw error;
+    }
+
+    assertFirestoreSafeAnalysis(result);
     const lessonRef = result.status === 'ready'
       ? db.collection('users').doc(request.auth.uid).collection('lessons').doc(input.requestId)
       : null;
@@ -168,11 +199,14 @@ export const analyzeMathImage = onCall({
 
     return response;
   } catch (error) {
-    await requestRef.set({
-      state: 'failed',
-      updatedAt: FieldValue.serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
-    }, { merge: true }).catch(() => undefined);
+    await Promise.all([
+      refundDailyAnalysisQuota(db, request.auth.uid, input.requestId).catch(() => undefined),
+      requestRef.set({
+        state: 'failed',
+        updatedAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
+      }, { merge: true }).catch(() => undefined),
+    ]);
     if (error instanceof HttpsError) throw error;
     logger.error('Math analysis failed', safeErrorDescriptor(error));
     throw new HttpsError('internal', 'Nu am putut analiza imaginea acum. Încearcă din nou.');
@@ -206,6 +240,31 @@ export const deleteMyData = onCall({
   }
 });
 
+export const initializeFeedbackTriage = onDocumentCreated({
+  document: 'feedback/{feedbackId}',
+  region: 'europe-west1',
+  serviceAccount: DATA_RUNTIME_SERVICE_ACCOUNT,
+  memory: '256MiB',
+  maxInstances: 2,
+}, async (event) => {
+  const snapshot = event.data;
+  if (!snapshot) return;
+  const category = snapshot.data()?.category;
+  if (!isFeedbackCategory(category)) {
+    logger.warn('Feedback triage skipped: invalid category');
+    return;
+  }
+
+  const now = Date.now();
+  await snapshot.ref.set({
+    status: 'new',
+    severity: feedbackSeverity(category),
+    updatedAt: FieldValue.serverTimestamp(),
+    expiresAt: Timestamp.fromMillis(now + FEEDBACK_RETENTION_MS),
+  }, { merge: true });
+  logger.info('Feedback queued for triage', { category, severity: feedbackSeverity(category) });
+});
+
 export const cleanupExpiredData = onSchedule({
   region: 'europe-west1',
   serviceAccount: CLEANUP_RUNTIME_SERVICE_ACCOUNT,
@@ -215,10 +274,11 @@ export const cleanupExpiredData = onSchedule({
   timeoutSeconds: 300,
 }, async () => {
   const now = Timestamp.now();
-  const [requests, usage, lessons] = await Promise.all([
+  const [requests, usage, lessons, feedback] = await Promise.all([
     deleteQueryInBatches(db.collection('_analysisRequests').where('expiresAt', '<=', now)),
     deleteQueryInBatches(db.collection('_aiUsage').where('expiresAt', '<=', now)),
     deleteQueryInBatches(db.collectionGroup('lessons').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db.collection('feedback').where('expiresAt', '<=', now)),
   ]);
-  logger.info('Expired data cleaned', { requests, usage, lessons });
+  logger.info('Expired data cleaned', { requests, usage, lessons, feedback });
 });

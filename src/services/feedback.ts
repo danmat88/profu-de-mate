@@ -1,5 +1,6 @@
 import { getApp } from '@react-native-firebase/app';
 import { addDoc, collection, getFirestore, serverTimestamp } from '@react-native-firebase/firestore';
+import { getFeedbackAppVersion } from './appInfo';
 import { initializeFirebaseServices } from './firebase';
 
 export type FeedbackCategory = 'wrong_answer' | 'unclear' | 'unsafe' | 'other';
@@ -12,6 +13,6 @@ export async function submitLessonFeedback(lessonId: string, category: FeedbackC
     lessonId,
     category,
     createdAt: serverTimestamp(),
-    appVersion: '1.0.0',
+    appVersion: getFeedbackAppVersion(),
   });
 }

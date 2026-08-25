@@ -1,0 +1,66 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: App, backend and rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Use Java 21 for Firebase Emulator
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install locked app dependencies
+        run: npm ci
+
+      - name: Install locked Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Check app types and Expo health
+        run: npm run check
+
+      - name: Test Functions and math renderer
+        run: npm run functions:test
+
+      - name: Test pure mobile logic
+        run: npm run test:mobile
+
+      - name: Test Firestore rules
+        run: npm run test:rules
+
+      - name: Reject high or critical runtime advisories in the app
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Reject high or critical runtime advisories in Functions
+        run: npm --prefix functions audit --omit=dev --audit-level=high
+
+      - name: Report legal release readiness
+        continue-on-error: true
+        run: npm run legal:check

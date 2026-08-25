@@ -18,7 +18,7 @@ Acesta este un draft tehnic pentru completarea formularului din Play Console. R�
 | Categorie Play | Colectată | Obligatorie/opțională | Scop | Retenție |
 |---|---:|---|---|---|
 | Fotografii | Da, când utilizatorul trimite o problemă | Necesară pentru analiza aleasă | Funcționalitatea aplicației | Nu este pusă în Storage/Caiet; transmisă către Gemini și poate exista în loguri limitate de siguranță ale furnizorului conform termenilor serviciului |
-| User-generated content | Da: enunțul extras, pașii și raportul ales | Necesar pentru lecție; raportul este opțional | Funcționalitate, prevenirea abuzului, suport | 7 zile nesalvat; aprox. 13 luni fără activitate în Caiet; raport până la ștergerea tuturor datelor |
+| User-generated content | Da: enunțul extras, pașii și raportul ales | Necesar pentru lecție; raportul este opțional | Funcționalitate, prevenirea abuzului, suport | 7 zile nesalvat; aprox. 13 luni fără activitate în Caiet; raport maximum 180 de zile sau până la ștergerea tuturor datelor |
 | User IDs | Da: Firebase UID anonim | Necesar | Cont tehnic, securitate, sincronizare | Până la ștergerea datelor/contului tehnic |
 | App interactions | Da: salvarea lecției, modul rezolvă/verifică și cota de analiză | Necesar | Funcționalitate, securitate și prevenirea fraudei | Lecții conform retenției; contoare maximum 35 zile |
 | Crash logs | Numai dacă utilizatorul activează Diagnosticare | Opțional | Analytics/diagnosticarea aplicației | Conform retenției Crashlytics configurate de furnizor; trebuie verificată înainte de release |

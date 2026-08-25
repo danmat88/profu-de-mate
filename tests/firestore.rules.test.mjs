@@ -45,6 +45,14 @@ describe('Firestore rules', () => {
     await assertFails(getDoc(doc(database, 'users/alice')));
   });
 
+  test('ține configurația și evidența internă complet inaccesibile clienților', async () => {
+    const database = testEnvironment.authenticatedContext('alice').firestore();
+    await assertFails(getDoc(doc(database, '_runtimeConfig/ai')));
+    await assertFails(setDoc(doc(database, '_runtimeConfig/ai'), { enabled: false }));
+    await assertFails(getDoc(doc(database, '_aiUsage/alice_2026-08-24')));
+    await assertFails(getDoc(doc(database, '_analysisRequests/alice_request')));
+  });
+
   test('refuză crearea unei soluții direct din aplicație', async () => {
     const database = testEnvironment.authenticatedContext('alice').firestore();
     await assertFails(setDoc(doc(database, 'users/alice/lessons/fake-solution'), {
@@ -112,6 +120,15 @@ describe('Firestore rules', () => {
       message: 'Ultimul pas este greșit.',
       createdAt: serverTimestamp(),
       appVersion: '1.0.0',
+    }));
+    await assertFails(setDoc(doc(alice, 'feedback/report-forged-status'), {
+      userId: 'alice',
+      lessonId: 'lesson-1',
+      category: 'unsafe',
+      createdAt: serverTimestamp(),
+      appVersion: '1.0.0',
+      status: 'resolved',
+      severity: 'low',
     }));
     await assertFails(getDoc(feedback));
   });

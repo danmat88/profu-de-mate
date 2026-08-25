@@ -1,12 +1,14 @@
 import * as Haptics from 'expo-haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { submitLessonFeedback, type FeedbackCategory } from '../services/feedback';
+import { recordDiagnosticError } from '../services/diagnostics';
 import { colors, fonts } from '../theme';
 import { MiniGlyph } from './MiniGlyph';
+import { Text } from './Typography';
 
 type Props = {
   visible: boolean;
@@ -34,12 +36,14 @@ export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
   const sheetReveal = useRef(new Animated.Value(visible ? 1 : 0)).current;
   const mounted = useRef(visible);
   const transition = useRef<Animated.CompositeAnimation | null>(null);
+  const submissionLocked = useRef(false);
 
   useEffect(() => {
     if (!visible) return;
     setSending(null);
     setSent(false);
     setError(false);
+    submissionLocked.current = false;
   }, [visible]);
 
   useEffect(() => {
@@ -85,17 +89,20 @@ export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
   }, [backdropReveal, reducedMotion, sheetReveal, visible]);
 
   const submit = async (category: FeedbackCategory) => {
-    if (sending || sent) return;
+    if (submissionLocked.current || sent) return;
+    submissionLocked.current = true;
     setSending(category);
     setError(false);
     try {
       await submitLessonFeedback(lessonId, category);
       setSent(true);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
+    } catch (submitError) {
+      recordDiagnosticError('feedback_submission', submitError);
       setError(true);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
+      submissionLocked.current = false;
       setSending(null);
     }
   };
@@ -199,8 +206,8 @@ const styles = StyleSheet.create({
   optionNumberText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9 },
   optionCopy: { flex: 1 },
   optionTitle: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13 },
-  optionText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 10.5, lineHeight: 14, marginTop: 1 },
-  error: { fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 10.5, lineHeight: 14, textAlign: 'center', marginTop: 8 },
+  optionText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16, marginTop: 1 },
+  error: { fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 12, lineHeight: 16, textAlign: 'center', marginTop: 8 },
   sentState: { minHeight: 326, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingTop: 5, paddingBottom: 5 },
   sentVisual: { width: 118, height: 86, alignItems: 'center', justifyContent: 'center' },
   sentBlobCyan: { position: 'absolute', left: 3, top: 22, width: 58, height: 45, borderRadius: 22, backgroundColor: colors.cyan, transform: [{ rotate: '-9deg' }] },

@@ -1,8 +1,10 @@
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '../components/Typography';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
@@ -11,6 +13,8 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { createAnalysisRequestId } from '../services/mathAnalysis';
+import { savePendingAnalysis } from '../services/pendingAnalysis';
+import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
 
@@ -26,8 +30,9 @@ export function ReviewScreen({ navigation, route }: Props) {
   const [wasAdjusted, setWasAdjusted] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const reveal = useRef(new Animated.Value(0)).current;
-  const continuing = useRef(false);
+  const continueLocked = useRef(false);
   const photoWidth = contentWidth;
   const sourceRatio = currentImage.height / currentImage.width;
   const photoHeight = Math.min(
@@ -35,6 +40,11 @@ export function ReviewScreen({ navigation, route }: Props) {
     Math.max(isVeryShort ? 150 : 180, Math.min(height * 0.32, photoWidth * Math.min(sourceRatio, 0.9))),
   );
   const bottomSpace = Math.max(insets.bottom, 10);
+
+  useFocusEffect(useCallback(() => {
+    continueLocked.current = false;
+    setContinuing(false);
+  }, []));
 
   useEffect(() => {
     if (reducedMotion) {
@@ -49,15 +59,23 @@ export function ReviewScreen({ navigation, route }: Props) {
     setImageError(false);
   }, [currentImage.uri]);
 
+  useEffect(() => navigation.addListener('beforeRemove', () => {
+    InteractionManager.runAfterInteractions(() => {
+      deleteTemporaryCapturedImages([currentImage.uri]);
+    });
+  }), [currentImage.uri, navigation]);
+
   const continueToAnalysis = useCallback(() => {
-    if (continuing.current || imageError || !imageLoaded) return;
-    continuing.current = true;
+    if (continueLocked.current || imageError || !imageLoaded) return;
+    continueLocked.current = true;
+    setContinuing(true);
+    const requestId = createAnalysisRequestId();
+    savePendingAnalysis(route.params.mode, currentImage, requestId);
     navigation.navigate('Processing', {
       mode: route.params.mode,
       image: currentImage,
-      requestId: createAnalysisRequestId(),
+      requestId,
     });
-    requestAnimationFrame(() => { continuing.current = false; });
   }, [currentImage, imageError, imageLoaded, navigation, route.params.mode]);
 
   return (
@@ -116,11 +134,11 @@ export function ReviewScreen({ navigation, route }: Props) {
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
         <ComicButton
           compact
-          title={imageLoaded && !imageError ? 'Continuă' : 'Fotografia se încarcă…'}
+          title={continuing ? 'Pornesc analiza…' : imageLoaded && !imageError ? 'Continuă' : 'Fotografia se încarcă…'}
           subtitle={imageLoaded && !imageError ? (isCheck ? 'Verific fiecare pas.' : 'Îți explic rezolvarea.') : 'Așteaptă o clipă.'}
           icon="scan"
           tone="lime"
-          disabled={!imageLoaded || imageError}
+          disabled={continuing || !imageLoaded || imageError}
           onPress={continueToAnalysis}
         />
         <Pressable accessibilityRole="button" accessibilityLabel="Fă altă fotografie" onPress={() => navigation.goBack()} style={styles.retakeLink}>
@@ -161,7 +179,7 @@ const styles = StyleSheet.create({
   capturedImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%' },
   imageError: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25 },
   imageErrorTitle: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 17, marginTop: 4 },
-  imageErrorText: { fontFamily: fonts.body, color: '#CFC8DF', fontSize: 11, lineHeight: 15, textAlign: 'center', marginTop: 2 },
+  imageErrorText: { fontFamily: fonts.body, color: '#CFC8DF', fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 2 },
   sheet: { width: '80%', minHeight: 194, backgroundColor: colors.canvas, borderWidth: 2, borderColor: colors.ink, padding: 21, transform: [{ rotate: '-1.5deg' }] },
   sheetCompact: { minHeight: 166, padding: 16 },
   sheetCrop: { transform: [{ rotate: '0deg' }, { scale: 0.96 }] },
@@ -188,6 +206,6 @@ const styles = StyleSheet.create({
   tip: { flexDirection: 'row', gap: 8, marginTop: 13, paddingTop: 2, paddingBottom: 10, paddingHorizontal: 5 },
   tipText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16 },
   actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line, paddingTop: 10 },
-  retakeLink: { alignSelf: 'center', minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 16 },
-  retakeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
+  retakeLink: { alignSelf: 'center', minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 16 },
+  retakeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 13 },
 });

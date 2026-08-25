@@ -1,5 +1,6 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import type { CapturedImage, CaptureSource } from '../types';
+import { deleteTransientCapturedSource, storeTemporaryCapturedImage } from './temporaryImages';
 
 const MAX_IMAGE_EDGE = 1800;
 const JPEG_QUALITY = 0.84;
@@ -19,26 +20,31 @@ export type CropRect = {
 };
 
 export async function prepareCapturedImage(image: RawImage, source: CaptureSource): Promise<CapturedImage> {
-  const context = ImageManipulator.manipulate(image.uri);
-  const longestEdge = Math.max(image.width, image.height);
+  try {
+    const context = ImageManipulator.manipulate(image.uri);
+    const longestEdge = Math.max(image.width, image.height);
 
-  if (longestEdge > MAX_IMAGE_EDGE) {
-    if (image.width >= image.height) context.resize({ width: MAX_IMAGE_EDGE, height: null });
-    else context.resize({ width: null, height: MAX_IMAGE_EDGE });
+    if (longestEdge > MAX_IMAGE_EDGE) {
+      if (image.width >= image.height) context.resize({ width: MAX_IMAGE_EDGE, height: null });
+      else context.resize({ width: null, height: MAX_IMAGE_EDGE });
+    }
+
+    const rendered = await context.renderAsync();
+    const result = await rendered.saveAsync({
+      compress: JPEG_QUALITY,
+      format: SaveFormat.JPEG,
+    });
+    const uri = await storeTemporaryCapturedImage(result.uri);
+
+    return {
+      uri,
+      width: result.width,
+      height: result.height,
+      source,
+    };
+  } finally {
+    deleteTransientCapturedSource(image.uri);
   }
-
-  const rendered = await context.renderAsync();
-  const result = await rendered.saveAsync({
-    compress: JPEG_QUALITY,
-    format: SaveFormat.JPEG,
-  });
-
-  return {
-    uri: result.uri,
-    width: result.width,
-    height: result.height,
-    source,
-  };
 }
 
 export async function cropCapturedImage(image: CapturedImage, crop: CropRect): Promise<CapturedImage> {
@@ -51,8 +57,9 @@ export async function cropCapturedImage(image: CapturedImage, crop: CropRect): P
   context.crop({ originX, originY, width, height });
   const rendered = await context.renderAsync();
   const result = await rendered.saveAsync({ compress: EDIT_QUALITY, format: SaveFormat.JPEG });
+  const uri = await storeTemporaryCapturedImage(result.uri);
 
-  return { uri: result.uri, width: result.width, height: result.height, source: image.source };
+  return { uri, width: result.width, height: result.height, source: image.source };
 }
 
 export async function rotateCapturedImage(image: CapturedImage): Promise<CapturedImage> {
@@ -61,6 +68,7 @@ export async function rotateCapturedImage(image: CapturedImage): Promise<Capture
   context.rotate(90);
   const rendered = await context.renderAsync();
   const result = await rendered.saveAsync({ compress: EDIT_QUALITY, format: SaveFormat.JPEG });
+  const uri = await storeTemporaryCapturedImage(result.uri);
 
-  return { uri: result.uri, width: result.width, height: result.height, source: image.source };
+  return { uri, width: result.width, height: result.height, source: image.source };
 }

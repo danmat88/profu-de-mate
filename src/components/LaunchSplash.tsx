@@ -1,8 +1,9 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { colors, fonts } from '../theme';
+import { Text } from './Typography';
 
 type Props = {
   reducedMotion: boolean;
@@ -28,8 +29,18 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let watchdog: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
+    let finished = false;
     let animation: Animated.CompositeAnimation | null = null;
+    const finishOnce = () => {
+      if (cancelled || finished) return;
+      finished = true;
+      onFinish();
+    };
+
+    // Never leave an interrupted native animation blocking the application.
+    watchdog = setTimeout(finishOnce, reducedMotion ? 1_500 : 5_000);
 
     const frame = requestAnimationFrame(() => {
       // The React layer is already painted in the same color as the native layer.
@@ -44,9 +55,7 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
         brandReveal.setValue(1);
         promiseReveal.setValue(1);
         progressReveal.setValue(1);
-        timer = setTimeout(() => {
-          if (!cancelled) onFinish();
-        }, 520);
+        timer = setTimeout(finishOnce, 520);
         return;
       }
 
@@ -118,7 +127,7 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
       ]);
 
       animation.start(({ finished }) => {
-        if (finished && !cancelled) onFinish();
+        if (finished) finishOnce();
       });
     });
 
@@ -126,6 +135,7 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
       cancelled = true;
       cancelAnimationFrame(frame);
       if (timer) clearTimeout(timer);
+      if (watchdog) clearTimeout(watchdog);
       animation?.stop();
     };
   }, [

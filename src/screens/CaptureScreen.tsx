@@ -5,8 +5,9 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Text } from '../components/Typography';
 import { AppIcon } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
@@ -258,7 +259,7 @@ export function CaptureScreen({ navigation, route }: Props) {
               <View style={styles.cameraShadeTop} />
               <View style={styles.alignmentStatus}>
                 <View style={[styles.alignmentDot, !cameraReady && styles.alignmentDotWaiting]} />
-                <Text style={styles.alignmentText}>{cameraReady ? 'CAMERA ESTE GATA' : 'CAMERA PORNEȘTE'}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={styles.alignmentText}>{cameraReady ? 'CAMERA ESTE GATA' : 'CAMERA PORNEȘTE'}</Text>
               </View>
               <Animated.View style={[styles.scanLine, { opacity: cameraReady ? 1 : 0.25, transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-scanTravel, scanTravel] }) }] }]} />
               <Animated.View style={[styles.corner, styles.cornerTL, { opacity: scan.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }]} />
@@ -296,7 +297,7 @@ export function CaptureScreen({ navigation, route }: Props) {
         <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 106 : 118), opacity: helpPop, transform: [{ translateY: helpPop.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] }]}>
           <View style={styles.helpIcon}><AppIcon name="hint" size={40} /></View>
           <View style={styles.helpCopy}><Text style={styles.helpTitle}>Cum obții o fotografie clară</Text><Text style={styles.helpText}>Folosește lumină bună, evită umbrele și ține telefonul paralel cu foaia.</Text></View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Închide ajutorul" onPress={toggleHelp} style={styles.helpClose}><MiniGlyph name="close" size={18} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Închide ajutorul" hitSlop={9} onPress={toggleHelp} style={styles.helpClose}><MiniGlyph name="close" size={18} /></Pressable>
         </Animated.View>
       ) : null}
       <Animated.View pointerEvents="none" style={[styles.captureFlash, { opacity: captureFlash }]} />
@@ -314,12 +315,12 @@ const styles = StyleSheet.create({
   modeChipNarrow: { maxWidth: 185, paddingHorizontal: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   liveDotCheck: { backgroundColor: colors.peach },
-  modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 9, letterSpacing: 0.6 },
+  modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.6 },
   copy: { paddingHorizontal: 25, paddingTop: 8, paddingBottom: 14 },
   copyCompact: { paddingTop: 3, paddingBottom: 10 },
   title: { fontFamily: fonts.display, color: colors.paper, fontSize: 27, lineHeight: 30, textAlign: 'center' },
   titleNarrow: { fontSize: 24, lineHeight: 27 },
-  hint: { fontFamily: fonts.body, color: '#BDB5D6', fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 2 },
+  hint: { fontFamily: fonts.body, color: '#BDB5D6', fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 2 },
   finderWrap: { flex: 1, minHeight: 225, position: 'relative', marginBottom: 14 },
   finderWrapShort: { minHeight: 156, marginBottom: 8 },
   finderShadow: { position: 'absolute', top: 6, left: 6, right: -6, bottom: -6, borderRadius: 25, backgroundColor: colors.violetDeep },
@@ -329,17 +330,17 @@ const styles = StyleSheet.create({
   permissionIcon: { width: 82, height: 76, borderRadius: 23, borderWidth: 2, borderColor: '#776E98', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2A2351', marginBottom: 10, transform: [{ rotate: '-2deg' }] },
   permissionEyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 9, letterSpacing: 1.25 },
   permissionTitle: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 22, lineHeight: 25, textAlign: 'center', marginTop: 3 },
-  permissionText: { maxWidth: 290, fontFamily: fonts.body, color: '#D1CBE1', fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 4 },
+  permissionText: { maxWidth: 290, fontFamily: fonts.body, color: '#D1CBE1', fontSize: 12, lineHeight: 17, textAlign: 'center', marginTop: 4 },
   permissionPromise: { minHeight: 28, borderRadius: 10, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, marginTop: 9 },
-  permissionPromiseText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5 },
-  permissionButton: { minHeight: 46, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 18, marginTop: 13, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 3, height: 4 }, elevation: 4 },
+  permissionPromiseText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
+  permissionButton: { minHeight: 48, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 18, marginTop: 13, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 3, height: 4 }, elevation: 4 },
   permissionButtonText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 14 },
   cameraNoiseA: { position: 'absolute', width: 190, height: 190, borderRadius: 95, backgroundColor: '#50496B', top: -55, right: -45, opacity: 0.45 },
   cameraNoiseB: { position: 'absolute', width: 140, height: 70, borderRadius: 35, backgroundColor: '#282241', bottom: 20, left: -31, transform: [{ rotate: '25deg' }] },
   alignmentStatus: { position: 'absolute', zIndex: 3, top: 13, left: 15, height: 25, borderRadius: 9, backgroundColor: 'rgba(23,19,55,0.76)', paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 5 },
   alignmentDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.mint },
   alignmentDotWaiting: { backgroundColor: colors.peach },
-  alignmentText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 8, letterSpacing: 0.8 },
+  alignmentText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
   paperSheet: { width: '78%', minHeight: 220, backgroundColor: colors.canvas, borderWidth: 2, borderColor: colors.ink, paddingHorizontal: 20, paddingVertical: 26, transform: [{ rotate: '-1.5deg' }] },
   paperSheetCompact: { minHeight: 180, paddingVertical: 20 },
   paperLine: { position: 'absolute', left: 0, right: 0, height: 1, top: 65, backgroundColor: '#DCD2C1' },
@@ -355,11 +356,11 @@ const styles = StyleSheet.create({
   cornerBL: { left: 15, bottom: 15, borderLeftWidth: 4, borderBottomWidth: 4, borderBottomLeftRadius: 9 },
   cornerBR: { right: 15, bottom: 15, borderRightWidth: 4, borderBottomWidth: 4, borderBottomRightRadius: 9 },
   detected: { position: 'absolute', bottom: 13, backgroundColor: colors.lime, borderWidth: 2, borderColor: colors.ink, borderRadius: 11, paddingHorizontal: 9, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  detectedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
+  detectedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
   workingBadge: { position: 'absolute', zIndex: 12, minHeight: 44, borderRadius: 14, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14 },
-  workingText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11 },
+  workingText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
   errorBanner: { position: 'absolute', zIndex: 11, left: 12, right: 12, bottom: 48, minHeight: 43, borderRadius: 14, backgroundColor: '#D84A61', borderWidth: 2, borderColor: colors.paper, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 11, paddingVertical: 7 },
-  errorText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10.5, lineHeight: 14, textAlign: 'center' },
+  errorText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   controlDock: { backgroundColor: '#211A43', borderTopWidth: 1, borderTopColor: '#3D3564', paddingTop: 4 },
   controls: { height: 94, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   controlsCompact: { height: 84 },
@@ -367,18 +368,18 @@ const styles = StyleSheet.create({
   controlDisabled: { opacity: 0.48 },
   sideIcon: { width: 52, height: 46, borderRadius: 15, backgroundColor: '#2D2653', alignItems: 'center', justifyContent: 'center' },
   sideIconActive: { backgroundColor: colors.lime },
-  sideLabel: { fontFamily: fonts.bodyBold, color: '#D8D2E8', fontSize: 10 },
+  sideLabel: { fontFamily: fonts.bodyBold, color: '#D8D2E8', fontSize: 12 },
   shutterOuter: { width: 82, height: 82, borderRadius: 41, borderWidth: 3, borderColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   shutterOuterCompact: { width: 74, height: 74, borderRadius: 37 },
   shutterMiddle: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.lime, borderWidth: 3, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   shutterMiddleCompact: { width: 59, height: 59, borderRadius: 30 },
-  privacy: { height: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
-  privacyText: { fontFamily: fonts.body, color: '#B6AECF', fontSize: 10 },
+  privacy: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 10 },
+  privacyText: { flexShrink: 1, fontFamily: fonts.body, color: '#B6AECF', fontSize: 12, lineHeight: 16, textAlign: 'center' },
   helpBubble: { position: 'absolute', zIndex: 10, minHeight: 82, borderRadius: 20, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 0, shadowOffset: { width: 5, height: 6 }, elevation: 10 },
   helpIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
   helpCopy: { flex: 1 },
   helpTitle: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
-  helpText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 10.5, lineHeight: 14, marginTop: 1 },
+  helpText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16, marginTop: 1 },
   helpClose: { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
   captureFlash: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 50, backgroundColor: colors.paper },
 });

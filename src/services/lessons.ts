@@ -1,5 +1,5 @@
 import { getApp } from '@react-native-firebase/app';
-import { collection, doc, getFirestore, onSnapshot, orderBy, query, serverTimestamp, Timestamp, updateDoc } from '@react-native-firebase/firestore';
+import { collection, doc, getFirestore, onSnapshot, orderBy, query, serverTimestamp, Timestamp, updateDoc, where } from '@react-native-firebase/firestore';
 import type { MathAnalysis, StoredLesson } from '../types';
 import { isMathAnalysis } from '../utils/mathContent';
 import { initializeFirebaseServices } from './firebase';
@@ -22,7 +22,11 @@ export function clearFavoriteLessonsCache() {
 export async function subscribeToFavoriteLessons(onChange: LessonListener, onError: (error: Error) => void): Promise<() => void> {
   const user = await initializeFirebaseServices();
   const db = getFirestore(getApp());
-  const lessonsQuery = query(collection(db, 'users', user.uid, 'lessons'), orderBy('createdAt', 'desc'));
+  const lessonsQuery = query(
+    collection(db, 'users', user.uid, 'lessons'),
+    where('isFavorite', '==', true),
+    orderBy('createdAt', 'desc'),
+  );
   const lessonCache = new Map<string, StoredLesson>();
   let previousLessons: StoredLesson[] = [];
 
