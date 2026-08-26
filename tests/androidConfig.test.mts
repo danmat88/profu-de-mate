@@ -4,6 +4,7 @@ import test from 'node:test';
 
 type ExpoConfig = {
   expo?: {
+    backgroundColor?: string;
     platforms?: string[];
     android?: {
       allowBackup?: boolean;
@@ -45,6 +46,17 @@ test('keeps the supported release surface Android-only', async () => {
   assert.deepEqual(config.expo?.platforms, ['android']);
 });
 
+test('keeps the Android window and native splash on one continuous surface', async () => {
+  const [config, dynamicConfig, appSource] = await Promise.all([
+    loadConfig(),
+    readFile(new URL('../app.config.js', import.meta.url), 'utf8'),
+    readFile(new URL('../App.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.equal(config.expo?.backgroundColor, '#171337');
+  assert.match(dynamicConfig, /backgroundColor: '#171337'/);
+  assert.match(appSource, /preloadSurface: \{ flex: 1, backgroundColor: colors\.ink \}/);
+});
+
 test('uses modern Android Credential Manager instead of legacy Google Sign-In', async () => {
   const [appConfig, packageJson] = await Promise.all([
     readFile(new URL('../app.config.js', import.meta.url), 'utf8'),
@@ -77,9 +89,11 @@ test('loads and validates the EAS development environment before Metro starts', 
   assert.match(scripts['dev:phone:local'] ?? '', /validate-client-env\.cjs development/);
   assert.equal(eas.build?.development?.environment, 'development');
   assert.equal(eas.build?.preview?.environment, 'preview');
+  assert.equal(eas.build?.['production-apk']?.environment, 'production');
   assert.equal(eas.build?.production?.environment, 'production');
   assert.equal(eas.build?.development?.env?.EXPO_PUBLIC_APP_CHECK_PROVIDER, 'debug');
   assert.equal(eas.build?.preview?.env?.EXPO_PUBLIC_APP_CHECK_PROVIDER, 'debug');
+  assert.equal(eas.build?.['production-apk']?.env?.EXPO_PUBLIC_APP_CHECK_PROVIDER, 'none');
   assert.equal(eas.build?.production?.env?.EXPO_PUBLIC_APP_CHECK_PROVIDER, undefined);
   assert.match(appConfig, /EAS_BUILD_PROFILE/);
   assert.match(appConfig, /validateClientEnvironment/);

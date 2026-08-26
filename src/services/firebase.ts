@@ -11,6 +11,17 @@ let initialization: Promise<User> | null = null;
 let verification: Promise<void> | null = null;
 let appCheckInstance: AppCheck | null = null;
 
+type AppCheckMode = 'debug' | 'none' | 'playIntegrity';
+
+function configuredAppCheckMode(): AppCheckMode {
+  if (__DEV__) return 'debug';
+  const configured = process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER?.trim();
+  if (configured === 'debug' || configured === 'none' || configured === 'playIntegrity') return configured;
+  // A release with a missing or mistyped setting fails closed instead of
+  // silently disabling production attestation.
+  return 'playIntegrity';
+}
+
 function terminalAuthSessionError(error: unknown): boolean {
   const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
   return code === 'auth/invalid-user-token'
@@ -79,8 +90,9 @@ export function initializeFirebaseServices(): Promise<User> {
 
   initialization = (async () => {
     const app = getApp();
-    if (!appCheckInstance) {
-      const useDebugAppCheck = __DEV__ || process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER === 'debug';
+    const appCheckMode = configuredAppCheckMode();
+    if (appCheckMode !== 'none' && !appCheckInstance) {
+      const useDebugAppCheck = appCheckMode === 'debug';
       const sharedDebugToken = process.env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim();
       if (!__DEV__ && useDebugAppCheck && !sharedDebugToken) {
         throw new Error('Firebase App Check debug token is missing from the EAS build environment.');
@@ -110,6 +122,7 @@ export function initializeFirebaseServices(): Promise<User> {
 
 export async function initializeVerifiedFirebaseServices(): Promise<User> {
   const user = await initializeFirebaseServices();
+  if (configuredAppCheckMode() === 'none') return user;
   if (!appCheckInstance) throw new Error('Firebase App Check nu a fost inițializat.');
   if (!verification) {
     verification = ensureAppCheckReady(appCheckInstance).catch((error) => {

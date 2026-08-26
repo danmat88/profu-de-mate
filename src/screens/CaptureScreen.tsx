@@ -15,6 +15,7 @@ import { PlayfulLoader } from '../components/PlayfulLoader';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { prepareCapturedImage } from '../services/imagePipeline';
+import { recordDiagnosticError } from '../services/diagnostics';
 import { colors, fonts } from '../theme';
 import type { CaptureSource, RootStackParamList } from '../types';
 
@@ -33,6 +34,8 @@ export function CaptureScreen({ navigation, route }: Props) {
   const [finderHeight, setFinderHeight] = useState(isShort ? 300 : 420);
   const [isFocused, setIsFocused] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraFailed, setCameraFailed] = useState(false);
+  const [cameraSessionKey, setCameraSessionKey] = useState(0);
   const [working, setWorking] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const scan = useRef(new Animated.Value(0)).current;
@@ -41,6 +44,7 @@ export function CaptureScreen({ navigation, route }: Props) {
   const helpPop = useRef(new Animated.Value(0)).current;
   const cameraRef = useRef<CameraView | null>(null);
   const capturing = useRef(false);
+  const galleryPickerLocked = useRef(false);
   const isCheck = route.params.mode === 'check';
   const scanTravel = Math.max(76, finderHeight * 0.31);
   const topSpace = Math.max(stableInsets.top, 0);
@@ -48,8 +52,10 @@ export function CaptureScreen({ navigation, route }: Props) {
 
   useFocusEffect(useCallback(() => {
     capturing.current = false;
+    galleryPickerLocked.current = false;
     setWorking(false);
     setCaptureError(null);
+    setCameraFailed(false);
     setIsFocused(true);
     return () => {
       setIsFocused(false);
@@ -121,6 +127,14 @@ export function CaptureScreen({ navigation, route }: Props) {
       await requestPermission();
       return;
     }
+    if (cameraFailed) {
+      cameraRef.current = null;
+      setCameraReady(false);
+      setCameraFailed(false);
+      setCaptureError(null);
+      setCameraSessionKey((value) => value + 1);
+      return;
+    }
     if (!cameraReady || !cameraRef.current) {
       setCaptureError('Camera încă pornește. Așteaptă o clipă și încearcă din nou.');
       return;
@@ -145,7 +159,9 @@ export function CaptureScreen({ navigation, route }: Props) {
   };
 
   const pickFromGallery = useCallback(async () => {
-    if (capturing.current || working) return;
+    if (capturing.current || galleryPickerLocked.current || working) return;
+    galleryPickerLocked.current = true;
+    setWorking(true);
     setCaptureError(null);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -165,6 +181,9 @@ export function CaptureScreen({ navigation, route }: Props) {
     } catch {
       setCaptureError('Galeria nu a putut fi deschisă. Încearcă din nou.');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      galleryPickerLocked.current = false;
+      if (!capturing.current) setWorking(false);
     }
   }, [acceptImage, working]);
 
@@ -214,6 +233,7 @@ export function CaptureScreen({ navigation, route }: Props) {
         <View style={styles.finder}>
           {permission?.granted && isFocused ? (
             <CameraView
+              key={cameraSessionKey}
               ref={cameraRef}
               style={StyleSheet.absoluteFill}
               facing="back"
@@ -221,8 +241,13 @@ export function CaptureScreen({ navigation, route }: Props) {
               mode="picture"
               ratio="4:3"
               animateShutter={false}
-              onCameraReady={() => { setCameraReady(true); setCaptureError(null); }}
-              onMountError={(event) => { setCameraReady(false); setCaptureError(event.message || 'Camera nu a putut porni.'); }}
+              onCameraReady={() => { setCameraReady(true); setCameraFailed(false); setCaptureError(null); }}
+              onMountError={(event) => {
+                setCameraReady(false);
+                setCameraFailed(true);
+                setCaptureError('Camera nu a putut porni. Apasă butonul rotund ca să încerci din nou.');
+                recordDiagnosticError('camera_mount', event);
+              }}
             />
           ) : (
             <View style={styles.permissionPanel}>
@@ -282,8 +307,8 @@ export function CaptureScreen({ navigation, route }: Props) {
             <Text style={styles.sideLabel}>Galerie</Text>
           </Pressable>
           <Animated.View style={{ transform: [{ scale: shutterPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] }) }] }}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Fă fotografia" disabled={working} onPress={() => void takePhoto()} style={[styles.shutterOuter, isCompact && styles.shutterOuterCompact, working && styles.controlDisabled]}>
-              <View style={[styles.shutterMiddle, isCompact && styles.shutterMiddleCompact]}><AppIcon name="camera" size={isCompact ? 56 : 64} /></View>
+            <Pressable accessibilityRole="button" accessibilityLabel={cameraFailed ? 'Repornește camera' : 'Fă fotografia'} disabled={working} onPress={() => void takePhoto()} style={[styles.shutterOuter, isCompact && styles.shutterOuterCompact, working && styles.controlDisabled]}>
+              <View style={[styles.shutterMiddle, isCompact && styles.shutterMiddleCompact]}><AppIcon name={cameraFailed ? 'retake' : 'camera'} size={isCompact ? 56 : 64} /></View>
             </Pressable>
           </Animated.View>
           <Pressable accessibilityRole="button" accessibilityLabel="Ajutor pentru fotografie" accessibilityState={{ expanded: showHelp }} onPress={toggleHelp} style={styles.sideControl}>

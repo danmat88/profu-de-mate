@@ -70,6 +70,7 @@
     "functions:test": "npm --prefix functions test",
     "test:mobile": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mts",
     "legal:check": "node scripts/validate-legal.mjs",
+    "release:bundle-check": "node scripts/verify-production-bundle.mjs",
     "test:rules": "npm --prefix functions run build && firebase emulators:exec --only firestore \"node --test tests/firestore.rules.test.mjs && node --test functions/integration/commercialAccess.test.mjs\""
   },
   "overrides": {

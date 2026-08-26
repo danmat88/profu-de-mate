@@ -160,7 +160,7 @@ export type RootStackParamList = {
   Paywall: { source: 'quota' | 'settings' | 'home'; access?: CommercialAccess };
   Capture: { mode: FlowMode };
   Review: { mode: FlowMode; image: CapturedImage };
-  Processing: { mode: FlowMode; image: CapturedImage; requestId: string };
+  Processing: { mode: FlowMode; image: CapturedImage; requestId: string; origin?: 'review' | 'home' };
   Lesson: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean; source?: 'flow' | 'notebook'; sourceImage?: CapturedImage };
   Summary: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean };
 };

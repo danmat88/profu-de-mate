@@ -14,7 +14,7 @@ import { StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LaunchSplash } from './src/components/LaunchSplash';
-import { CommercialProvider } from './src/context/CommercialContext';
+import { CommercialProvider, useCommercial } from './src/context/CommercialContext';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -26,44 +26,44 @@ import { ProcessingScreen } from './src/screens/ProcessingScreen';
 import { ReviewScreen } from './src/screens/ReviewScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SummaryScreen } from './src/screens/SummaryScreen';
-import { initializeVerifiedFirebaseServices } from './src/services/firebase';
+import { initializeFirebaseServices, initializeVerifiedFirebaseServices } from './src/services/firebase';
 import { recordDiagnosticError } from './src/services/diagnostics';
+import { readCachedCommercialAccess } from './src/services/commercialAccessCache';
 import { preparePendingAnalysisOnStartup, type PendingAnalysis } from './src/services/pendingAnalysis';
+import { preloadCriticalAppAssets } from './src/services/startupAssets';
+import { settleStartupTask, type StartupTaskResult } from './src/services/startupBootstrap';
 import { colors } from './src/theme';
-import type { RootStackParamList } from './src/types';
+import type { CommercialAccess, RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 void SplashScreen.preventAutoHideAsync();
 
-function AppRoot() {
-  const [fontsLoaded, fontError] = useFonts({
-    BalsamiqSans_400Regular,
-    BalsamiqSans_700Bold,
-    FiraSans_400Regular,
-    FiraSans_500Medium,
-    FiraSans_600SemiBold,
-  });
-  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>('Home');
-  const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null | undefined>(undefined);
+type StartupSnapshot = {
+  pendingAnalysis: PendingAnalysis | null;
+  initialAccess: CommercialAccess | null;
+};
+
+const LOCAL_STARTUP_DEADLINE_MS = 4_000;
+const FONT_STARTUP_DEADLINE_MS = 5_000;
+
+function reportStartupTask<T>(result: StartupTaskResult<T>) {
+  if (result.outcome === 'ready') return;
+  recordDiagnosticError(
+    'startup_bootstrap',
+    result.error ?? { code: `startup/${result.outcome}` },
+  );
+}
+
+function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis | null }) {
+  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(pendingAnalysis ? 'Processing' : 'Home');
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [navigationReady, setNavigationReady] = useState(false);
   const reducedMotion = useReducedMotion();
+  const { access, loading: commercialLoading } = useCommercial();
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
-  const fontsReady = fontsLoaded || Boolean(fontError);
   const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
-
-  useEffect(() => {
-    preparePendingAnalysisOnStartup().then((pending) => {
-      setPendingAnalysis(pending);
-      if (pending) setActiveRoute('Processing');
-    });
-    initializeVerifiedFirebaseServices().catch((error) => {
-      recordDiagnosticError('firebase_initialization', error);
-      // Ecranele care au nevoie de rețea afișează eroarea și permit reîncercarea.
-    });
-  }, []);
-
-  if (!fontsReady || pendingAnalysis === undefined) return null;
+  const firstFrameReady = navigationReady && (Boolean(access) || !commercialLoading);
 
   return (
     <View style={styles.app}>
@@ -73,9 +73,9 @@ function AppRoot() {
         pointerEvents={showLaunchSplash ? 'none' : 'auto'}
         importantForAccessibility={showLaunchSplash ? 'no-hide-descendants' : 'auto'}
       >
-        <CommercialProvider>
-          <NavigationContainer
+        <NavigationContainer
             theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
+            onReady={() => setNavigationReady(true)}
             onStateChange={(state) => {
               const route = state?.routes[state.index];
               if (route) setActiveRoute(route.name as keyof RootStackParamList);
@@ -94,16 +94,88 @@ function AppRoot() {
               <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
               <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
             </Stack.Navigator>
-          </NavigationContainer>
-        </CommercialProvider>
+        </NavigationContainer>
       </View>
-      {showLaunchSplash ? <LaunchSplash reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
+      {showLaunchSplash ? <LaunchSplash ready={firstFrameReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
     </View>
+  );
+}
+
+function AppRoot() {
+  const [fontsLoaded, fontError] = useFonts({
+    BalsamiqSans_400Regular,
+    BalsamiqSans_700Bold,
+    FiraSans_400Regular,
+    FiraSans_500Medium,
+    FiraSans_600SemiBold,
+  });
+  const [startup, setStartup] = useState<StartupSnapshot>();
+  const [fontDeadlineReached, setFontDeadlineReached] = useState(false);
+  const fontsReady = fontsLoaded || Boolean(fontError) || fontDeadlineReached;
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) return;
+    const deadline = setTimeout(() => {
+      setFontDeadlineReached(true);
+      recordDiagnosticError('startup_bootstrap', { code: 'startup/font-timeout' });
+    }, FONT_STARTUP_DEADLINE_MS);
+    return () => clearTimeout(deadline);
+  }, [fontError, fontsLoaded]);
+
+  useEffect(() => {
+    if (fontError) recordDiagnosticError('startup_bootstrap', fontError);
+  }, [fontError]);
+
+  useEffect(() => {
+    let mounted = true;
+    const firebaseSession = initializeFirebaseServices();
+    void firebaseSession.then(() => initializeVerifiedFirebaseServices()).catch((error) => {
+      recordDiagnosticError('firebase_initialization', error);
+      // Ecranele de rețea păstrează propriul retry; startup-ul nu rămâne blocat.
+    });
+
+    const cachedAccessForSession = firebaseSession.then(() => readCachedCommercialAccess());
+
+    Promise.all([
+      settleStartupTask(preloadCriticalAppAssets(), undefined, LOCAL_STARTUP_DEADLINE_MS),
+      settleStartupTask(preparePendingAnalysisOnStartup(), null, LOCAL_STARTUP_DEADLINE_MS),
+      settleStartupTask(cachedAccessForSession, null, LOCAL_STARTUP_DEADLINE_MS),
+    ]).then(([assets, pending, access]) => {
+      reportStartupTask(assets);
+      reportStartupTask(pending);
+      reportStartupTask(access);
+      if (assets.outcome === 'failed' && assets.error) {
+        recordDiagnosticError('startup_assets', assets.error);
+      }
+      if (mounted) {
+        setStartup({
+          pendingAnalysis: pending.value,
+          initialAccess: access.value,
+        });
+      }
+    });
+
+    return () => { mounted = false; };
+  }, []);
+
+  if (!fontsReady || !startup) {
+    return (
+      <View style={styles.preloadSurface}>
+        <StatusBar style="light" />
+      </View>
+    );
+  }
+
+  return (
+    <CommercialProvider initialAccess={startup.initialAccess}>
+      <AppExperience pendingAnalysis={startup.pendingAnalysis} />
+    </CommercialProvider>
   );
 }
 
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: colors.canvas },
+  preloadSurface: { flex: 1, backgroundColor: colors.ink },
   navigator: { flex: 1 },
 });
 

@@ -1,7 +1,10 @@
 export type DiagnosticContext =
   | 'analysis_request'
   | 'app_render'
+  | 'camera_mount'
   | 'commercial_access'
+  | 'startup_bootstrap'
+  | 'startup_assets'
   | 'commercial_initialization'
   | 'commercial_preflight'
   | 'data_deletion'

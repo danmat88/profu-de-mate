@@ -1,6 +1,6 @@
 # Profu’ de mate — registru de producție
 
-Ultima actualizare: 25 august 2026
+Ultima actualizare: 26 august 2026
 
 > Ordinea și starea principală sunt menținute în `docs/MASTER_ROADMAP.md`; acest document rămâne registrul tehnic detaliat.
 
@@ -35,9 +35,9 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [x] Rotire, crop manual și comprimare locală înainte de upload.
 - [x] Imaginile procesate au lifecycle privat și cleanup explicit; Galerie/Camera → Review lasă numai copia controlată, ieșirea/refotografierea o șterge, cinci rotiri nu acumulează revizii, cropul înlocuiește corect originalul, Back Android + redeschidere `WARM` curăță restul, iar process-kill în Procesare păstrează numai analiza validă și ajunge la zero fișiere după rezultat/ieșire.
 - [x] Aplicația cere numai Camera și permisiunea tehnică Google Play Billing; microfonul, locația, notificările, Advertising ID și accesul general la poze sunt blocate explicit.
-- [~] Configurația curentă blochează explicit `SYSTEM_ALERT_WINDOW` și impune `allowBackup=false`; APK-ul intern build 6, anterior hardeningului, nu reflectă încă aceste două setări, deci următorul artefact release trebuie reaudiat.
+- [x] APK-ul production versionCode 9 blochează `SYSTEM_ALERT_WINDOW`, impune `allowBackup=false`, este `debuggable=false` și dezactivează cleartext; manifestul și semnătura au fost auditate.
 - [x] Fotografia nu este salvată în Firebase Storage sau în Caiet.
-- [x] Cererile sunt autentificate anonim, protejate prin App Check și trimise unei funcții callable din `europe-west1`.
+- [x] Cererile sunt autentificate anonim sau Google și trimise unei funcții callable din `europe-west1`; App Check este activ în development, iar canalul public pre-Play folosește temporar Auth + limite server-side până la Play Integrity.
 - [x] Retry-ul reutilizează același `requestId`; backendul previne taxarea și salvarea dublă.
 - [x] Analiza activă este reluată cu același `requestId` după restart timp de maximum 30 de minute; process-kill, cold reopen, retry și cleanup au fost verificate fizic.
 - [x] Mesaje distincte pentru offline, timeout, App Check, limită, imagine invalidă și eroare temporară de server.
@@ -59,7 +59,7 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 
 - [x] Firestore Standard în `eur3`, delete protection activ, PITR oprit.
 - [x] Anonymous Auth rămâne intrarea implicită; Google linking opțional este implementat, dar providerul extern nu este încă activat.
-- [x] App Check activ în development prin debug provider și impus de funcțiile callable.
+- [~] App Check este activ în development prin debug provider. APK-ul public pre-Play nu conține token debug, iar enforcement-ul callable este oprit temporar până la activarea simultană Play Integrity client/backend după Play App Signing.
 - [x] Secretul Gemini este în Secret Manager; cheia nu este în aplicație sau Git.
 - [x] `analyzeMathImage`: Node 22, 512 MiB, timeout 120 s, `maxInstances: 3`, concurrency 10.
 - [x] Contractul live este 5 probleme de bun-venit / 5 gratuite zilnic cu Google / 30 Premium implicit, maximum 4/minut și plafon global; numai rezultatul `ready` consumă. Guest folosește un principal de instalare, iar Google un principal HMAC stabil; niciunul nu depinde de UID-ul Firebase recreabil.
@@ -70,7 +70,7 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [x] Retenție: 7 zile pentru lecții nesalvate/cache, 35 zile pentru contoare zilnice/rezervări și aproximativ 13 luni pentru profilul comercial minim, entitlement/evenimente și Caiet inactiv.
 - [x] Firestore și Storage sunt deny-by-default; clientul nu poate crea sau modifica răspunsul matematic.
 - [x] Audit al logurilor: fără fotografie/Base64/enunț; loggerul propriu păstrează numai statusuri și descriptori de eroare fără mesaj.
-- [x] 8 teste de reguli, 7 teste tranzacționale Firestore, 55 teste backend și 50 teste de logică mobilă/configurație Android/lifecycle/text/Caiet trec local; Expo Doctor trece 21/21.
+- [x] 8 teste de reguli, 9 teste tranzacționale Firestore, 58 teste backend și 66 teste de logică mobilă/configurație Android/lifecycle/text/Caiet/startup trec local; Expo Doctor trece 21/21.
 - [ ] După primul upload în Play: adăugarea SHA-1/SHA-256 ale certificatului Play App Signing în Firebase.
 - [ ] După certificatul Play: înregistrarea aplicației în Play Integrity și verificarea App Check pe build release.
 - [ ] Buget Google Cloud și alerte de cost configurate la praguri explicite.
@@ -112,7 +112,8 @@ Legendă: `[x]` finalizat și verificat, `[~]` implementat dar mai cere verifica
 - [x] Expo SDK 57, React Native 0.86, Android package `ro.profudemate.app`.
 - [x] `compileSdkVersion` și `targetSdkVersion` 36; minify și resource shrinking activate pentru release; cleartext dezactivat.
 - [x] Android Auto Backup este dezactivat și proiectul declară explicit numai platforma Android pentru V1.
-- [x] Profile EAS: development APK, preview APK și production AAB cu `autoIncrement`.
+- [x] Profile EAS: development APK, preview APK, `production-apk` public pre-Play și production AAB cu `autoIncrement`.
+- [x] Exportul JavaScript production este verificat reproductibil și refuză orice token App Check debug.
 - [x] Un development APK EAS este construit și instalat pe telefon.
 - [ ] Cont personal Google Play Console, taxa unică și verificarea identității.
 - [ ] Crearea aplicației în Play Console cu numele „Profu’ de mate” și package-ul exact.

@@ -16,6 +16,7 @@ import { commercialGateFromError } from '../services/commercial';
 import { analyzeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
+import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
 import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../types';
 import { contentToAccessibleText } from '../utils/mathContent';
@@ -48,13 +49,18 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const orbitSize = isVeryShort ? 188 : isCompact ? 222 : 264;
   const haloSize = isVeryShort ? 148 : isCompact ? 173 : 204;
   const bottomSpace = Math.max(insets.bottom, 12);
+  const canReturnToPhoto = route.params.origin === 'review' && navigation.canGoBack();
   const returnToPhotoOrHome = () => {
     clearPendingAnalysis();
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+    if (canReturnToPhoto) navigation.goBack();
+    else {
+      deleteTemporaryCapturedImages([route.params.image.uri]);
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+    }
   };
   const retakePhoto = () => {
     clearPendingAnalysis();
+    deleteTemporaryCapturedImages([route.params.image.uri]);
     navigation.reset({
       index: 1,
       routes: [
@@ -63,8 +69,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
       ],
     });
   };
-  const leaveAnalysis = () => {
-    clearPendingAnalysis();
+  const continueInBackground = () => {
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
@@ -83,10 +88,6 @@ export function ProcessingScreen({ navigation, route }: Props) {
     floating.start();
     return () => { orbiting.stop(); floating.stop(); };
   }, [bob, orbit, reducedMotion]);
-
-  useEffect(() => navigation.addListener('beforeRemove', () => {
-    clearPendingAnalysis();
-  }), [navigation]);
 
   useFocusEffect(useCallback(() => {
     if (resumeAfterPaywall.current && commercialAccess?.canAnalyze) {
@@ -178,7 +179,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
         <ComicBackdrop dark />
         <View style={styles.top}>
           <Text style={styles.brand}>Profu’ de mate</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={navigation.canGoBack() ? 'Înapoi la fotografie' : 'Înapoi acasă'} onPress={returnToPhotoOrHome} style={styles.closeButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel={canReturnToPhoto ? 'Înapoi la fotografie' : 'Înapoi acasă'} onPress={returnToPhotoOrHome} style={styles.closeButton}>
             <MiniGlyph name="close" size={20} color={colors.paper} />
           </Pressable>
         </View>
@@ -211,7 +212,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           {!rejected && !commercialBlocked ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
           {!commercialBlocked ? <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={retakePhoto} /> : null}
           <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
-            <Text style={styles.backLinkText}>{navigation.canGoBack() ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
+            <Text style={styles.backLinkText}>{canReturnToPhoto ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -224,9 +225,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
       <ComicBackdrop dark />
       <View style={styles.top}>
         <Text style={styles.brand}>Profu’ lucrează</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Oprește analiza și revino acasă" onPress={leaveAnalysis} style={styles.stopButton}>
-          <MiniGlyph name="close" size={15} color={colors.paper} />
-          <Text style={styles.stopText}>OPREȘTE</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Continuă analiza în fundal și revino acasă" onPress={continueInBackground} style={styles.stopButton}>
+          <MiniGlyph name="back" size={15} color={colors.paper} />
+          <Text style={styles.stopText}>ACASĂ</Text>
         </Pressable>
       </View>
       <View style={[styles.stage, { height: stageHeight }]}>

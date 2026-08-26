@@ -52,7 +52,7 @@ function validateGoogleServices(filePath, webClientId, issues) {
   }
 }
 
-function validateClientEnvironment(mode) {
+function validateClientEnvironment(mode, options = {}) {
   if (!MODES.has(mode)) throw new Error(`Mediu necunoscut: ${mode}`);
 
   const issues = [];
@@ -67,7 +67,15 @@ function validateClientEnvironment(mode) {
   }
 
   const debugToken = process.env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim() ?? '';
-  const provider = process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER?.trim() ?? '';
+  const provider = process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER?.trim()
+    || (mode === 'production' ? 'playIntegrity' : 'debug');
+  const expectedProvider = options.expectedAppCheckProvider;
+  if (!['debug', 'none', 'playIntegrity'].includes(provider)) {
+    issues.push(`Provider App Check necunoscut: ${provider}.`);
+  }
+  if (expectedProvider && provider !== expectedProvider) {
+    issues.push(`Profilul cere App Check ${expectedProvider}, dar mediul configurează ${provider}.`);
+  }
   if (mode !== 'production' && !debugToken) {
     issues.push('Lipsește EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN pentru testarea internă.');
   }
@@ -85,7 +93,7 @@ function validateClientEnvironment(mode) {
     mode,
     googleWebClient: true,
     playIntegrityProject: true,
-    appCheck: mode === 'production' ? 'playIntegrity' : 'debug',
+    appCheck: provider,
     googleServices: true,
   };
 }

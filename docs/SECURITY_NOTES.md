@@ -1,12 +1,12 @@
 # Note de securitate și dependențe
 
-Ultima verificare: 25 august 2026
+Ultima verificare: 26 august 2026
 
 ## Controale active
 
 - Firestore și Storage sunt deny-by-default; regulile au 8 teste locale care trec, inclusiv interdicția accesului client la configurația operațională.
 - Clientul nu poate crea soluții și nu poate modifica răspunsul/verdictul generat de backend.
-- Funcțiile callable cer Firebase Auth (anonim sau Google) și App Check. Webhook-ul extern RevenueCat verifică separat Authorization și HMAC peste corpul brut.
+- Funcțiile callable cer Firebase Auth (anonim sau Google). App Check este impus în development; pentru APK-ul public pre-Play, enforcement-ul este temporar oprit fără a livra vreun token debug, apoi va fi reactivat împreună cu Play Integrity. Webhook-ul extern RevenueCat verifică separat Authorization și HMAC peste corpul brut.
 - Cheia Gemini live este în Secret Manager. Identitatea comercială Google folosește `COMMERCIAL_IDENTITY_HMAC_KEY`, secret server-side de minimum 32 bytes. Secretele RevenueCat sunt declarate exclusiv pentru Secret Manager și trebuie create la activarea externă; niciun secret nu este livrat în aplicație, iar în build intră numai cheia publică RevenueCat.
 - Backendul live păstrează `maxInstances: 3`, timeout 120 s, 5 probleme de bun-venit, 5/zi pentru Google, 30/zi implicit pentru Premium, 4/minut și plafon global configurabil. Revizia comercială cu principal HMAC stabil a fost publicată controlat pe 25 august 2026.
 - `requestId` oferă idempotency pentru retry și împiedică dublarea consumului/salvării.
@@ -25,16 +25,18 @@ Ultima verificare: 25 august 2026
 
 ## Audit npm
 
-La 25 august 2026:
+La 26 august 2026:
 
 - `npm audit --omit=dev`: 18 constatări tranzitive — 0 high, 18 moderate, 0 critical.
 - `npm audit`: 22 constatări — 0 high, 22 moderate, 0 critical.
 - `npm --prefix functions audit`: 7 constatări tranzitive — 0 high, 7 moderate, 0 critical.
 - Cele 4 constatări high din lanțul Metro/`image-size` au fost eliminate prin alinierea Metro, `metro-config` și `metro-transform-worker` la patch-ul 0.84.5 deja folosit de Expo SDK 57.
-- Constatările moderate rămase includ Expo tooling, `uuid`, `xcode` și advisories propagate prin React Native Firebase.
+- Constatările moderate rămase provin din advisory-ul `uuid <11.1.1`: în client lanțul relevant este unealta Expo/Xcode (`xcode@3.0.1` → `uuid@7.0.3`), iar în Functions sunt biblioteci Google (`gaxios`/`teeny-request` → `uuid@9.0.1`). Codul aplicației nu apelează direct API-urile `uuid` afectate.
 - Nu se rulează `npm audit fix --force`: remediile propuse de npm includ downgrade-uri incompatibile, de exemplu Expo 46 sau React Native Firebase 17.
 - Acestea sunt în principal dependențe de build/tooling, dar rămân risc urmărit; auditul se repetă la fiecare CI și înaintea fiecărui AAB.
 - CI blochează orice constatare runtime nouă de severitate high/critical. Moderate sunt revizuite la fiecare actualizare Expo/React Native și obligatoriu înainte de release.
+- Exportul production se verifică prin `npm run release:bundle-check`; comanda elimină providerul/tokenul App Check debug înainte de bundling și eșuează dacă tokenul local este găsit în rezultat.
+- Snapshot-ul comercial local este criptat prin SecureStore, acceptat numai pentru același Firebase UID și invalidat după 24 de ore, resetarea zilnică sau expirarea Premium. El optimizează exclusiv primul cadru; `preflightAnalysisAccess` consultă în continuare serverul înaintea fiecărei analize, iar logout-ul și ștergerea datelor elimină snapshot-ul.
 
 ## Înainte de lansare
 

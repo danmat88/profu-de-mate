@@ -30,6 +30,7 @@ import { FEEDBACK_RETENTION_MS, feedbackSeverity, isFeedbackCategory } from './f
 import { claimWelcomeDevice, welcomeClaimHash } from './deviceRecall.js';
 import { removeOrRetainCommercialUsage } from './dataDeletion.js';
 import { ProviderCircuitBreaker } from './providerCircuitBreaker.js';
+import { ENFORCE_APP_CHECK } from './releaseSecurity.js';
 import { runProviderPipeline } from './providerPipeline.js';
 import type { RenderedMathAnalysis } from './mathRenderer.js';
 import {
@@ -143,7 +144,7 @@ export const analyzeMathImage = onCall({
   timeoutSeconds: 120,
   maxInstances: 3,
   concurrency: 10,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [geminiApiKey, commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) {
@@ -281,7 +282,7 @@ export const getCommercialAccess = onCall({
   memory: '256MiB',
   timeoutSeconds: 30,
   maxInstances: 5,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
@@ -309,7 +310,7 @@ export const prepareAccountLogout = onCall({
   memory: '256MiB',
   timeoutSeconds: 30,
   maxInstances: 5,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
@@ -333,7 +334,7 @@ export const claimGuestWelcome = onCall({
   memory: '256MiB',
   timeoutSeconds: 30,
   maxInstances: 5,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
@@ -366,7 +367,7 @@ export const prepareAccountMerge = onCall({
   memory: '256MiB',
   timeoutSeconds: 30,
   maxInstances: 3,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
@@ -384,7 +385,7 @@ export const completeAccountMergeWithGoogle = onCall({
   memory: '512MiB',
   timeoutSeconds: 120,
   maxInstances: 2,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
@@ -414,7 +415,7 @@ export const syncPremiumAccess = revenueCatSecrets ? onCall({
   memory: '256MiB',
   timeoutSeconds: 30,
   maxInstances: 5,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [revenueCatSecrets.apiKey, commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
@@ -527,7 +528,7 @@ export const deleteMyData = onCall({
   memory: '256MiB',
   timeoutSeconds: 120,
   maxInstances: 3,
-  enforceAppCheck: true,
+  enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey, ...(revenueCatSecrets ? [revenueCatSecrets.apiKey] : [])],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');

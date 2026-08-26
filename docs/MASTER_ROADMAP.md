@@ -1,6 +1,6 @@
 # Profu' de mate — Master Roadmap
 
-Ultima actualizare: 25 august 2026
+Ultima actualizare: 26 august 2026
 Stare produs: **beta tehnic — nu este încă pregătit pentru publicare**
 
 Acesta este documentul principal de lucru al aplicației. După fiecare etapă:
@@ -90,7 +90,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Package Android stabil: `ro.profudemate.app`.
 - [x] Firebase de producție activ pe Blaze.
 - [x] Functions, Firestore Rules și indexuri publicate.
-- [x] Teste backend 56/56, logică mobilă/configurație Android/randare document/Caiet 53/53, Rules 8/8 și tranzacții comerciale Firestore 9/9.
+- [x] Teste backend 58/58, logică mobilă/configurație Android/randare document/Caiet 66/66, Rules 8/8 și tranzacții comerciale Firestore 9/9.
 - [x] Identitate vizuală, iconuri și splash implementate.
 - [x] Documente specializate existente inventariate.
 - [x] Master roadmap creat și adoptat drept sursă principală.
@@ -111,14 +111,14 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] 🤖 Android Auto Backup dezactivat în configurația Expo (`allowBackup=false`).
 - [x] 🤖 Proiectul declară explicit Android drept platforma V1.
 - [x] 🤖 Configurația și testul de regresie impun `allowBackup=false`; development APK versionCode 7 confirmă `android:allowBackup=false` direct în manifestul compilat.
-- [~] 🤖 `SYSTEM_ALERT_WINDOW` este blocată explicit pentru release; development clientul versionCode 7 o include intenționat împreună cu cleartext/debug pentru instrumentele Expo, iar eliminarea trebuie confirmată pe APK-ul/AAB-ul de producție.
+- [x] 🤖 `SYSTEM_ALERT_WINDOW`, cleartext, backup și `debuggable` sunt dezactivate în APK-ul production versionCode 9 și confirmate direct în manifestul compilat.
 - [x] 🤖 Versiunea și build number sunt citite din artefactul nativ, nu hardcodate în Setări/feedback.
 
 ## 1.3 Medii EAS/App Check
 
 - [x] 🤖 `development`: Firebase config + App Check debug.
 - [x] 🤖 `preview`: Firebase config + un debug token dedicat testării.
-- [x] 🤖 `production-apk`: folosește mediul preview; nu mai consumă secrete din production.
+- [x] 🤖 `production-apk`: folosește mediul production, cheia EAS production și providerul App Check `none`; nu conține token debug și este canalul public temporar dinaintea Play Console.
 - [~] 🤖 `production`: conține numai Firebase config și selectează Play Integrity; configurarea Play rămâne pentru Faza 7.
 - [x] 🤖 Debug tokenul a fost eliminat din mediul EAS production; tokenurile buildurilor release interne vechi au fost revocate.
 - [x] 🤖 `.env.example` documentează numai numele variabilelor, fără valori secrete.
@@ -172,7 +172,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Lecția și rezumatul au acțiuni în dock stabil.
 - [x] Există coach pentru salvarea în Caiet.
 - [x] 🤖 Enunțul are un panel stabil cu comutator explicit între transcrierea matematică și fotografia originală; titlul unic, formulele inline și gruparea cerințelor `a)`, `b)`, `c)` au fost verificate fizic.
-- [~] 🤖 Procesarea are buton clar de oprire și revenire acasă; requestul server deja trimis poate termina în fundal, iar testul fizic este în așteptare.
+- [~] 🤖 Procesarea permite revenirea Acasă fără a pretinde că anulează cererea deja trimisă; markerul, fotografia și același `requestId` sunt păstrate, iar Home transformă acțiunea principală în „Revino la analiză”. Implementarea și regresia automată sunt finalizate; testul fizic este în așteptare.
 - [x] 🤖 Client timeout este 135 s, peste timeoutul server de 120 s.
 - [x] 🤖 Cererea în curs este memorată local cu același `requestId` și reluată după restart; process-kill, cold reopen, retry idempotent și cleanup final au fost verificate fizic pe Xiaomi 25078RA3EE.
 - [ ] 🤖 Navigația Back este testată în fiecare stare, inclusiv predictive back.
@@ -214,11 +214,12 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Teste Functions.
 - [x] Teste Firestore Rules.
 - [x] Teste pentru schema/randarea matematică backend.
-- [~] 🤖 Suita pentru logica mobilă pură, configurația Android, erori, diagnosticare sigură, tipografie, lifecycle, calitatea textelor, documentul matematic, Caiet și ciclul comercial trece 53/53; serviciile native mai necesită teste pe artefacte/dispozitive.
+- [x] 🤖 Exportul JavaScript Android în profil `production` este reproductibil prin `npm run release:bundle-check`; validarea elimină configurația App Check debug, construiește bundle-ul minificat, caută explicit tokenul debug și curăță sigur artefactul temporar.
+- [~] 🤖 Suita pentru logica mobilă pură, configurația Android, erori, diagnosticare sigură, tipografie, lifecycle, calitatea textelor, documentul matematic, Caiet, startup și ciclul comercial trece 66/66; serviciile native mai necesită teste pe artefacte/dispozitive.
 - [ ] 🤖 Teste de componente pentru ecranele P0.
 - [ ] 🤖 Teste E2E Android pentru toate fluxurile principale.
 - [ ] 🤖 Teste de regresie vizuală.
-- [~] 🤖 GitHub Actions rulează typecheck/Expo Doctor, Functions, Rules, audit critic și raportează separat legal readiness; workflow-ul trebuie confirmat de prima rulare GitHub.
+- [x] 🤖 GitHub Actions rulează typecheck/Expo Doctor, Functions, Rules, audit critic și raportează separat legal readiness; commitul `0fc6879` a trecut workflow-ul `Quality` pe GitHub.
 - [x] 🤖 Dependabot configurat lunar pentru aplicație, Functions și GitHub Actions; update-urile majore sunt excluse din actualizările automate npm.
 
 ## 4.2 Erori și reziliență
@@ -254,7 +255,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] 🤖 Device Recall este implementat feature-gated cu hash legat de UID/cerere, verificarea verdictului și modurile `off/monitor/enforce`; implicit rămâne `off`.
 - [x] 🤖 Home, Confirmare, Procesare și Setări au stări comerciale coerente, iar atingerea limitei nu pierde fotografia.
 - [x] 🤖 Contractul, colecțiile, secretele și ordinea de activare sunt documentate în `docs/COMMERCIAL_SYSTEM.md`.
-- [~] 🤖 Verificările trec: backend 56/56, mobil 53/53, Rules 8/8, integrare Firestore 9/9, TypeScript și Expo Doctor 21/21; revizia cu principal de instalare și logout sigilat este publicată, ștergerea verifică server-side autentificarea Google recentă, iar QA-ul pe telefon este în curs.
+- [~] 🤖 Verificările trec: backend 58/58, mobil 66/66, Rules 8/8, integrare Firestore 9/9, TypeScript și Expo Doctor 21/21; revizia cu principal de instalare și logout sigilat este publicată, ștergerea verifică server-side autentificarea Google recentă, iar QA-ul pe telefon este în curs.
 - [~] 🤖 Google Auth este configurat complet pentru cheia EAS și backendul Guest/Google este publicat; Play App Signing, produsele, proiectul RevenueCat, secretele și webhook-ul rămân blocate de conturile externe.
 - [ ] ⛔ 🤖 Purchase/restore/renewal/expiration/refund/reinstall trebuie verificate pe un build instalat din trackul Google Play.
 
@@ -292,11 +293,13 @@ Această fază este intenționat după finalizarea produsului, dar înainte de l
 # Faza 7 — Play Console, App Check și distribuție
 
 - [ ] ⛔ 👤 Cont personal Google Play Console și verificarea identității/dispozitivului.
+- [ ] ⛔ 👤 Finalizarea Android developer verification; dacă Google cere dovada package-ului deja folosit pe dispozitive în afara Play, se păstrează și se folosește cheia de semnare cerută, fără schimbarea arbitrară a package-ului.
 - [ ] ⛔ 👤 Aplicație creată cu package-ul `ro.profudemate.app`.
 - [ ] ⛔ 👤 Play App Signing activat.
 - [ ] ⛔ 🤖 SHA-1/SHA-256 Play App Signing adăugate în Firebase.
 - [ ] ⛔ 🤖 Play Integrity legat de proiectul Firebase.
 - [ ] ⛔ 🤖 App Check înregistrat, monitorizat și apoi impus.
+- [x] 🤖 Configurația sursă folosește `compileSdkVersion` și `targetSdkVersion` 36, nivelul cerut pentru aplicații noi și update-uri începând cu 31 august 2026; confirmarea finală se face din AAB.
 - [ ] ⛔ 🤖 Production AAB construit cu EAS CLI compatibil.
 - [ ] ⛔ 🤖 AAB auditat: permisiuni, SDK-uri, trackere, secrete, dimensiune și 16 KB.
 - [ ] ⛔ 🤖 Store listing, feature graphic și screenshoturi release.
@@ -504,8 +507,30 @@ Această fază este intenționat după finalizarea produsului, dar înainte de l
 - A fost adăugat `docs/DEVELOPMENT_HANDOFF.md`, cu pașii de clone, restaurarea mediului privat, build, conectarea telefonului și ordinea concretă P0–P4. Scripturile EAS folosesc versiunea fixă `22.2.0` prin `npx`, fără dependență de o instalare globală.
 - QA-ul comercial end-to-end pe APK-ul nou rămâne deschis: consum Guest, Google link/merge, logout sigilat, reinstalare, ștergere și analiza reală Cameră/Galerie.
 
+## 26 august 2026 — Audit automat și contract production
+
+- Repository-ul corect `profu-de-mate` și baza `0fc6879`, sincronizată cu `origin/main`, au fost reconfirmate; worktree-ul conține schimbările intenționate ale auditului, iar proiectul separat `intelligence` nu a fost atins.
+- Gate-urile au fost rerulate de la zero: Functions 58/58, mobil 66/66, Firestore Rules 8/8, integrare comercială 9/9, TypeScript și Expo Doctor 21/21.
+- Workflow-ul GitHub `Quality` pentru commitul curent este încheiat cu succes. Auditul npm are 0 constatări high/critical; advisory-urile moderate `uuid` sunt tranzitive prin Expo/Xcode și bibliotecile Google și rămân urmărite fără downgrade-ul incompatibil propus de `audit fix --force`.
+- A fost adăugat `npm run release:bundle-check`. Proba locală a construit bundle-ul Android minificat în profil production, a verificat absența tokenului App Check debug și a curățat directorul temporar; rezultatul curent are 1.285 module și 47 de fișiere. Cache-ul Metro al probei este acum izolat de Metro development, după reproducerea și eliminarea unei coruperi reale a indexului comun.
+- Auditul P0 a eliminat abandonul fals din Procesare: revenirea Acasă nu mai șterge markerul/fotografia unei cereri deja trimise, iar Home recunoaște analiza recuperabilă înainte să permită una nouă și reia exact același `requestId`. Pickerul Galerie din Cameră se blochează înainte de deschidere, eroarea nativă a camerei nu mai expune text tehnic și butonul foto remontează explicit sesiunea; Crop nu poate porni înainte ca imaginea să fie afișabilă. Abandonul real eliberează acum fotografia imediat. Regresiile sunt acoperite în suita mobilă 66/66; proba fizică rămâne următorul pas.
+- Startup-ul folosește acum un bootstrap unic și mărginit: preîncarcă fonturile și asseturile primei scene, citește analiza în curs, restaurează sesiunea Firebase înaintea snapshot-ului comercial legat strict de UID, pornește validarea server-side și încălzește Caietul în timpul splash-ului. Cache-ul este numai pentru afișare; analiza continuă să ceară accesul autoritativ de la server.
+- Capturile temporizate pe Xiaomi `25078RA3EE` au confirmat predarea React splash → Home fără iconuri sau date întârziate pe revizia anterioară a bootstrap-ului. Ultima revizie, care adaugă deadline-urile și ordonarea auth → cache, nu este încă validată fizic deoarece telefonul nu este vizibil prin ADB; verdictul final rămâne intenționat nebifat.
+- Cerințele oficiale Play valabile la această dată au fost reverificate: target API 36 de la 31 august 2026, suport 16 KB pentru aplicațiile cu cod nativ, verificarea dezvoltatorului/package-ului, ștergere în aplicație plus resursă web și minimum 12 testeri timp de 14 zile pentru conturile personale noi. Punctele dependente de Play Console/AAB rămân corect nebifate.
+- `npm run legal:check` eșuează numai pentru identitatea legală a operatorului încă necompletată; Hosting nu se publică înainte de această informație.
+
+## 26 august 2026 — APK production public pre-Play
+
+- Profilul `production-apk` folosește mediul EAS production și cheia EAS production, dar produce un APK universal pentru instalare directă. VersionCode este 9.
+- SHA-1 și SHA-256 ale cheii EAS production au fost înregistrate în aplicația Android Firebase, iar `google-services.json` a fost sincronizat cu clienții OAuth Android existenți.
+- APK-ul a trecut auditul static: package `ro.profudemate.app`, targetSdk 36, minSdk 24, semnătură v2 validă, patru ABI-uri, minify/resource shrinking, `debuggable=false`, `allowBackup=false`, cleartext dezactivat și fără permisiuni sensibile necerute.
+- APK-ul nu conține token App Check debug. Până există Play App Signing, profilul folosește providerul `none`, iar cele 9 Functions publicate cer Auth și păstrează cota tranzacțională, limita de rafală, plafonul global, idempotency și kill switch; testul live a confirmat că un apel fără Auth primește `UNAUTHENTICATED`.
+- La trecerea în Play, clientul `production` și backendul se mută simultan la Play Integrity + App Check enforcement. Acesta este un gate explicit, nu o schimbare manuală uitată într-o funcție.
+- Testarea pe telefonul fizic a APK-ului rămâne necesară; dispozitivul nu a fost vizibil prin ADB la construirea artefactului.
+
 ## Documente asociate
 
+- `docs/ARCHITECTURE_AUDIT.md` — verdictul tehnic actual, dovezile, riscurile P0/P1 și blocajele externe
 - `docs/MATH_COVERAGE_MATRIX.md` — acoperirea matematică reală, separată pe structură, randare, pedagogie și acuratețe
 - `docs/PRODUCTION_CHECKLIST.md` — audit de producție detaliat
 - `docs/PRODUCT_DECISIONS.md` — decizii de produs

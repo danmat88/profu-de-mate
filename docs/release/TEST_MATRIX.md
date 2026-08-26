@@ -1,16 +1,18 @@
 # Matrice de testare înainte de release
 
-Ultima actualizare: 25 august 2026
+Ultima actualizare: 26 august 2026
 
 ## Gate automat existent
 
 | Suită | Comandă | Stare curentă |
 |---|---|---|
 | TypeScript + compatibilitate Expo | `npm run check` | 21/21 Expo Doctor, trece |
-| Backend/schemă/randare matematică | `npm run functions:test` | 56/56, trece; include identitățile comerciale stabile și recent-auth la ștergere |
-| Logică mobilă, configurație Android, tipografie, lifecycle, calitatea textelor și Caiet | `npm run test:mobile` | 53/53, trece; include ciclul de viață al contului și logout-ul sigilat |
+| Backend/schemă/randare matematică | `npm run functions:test` | 58/58, trece; include identitățile comerciale stabile, recent-auth la ștergere și contractul de securitate pre-Play/Play |
+| Logică mobilă, configurație Android, tipografie, lifecycle, calitatea textelor, startup și Caiet | `npm run test:mobile` | 66/66, trece; include bootstrap-ul coordonat, cache-ul comercial legat de UID, refresh-ul unic după schimbarea identității, logout-ul sigilat, reluarea analizei din Home, blocarea pickerului Galerie și recuperarea camerei |
 | Contract EAS/Metro | `npm run env:check:development`, `npm run env:check:preview`, `npm run env:check:production` | toate cele trei medii trec; production interzice App Check debug |
 | Firestore Rules + tranzacții comerciale | `npm run test:rules` | Rules 8/8 și integrare comercială 9/9, trec |
+| Bundle JavaScript production | `npm run release:bundle-check` | trece; bundle minificat, profil production și absența tokenului App Check debug verificate |
+| APK public production | audit APK/manifest/semnătură | versionCode 9, targetSdk 36, semnătură EAS production, `debuggable=false`, cleartext/backup dezactivate și fără token App Check debug |
 
 ## Dispozitive și layout
 
@@ -28,12 +30,13 @@ Ultima actualizare: 25 august 2026
 
 ## Fluxuri P0
 
-- [ ] Instalare curată → splash → Acasă fără flash alb.
+- [~] Cold start pe development build → suprafață închisă → splash React → Acasă cu iconuri și `5 din 5` a fost verificat prin capturi temporizate; primul cadru nativ cu `expo.backgroundColor: #171337` trebuie confirmat pe development buildul regenerat.
 - [ ] Permisiune cameră acceptată, refuzată și „Nu mai întreba”; revenire din Setări.
 - [ ] Cameră indisponibilă/onMountError și retry.
 - [ ] Galerie anulată, imagine invalidă, imagine foarte mare și revenire din Photo Picker.
 - [ ] Crop: mutare, toate cele 4 colțuri, rotire, reset, anulare și eroare de fișier.
 - [ ] Rezolvă: problemă validă, non-matematică, poză neclară, timeout, offline și retry.
+- [ ] Procesare → Acasă → „Revino la analiză”: fotografia rămâne, același `requestId` livrează rezultatul și cota este consumată o singură dată.
 - [ ] Verifică: corect, parțial corect, greșit și rezolvare incompletă.
 - [~] Lecție: pașii, enunțul, explicația alternativă, matricea, formula lată, vizualizarea mărită și scrollul controlat sunt implementate/verificate parțial; matricea completă P0 rămâne deschisă.
 - [~] Vizualuri: baseline determinist la 390 px pentru geometrie, grafic, tabel cu celule matematice și axă numerică; mai trebuie QA fizic pe telefon mic/mare și comparație automată.
@@ -90,6 +93,7 @@ Pentru fiecare caz se notează separat: OCR/enunț, rezultat final, corectitudin
 
 ## Build release
 
+- [x] Exportul JavaScript Android în profil `production` trece și nu conține tokenul App Check debug.
 - [ ] `production` AAB construit cu EAS CLI compatibil (`>=22.2.0`).
 - [ ] AAB analizat pentru permisiuni, trackere și secret leakage.
 - [ ] Target/compile API 36 confirmat din artefact.

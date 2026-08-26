@@ -25,11 +25,18 @@ test('logout rotates only Firebase auth while commercial guest identity stays in
   assert.match(disconnect, /await prepareLogout\(\{ installationToken \}\)/);
   assert.match(disconnect, /signOut\(getAuth\(app\)\)/);
   assert.match(disconnect, /initializeVerifiedFirebaseServices\(\)/);
-  assert.match(disconnect, /getCommercialAccess\(\)/);
+  assert.doesNotMatch(disconnect, /getCommercialAccess\(\)/);
   assert.doesNotMatch(disconnect, /resetPurchasesAfterDataDeletion|Purchases\.logOut/);
   assert.match(identitySource, /installationPrincipalId\(installationToken/);
   assert.match(identitySource, /return \{ identity: 'anonymous', principalId: installationPrincipalId/);
   assert.doesNotMatch(disconnect, /deleteMyData|deleteUser|deleteAllUserData/);
+});
+
+test('the context owns the single commercial refresh after account transitions', () => {
+  const connect = commercialSource.match(/export async function connectWithGoogle[\s\S]*?\n}/)?.[0] ?? '';
+  const disconnect = commercialSource.match(/export async function disconnectGoogleAccount[\s\S]*?\n}/)?.[0] ?? '';
+  assert.doesNotMatch(connect, /getCommercialAccess\(\)/);
+  assert.doesNotMatch(disconnect, /getCommercialAccess\(\)/);
 });
 
 test('reauthenticates before remote deletion and clears local state only after server confirmation', () => {

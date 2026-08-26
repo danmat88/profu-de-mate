@@ -3,6 +3,7 @@ import { getAuth, signOut } from '@react-native-firebase/auth';
 import { getCrashlytics, setCrashlyticsCollectionEnabled } from '@react-native-firebase/crashlytics';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import { clearFavoriteLessonsCache } from './lessons';
+import { clearCachedCommercialAccess } from './commercialAccessCache';
 import { clearPendingGoogleMerge, confirmGoogleIdentityForDeletion, getCommercialAccess } from './commercial';
 import { initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
 import { clearLocalPreferences } from './localPreferences';
@@ -32,6 +33,7 @@ export async function deleteAllUserData(): Promise<void> {
   clearTemporaryCapturedImages();
   clearPendingAnalysis();
   clearLocalPreferences();
+  await clearCachedCommercialAccess();
   await clearPendingGoogleMerge();
   await setCrashlyticsCollectionEnabled(getCrashlytics(app), false).catch(() => undefined);
   await signOut(getAuth(app)).catch(() => undefined);

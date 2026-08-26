@@ -16,7 +16,7 @@ import { useCommercial } from '../context/CommercialContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { prepareCapturedImage } from '../services/imagePipeline';
-import { clearTemporaryCapturedImages } from '../services/temporaryImages';
+import { preparePendingAnalysisOnStartup, type PendingAnalysis } from '../services/pendingAnalysis';
 import { colors, fonts } from '../theme';
 import type { FlowMode, RootStackParamList } from '../types';
 
@@ -77,10 +77,11 @@ export function HomeScreen() {
   const { contentWidth, gutter, isNarrow, isVeryNarrow, isVeryShort, isShort, isLargeText, isVeryLargeText } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { access, refresh: refreshCommercialAccess } = useCommercial();
+  const { access, loading: commercialLoading, refresh: refreshCommercialAccess } = useCommercial();
   const [mode, setMode] = useState<FlowMode>('solve');
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null | undefined>(undefined);
   const entrance = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
   const beam = useRef(new Animated.Value(0)).current;
@@ -89,12 +90,14 @@ export function HomeScreen() {
   const galleryLocked = useRef(false);
 
   useFocusEffect(useCallback(() => {
+    let active = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
-    // Home is outside a capture/analysis session. This also covers an Android
-    // activity reopened inside the same JavaScript process.
-    clearTemporaryCapturedImages();
+    void preparePendingAnalysisOnStartup().then((pending) => {
+      if (active) setPendingAnalysis(pending);
+    });
     void refreshCommercialAccess();
+    return () => { active = false; };
   }, [refreshCommercialAccess]));
 
   useEffect(() => {
@@ -130,14 +133,26 @@ export function HomeScreen() {
   };
 
   const openCapture = () => {
-    if (navigationLocked.current) return;
+    if (navigationLocked.current || pendingAnalysis === undefined) return;
     navigationLocked.current = true;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (pendingAnalysis) {
+      setPendingAnalysis(null);
+      navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' });
+      return;
+    }
     navigation.navigate('Capture', { mode });
   };
 
   const openGallery = useCallback(async () => {
-    if (galleryLocked.current) return;
+    if (galleryLocked.current || pendingAnalysis === undefined) return;
+    if (pendingAnalysis) {
+      galleryLocked.current = true;
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setPendingAnalysis(null);
+      navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' });
+      return;
+    }
     galleryLocked.current = true;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setGalleryError(null);
@@ -165,9 +180,12 @@ export function HomeScreen() {
       galleryLocked.current = false;
       setGalleryBusy(false);
     }
-  }, [mode, navigation]);
+  }, [mode, navigation, pendingAnalysis]);
 
-  const isSolve = mode === 'solve';
+  const activeMode = pendingAnalysis?.mode ?? mode;
+  const isSolve = activeMode === 'solve';
+  const hasPendingAnalysis = Boolean(pendingAnalysis);
+  const pendingStatusLoading = pendingAnalysis === undefined;
   const baseStageHeight = isVeryShort ? 226 : isShort ? 252 : 278;
   const stageHeight = baseStageHeight + (isVeryLargeText ? 360 : isLargeText ? 72 : 0);
   const mascotWidth = isVeryNarrow ? 128 : 148;
@@ -177,7 +195,7 @@ export function HomeScreen() {
       : access.tier === 'guest'
       ? `${access.remaining} din ${access.limit} cadou`
       : `${access.remaining} din ${access.limit} azi`
-    : 'Verific…';
+    : commercialLoading ? 'Verific…' : 'Reîncearcă';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -208,7 +226,7 @@ export function HomeScreen() {
             >
               <View style={[styles.allowancePill, access?.premium.active && styles.allowancePillPremium]}>
                 <MiniGlyph name={access?.premium.active ? 'spark' : 'dot'} size={13} color={colors.ink} />
-                <View><Text style={styles.allowanceText}>{allowanceLabel}</Text><Text style={styles.allowanceNote}>{access?.premium.active ? 'PREMIUM' : access?.reason === 'account_required' ? 'CONT' : 'PROBLEME'}</Text></View>
+                <View><Text style={styles.allowanceText}>{allowanceLabel}</Text><Text style={styles.allowanceNote}>{access?.premium.active ? 'PREMIUM' : access?.reason === 'account_required' ? 'CONT' : access ? 'PROBLEME' : 'ACCES'}</Text></View>
               </View>
             </Pressable>
             <Pressable
@@ -258,7 +276,7 @@ export function HomeScreen() {
             >
               <View pointerEvents="none" style={styles.stageGlow} />
               <View style={[styles.stageSticker, !isSolve && styles.stageStickerCheck]}>
-                <Text style={styles.stageStickerText}>{isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
+                <Text style={styles.stageStickerText}>{pendingStatusLoading ? 'O CLIPĂ' : hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
               </View>
 
               <View style={[styles.stageContent, isLargeText && styles.stageContentLargeText, isVeryLargeText && styles.stageContentVeryLargeText]}>
@@ -267,33 +285,35 @@ export function HomeScreen() {
                   <View style={[styles.focusCorner, styles.focusCornerTR]} />
                   <View style={[styles.focusCorner, styles.focusCornerBL]} />
                   <View style={[styles.focusCorner, styles.focusCornerBR]} />
-                  <AppIcon name={isSolve ? 'scan' : 'verify'} size={isVeryNarrow ? 58 : 68} />
+                  <AppIcon name={pendingStatusLoading || hasPendingAnalysis ? 'scan' : isSolve ? 'scan' : 'verify'} size={isVeryNarrow ? 58 : 68} />
                   <Animated.View style={[styles.scanBeam, {
                     opacity: beam.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, 0.8, 0.8, 0] }),
                     transform: [{ translateY: beam.interpolate({ inputRange: [0, 1], outputRange: [-46, 47] }) }],
                   }]} />
                 </Animated.View>
                 <View style={[styles.stageCopy, isVeryLargeText && styles.stageCopyVeryLargeText]}>
-                  <Text numberOfLines={isLargeText ? 2 : 1} style={styles.stageEyebrow}>{isSolve ? 'REZOLVĂ O PROBLEMĂ' : 'VERIFICĂ O REZOLVARE'}</Text>
-                  <Text numberOfLines={isVeryLargeText ? 4 : isLargeText ? 3 : 2} style={[styles.stageTitle, isVeryNarrow && !isLargeText && styles.stageTitleNarrow, isLargeText && styles.stageTitleLargeText]}>{isSolve ? 'Fotografiază problema.' : 'Fotografiază rezolvarea.'}</Text>
-                  <Text numberOfLines={isVeryLargeText ? 5 : isLargeText ? 4 : 2} style={[styles.stageNote, isLargeText && styles.stageNoteLargeText, galleryError && styles.stageNoteError]}>{galleryError ?? (isSolve ? 'Îți explic rezolvarea pas cu pas.' : 'Îți arăt ce ai făcut bine și ce corectezi.')}</Text>
+                  <Text numberOfLines={isLargeText ? 2 : 1} style={styles.stageEyebrow}>{pendingStatusLoading ? 'VERIFIC UN LUCRU' : hasPendingAnalysis ? 'REZULTATUL TĂU SE PREGĂTEȘTE' : isSolve ? 'REZOLVĂ O PROBLEMĂ' : 'VERIFICĂ O REZOLVARE'}</Text>
+                  <Text numberOfLines={isVeryLargeText ? 4 : isLargeText ? 3 : 2} style={[styles.stageTitle, isVeryNarrow && !isLargeText && styles.stageTitleNarrow, isLargeText && styles.stageTitleLargeText]}>{pendingStatusLoading ? 'Pregătesc tabla.' : hasPendingAnalysis ? 'Revino la analiză.' : isSolve ? 'Fotografiază problema.' : 'Fotografiază rezolvarea.'}</Text>
+                  <Text numberOfLines={isVeryLargeText ? 5 : isLargeText ? 4 : 2} style={[styles.stageNote, isLargeText && styles.stageNoteLargeText, galleryError && styles.stageNoteError]}>{pendingStatusLoading ? 'Mă asigur că nu ai lăsat o analiză în curs.' : hasPendingAnalysis ? 'Fotografia și progresul sunt păstrate în siguranță.' : galleryError ?? (isSolve ? 'Îți explic rezolvarea pas cu pas.' : 'Îți arăt ce ai făcut bine și ce corectezi.')}</Text>
                 </View>
               </View>
 
               <View style={[styles.stageActions, isLargeText && styles.stageActionsLargeText, isVeryLargeText && styles.stageActionsVeryLargeText]}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
+                  accessibilityLabel={pendingStatusLoading ? 'Se verifică analiza în curs' : hasPendingAnalysis ? 'Revino la analiza în curs' : isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
+                  accessibilityState={{ disabled: pendingStatusLoading }}
+                  disabled={pendingStatusLoading}
                   onPress={openCapture}
-                  style={({ pressed }) => [styles.captureRibbon, isVeryLargeText && styles.captureRibbonVeryLargeText, !isSolve && styles.captureRibbonCheck, pressed && styles.actionPressed]}
+                  style={({ pressed }) => [styles.captureRibbon, isVeryLargeText && styles.captureRibbonVeryLargeText, !isSolve && styles.captureRibbonCheck, pendingStatusLoading && styles.galleryButtonBusy, pressed && styles.actionPressed]}
                 >
-                  <View style={styles.captureRibbonIcon}><AppIcon name="camera" size={32} /></View>
+                  <View style={styles.captureRibbonIcon}>{pendingStatusLoading ? <PlayfulLoader micro /> : <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={32} />}</View>
                   <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.82} style={styles.captureRibbonText}>
-                    Deschide camera
+                    {pendingStatusLoading ? 'Verific…' : hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
                   </Text>
                   <MiniGlyph name="next" size={22} color={colors.ink} />
                 </Pressable>
-                <Pressable
+                {!hasPendingAnalysis && !pendingStatusLoading ? <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
                   disabled={galleryBusy}
@@ -302,7 +322,7 @@ export function HomeScreen() {
                 >
                   {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={30} />}
                   <Text style={styles.galleryButtonText}>{galleryBusy ? 'Deschid…' : 'Galerie'}</Text>
-                </Pressable>
+                </Pressable> : null}
               </View>
 
               <Animated.View pointerEvents="none" style={[styles.mascotWrap, {

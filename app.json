@@ -10,7 +10,7 @@
     "icon": "./assets/brand/app-icon-v2.png",
     "scheme": "profudemate",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FFF7E7",
+    "backgroundColor": "#171337",
     "ios": {
       "supportsTablet": true
     },

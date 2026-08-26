@@ -1,6 +1,6 @@
 # Handoff pentru dezvoltare — Profu’ de mate
 
-Ultima actualizare: 25 august 2026
+Ultima actualizare: 26 august 2026
 Branch de lucru: `main`
 Repository: `https://github.com/danmat88/profu-de-mate.git`
 Firebase: `profu-de-mate-danmat88`
@@ -19,26 +19,26 @@ Acest document este punctul de pornire pe un laptop nou. Nu conține secrete și
 - Certificatul debug al laptopului vechi a fost înregistrat în Firebase:
   - SHA-1: `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
   - SHA-256: `FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C`
-- APK-ul și folderul `android/` sunt generate local și nu intră în Git.
-- Cota EAS Android gratuită era epuizată la handoff; resetarea afișată de EAS este 1 septembrie 2026. Nu există un build EAS nou pentru această revizie.
+- APK-ul și folderul `android/` sunt generate local și nu intră în Git; APK-ul production publicat rămâne atașat GitHub Release-ului, nu commitului.
+- APK-ul production versionCode 9 a fost construit local la 26 august 2026 cu mediul EAS production și cheia EAS production.
 
 ### Backend publicat
 
 - Cele 9 Firebase Functions necesare fluxului actual sunt `ACTIVE`, inclusiv `analyzeMathImage`, `getCommercialAccess`, `claimGuestWelcome`, `prepareAccountMerge`, `completeAccountMergeWithGoogle`, `prepareAccountLogout`, `deleteMyData`, retenția și trierea feedbackului.
 - Firestore Rules și indexurile necesare sunt publicate.
-- App Check este activ în development prin debug provider; producția rămâne blocată până la Play App Signing și Play Integrity.
+- App Check este activ în development prin debug provider. Canalul public `production-apk` pre-Play nu inițializează App Check și Functions nu îl impun temporar; Firebase Auth și toate limitele server-side rămân obligatorii. Release-ul Play va activa simultan Play Integrity în client și enforcement în backend.
 - Secretul Gemini și secretul HMAC comercial sunt în Google Secret Manager. Nu se copiază pe laptop și nu intră în EAS sau Git.
 - Endpointurile RevenueCat sunt intenționat feature-gated până când există Play Console, produsele și secretele reale.
 
 ### Ultimele verificări trecute
 
-- Functions: 56/56.
-- Logică mobilă/configurație: 53/53.
+- Functions: 58/58.
+- Logică mobilă/configurație: 66/66.
 - Firestore Rules: 8/8.
 - Integrare comercială Firestore: 9/9.
 - TypeScript: trece.
 - Expo Doctor: 21/21.
-- APK local: semnătură validă, minSdk 24, targetSdk 36, toate cele patru ABI-uri.
+- APK production: semnătură EAS validă, versionCode 9, minSdk 24, targetSdk 36, toate cele patru ABI-uri, minify/resource shrinking, fără cleartext/debuggable/token App Check debug.
 
 ## 2. Ce nu poate fi recuperat din Git
 
@@ -172,9 +172,10 @@ npm run check
 npm run functions:test
 npm run test:mobile
 npm run test:rules
+npm run release:bundle-check
 ```
 
-Rezultatul așteptat la handoff este 56/56 Functions, 53/53 mobile, 8/8 Rules, 9/9 integrare Firestore și Expo Doctor 21/21.
+Rezultatul așteptat la handoff este 58/58 Functions, 66/66 mobile, 8/8 Rules, 9/9 integrare Firestore, Expo Doctor 21/21 și un artefact production fără token App Check debug.
 
 `npm run legal:check` rămâne intenționat blocant până la completarea identității legale; nu este o eroare tehnică de clone.
 
@@ -238,6 +239,7 @@ npm run check
 npm run functions:test
 npm run test:mobile
 npm run test:rules
+npm run release:bundle-check
 git add -A
 git diff --cached --check
 git diff --cached --stat

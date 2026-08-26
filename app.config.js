@@ -3,8 +3,18 @@ const { validateClientEnvironment } = require('./scripts/validate-client-env.cjs
 const PROFILE_ENVIRONMENT = {
   development: 'development',
   preview: 'preview',
-  'production-apk': 'preview',
+  'production-apk': 'production',
   production: 'production',
+};
+
+const PROFILE_APP_CHECK = {
+  development: 'debug',
+  preview: 'debug',
+  // This public APK exists before Play Console is available. It never embeds
+  // a reusable App Check debug credential; the server's authenticated quotas
+  // and cost controls protect this temporary release channel.
+  'production-apk': 'none',
+  production: 'playIntegrity',
 };
 
 module.exports = ({ config }) => {
@@ -12,7 +22,7 @@ module.exports = ({ config }) => {
   if (buildProfile) {
     const environment = PROFILE_ENVIRONMENT[buildProfile];
     if (!environment) throw new Error(`Profil EAS necunoscut: ${buildProfile}`);
-    validateClientEnvironment(environment);
+    validateClientEnvironment(environment, { expectedAppCheckProvider: PROFILE_APP_CHECK[buildProfile] });
   }
 
   return ({

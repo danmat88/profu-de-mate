@@ -282,7 +282,7 @@ export function SettingsScreen({ navigation }: Props) {
               <View style={styles.successIcon}><MiniGlyph name="check" size={29} color={colors.ink} /></View>
               <Text style={styles.successEyebrow}>ȘTERGERE ÎNCHEIATĂ</Text>
               <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
-              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul aplicației au fost șterse. La următoarea folosire, aplicația va crea automat un spațiu nou și gol.</Text>
+              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul aplicației au fost șterse. Ai acum un spațiu nou și gol, gata să începi din nou.</Text>
               <Pressable accessibilityRole="button" onPress={() => { setDeleteComplete(false); navigation.popToTop(); }} style={styles.successButton}>
                 <Text style={styles.successButtonText}>Înapoi la început</Text>
                 <MiniGlyph name="next" size={19} color={colors.ink} />

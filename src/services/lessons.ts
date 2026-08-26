@@ -6,6 +6,7 @@ import { initializeFirebaseServices } from './firebase';
 
 type LessonListener = (lessons: StoredLesson[]) => void;
 let favoriteLessonsCache: StoredLesson[] | undefined;
+let favoriteLessonsPrewarm: Promise<void> | null = null;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SAVED_RETENTION_MS = 400 * DAY_MS;
 const RETENTION_REFRESH_WINDOW_MS = 60 * DAY_MS;
@@ -17,6 +18,37 @@ export function getCachedFavoriteLessons(): StoredLesson[] | undefined {
 
 export function clearFavoriteLessonsCache() {
   favoriteLessonsCache = undefined;
+  favoriteLessonsPrewarm = null;
+}
+
+export function prewarmFavoriteLessonsCache(): Promise<void> {
+  if (favoriteLessonsCache !== undefined) return Promise.resolve();
+  if (favoriteLessonsPrewarm) return favoriteLessonsPrewarm;
+
+  favoriteLessonsPrewarm = new Promise<void>((resolve) => {
+    let settled = false;
+    let unsubscribe: (() => void) | undefined;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      unsubscribe?.();
+      resolve();
+    };
+    const timeout = setTimeout(finish, 3_500);
+
+    subscribeToFavoriteLessons(
+      () => finish(),
+      () => finish(),
+    ).then((stop) => {
+      unsubscribe = stop;
+      if (settled) stop();
+    }).catch(() => finish());
+  }).finally(() => {
+    favoriteLessonsPrewarm = null;
+  });
+
+  return favoriteLessonsPrewarm;
 }
 
 export async function subscribeToFavoriteLessons(onChange: LessonListener, onError: (error: Error) => void): Promise<() => void> {

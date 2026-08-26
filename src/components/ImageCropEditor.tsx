@@ -225,7 +225,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
   };
 
   const applyCrop = async () => {
-    if (operationLocked.current || !imageRect.width || !crop.width) return;
+    if (operationLocked.current || !imageReady || !imageRect.width || !crop.width) return;
     operationLocked.current = true;
     setBusy(true);
     setError(null);
@@ -363,7 +363,7 @@ export function ImageCropEditor({ visible, image, onCancel, onApply }: Props) {
                 <Text style={styles.toolText}>Rotește</Text>
               </Pressable>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Folosește fotografia încadrată" disabled={busy} onPress={() => void applyCrop()} style={styles.applyButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Folosește fotografia încadrată" disabled={busy || !imageReady} onPress={() => void applyCrop()} style={[styles.applyButton, (busy || !imageReady) && styles.disabled]}>
               <View style={styles.applyIcon}>{busy ? <PlayfulLoader micro /> : <AppIcon name="crop" size={31} />}</View>
               <View style={styles.applyCopy}>
                 <Text style={styles.applyText}>Folosește fotografia</Text>
@@ -425,6 +425,7 @@ const styles = StyleSheet.create({
   toolButton: { flex: 1, minHeight: 48, borderRadius: 13, borderWidth: 1.5, borderColor: '#777090', backgroundColor: '#292346', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   toolText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12 },
   applyButton: { maxWidth: 560, width: '100%', minHeight: 57, alignSelf: 'center', borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 8, shadowColor: '#080615', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
+  disabled: { opacity: 0.55 },
   applyIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   applyCopy: { flex: 1, minWidth: 0 },
   applyText: { fontFamily: fonts.display, color: colors.ink, fontSize: 15.5, lineHeight: 18 },

@@ -6,11 +6,12 @@ import { colors, fonts } from '../theme';
 import { Text } from './Typography';
 
 type Props = {
+  ready: boolean;
   reducedMotion: boolean;
   onFinish: () => void;
 };
 
-export function LaunchSplash({ reducedMotion, onFinish }: Props) {
+export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
   const { width, height } = useWindowDimensions();
   const revealed = reducedMotion ? 1 : 0;
   const orbsReveal = useRef(new Animated.Value(revealed)).current;
@@ -22,25 +23,67 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
   const progressReveal = useRef(new Animated.Value(revealed)).current;
   const sceneExit = useRef(new Animated.Value(0)).current;
   const homeReveal = useRef(new Animated.Value(0)).current;
+  const readyRef = useRef(ready);
+  const requestExitRef = useRef<((force?: boolean) => void) | null>(null);
   const wipeSize = Math.sqrt((width * width) + (height * height)) * 2.2;
   const visualScale = Math.max(0.84, Math.min(1.18, width / 390, height / 760));
   const heroLift = -60 * visualScale;
   const copyOffset = 114 * visualScale;
 
+  readyRef.current = ready;
+
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let watchdog: ReturnType<typeof setTimeout> | null = null;
+    if (ready) requestExitRef.current?.();
+  }, [ready]);
+
+  useEffect(() => {
+    let entryTimer: ReturnType<typeof setTimeout> | null = null;
+    let readinessWatchdog: ReturnType<typeof setTimeout> | null = null;
+    let hardWatchdog: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let finished = false;
-    let animation: Animated.CompositeAnimation | null = null;
+    let entryComplete = false;
+    let exiting = false;
+    let entryAnimation: Animated.CompositeAnimation | null = null;
+    let exitAnimation: Animated.CompositeAnimation | null = null;
     const finishOnce = () => {
       if (cancelled || finished) return;
       finished = true;
       onFinish();
     };
+    const beginExit = (force = false) => {
+      if (cancelled || finished || exiting || !entryComplete) return;
+      if (!force && !readyRef.current) return;
+      exiting = true;
+      exitAnimation = Animated.parallel([
+        Animated.timing(sceneExit, {
+          toValue: 1,
+          duration: reducedMotion ? 120 : 270,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.delay(reducedMotion ? 0 : 70),
+          Animated.spring(homeReveal, {
+            toValue: 1,
+            speed: reducedMotion ? 30 : 14,
+            bounciness: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]);
+      exitAnimation.start(({ finished: exitFinished }) => {
+        if (exitFinished) finishOnce();
+      });
+    };
+    requestExitRef.current = beginExit;
 
-    // Never leave an interrupted native animation blocking the application.
-    watchdog = setTimeout(finishOnce, reducedMotion ? 1_500 : 5_000);
+    // Remote startup may fail or be offline; branded startup is strictly bounded.
+    readinessWatchdog = setTimeout(() => {
+      readyRef.current = true;
+      beginExit(true);
+    }, reducedMotion ? 1_500 : 5_000);
+    hardWatchdog = setTimeout(finishOnce, reducedMotion ? 2_500 : 6_500);
 
     const frame = requestAnimationFrame(() => {
       // The React layer is already painted in the same color as the native layer.
@@ -55,11 +98,14 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
         brandReveal.setValue(1);
         promiseReveal.setValue(1);
         progressReveal.setValue(1);
-        timer = setTimeout(finishOnce, 520);
+        entryTimer = setTimeout(() => {
+          entryComplete = true;
+          beginExit();
+        }, 520);
         return;
       }
 
-      animation = Animated.sequence([
+      entryAnimation = Animated.sequence([
         Animated.timing(orbsReveal, {
           toValue: 1,
           duration: 180,
@@ -107,36 +153,24 @@ export function LaunchSplash({ reducedMotion, onFinish }: Props) {
           useNativeDriver: true,
         }),
         Animated.delay(300),
-        Animated.parallel([
-          Animated.timing(sceneExit, {
-            toValue: 1,
-            duration: 270,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.sequence([
-            Animated.delay(70),
-            Animated.spring(homeReveal, {
-              toValue: 1,
-              speed: 14,
-              bounciness: 0,
-              useNativeDriver: true,
-            }),
-          ]),
-        ]),
       ]);
 
-      animation.start(({ finished }) => {
-        if (finished) finishOnce();
+      entryAnimation.start(({ finished: entryFinished }) => {
+        if (!entryFinished) return;
+        entryComplete = true;
+        beginExit();
       });
     });
 
     return () => {
       cancelled = true;
+      requestExitRef.current = null;
       cancelAnimationFrame(frame);
-      if (timer) clearTimeout(timer);
-      if (watchdog) clearTimeout(watchdog);
-      animation?.stop();
+      if (entryTimer) clearTimeout(entryTimer);
+      if (readinessWatchdog) clearTimeout(readinessWatchdog);
+      if (hardWatchdog) clearTimeout(hardWatchdog);
+      entryAnimation?.stop();
+      exitAnimation?.stop();
     };
   }, [
     brandReveal,

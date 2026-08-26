@@ -28,10 +28,10 @@
     },
     "production-apk": {
       "distribution": "internal",
-      "environment": "preview",
+      "environment": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_APP_CHECK_PROVIDER": "debug"
+        "EXPO_PUBLIC_APP_CHECK_PROVIDER": "none"
       },
       "android": {
         "buildType": "apk"

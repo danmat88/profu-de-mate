@@ -143,9 +143,9 @@ Aceste puncte nu pot fi bifate doar din repository.
 
 ## Dovezi automate curente
 
-- Functions build și 56/56 teste backend trecute;
+- Functions build și 58/58 teste backend trecute;
 - TypeScript și Expo Doctor 21/21 trecute;
-- 53/53 teste mobile/configurație trecute, inclusiv regresiile pentru Credential Manager, ciclul de viață al contului și contractul EAS/Metro;
+- 66/66 teste mobile/configurație trecute, inclusiv regresiile pentru Credential Manager, ciclul de viață al contului, refresh-ul unic după schimbarea identității, cache-ul comercial legat de Firebase UID, startup-ul coordonat, reluarea analizei din Home, blocarea pickerului Galerie, recuperarea camerei și contractul EAS/Metro;
 - Rules 8/8 confirmă că noile colecții comerciale sunt inaccesibile clienților;
 - 9/9 teste de integrare pe emulatorul Firestore trec pentru concurență, idempotency, refund, plafonul de bun-venit, biletul legat de instalare, legarea Google fără bonus, UID anonim rotit fără bonus nou, sigilarea instalărilor vechi și recrearea aceluiași Google fără resetarea cotei;
 - testarea pe development build nou și testarea cumpărăturilor din Play rămân deschise și nu sunt declarate finalizate.

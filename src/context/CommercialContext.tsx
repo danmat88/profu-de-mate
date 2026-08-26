@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import type { CommercialAccess } from '../types';
 import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess, prepareCommercialServices } from '../services/commercial';
 import { recordDiagnosticError } from '../services/diagnostics';
+import { prewarmFavoriteLessonsCache } from '../services/lessons';
 
 type CommercialContextValue = {
   access: CommercialAccess | null;
@@ -15,9 +16,9 @@ type CommercialContextValue = {
 
 const CommercialContext = createContext<CommercialContextValue | null>(null);
 
-export function CommercialProvider({ children }: { children: ReactNode }) {
-  const [access, setAccess] = useState<CommercialAccess | null>(null);
-  const [loading, setLoading] = useState(true);
+export function CommercialProvider({ children, initialAccess = null }: { children: ReactNode; initialAccess?: CommercialAccess | null }) {
+  const [access, setAccess] = useState<CommercialAccess | null>(initialAccess);
+  const [loading, setLoading] = useState(!initialAccess);
   const [refreshing, setRefreshing] = useState(false);
   const refreshInFlight = useRef<Promise<CommercialAccess | null> | null>(null);
 
@@ -46,6 +47,9 @@ export function CommercialProvider({ children }: { children: ReactNode }) {
     let mounted = true;
     prepareCommercialServices()
       .then(() => mounted ? refresh() : null)
+      .then(() => {
+        if (mounted) void prewarmFavoriteLessonsCache();
+      })
       .catch((error) => {
         recordDiagnosticError('commercial_initialization', error);
         if (mounted) setLoading(false);

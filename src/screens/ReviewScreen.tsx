@@ -82,6 +82,7 @@ export function ReviewScreen({ navigation, route }: Props) {
         mode: route.params.mode,
         image: currentImage,
         requestId,
+        origin: 'review',
       });
     } catch (error) {
       const gate = commercialGateFromError(error);

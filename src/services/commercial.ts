@@ -11,6 +11,7 @@ import {
 } from '@react-native-firebase/auth';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import type { CommercialAccess } from '../types';
+import { clearCachedCommercialAccess, writeCachedCommercialAccess } from './commercialAccessCache';
 import { createWelcomeIntegrityProof, preparePlayIntegrity } from './deviceIntegrity';
 import { initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
 import { getInstallationToken } from './installationIdentity';
@@ -160,6 +161,7 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
   const installationToken = await getInstallationToken();
   const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 30_000 });
   const access = (await callable({ installationToken })).data;
+  await writeCachedCommercialAccess(access);
   await initializePurchases(access.purchaseUserId).catch(() => false);
   return access;
 }
@@ -272,7 +274,6 @@ export async function connectWithGoogle(): Promise<User | null> {
   if (needsMerge) {
     await completePendingMerge(targetUser);
   }
-  await getCommercialAccess();
   return targetUser;
 }
 
@@ -318,13 +319,12 @@ export async function disconnectGoogleAccount(): Promise<User> {
   );
   await prepareLogout({ installationToken });
   await clearPendingMerge();
+  await clearCachedCommercialAccess();
   await signOut(getAuth(app));
   await googleSigninModule()
     .then(({ GoogleOneTapSignIn }) => GoogleOneTapSignIn.signOut())
     .catch(() => undefined);
   clearFavoriteLessonsCache();
   resetFirebaseInitialization();
-  const guest = await initializeVerifiedFirebaseServices();
-  await getCommercialAccess();
-  return guest;
+  return initializeVerifiedFirebaseServices();
 }
