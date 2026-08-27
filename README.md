@@ -4,12 +4,6 @@ Aplicație Android în limba română pentru rezolvarea și verificarea, pas cu 
 
 ## Începe de aici
 
-- [Handoff pentru dezvoltare](docs/DEVELOPMENT_HANDOFF.md) — clonare pe alt laptop, mediu privat, telefon, build și depanare.
-- [Master Roadmap](docs/MASTER_ROADMAP.md) — sursa principală pentru ce este finalizat și ce mai trebuie făcut.
-- [Sistem comercial](docs/COMMERCIAL_SYSTEM.md) — contractul Guest, Google Gratuit și Premium.
-- [Starea Firebase](docs/FIREBASE_STATUS.md) — infrastructura publicată și acțiunile externe rămase.
-- [Checklist de producție](docs/PRODUCTION_CHECKLIST.md) — gate-ul pentru Play Store.
-- [Matrice de testare](docs/release/TEST_MATRIX.md) — QA automat și fizic înainte de release.
 
 ## Pornire rapidă după configurarea laptopului
 
