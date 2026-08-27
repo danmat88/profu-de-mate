@@ -4,6 +4,7 @@ import { clearTemporaryCapturedImagesOnStartup, isManagedTemporaryImage } from '
 
 const PENDING_ANALYSIS_FILE = 'profu-pending-analysis-v1.json';
 const PENDING_ANALYSIS_MAX_AGE_MS = 30 * 60 * 1000;
+let preparedSnapshot: PendingAnalysis | null | undefined;
 
 export type PendingAnalysis = {
   schemaVersion: 1;
@@ -51,6 +52,7 @@ export function savePendingAnalysis(mode: FlowMode, image: CapturedImage, reques
   };
   try {
     getPendingFile().write(JSON.stringify(pending));
+    preparedSnapshot = pending;
     return true;
   } catch {
     return false;
@@ -58,6 +60,7 @@ export function savePendingAnalysis(mode: FlowMode, image: CapturedImage, reques
 }
 
 export function clearPendingAnalysis(): void {
+  preparedSnapshot = null;
   try {
     const file = getPendingFile();
     if (file.exists) file.delete();
@@ -66,11 +69,21 @@ export function clearPendingAnalysis(): void {
   }
 }
 
+/**
+ * Returns the in-memory value established during startup or by the active
+ * analysis flow. `undefined` is reserved for callers running before startup
+ * preparation; normal screens receive a stable value on their first render.
+ */
+export function getPreparedPendingAnalysis(): PendingAnalysis | null | undefined {
+  return preparedSnapshot;
+}
+
 export async function preparePendingAnalysisOnStartup(): Promise<PendingAnalysis | null> {
   try {
     const file = getPendingFile();
     if (!file.exists) {
       clearTemporaryCapturedImagesOnStartup();
+      preparedSnapshot = null;
       return null;
     }
 
@@ -81,6 +94,7 @@ export async function preparePendingAnalysisOnStartup(): Promise<PendingAnalysis
     if (!imageFile.exists) throw new Error('Pending analysis image is missing.');
 
     clearTemporaryCapturedImagesOnStartup([value.image.uri]);
+    preparedSnapshot = value;
     return value;
   } catch {
     clearPendingAnalysis();

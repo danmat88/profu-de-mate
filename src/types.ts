@@ -3,6 +3,7 @@ export type FlowMode = 'solve' | 'check';
 export type CommercialIdentity = 'anonymous' | 'google';
 export type CommercialTier = 'guest' | 'free' | 'premium';
 export type CommercialBlockReason = 'available' | 'welcome_exhausted' | 'daily_exhausted' | 'account_required';
+export type CommercialStatus = 'resolving' | 'ready' | 'unavailable';
 
 export type CommercialAccess = {
   identity: CommercialIdentity;

@@ -22,6 +22,10 @@ const processingSource = await readFile(
   new URL('../src/screens/ProcessingScreen.tsx', import.meta.url),
   'utf8',
 );
+const pendingAnalysisSource = await readFile(
+  new URL('../src/services/pendingAnalysis.ts', import.meta.url),
+  'utf8',
+);
 const captureSource = await readFile(
   new URL('../src/screens/CaptureScreen.tsx', import.meta.url),
   'utf8',
@@ -50,8 +54,11 @@ test('leaving Processing for Home preserves and resumes the same pending analysi
   assert.doesNotMatch(processingSource, /Oprește analiza și revino acasă|>OPREȘTE</);
   assert.match(homeSource, /navigation\.navigate\('Processing', \{ \.\.\.pendingAnalysis, origin: 'home' \}\)/);
   assert.match(homeSource, /Fotografia și progresul sunt păstrate în siguranță\./);
-  assert.match(homeSource, /pendingAnalysis === undefined/);
-  assert.match(homeSource, /disabled=\{pendingStatusLoading\}/);
+  assert.match(homeSource, /useState<PendingAnalysis \| null>\(\(\) => getPreparedPendingAnalysis\(\) \?\? null\)/);
+  assert.doesNotMatch(homeSource, /pendingStatusLoading|pendingAnalysis === undefined/);
+  assert.match(pendingAnalysisSource, /preparedSnapshot = pending/);
+  assert.match(pendingAnalysisSource, /preparedSnapshot = value/);
+  assert.match(pendingAnalysisSource, /preparedSnapshot = null/);
 });
 
 test('Processing returns to Review only when Review is the real origin', () => {

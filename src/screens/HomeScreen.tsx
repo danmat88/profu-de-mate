@@ -16,9 +16,10 @@ import { useCommercial } from '../context/CommercialContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { prepareCapturedImage } from '../services/imagePipeline';
-import { preparePendingAnalysisOnStartup, type PendingAnalysis } from '../services/pendingAnalysis';
+import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../services/pendingAnalysis';
 import { colors, fonts } from '../theme';
 import type { FlowMode, RootStackParamList } from '../types';
+import { allowancePresentation } from '../utils/commercialPresentation';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
@@ -77,11 +78,16 @@ export function HomeScreen() {
   const { contentWidth, gutter, isNarrow, isVeryNarrow, isVeryShort, isShort, isLargeText, isVeryLargeText } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { access, loading: commercialLoading, refreshIfStale: refreshCommercialAccessIfStale } = useCommercial();
+  const {
+    access,
+    status: commercialStatus,
+    refresh: refreshCommercialAccess,
+    refreshIfStale: refreshCommercialAccessIfStale,
+  } = useCommercial();
   const [mode, setMode] = useState<FlowMode>('solve');
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
-  const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null | undefined>(undefined);
+  const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
   const entrance = useRef(new Animated.Value(0)).current;
   const float = useRef(new Animated.Value(0)).current;
   const beam = useRef(new Animated.Value(0)).current;
@@ -133,7 +139,7 @@ export function HomeScreen() {
   };
 
   const openCapture = () => {
-    if (navigationLocked.current || pendingAnalysis === undefined) return;
+    if (navigationLocked.current) return;
     navigationLocked.current = true;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (pendingAnalysis) {
@@ -145,7 +151,7 @@ export function HomeScreen() {
   };
 
   const openGallery = useCallback(async () => {
-    if (galleryLocked.current || pendingAnalysis === undefined) return;
+    if (galleryLocked.current) return;
     if (pendingAnalysis) {
       galleryLocked.current = true;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -185,17 +191,17 @@ export function HomeScreen() {
   const activeMode = pendingAnalysis?.mode ?? mode;
   const isSolve = activeMode === 'solve';
   const hasPendingAnalysis = Boolean(pendingAnalysis);
-  const pendingStatusLoading = pendingAnalysis === undefined;
   const baseStageHeight = isVeryShort ? 226 : isShort ? 252 : 278;
   const stageHeight = baseStageHeight + (isVeryLargeText ? 360 : isLargeText ? 72 : 0);
   const mascotWidth = isVeryNarrow ? 128 : 148;
-  const allowanceLabel = access
-    ? access.reason === 'account_required'
-      ? 'Conectează-te'
-      : access.tier === 'guest'
-      ? `${access.remaining} din ${access.limit} cadou`
-      : `${access.remaining} din ${access.limit} azi`
-    : commercialLoading ? 'Verific…' : 'Reîncearcă';
+  const allowance = allowancePresentation(access, commercialStatus);
+  const openAllowance = () => {
+    if (allowance.canOpenAccess && access) {
+      navigation.navigate('Paywall', { source: 'home', access });
+      return;
+    }
+    if (allowance.canRetry) void refreshCommercialAccess();
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -220,13 +226,15 @@ export function HomeScreen() {
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${allowanceLabel}. Deschide opțiunile de acces.`}
-              onPress={() => navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) })}
+              accessibilityLabel={allowance.accessibilityLabel}
+              accessibilityState={{ disabled: !allowance.canOpenAccess && !allowance.canRetry }}
+              disabled={!allowance.canOpenAccess && !allowance.canRetry}
+              onPress={openAllowance}
               style={({ pressed }) => [styles.allowanceShadow, pressed && styles.pressed]}
             >
               <View style={[styles.allowancePill, access?.premium.active && styles.allowancePillPremium]}>
                 <MiniGlyph name={access?.premium.active ? 'spark' : 'dot'} size={13} color={colors.ink} />
-                <View><Text style={styles.allowanceText}>{allowanceLabel}</Text><Text style={styles.allowanceNote}>{access?.premium.active ? 'PREMIUM' : access?.reason === 'account_required' ? 'CONT' : access ? 'PROBLEME' : 'ACCES'}</Text></View>
+                <View style={styles.allowanceCopy}><Text numberOfLines={1} style={styles.allowanceText}>{allowance.label}</Text><Text style={styles.allowanceNote}>{allowance.note}</Text></View>
               </View>
             </Pressable>
             <Pressable
@@ -276,7 +284,7 @@ export function HomeScreen() {
             >
               <View pointerEvents="none" style={styles.stageGlow} />
               <View style={[styles.stageSticker, !isSolve && styles.stageStickerCheck]}>
-                <Text style={styles.stageStickerText}>{pendingStatusLoading ? 'O CLIPĂ' : hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
+                <Text style={styles.stageStickerText}>{hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
               </View>
 
               <View style={[styles.stageContent, isLargeText && styles.stageContentLargeText, isVeryLargeText && styles.stageContentVeryLargeText]}>
@@ -285,35 +293,33 @@ export function HomeScreen() {
                   <View style={[styles.focusCorner, styles.focusCornerTR]} />
                   <View style={[styles.focusCorner, styles.focusCornerBL]} />
                   <View style={[styles.focusCorner, styles.focusCornerBR]} />
-                  <AppIcon name={pendingStatusLoading || hasPendingAnalysis ? 'scan' : isSolve ? 'scan' : 'verify'} size={isVeryNarrow ? 58 : 68} />
+                  <AppIcon name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'} size={isVeryNarrow ? 58 : 68} />
                   <Animated.View style={[styles.scanBeam, {
                     opacity: beam.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, 0.8, 0.8, 0] }),
                     transform: [{ translateY: beam.interpolate({ inputRange: [0, 1], outputRange: [-46, 47] }) }],
                   }]} />
                 </Animated.View>
                 <View style={[styles.stageCopy, isVeryLargeText && styles.stageCopyVeryLargeText]}>
-                  <Text numberOfLines={isLargeText ? 2 : 1} style={styles.stageEyebrow}>{pendingStatusLoading ? 'VERIFIC UN LUCRU' : hasPendingAnalysis ? 'REZULTATUL TĂU SE PREGĂTEȘTE' : isSolve ? 'REZOLVĂ O PROBLEMĂ' : 'VERIFICĂ O REZOLVARE'}</Text>
-                  <Text numberOfLines={isVeryLargeText ? 4 : isLargeText ? 3 : 2} style={[styles.stageTitle, isVeryNarrow && !isLargeText && styles.stageTitleNarrow, isLargeText && styles.stageTitleLargeText]}>{pendingStatusLoading ? 'Pregătesc tabla.' : hasPendingAnalysis ? 'Revino la analiză.' : isSolve ? 'Fotografiază problema.' : 'Fotografiază rezolvarea.'}</Text>
-                  <Text numberOfLines={isVeryLargeText ? 5 : isLargeText ? 4 : 2} style={[styles.stageNote, isLargeText && styles.stageNoteLargeText, galleryError && styles.stageNoteError]}>{pendingStatusLoading ? 'Mă asigur că nu ai lăsat o analiză în curs.' : hasPendingAnalysis ? 'Fotografia și progresul sunt păstrate în siguranță.' : galleryError ?? (isSolve ? 'Îți explic rezolvarea pas cu pas.' : 'Îți arăt ce ai făcut bine și ce corectezi.')}</Text>
+                  <Text numberOfLines={isLargeText ? 2 : 1} style={styles.stageEyebrow}>{hasPendingAnalysis ? 'REZULTATUL TĂU SE PREGĂTEȘTE' : isSolve ? 'REZOLVĂ O PROBLEMĂ' : 'VERIFICĂ O REZOLVARE'}</Text>
+                  <Text numberOfLines={isVeryLargeText ? 4 : isLargeText ? 3 : 2} style={[styles.stageTitle, isVeryNarrow && !isLargeText && styles.stageTitleNarrow, isLargeText && styles.stageTitleLargeText]}>{hasPendingAnalysis ? 'Revino la analiză.' : isSolve ? 'Fotografiază problema.' : 'Fotografiază rezolvarea.'}</Text>
+                  <Text numberOfLines={isVeryLargeText ? 5 : isLargeText ? 4 : 2} style={[styles.stageNote, isLargeText && styles.stageNoteLargeText, galleryError && styles.stageNoteError]}>{hasPendingAnalysis ? 'Fotografia și progresul sunt păstrate în siguranță.' : galleryError ?? (isSolve ? 'Îți explic rezolvarea pas cu pas.' : 'Îți arăt ce ai făcut bine și ce corectezi.')}</Text>
                 </View>
               </View>
 
               <View style={[styles.stageActions, isLargeText && styles.stageActionsLargeText, isVeryLargeText && styles.stageActionsVeryLargeText]}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={pendingStatusLoading ? 'Se verifică analiza în curs' : hasPendingAnalysis ? 'Revino la analiza în curs' : isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
-                  accessibilityState={{ disabled: pendingStatusLoading }}
-                  disabled={pendingStatusLoading}
+                  accessibilityLabel={hasPendingAnalysis ? 'Revino la analiza în curs' : isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
                   onPress={openCapture}
-                  style={({ pressed }) => [styles.captureRibbon, isVeryLargeText && styles.captureRibbonVeryLargeText, !isSolve && styles.captureRibbonCheck, pendingStatusLoading && styles.galleryButtonBusy, pressed && styles.actionPressed]}
+                  style={({ pressed }) => [styles.captureRibbon, isVeryLargeText && styles.captureRibbonVeryLargeText, !isSolve && styles.captureRibbonCheck, pressed && styles.actionPressed]}
                 >
-                  <View style={styles.captureRibbonIcon}>{pendingStatusLoading ? <PlayfulLoader micro /> : <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={32} />}</View>
+                  <View style={styles.captureRibbonIcon}><AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={32} /></View>
                   <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.82} style={styles.captureRibbonText}>
-                    {pendingStatusLoading ? 'Verific…' : hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
+                    {hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
                   </Text>
                   <MiniGlyph name="next" size={22} color={colors.ink} />
                 </Pressable>
-                {!hasPendingAnalysis && !pendingStatusLoading ? <Pressable
+                {!hasPendingAnalysis ? <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
                   disabled={galleryBusy}
@@ -398,9 +404,10 @@ const styles = StyleSheet.create({
   settingsShadow: { width: 48, height: 51, borderRadius: 15, backgroundColor: colors.ink, marginLeft: 9 },
   settingsButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   allowanceShadow: { height: 44, borderRadius: 14, backgroundColor: colors.ink, marginLeft: 7, paddingBottom: 3 },
-  allowancePill: { minWidth: 78, height: 41, borderRadius: 13, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 6 },
+  allowancePill: { width: 88, height: 41, borderRadius: 13, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 6 },
   allowancePillPremium: { backgroundColor: colors.lime },
-  allowanceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 11 },
+  allowanceCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
+  allowanceText: { width: '100%', fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 11 },
   allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6.5, letterSpacing: 0.65, lineHeight: 8 },
   intro: { marginTop: 8 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },

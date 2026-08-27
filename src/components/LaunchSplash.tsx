@@ -25,7 +25,7 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
   const sceneExit = useRef(new Animated.Value(0)).current;
   const homeReveal = useRef(new Animated.Value(0)).current;
   const readyRef = useRef(ready);
-  const requestExitRef = useRef<((force?: boolean) => void) | null>(null);
+  const requestEntryRef = useRef<((force?: boolean) => void) | null>(null);
   const wipeSize = Math.sqrt((width * width) + (height * height)) * 2.2;
   const visualScale = Math.max(0.84, Math.min(1.18, width / 390, height / 760));
   const heroLift = -60 * visualScale;
@@ -37,7 +37,7 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
   useEffect(() => {
     if (!sceneReady) return undefined;
 
-    if (ready) requestExitRef.current?.();
+    if (ready) requestEntryRef.current?.();
   }, [ready, sceneReady]);
 
   useEffect(() => {
@@ -47,6 +47,7 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
     let cancelled = false;
     let finished = false;
     let entryComplete = false;
+    let entering = false;
     let exiting = false;
     let entryAnimation: Animated.CompositeAnimation | null = null;
     let exitAnimation: Animated.CompositeAnimation | null = null;
@@ -55,9 +56,8 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
       finished = true;
       onFinish();
     };
-    const beginExit = (force = false) => {
+    const beginExit = () => {
       if (cancelled || finished || exiting || !entryComplete) return;
-      if (!force && !readyRef.current) return;
       exiting = true;
       exitAnimation = Animated.parallel([
         Animated.timing(sceneExit, {
@@ -80,17 +80,11 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
         if (exitFinished) finishOnce();
       });
     };
-    requestExitRef.current = beginExit;
+    const beginEntry = (force = false) => {
+      if (cancelled || finished || entering) return;
+      if (!force && !readyRef.current) return;
+      entering = true;
 
-    // Navigator readiness should be immediate, but startup is still bounded if
-    // React Navigation fails to report its first usable frame.
-    readinessWatchdog = setTimeout(() => {
-      readyRef.current = true;
-      beginExit(true);
-    }, reducedMotion ? 1_500 : 5_000);
-    hardWatchdog = setTimeout(finishOnce, reducedMotion ? 2_500 : 6_500);
-
-    const frame = requestAnimationFrame(() => {
       if (reducedMotion) {
         orbsReveal.setValue(1);
         symbolsReveal.setValue(1);
@@ -99,13 +93,10 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
         brandReveal.setValue(1);
         promiseReveal.setValue(1);
         progressReveal.setValue(1);
-        // The complete reduced-motion frame is already committed behind the
-        // native surface, so the zero-duration handoff exposes no partial scene.
-        void SplashScreen.hideAsync();
         entryTimer = setTimeout(() => {
           entryComplete = true;
           beginExit();
-        }, 520);
+        }, 420);
         return;
       }
 
@@ -164,21 +155,34 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
         }),
         Animated.delay(300),
       ]);
-
-      // onLayout plus this animation frame guarantees that the React surface
-      // exists behind Android's splash. With native duration set to zero, the
-      // shared background remains continuous and the logo is the first reveal.
-      void SplashScreen.hideAsync();
       entryAnimation.start(({ finished: entryFinished }) => {
         if (!entryFinished) return;
         entryComplete = true;
         beginExit();
       });
+    };
+    requestEntryRef.current = beginEntry;
+
+    // Critical startup work gets a bounded static surface. The entrance starts
+    // only after navigation and commercial identity are ready, so no loading
+    // state can race the transition into Home. A watchdog still guarantees that
+    // an offline service can never trap the user behind the splash.
+    readinessWatchdog = setTimeout(() => {
+      readyRef.current = true;
+      beginEntry(true);
+    }, reducedMotion ? 4_800 : 6_500);
+    hardWatchdog = setTimeout(finishOnce, reducedMotion ? 6_000 : 9_500);
+
+    const frame = requestAnimationFrame(() => {
+      // The React surface is already painted with the exact native background.
+      // Handing off here gives slow startup work a stable, flash-free surface.
+      void SplashScreen.hideAsync();
+      beginEntry();
     });
 
     return () => {
       cancelled = true;
-      requestExitRef.current = null;
+      requestEntryRef.current = null;
       cancelAnimationFrame(frame);
       if (entryTimer) clearTimeout(entryTimer);
       if (readinessWatchdog) clearTimeout(readinessWatchdog);

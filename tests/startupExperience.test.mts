@@ -20,14 +20,14 @@ const deletionSource = await readFile(new URL('../src/services/dataManagement.ts
 const homeSource = await readFile(new URL('../src/screens/HomeScreen.tsx', import.meta.url), 'utf8');
 const paywallSource = await readFile(new URL('../src/screens/PaywallScreen.tsx', import.meta.url), 'utf8');
 
-test('startup prepares the first frame before handing off the native splash', () => {
+test('startup prepares commercial identity before revealing the first Home frame', () => {
   assert.match(appSource, /const firebaseSession = initializeFirebaseServices\(\)/);
   assert.match(appSource, /const cachedAccessForSession = firebaseSession\.then\(\(\) => readCachedCommercialAccess\(\)\)/);
   assert.match(appSource, /Promise\.all\(\[[\s\S]*settleStartupTask\(preloadCriticalAppAssets\(\)[\s\S]*settleStartupTask\(preparePendingAnalysisOnStartup\(\)[\s\S]*settleStartupTask\(cachedAccessForSession/);
   assert.match(appSource, /<CommercialProvider initialAccess=\{startup\.initialAccess\}>/);
   assert.match(appSource, /onReady=\{\(\) => setNavigationReady\(true\)\}/);
-  assert.match(appSource, /<LaunchSplash ready=\{navigationReady\}/);
-  assert.doesNotMatch(appSource, /commercialLoading|firstFrameReady/);
+  assert.match(appSource, /startupReady: commercialStartupReady/);
+  assert.match(appSource, /<LaunchSplash ready=\{navigationReady && commercialStartupReady\}/);
   assert.match(appSource, /if \(!fontsReady \|\| !startup\)[\s\S]*styles\.preloadSurface/);
   assert.match(appSource, /preloadSurface: \{ flex: 1, backgroundColor: colors\.ink \}/);
   assert.doesNotMatch(appSource, /if \(!fontsReady \|\| !startup\) return null/);
@@ -58,11 +58,14 @@ test('critical artwork is bundled and preloaded without eagerly decoding every r
   assert.match(assetsSource, /Other[\s\S]*assets lazy/);
 });
 
-test('React splash waits for readiness but can never trap an offline user', () => {
+test('React splash starts its entrance after readiness but can never trap an offline user', () => {
   assert.match(splashSource, /readyRef\.current = ready/);
+  assert.match(splashSource, /requestEntryRef\.current/);
+  assert.match(splashSource, /const beginEntry = \(force = false\)/);
   assert.match(splashSource, /if \(!force && !readyRef\.current\) return/);
-  assert.match(splashSource, /readinessWatchdog = setTimeout[\s\S]*1_500 : 5_000/);
-  assert.match(splashSource, /hardWatchdog = setTimeout\(finishOnce, reducedMotion \? 2_500 : 6_500\)/);
+  assert.match(splashSource, /readinessWatchdog = setTimeout[\s\S]*4_800 : 6_500/);
+  assert.match(splashSource, /hardWatchdog = setTimeout\(finishOnce, reducedMotion \? 6_000 : 9_500\)/);
+  assert.ok(splashSource.indexOf('const beginEntry') < splashSource.indexOf('entryAnimation.start'));
   assert.doesNotMatch(splashSource, /timer = setTimeout\(finishOnce, 520\)/);
 });
 
@@ -102,12 +105,24 @@ test('commercial refresh has one owner, a staleness policy and identity-race pro
   assert.match(commercialContextSource, /activeRequest\?\.generation === generation/);
   assert.match(commercialContextSource, /isCurrentCommercialRefreshGeneration\(generation, identityGeneration\.current\)/);
   assert.match(commercialContextSource, /shouldAutomaticallyRefreshCommercialAccess\(\{/);
+  assert.match(commercialContextSource, /INITIAL_ACCESS_DEADLINE_MS = 4_500/);
+  assert.match(commercialContextSource, /const \[startupReady, setStartupReady\] = useState\(false\)/);
+  assert.match(commercialContextSource, /startupReady/);
   assert.match(homeSource, /refreshIfStale: refreshCommercialAccessIfStale/);
-  assert.doesNotMatch(homeSource, /refresh: refreshCommercialAccess/);
+  assert.match(homeSource, /refresh: refreshCommercialAccess/);
+  assert.doesNotMatch(homeSource, /getCommercialAccess\(/);
   assert.match(paywallSource, /const next = await connectGoogle\(\)/);
   assert.doesNotMatch(paywallSource, /connectGoogle\(\)[\s\S]{0,180}await refresh\(\)/);
   assert.doesNotMatch(paywallSource, /purchasePremium\(plan\)[\s\S]{0,180}await refresh\(\)/);
   assert.doesNotMatch(paywallSource, /restorePremium\(\)[\s\S]{0,180}await refresh\(\)/);
+});
+
+test('Home reserves a stable allowance slot and never exposes an internal verification label', () => {
+  assert.doesNotMatch(homeSource, /commercialLoading \? 'Verific/);
+  assert.doesNotMatch(homeSource, />Verific…</);
+  assert.match(homeSource, /allowancePresentation\(access, commercialStatus\)/);
+  assert.match(homeSource, /allowancePill: \{ width: 88/);
+  assert.match(homeSource, /if \(allowance\.canRetry\) void refreshCommercialAccess\(\)/);
 });
 
 test('auth session cache identity changes when an anonymous account is linked in place', () => {
