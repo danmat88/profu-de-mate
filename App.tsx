@@ -14,7 +14,7 @@ import { StyleSheet, View } from 'react-native';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LaunchSplash } from './src/components/LaunchSplash';
-import { CommercialProvider, useCommercial } from './src/context/CommercialContext';
+import { CommercialProvider } from './src/context/CommercialContext';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -37,6 +37,7 @@ import type { CommercialAccess, RootStackParamList } from './src/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+SplashScreen.setOptions({ duration: 0, fade: false });
 void SplashScreen.preventAutoHideAsync();
 
 type StartupSnapshot = {
@@ -60,10 +61,8 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [navigationReady, setNavigationReady] = useState(false);
   const reducedMotion = useReducedMotion();
-  const { access, loading: commercialLoading } = useCommercial();
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
   const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
-  const firstFrameReady = navigationReady && (Boolean(access) || !commercialLoading);
 
   return (
     <View style={styles.app}>
@@ -96,7 +95,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
             </Stack.Navigator>
         </NavigationContainer>
       </View>
-      {showLaunchSplash ? <LaunchSplash ready={firstFrameReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
+      {showLaunchSplash ? <LaunchSplash ready={navigationReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
     </View>
   );
 }

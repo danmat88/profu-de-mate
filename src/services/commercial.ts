@@ -13,7 +13,7 @@ import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import type { CommercialAccess } from '../types';
 import { clearCachedCommercialAccess, writeCachedCommercialAccess } from './commercialAccessCache';
 import { createWelcomeIntegrityProof, preparePlayIntegrity } from './deviceIntegrity';
-import { initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
+import { firebaseUserSessionKey, initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
 import { getInstallationToken } from './installationIdentity';
 import { clearFavoriteLessonsCache } from './lessons';
 import { initializePurchases } from './purchases';
@@ -36,6 +36,15 @@ export class CommercialGateError extends Error {
     this.name = 'CommercialGateError';
     this.reason = reason;
     this.access = access;
+  }
+}
+
+export class StaleCommercialSessionError extends Error {
+  readonly code = 'commercial/stale-session';
+
+  constructor() {
+    super('Commercial access was returned for an authentication state that is no longer active.');
+    this.name = 'StaleCommercialSessionError';
   }
 }
 
@@ -157,11 +166,15 @@ export async function prepareCommercialServices(): Promise<void> {
 
 export async function getCommercialAccess(): Promise<CommercialAccess> {
   const user = await initializeVerifiedFirebaseServices();
+  const requestedSessionKey = firebaseUserSessionKey(user);
+  if (!requestedSessionKey) throw new StaleCommercialSessionError();
   await completePendingMerge(user);
   const installationToken = await getInstallationToken();
   const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 30_000 });
   const access = (await callable({ installationToken })).data;
-  await writeCachedCommercialAccess(access);
+  const activeSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
+  if (activeSessionKey !== requestedSessionKey) throw new StaleCommercialSessionError();
+  await writeCachedCommercialAccess(access, requestedSessionKey);
   await initializePurchases(access.purchaseUserId).catch(() => false);
   return access;
 }

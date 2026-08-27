@@ -1,6 +1,6 @@
 # Sistem comercial — Profu’ de mate
 
-Ultima actualizare: 25 august 2026
+Ultima actualizare: 26 august 2026
 Stare: **fluxul Guest + Google Gratuit este configurat și publicat; Premium rămâne feature-gated până la Google Play Console și RevenueCat**
 
 Acest document este contractul unic pentru acces, conturi și abonamente. Nu se schimbă limitele, denumirile sau comportamentul de plată direct în interfață fără actualizarea contractului și a testelor.
@@ -37,7 +37,7 @@ Reguli definitive:
 9. Abonamentul se administrează în Google Play. Ștergerea datelor aplicației nu anulează abonamentul.
 10. Deconectarea și ștergerea sunt acțiuni diferite: deconectarea păstrează contul, Caietul, cota și Premium; ștergerea elimină contul și datele recuperabile.
 11. Înainte de logout, serverul marchează instalarea ca deja asociată unui cont; dacă marcarea nu reușește, logout-ul nu continuă. UID-ul anonim nou nu poate redeschide cele 5 probleme de bun-venit.
-12. Închiderea, repornirea și actualizarea aplicației păstrează sesiunea Firebase. La pornire, tokenul este reverificat online și cade pe copia locală numai dacă rețeaua lipsește; un cont șters din alt loc trece într-un spațiu guest gol, fără un nou bonus dacă instalarea fusese deja asociată. După ștergerea datelor Android sau reinstalare este necesară reconectarea Google, dar datele și cota revin de pe server.
+12. Închiderea, repornirea și actualizarea aplicației păstrează sesiunea Firebase. La pornire, SDK-ul restaurează local sesiunea și reîmprospătează tokenul automat atunci când o operație protejată are nevoie; aplicația nu forțează un round-trip Auth în cold start. Snapshotul local al cotei este numai pentru primul cadru și este legat de UID, starea anonim/identificat și providerii activi. Serverul rămâne autoritar la refresh și înaintea fiecărei analize. După ștergerea datelor Android sau reinstalare este necesară reconectarea Google, iar datele și cota revin de pe server.
 
 ## Autoritatea și datele server-side
 
@@ -145,7 +145,7 @@ Aceste puncte nu pot fi bifate doar din repository.
 
 - Functions build și 58/58 teste backend trecute;
 - TypeScript și Expo Doctor 21/21 trecute;
-- 66/66 teste mobile/configurație trecute, inclusiv regresiile pentru Credential Manager, ciclul de viață al contului, refresh-ul unic după schimbarea identității, cache-ul comercial legat de Firebase UID, startup-ul coordonat, reluarea analizei din Home, blocarea pickerului Galerie, recuperarea camerei și contractul EAS/Metro;
+- 71/71 teste mobile/configurație trecute, inclusiv regresiile pentru Credential Manager, ciclul de viață al contului, refresh-ul unic după schimbarea identității, cheia completă a sesiunii guest/Google, invalidarea răspunsurilor vechi, startup-ul independent de rețea, reluarea analizei din Home, blocarea pickerului Galerie, recuperarea camerei și contractul EAS/Metro;
 - Rules 8/8 confirmă că noile colecții comerciale sunt inaccesibile clienților;
 - 9/9 teste de integrare pe emulatorul Firestore trec pentru concurență, idempotency, refund, plafonul de bun-venit, biletul legat de instalare, legarea Google fără bonus, UID anonim rotit fără bonus nou, sigilarea instalărilor vechi și recrearea aceluiași Google fără resetarea cotei;
 - testarea pe development build nou și testarea cumpărăturilor din Play rămân deschise și nu sunt declarate finalizate.

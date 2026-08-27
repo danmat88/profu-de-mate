@@ -5,7 +5,8 @@ import {
   ReactNativeFirebaseAppCheckProvider,
   type AppCheck,
 } from '@react-native-firebase/app-check';
-import { getAuth, getIdToken, signInAnonymously, signOut, type User } from '@react-native-firebase/auth';
+import { getAuth, signInAnonymously, type User } from '@react-native-firebase/auth';
+import { authSessionIdentityKey } from './authSessionIdentity';
 
 let initialization: Promise<User> | null = null;
 let verification: Promise<void> | null = null;
@@ -22,43 +23,22 @@ function configuredAppCheckMode(): AppCheckMode {
   return 'playIntegrity';
 }
 
-function terminalAuthSessionError(error: unknown): boolean {
-  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
-  return code === 'auth/invalid-user-token'
-    || code === 'auth/user-token-expired'
-    || code === 'auth/user-disabled'
-    || code === 'auth/user-not-found';
-}
-
-function offlineAuthRefreshError(error: unknown): boolean {
-  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
-  return code === 'auth/network-request-failed';
-}
-
 async function currentOrAnonymousUser(): Promise<User> {
   const auth = getAuth(getApp());
   const current = auth.currentUser;
-  if (current) {
-    try {
-      // Native Firebase persists this session across app restarts. Reading the
-      // token from the server repairs immediately the case where the account
-      // was deleted in Console or on another device. If the phone is offline,
-      // a still-valid cached token keeps local startup usable.
-      await getIdToken(current, true);
-      return current;
-    } catch (error) {
-      if (terminalAuthSessionError(error)) {
-        await signOut(auth).catch(() => undefined);
-      } else if (offlineAuthRefreshError(error)) {
-        await getIdToken(current);
-        return current;
-      } else {
-        throw error;
-      }
-    }
-  }
+  // Native Firebase persists the session and refreshes ID tokens when a
+  // protected operation needs one. A forced token refresh here would turn
+  // every cold start into an unnecessary network dependency.
+  if (current) return current;
   return (await signInAnonymously(auth)).user;
 }
+
+/**
+ * Identifies the locally visible authentication state, including an anonymous
+ * account that was linked in place and therefore kept the same Firebase UID.
+ * It is local cache metadata, never a server-side credential.
+ */
+export const firebaseUserSessionKey = authSessionIdentityKey;
 
 function isJwt(token: string): boolean {
   return token.split('.').length === 3;

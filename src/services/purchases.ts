@@ -7,6 +7,7 @@ import Purchases, {
   type PurchasesPackage,
 } from 'react-native-purchases';
 import type { CommercialAccess } from '../types';
+import { writeCachedCommercialAccess } from './commercialAccessCache';
 import { initializeVerifiedFirebaseServices } from './firebase';
 
 let configuredUserId: string | null = null;
@@ -69,8 +70,9 @@ export async function getPremiumOffer(): Promise<PremiumOffer> {
 async function syncServerPremium(): Promise<CommercialAccess> {
   const functions = getFunctions(getApp(), 'europe-west1');
   const sync = httpsCallable<Record<string, never>, CommercialAccess>(functions, 'syncPremiumAccess', { timeout: 30_000 });
-  const response = await sync({});
-  return response.data;
+  const access = (await sync({})).data;
+  await writeCachedCommercialAccess(access);
+  return access;
 }
 
 export async function purchasePremium(plan: PurchasesPackage): Promise<CommercialAccess> {

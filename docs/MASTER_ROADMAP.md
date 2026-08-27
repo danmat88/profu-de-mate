@@ -90,7 +90,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Package Android stabil: `ro.profudemate.app`.
 - [x] Firebase de producție activ pe Blaze.
 - [x] Functions, Firestore Rules și indexuri publicate.
-- [x] Teste backend 58/58, logică mobilă/configurație Android/randare document/Caiet 66/66, Rules 8/8 și tranzacții comerciale Firestore 9/9.
+- [x] Teste backend 58/58, logică mobilă/configurație Android/randare document/Caiet 71/71, Rules 8/8 și tranzacții comerciale Firestore 9/9.
 - [x] Identitate vizuală, iconuri și splash implementate.
 - [x] Documente specializate existente inventariate.
 - [x] Master roadmap creat și adoptat drept sursă principală.
@@ -215,7 +215,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] Teste Firestore Rules.
 - [x] Teste pentru schema/randarea matematică backend.
 - [x] 🤖 Exportul JavaScript Android în profil `production` este reproductibil prin `npm run release:bundle-check`; validarea elimină configurația App Check debug, construiește bundle-ul minificat, caută explicit tokenul debug și curăță sigur artefactul temporar.
-- [~] 🤖 Suita pentru logica mobilă pură, configurația Android, erori, diagnosticare sigură, tipografie, lifecycle, calitatea textelor, documentul matematic, Caiet, startup și ciclul comercial trece 66/66; serviciile native mai necesită teste pe artefacte/dispozitive.
+- [~] 🤖 Suita pentru logica mobilă pură, configurația Android, erori, diagnosticare sigură, tipografie, lifecycle, calitatea textelor, documentul matematic, Caiet, startup și ciclul comercial trece 71/71; serviciile native mai necesită teste pe artefacte/dispozitive.
 - [ ] 🤖 Teste de componente pentru ecranele P0.
 - [ ] 🤖 Teste E2E Android pentru toate fluxurile principale.
 - [ ] 🤖 Teste de regresie vizuală.
@@ -249,7 +249,7 @@ Un caiet de matematică viu, jucăuș și cald, cu personalitate cartoonish, dar
 - [x] 🤖 Google account linking păstrează același UID când poate; atât legarea directă, cât și coliziunea cu un Google existent unesc conservator consumul fără bonus, iar biletul criptat local permite reluarea după restart.
 - [x] 🤖 Cota Google este legată de un HMAC stabil al identității furnizorului: recrearea contului Firebase după ștergere nu resetează ziua, iar documentul reținut temporar nu conține e-mailul, UID-ul sau ID-urile problemelor.
 - [x] 🤖 Cota guest este legată de un principal opac al instalării, nu de UID-ul anonim; orice sesiune Google sigilează instalarea, iar logout-ul nu continuă fără confirmarea serverului și nu poate redeschide pachetul de bun-venit.
-- [x] 🤖 Sesiunea validă persistă nativ și este reverificată online la pornire, cu fallback numai la tokenul local când rețeaua lipsește; deconectarea este separată de ștergere, iar un cont terminal șters în Console sau pe alt dispozitiv este înlocuit sigur cu un spațiu temporar nou.
+- [x] 🤖 Sesiunea validă persistă nativ și este restaurată local fără refresh forțat la pornire; SDK-ul reînnoiește tokenul la nevoie pentru operațiile protejate. Deconectarea este separată de ștergere, iar serverul rămâne autoritar pentru cont, cotă și analiză.
 - [x] 🤖 Clientul RevenueCat folosește principalul comercial opac stabil, ofertele Google Play dinamice, purchase, restore și management URL; paywall-ul nu hardcodează prețuri și cere Google înainte de plată.
 - [x] 🤖 Webhook-ul verifică autorizarea și HMAC-ul corpului brut, deduplică event ID-ul și sincronizează starea canonică RevenueCat.
 - [x] 🤖 Device Recall este implementat feature-gated cu hash legat de UID/cerere, verificarea verdictului și modurile `off/monitor/enforce`; implicit rămâne `off`.
@@ -514,8 +514,8 @@ Această fază este intenționat după finalizarea produsului, dar înainte de l
 - Workflow-ul GitHub `Quality` pentru commitul curent este încheiat cu succes. Auditul npm are 0 constatări high/critical; advisory-urile moderate `uuid` sunt tranzitive prin Expo/Xcode și bibliotecile Google și rămân urmărite fără downgrade-ul incompatibil propus de `audit fix --force`.
 - A fost adăugat `npm run release:bundle-check`. Proba locală a construit bundle-ul Android minificat în profil production, a verificat absența tokenului App Check debug și a curățat directorul temporar; rezultatul curent are 1.285 module și 47 de fișiere. Cache-ul Metro al probei este acum izolat de Metro development, după reproducerea și eliminarea unei coruperi reale a indexului comun.
 - Auditul P0 a eliminat abandonul fals din Procesare: revenirea Acasă nu mai șterge markerul/fotografia unei cereri deja trimise, iar Home recunoaște analiza recuperabilă înainte să permită una nouă și reia exact același `requestId`. Pickerul Galerie din Cameră se blochează înainte de deschidere, eroarea nativă a camerei nu mai expune text tehnic și butonul foto remontează explicit sesiunea; Crop nu poate porni înainte ca imaginea să fie afișabilă. Abandonul real eliberează acum fotografia imediat. Regresiile sunt acoperite în suita mobilă 66/66; proba fizică rămâne următorul pas.
-- Startup-ul folosește acum un bootstrap unic și mărginit: preîncarcă fonturile și asseturile primei scene, citește analiza în curs, restaurează sesiunea Firebase înaintea snapshot-ului comercial legat strict de UID, pornește validarea server-side și încălzește Caietul în timpul splash-ului. Cache-ul este numai pentru afișare; analiza continuă să ceară accesul autoritativ de la server.
-- Capturile temporizate pe Xiaomi `25078RA3EE` au confirmat predarea React splash → Home fără iconuri sau date întârziate pe revizia anterioară a bootstrap-ului. Ultima revizie, care adaugă deadline-urile și ordonarea auth → cache, nu este încă validată fizic deoarece telefonul nu este vizibil prin ADB; verdictul final rămâne intenționat nebifat.
+- Startup-ul folosește un bootstrap local unic și mărginit: preîncarcă fonturile și asseturile primei scene, citește analiza în curs, restaurează sesiunea Firebase și apoi snapshotul comercial legat de identitatea completă a sesiunii. Finalul splash-ului depinde numai de scena React desenată. Refreshul server-side și prewarm-ul Caietului pornesc independent în paralel și nu controlează animația; analiza continuă să ceară accesul autoritativ de la server.
+- Capturile temporizate pe Xiaomi `25078RA3EE` au confirmat predarea React splash → Home fără iconuri sau date întârziate pe o revizie anterioară. Refactorizarea P0 din 26 august, care elimină dependența de rețea și cursele guest/Google, nu este încă validată fizic pe un APK reconstruit; verdictul final rămâne intenționat nebifat.
 - Cerințele oficiale Play valabile la această dată au fost reverificate: target API 36 de la 31 august 2026, suport 16 KB pentru aplicațiile cu cod nativ, verificarea dezvoltatorului/package-ului, ștergere în aplicație plus resursă web și minimum 12 testeri timp de 14 zile pentru conturile personale noi. Punctele dependente de Play Console/AAB rămân corect nebifate.
 - `npm run legal:check` eșuează numai pentru identitatea legală a operatorului încă necompletată; Hosting nu se publică înainte de această informație.
 

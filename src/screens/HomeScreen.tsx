@@ -77,7 +77,7 @@ export function HomeScreen() {
   const { contentWidth, gutter, isNarrow, isVeryNarrow, isVeryShort, isShort, isLargeText, isVeryLargeText } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { access, loading: commercialLoading, refresh: refreshCommercialAccess } = useCommercial();
+  const { access, loading: commercialLoading, refreshIfStale: refreshCommercialAccessIfStale } = useCommercial();
   const [mode, setMode] = useState<FlowMode>('solve');
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
@@ -96,9 +96,9 @@ export function HomeScreen() {
     void preparePendingAnalysisOnStartup().then((pending) => {
       if (active) setPendingAnalysis(pending);
     });
-    void refreshCommercialAccess();
+    void refreshCommercialAccessIfStale();
     return () => { active = false; };
-  }, [refreshCommercialAccess]));
+  }, [refreshCommercialAccessIfStale]));
 
   useEffect(() => {
     if (reducedMotion) {

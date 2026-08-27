@@ -45,8 +45,11 @@ function friendlyPurchaseError(error: unknown): string {
 export function PaywallScreen({ navigation, route }: Props) {
   const { gutter } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const { access: contextAccess, loading: accessLoading, connectGoogle, refresh } = useCommercial();
-  const access = contextAccess ?? route.params.access ?? null;
+  const { access: contextAccess, loading: accessLoading, connectGoogle, applyServerAccess } = useCommercial();
+  const [allowRouteAccessFallback, setAllowRouteAccessFallback] = useState(true);
+  // Route data makes the first paint immediate, but it belongs to the identity
+  // that opened this screen. Never reuse it after a Google identity operation.
+  const access = contextAccess ?? (allowRouteAccessFallback ? route.params.access : null) ?? null;
   const [offer, setOffer] = useState<PremiumOffer | null>(null);
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual');
   const [busy, setBusy] = useState<BusyAction>(null);
@@ -72,12 +75,12 @@ export function PaywallScreen({ navigation, route }: Props) {
 
   const connect = async () => {
     if (busy) return;
+    setAllowRouteAccessFallback(false);
     setBusy('google');
     setError(null);
     try {
-      const connected = await connectGoogle();
-      if (connected) {
-        const next = await refresh();
+      const next = await connectGoogle();
+      if (next) {
         setFreeUnlocked(Boolean(next?.canAnalyze && route.params.source === 'quota'));
       }
     } catch (connectError) {
@@ -95,7 +98,7 @@ export function PaywallScreen({ navigation, route }: Props) {
     try {
       const next = await purchasePremium(plan);
       setSuccessLimit(next.limit);
-      await refresh();
+      applyServerAccess(next);
       setSuccess(true);
     } catch (purchaseError) {
       if (!isPurchaseCancellation(purchaseError)) setError(friendlyPurchaseError(purchaseError));
@@ -110,7 +113,7 @@ export function PaywallScreen({ navigation, route }: Props) {
     setError(null);
     try {
       const next = await restorePremium();
-      await refresh();
+      applyServerAccess(next);
       if (next.premium.active) {
         setSuccessLimit(next.limit);
         setSuccess(true);

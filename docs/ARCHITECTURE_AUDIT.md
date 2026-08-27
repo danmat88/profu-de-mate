@@ -22,20 +22,24 @@ Acest document separă explicit trei stări:
 ## Dovezi curente
 
 - TypeScript și Expo Doctor: **21/21**.
-- Logică mobilă/configurație/lifecycle/startup: **66/66**.
+- Logică mobilă/configurație/lifecycle/startup: **71/71**.
 - Functions și renderer matematic: **58/58**.
 - Firestore Rules: **8/8**.
 - Tranzacții comerciale în emulator: **9/9**.
-- APK Android production: release minificat, semnat cu cheia EAS production, versionCode 9, targetSdk 36, patru ABI-uri și fără token App Check debug.
+- Ultimul APK semnat EAS production disponibil: versionCode 10, targetSdk 36, patru ABI-uri și fără token App Check debug; acesta precedă refactorizarea P0. Pentru refactorizarea P0 există acum și un APK local `release`, minificat și resource-shrunk, versionCode 10, semnat cu certificatul debug înregistrat în Firebase. Este potrivit pentru QA-ul codului/UX, dar nu înlocuiește artefactul EAS/Play pentru signing, Billing, App Check ori Play Integrity.
 - Firebase live: **9 Functions Gen 2 ACTIVE** în `europe-west1`.
 - Audit dependențe: **0 high / 0 critical**; advisory-urile moderate `uuid` sunt tranzitive și urmărite fără downgrade forțat incompatibil.
+- Contract juridic automat: **blocat intenționat**; `npm run legal:check` refuză publicarea cât timp numele operatorului persoană fizică nu este completat în sursa canonică și în paginile Hosting.
 
 ## Cauze structurale corectate în acest audit
 
 - Verificarea bundle-ului production folosește acum un cache Metro izolat; nu mai poate concura cu Metro-ul de development și corupe indexul comun.
 - Bootstrap-ul local are termene limită și rezultat explicit; un font, asset, cache sau marker blocat nu poate ține aplicația permanent în splash.
-- Startup-ul restaurează mai întâi sesiunea Firebase și abia apoi citește snapshot-ul comercial legat de UID; nu mai există cursa care rata cache-ul și afișa contorul târziu.
-- Contextul comercial este singurul proprietar al refresh-ului după conectare/deconectare; nu mai există două apeluri și două actualizări UI identice.
+- Startup-ul restaurează local sesiunea Firebase fără refresh forțat de token și abia apoi citește snapshot-ul comercial legat de identitatea completă a sesiunii, nu doar de UID.
+- Finalul splash-ului React depinde de scena de navigare desenată, nu de accesul comercial, Firestore sau RevenueCat; requesturile pot continua în paralel fără să controleze animația.
+- Contextul comercial este singurul proprietar al refresh-ului: folosește TTL pentru evenimente automate, un singur request pe generație și invalidează răspunsurile vechii identități.
+- Conectarea directă anonim → Google, care poate păstra același UID Firebase, schimbă cheia locală de sesiune; snapshotul guest nu mai poate fi aplicat ori salvat pentru contul Google.
+- Prewarm-ul Caietului nu mai este serializat după requestul de acces comercial.
 - Procesarea eliberează fotografia când fluxul o abandonează, dar o păstrează când utilizatorul revine la Review sau continuă analiza în fundal.
 
 ## Riscuri deschise în repository
@@ -43,7 +47,7 @@ Acest document separă explicit trei stări:
 ### P0 — înaintea următorului verdict de stabilitate
 
 - [ ] Probă fizică pe ultima revizie: cold start, warm start, offline, guest, Google, logout, reluare analiză și curățare fotografie. Telefonul nu este momentan vizibil prin ADB.
-- [ ] Probă fizică pe APK-ul production versionCode 9 pentru splash-ul nativ; auditul static al artefactului a trecut.
+- [~] APK local release pentru refactorizarea P0 construit și auditat static; instalarea și proba fizică rămân deschise. Buildul EAS production nu a pornit deoarece cota Android Free este consumată și se resetează la 1 septembrie 2026.
 - [ ] Înlocuirea progresivă a testelor care citesc expresii din sursă cu teste de comportament pentru componente și fluxuri, apoi E2E Android pentru traseele P0.
 - [ ] Măsurători reale pentru startup, frame drops, memorie WebView și rerandările listei Caiet.
 

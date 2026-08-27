@@ -1,14 +1,17 @@
 import { getApp } from '@react-native-firebase/app';
 import { getAuth } from '@react-native-firebase/auth';
 import type { CommercialAccess } from '../types';
+import { firebaseUserSessionKey } from './firebase';
 
-const CACHE_KEY = 'commercial.access-snapshot.v1';
-const CACHE_VERSION = 1;
+const CACHE_KEY = 'commercial.access-snapshot.v2';
+const LEGACY_CACHE_KEY = 'commercial.access-snapshot.v1';
+const CACHE_VERSION = 2;
 const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000;
 
 type CachedCommercialAccess = {
   version: typeof CACHE_VERSION;
   firebaseUserId: string;
+  firebaseSessionKey: string;
   savedAt: number;
   access: CommercialAccess;
 };
@@ -70,14 +73,16 @@ function isFreshForDisplay(entry: CachedCommercialAccess): boolean {
 
 export async function readCachedCommercialAccess(): Promise<CommercialAccess | null> {
   try {
-    const currentUserId = getAuth(getApp()).currentUser?.uid;
-    if (!currentUserId) return null;
+    const currentUser = getAuth(getApp()).currentUser;
+    const currentSessionKey = firebaseUserSessionKey(currentUser);
+    if (!currentUser || !currentSessionKey) return null;
     const storage = await secureStoreModule();
     const raw = await storage.getItemAsync(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<CachedCommercialAccess>;
     if (parsed.version !== CACHE_VERSION
-      || parsed.firebaseUserId !== currentUserId
+      || parsed.firebaseUserId !== currentUser.uid
+      || parsed.firebaseSessionKey !== currentSessionKey
       || !finiteNonNegative(parsed.savedAt)
       || !isCommercialAccess(parsed.access)) return null;
     const entry = parsed as CachedCommercialAccess;
@@ -87,13 +92,21 @@ export async function readCachedCommercialAccess(): Promise<CommercialAccess | n
   }
 }
 
-export async function writeCachedCommercialAccess(access: CommercialAccess): Promise<void> {
+export async function writeCachedCommercialAccess(
+  access: CommercialAccess,
+  expectedSessionKey?: string,
+): Promise<void> {
   try {
-    const firebaseUserId = getAuth(getApp()).currentUser?.uid;
-    if (!firebaseUserId || !isCommercialAccess(access)) return;
+    const currentUser = getAuth(getApp()).currentUser;
+    const currentSessionKey = firebaseUserSessionKey(currentUser);
+    if (!currentUser
+      || !currentSessionKey
+      || (expectedSessionKey && expectedSessionKey !== currentSessionKey)
+      || !isCommercialAccess(access)) return;
     const entry: CachedCommercialAccess = {
       version: CACHE_VERSION,
-      firebaseUserId,
+      firebaseUserId: currentUser.uid,
+      firebaseSessionKey: currentSessionKey,
       savedAt: Date.now(),
       access,
     };
@@ -107,7 +120,10 @@ export async function writeCachedCommercialAccess(access: CommercialAccess): Pro
 export async function clearCachedCommercialAccess(): Promise<void> {
   try {
     const storage = await secureStoreModule();
-    await storage.deleteItemAsync(CACHE_KEY);
+    await Promise.all([
+      storage.deleteItemAsync(CACHE_KEY),
+      storage.deleteItemAsync(LEGACY_CACHE_KEY),
+    ]);
   } catch {
     // A mismatched Firebase uid also prevents a stale snapshot from being shown.
   }

@@ -9,11 +9,11 @@ const deletionSource = readFileSync(join(process.cwd(), 'src/services/dataManage
 const backendSource = readFileSync(join(process.cwd(), 'functions/src/index.ts'), 'utf8');
 const identitySource = readFileSync(join(process.cwd(), 'functions/src/commercialIdentity.ts'), 'utf8');
 
-test('persists valid native Firebase sessions and replaces only terminally stale accounts', () => {
+test('restores the native Firebase session without forcing a cold-start token refresh', () => {
   assert.match(firebaseSource, /const current = auth\.currentUser;/);
-  assert.match(firebaseSource, /await getIdToken\(current, true\);\s+return current;/s);
-  assert.match(firebaseSource, /offlineAuthRefreshError\(error\)[\s\S]*?await getIdToken\(current\);/);
-  assert.match(firebaseSource, /terminalAuthSessionError\(error\)/);
+  assert.match(firebaseSource, /if \(current\) return current;/);
+  assert.doesNotMatch(firebaseSource, /getIdToken\(current, true\)/);
+  assert.doesNotMatch(firebaseSource, /terminalAuthSessionError|offlineAuthRefreshError/);
   assert.match(firebaseSource, /signInAnonymously\(auth\)/);
 });
 

@@ -11,6 +11,7 @@ export type DiagnosticContext =
   | 'feedback_submission'
   | 'firebase_initialization'
   | 'google_disconnect'
+  | 'notebook_prewarm'
   | 'notebook_update'
   | 'notebook_subscription';
 

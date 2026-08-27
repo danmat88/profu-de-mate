@@ -1,6 +1,6 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { colors, fonts } from '../theme';
 import { Text } from './Typography';
@@ -13,6 +13,7 @@ type Props = {
 
 export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
   const { width, height } = useWindowDimensions();
+  const [sceneReady, setSceneReady] = useState(false);
   const revealed = reducedMotion ? 1 : 0;
   const orbsReveal = useRef(new Animated.Value(revealed)).current;
   const symbolsReveal = useRef(new Animated.Value(revealed)).current;
@@ -29,12 +30,15 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
   const visualScale = Math.max(0.84, Math.min(1.18, width / 390, height / 760));
   const heroLift = -60 * visualScale;
   const copyOffset = 114 * visualScale;
+  const handleSceneLayout = useCallback(() => setSceneReady(true), []);
 
   readyRef.current = ready;
 
   useEffect(() => {
+    if (!sceneReady) return undefined;
+
     if (ready) requestExitRef.current?.();
-  }, [ready]);
+  }, [ready, sceneReady]);
 
   useEffect(() => {
     let entryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -78,7 +82,8 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
     };
     requestExitRef.current = beginExit;
 
-    // Remote startup may fail or be offline; branded startup is strictly bounded.
+    // Navigator readiness should be immediate, but startup is still bounded if
+    // React Navigation fails to report its first usable frame.
     readinessWatchdog = setTimeout(() => {
       readyRef.current = true;
       beginExit(true);
@@ -86,10 +91,6 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
     hardWatchdog = setTimeout(finishOnce, reducedMotion ? 2_500 : 6_500);
 
     const frame = requestAnimationFrame(() => {
-      // The React layer is already painted in the same color as the native layer.
-      // Hiding the native splash here therefore cannot expose a blank frame.
-      void SplashScreen.hideAsync();
-
       if (reducedMotion) {
         orbsReveal.setValue(1);
         symbolsReveal.setValue(1);
@@ -98,6 +99,9 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
         brandReveal.setValue(1);
         promiseReveal.setValue(1);
         progressReveal.setValue(1);
+        // The complete reduced-motion frame is already committed behind the
+        // native surface, so the zero-duration handoff exposes no partial scene.
+        void SplashScreen.hideAsync();
         entryTimer = setTimeout(() => {
           entryComplete = true;
           beginExit();
@@ -106,25 +110,31 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
       }
 
       entryAnimation = Animated.sequence([
-        Animated.timing(orbsReveal, {
-          toValue: 1,
-          duration: 180,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
         Animated.parallel([
-          Animated.timing(symbolsReveal, {
-            toValue: 1,
-            duration: 260,
-            easing: Easing.out(Easing.back(1.7)),
-            useNativeDriver: true,
-          }),
           Animated.spring(heroReveal, {
             toValue: 1,
             speed: 13,
             bounciness: 10,
             useNativeDriver: true,
           }),
+          Animated.sequence([
+            Animated.delay(45),
+            Animated.timing(orbsReveal, {
+              toValue: 1,
+              duration: 240,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.delay(90),
+            Animated.timing(symbolsReveal, {
+              toValue: 1,
+              duration: 260,
+              easing: Easing.out(Easing.back(1.7)),
+              useNativeDriver: true,
+            }),
+          ]),
         ]),
         Animated.stagger(85, [
           Animated.timing(kickerReveal, {
@@ -155,6 +165,10 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
         Animated.delay(300),
       ]);
 
+      // onLayout plus this animation frame guarantees that the React surface
+      // exists behind Android's splash. With native duration set to zero, the
+      // shared background remains continuous and the logo is the first reveal.
+      void SplashScreen.hideAsync();
       entryAnimation.start(({ finished: entryFinished }) => {
         if (!entryFinished) return;
         entryComplete = true;
@@ -182,6 +196,7 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
     progressReveal,
     promiseReveal,
     reducedMotion,
+    sceneReady,
     sceneExit,
     symbolsReveal,
   ]);
@@ -190,6 +205,7 @@ export function LaunchSplash({ ready, reducedMotion, onFinish }: Props) {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
+      onLayout={handleSceneLayout}
       pointerEvents="auto"
       style={styles.root}
     >
