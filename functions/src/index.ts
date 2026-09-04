@@ -95,6 +95,58 @@ function installationTokenFromData(data: unknown): string {
   return value;
 }
 
+function pendingMergeTicketsFromData(data: unknown): string[] {
+  const value = data && typeof data === 'object'
+    ? (data as { pendingMergeTickets?: unknown }).pendingMergeTickets
+    : undefined;
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 5
+    || value.some((ticket) => typeof ticket !== 'string' || !/^[a-f0-9-]{36}$/i.test(ticket))) {
+    throw new HttpsError('invalid-argument', 'Starea conectării contului nu este validă.');
+  }
+  return [...new Set(value as string[])];
+}
+
+async function removePendingMergeSourcesForDeletion(
+  ticketIds: readonly string[],
+  installationPrincipal: string,
+  currentUserId: string,
+): Promise<void> {
+  if (ticketIds.length === 0) return;
+  const ticketRefs = ticketIds.map((ticket) => db.collection('_accountMergeTickets').doc(ticket));
+  const snapshots = await db.getAll(...ticketRefs);
+  const sourceUserIds = new Set<string>();
+  const ownedTickets = snapshots.filter((snapshot) => {
+    const data = snapshot.data();
+    const targetBelongsToAccount = data?.targetUserId === undefined || data?.targetUserId === currentUserId;
+    if (data?.sourcePrincipalId !== installationPrincipal || !targetBelongsToAccount) return false;
+    if (typeof data?.sourceUserId === 'string' && data.sourceUserId !== currentUserId) {
+      sourceUserIds.add(data.sourceUserId);
+    }
+    return true;
+  });
+
+  await Promise.all([...sourceUserIds].map(async (sourceUserId) => {
+    await Promise.all([
+      db.recursiveDelete(db.collection('users').doc(sourceUserId)),
+      deleteQueryInBatches(db.collection('feedback').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db.collection('_aiUsage').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db.collection('_analysisRequests').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db.collection('_commercialReservations').where('userId', '==', sourceUserId)),
+    ]);
+    await getAuth().deleteUser(sourceUserId).catch((error: unknown) => {
+      const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+      if (code !== 'auth/user-not-found') throw error;
+    });
+  }));
+
+  if (ownedTickets.length > 0) {
+    const batch = db.batch();
+    ownedTickets.forEach((ticket) => batch.delete(ticket.ref));
+    await batch.commit();
+  }
+}
+
 async function claimAnalysisRequest(userId: string, requestId: string, mode: string): Promise<CachedResponse | null> {
   const ref = db.collection('_analysisRequests').doc(`${userId}_${requestId}`);
   const claim = await db.runTransaction(async (transaction) => {
@@ -396,6 +448,8 @@ export const prepareAccountLogout = onCall({
   enforceAppCheck: ENFORCE_APP_CHECK,
   secrets: [commercialIdentityHmacKey],
 }, async (request) => {
+  // Compatibility endpoint for already-installed clients. Logging out no
+  // longer depends on it; it only refreshes the reversible installation link.
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
   const installationToken = installationTokenFromData(request.data);
   const principal = requestCommercialPrincipal(request.auth.token, request.auth.uid, installationToken);
@@ -618,6 +672,7 @@ export const deleteMyData = onCall({
   const userId = request.auth.uid;
   const installationToken = installationTokenFromData(request.data);
   const installationPrincipal = installationPrincipalId(installationToken, commercialIdentityHmacKey.value());
+  const pendingMergeTickets = pendingMergeTicketsFromData(request.data);
   const principal = requestCommercialPrincipal(request.auth.token, userId, installationToken);
   if (principal.identity === 'google' && !hasRecentGoogleAuthentication(request.auth.token)) {
     throw new HttpsError(
@@ -644,6 +699,16 @@ export const deleteMyData = onCall({
         logger.warn('RevenueCat deletion queued', safeErrorDescriptor(error));
       }
     }
+    if (principal.identity === 'google') {
+      // Run this before updating the current installation profile so two
+      // batches never race on the same document.
+      await unlinkCommercialInstallations(db, principal.principalId);
+    }
+    await removePendingMergeSourcesForDeletion(
+      pendingMergeTickets,
+      installationPrincipal,
+      userId,
+    );
     await Promise.all([
       db.recursiveDelete(db.collection('users').doc(userId)),
       deleteQueryInBatches(db.collection('feedback').where('userId', '==', userId)),
@@ -654,15 +719,12 @@ export const deleteMyData = onCall({
       deleteQueryInBatches(db.collection('_accountMergeTickets').where('sourceUserId', '==', userId)),
       deleteQueryInBatches(db.collection('_accountMergeTickets').where('targetUserId', '==', userId)),
       principal.identity === 'google'
-        ? unlinkCommercialInstallations(db, principal.principalId)
-        : Promise.resolve(),
-      principal.identity === 'google'
         ? db.collection('_commercialUsers').doc(principal.principalId).delete()
         : Promise.resolve(),
       db.collection('_commercialEntitlements').doc(principal.principalId).delete(),
       db.collection('_commercialUsers').doc(installationPrincipal).set({
         principalId: installationPrincipal,
-        ...(principal.identity === 'google' ? { welcomeLocked: true } : {}),
+        welcomeLocked: FieldValue.delete(),
         userId: FieldValue.delete(),
         linkedAccountPrincipalId: FieldValue.delete(),
         linkedAccountUserId: FieldValue.delete(),

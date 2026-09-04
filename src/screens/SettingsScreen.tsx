@@ -16,7 +16,7 @@ import { Text } from '../components/Typography';
 import { useCommercial } from '../context/CommercialContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { getAppVersionLabel } from '../services/appInfo';
-import { DataDeletionCancelledError, deleteAllUserData } from '../services/dataManagement';
+import { DataDeletionCancelledError } from '../services/dataManagement';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
@@ -47,23 +47,23 @@ export function SettingsScreen({ navigation }: Props) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
-  const { access, loading: accessLoading, connectGoogle, disconnectGoogle, refresh } = useCommercial();
+  const { access, loading: accessLoading, connectGoogle, disconnectGoogle, deleteAccount, refresh } = useCommercial();
   const freeDailyLimit = access?.allowances.freeDaily ?? 5;
   const diagnosticsLocked = useRef(false);
   const deletionLocked = useRef(false);
-  const accountLabel = access?.premium.active ? 'PROFU’ PREMIUM' : access?.identity === 'google' ? 'CONT GOOGLE CONECTAT' : 'CONT TEMPORAR';
-  const accountTitle = access?.premium.active
+  const accountLabel = !access ? 'STARE INDISPONIBILĂ' : access.premium.active ? 'PROFU’ PREMIUM' : access.identity === 'google' ? 'CONT GOOGLE CONECTAT' : 'CONT TEMPORAR';
+  const accountTitle = !access
+    ? 'Nu am putut verifica sesiunea'
+    : access.premium.active
     ? 'Premium și Caietul sunt legate de contul tău'
-    : access?.identity === 'google'
+    : access.identity === 'google'
       ? 'Caietul poate fi recuperat'
-      : access?.reason === 'account_required'
-        ? 'Reconectează-te pentru limita zilnică'
       : 'Caietul este legat de această instalare';
-  const accountText = access?.identity === 'google'
+  const accountText = !access
+    ? 'Verifică internetul și revino la acest ecran. Nu afișăm o limită estimată în locul celei confirmate de server.'
+    : access.identity === 'google'
     ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează accesul după reinstalare și pe celelalte telefoane ale tale.`
-    : access?.reason === 'account_required'
-      ? `Problemele de bun-venit ale acestei instalări nu se reactivează prin deconectare. Reconectează-te pentru cele ${freeDailyLimit} probleme gratuite zilnic și pentru Caietul tău.`
-      : `Poți folosi problemele de bun-venit fără să te conectezi. Pentru a recupera Caietul după reinstalare și pentru ${freeDailyLimit} probleme gratuite zilnic, conectează-te cu Google.`;
+    : `Mai ai ${access.remaining} din ${access.limit} probleme de bun-venit pe această instalare. Pentru a recupera Caietul după reinstalare și pentru ${freeDailyLimit} probleme gratuite zilnic, conectează-te cu Google.`;
 
   const connectAccount = async () => {
     if (connectingGoogle) return;
@@ -99,12 +99,11 @@ export function SettingsScreen({ navigation }: Props) {
     setDeleting(true);
     setDeleteError(false);
     try {
-      const result = await deleteAllUserData();
+      const result = await deleteAccount();
       setExternalDeletionPending(result.externalBillingProfilePending);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
       setDeleteComplete(true);
-      await refresh();
     } catch (deletionError) {
       if (deletionError instanceof DataDeletionCancelledError) return;
       recordDiagnosticError('data_deletion', deletionError);
@@ -126,7 +125,7 @@ export function SettingsScreen({ navigation }: Props) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       recordDiagnosticError('google_disconnect', error);
-      setAccountError('Deconectarea nu a reușit. Verifică internetul și încearcă din nou.');
+      setAccountError('Nu am putut închide sesiunea. Încearcă din nou.');
       setConfirmLogout(false);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -151,7 +150,14 @@ export function SettingsScreen({ navigation }: Props) {
               </View>}
         </View>
 
-        {!accessLoading && access?.identity !== 'google' ? (
+        {!accessLoading && !access ? (
+          <Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.accountRetry}>
+            <MiniGlyph name="spark" size={17} color={colors.ink} />
+            <Text style={styles.accountRetryText}>Verifică din nou</Text>
+          </Pressable>
+        ) : null}
+
+        {!accessLoading && access?.identity === 'anonymous' ? (
           <GoogleAccountButton
             busy={connectingGoogle}
             note={`Păstrezi Caietul și primești ${freeDailyLimit} probleme gratuite zilnic`}
@@ -162,7 +168,7 @@ export function SettingsScreen({ navigation }: Props) {
         {!accessLoading && access?.identity === 'google' ? (
           <Pressable accessibilityRole="button" onPress={() => setConfirmLogout(true)} style={styles.accountAction}>
             <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="profile" size={36} /></View>
-            <View style={styles.rowCopy}><Text style={styles.rowTitle}>Deconectează contul Google</Text><Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Spațiul guest nu primește un nou pachet de bun-venit.</Text></View>
+            <View style={styles.rowCopy}><Text style={styles.rowTitle}>Deconectează contul Google</Text><Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Revii la problemele de bun-venit rămase pe această instalare.</Text></View>
             <MiniGlyph name="next" size={18} color={colors.violetDeep} />
           </Pressable>
         ) : null}
@@ -312,6 +318,8 @@ const styles = StyleSheet.create({
   settingsGoogleButton: { marginBottom: 3 },
   accountAction: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1.5, borderBottomColor: colors.line, paddingVertical: 7 },
   accountError: { borderRadius: 13, backgroundColor: '#FFE1E5', padding: 10, fontFamily: fonts.bodyBold, color: '#9E2135', fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  accountRetry: { minHeight: 48, borderRadius: 16, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginBottom: 3 },
+  accountRetryText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13 },
   sectionHeading: { minHeight: 38, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionMark: { width: 13, height: 13, borderRadius: 4, borderWidth: 1.5, borderColor: colors.ink, transform: [{ rotate: '-5deg' }] },
   sectionTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 22 },

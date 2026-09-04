@@ -62,7 +62,14 @@ test('builds guest, free and premium access from server-owned counters', () => {
     deviceRecall: { shouldVerify: false, verified: false },
   });
   assert.equal(buildCommercialAccess({ identity: 'google', principalId: googlePrincipal, daily: { requests: 5 }, ...common }).reason, 'daily_exhausted');
-  assert.equal(buildCommercialAccess({ identity: 'anonymous', principalId: guestPrincipal, profile: { welcomeRequests: 1, welcomeLocked: true }, ...common }).reason, 'account_required');
+  const migratedGuest = buildCommercialAccess({
+    identity: 'anonymous',
+    principalId: guestPrincipal,
+    profile: { welcomeRequests: 1, welcomeLocked: true },
+    ...common,
+  });
+  assert.equal(migratedGuest.reason, 'available');
+  assert.equal(migratedGuest.remaining, 4);
   const premium = buildCommercialAccess({
     identity: 'google',
     principalId: googlePrincipal,

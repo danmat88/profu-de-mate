@@ -1,11 +1,13 @@
 import { getApp } from '@react-native-firebase/app';
+import { getAuth } from '@react-native-firebase/auth';
 import { collection, doc, getFirestore, onSnapshot, orderBy, query, serverTimestamp, Timestamp, updateDoc, where } from '@react-native-firebase/firestore';
 import type { MathAnalysis, StoredLesson } from '../types';
 import { isMathAnalysis } from '../utils/mathContent';
-import { initializeFirebaseServices } from './firebase';
+import { firebaseUserSessionKey, initializeFirebaseServices } from './firebase';
 
 type LessonListener = (lessons: StoredLesson[]) => void;
 let favoriteLessonsCache: StoredLesson[] | undefined;
+let favoriteLessonsCacheSessionKey: string | null = null;
 let favoriteLessonsPrewarm: Promise<void> | null = null;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SAVED_RETENTION_MS = 400 * DAY_MS;
@@ -13,19 +15,23 @@ const RETENTION_REFRESH_WINDOW_MS = 60 * DAY_MS;
 const retentionRefreshes = new Set<string>();
 
 export function getCachedFavoriteLessons(): StoredLesson[] | undefined {
-  return favoriteLessonsCache;
+  const currentSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
+  return currentSessionKey && currentSessionKey === favoriteLessonsCacheSessionKey
+    ? favoriteLessonsCache
+    : undefined;
 }
 
 export function clearFavoriteLessonsCache() {
   favoriteLessonsCache = undefined;
+  favoriteLessonsCacheSessionKey = null;
   favoriteLessonsPrewarm = null;
 }
 
 export function prewarmFavoriteLessonsCache(): Promise<void> {
-  if (favoriteLessonsCache !== undefined) return Promise.resolve();
+  if (getCachedFavoriteLessons() !== undefined) return Promise.resolve();
   if (favoriteLessonsPrewarm) return favoriteLessonsPrewarm;
 
-  favoriteLessonsPrewarm = new Promise<void>((resolve) => {
+  const operation = new Promise<void>((resolve) => {
     let settled = false;
     let unsubscribe: (() => void) | undefined;
     const finish = () => {
@@ -44,15 +50,18 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
       unsubscribe = stop;
       if (settled) stop();
     }).catch(() => finish());
-  }).finally(() => {
-    favoriteLessonsPrewarm = null;
   });
-
-  return favoriteLessonsPrewarm;
+  const tracked = operation.finally(() => {
+    if (favoriteLessonsPrewarm === tracked) favoriteLessonsPrewarm = null;
+  });
+  favoriteLessonsPrewarm = tracked;
+  return tracked;
 }
 
 export async function subscribeToFavoriteLessons(onChange: LessonListener, onError: (error: Error) => void): Promise<() => void> {
   const user = await initializeFirebaseServices();
+  const sessionKey = firebaseUserSessionKey(user);
+  if (!sessionKey) throw new Error('Sesiunea Caietului nu este disponibilă.');
   const db = getFirestore(getApp());
   const lessonsQuery = query(
     collection(db, 'users', user.uid, 'lessons'),
@@ -74,6 +83,7 @@ export async function subscribeToFavoriteLessons(onChange: LessonListener, onErr
   };
 
   return onSnapshot(lessonsQuery, (snapshot) => {
+    if (firebaseUserSessionKey(getAuth(getApp()).currentUser) !== sessionKey) return;
     snapshot.docs.forEach((snapshotDoc) => {
       const data = snapshotDoc.data() as { isFavorite?: unknown; expiresAt?: { toMillis?: () => number } };
       if (data.isFavorite !== true || retentionRefreshes.has(snapshotDoc.id)) return;
@@ -114,6 +124,7 @@ export async function subscribeToFavoriteLessons(onChange: LessonListener, onErr
 
     previousLessons = lessons;
     favoriteLessonsCache = lessons;
+    favoriteLessonsCacheSessionKey = sessionKey;
     onChange(lessons);
   }, onError);
 }

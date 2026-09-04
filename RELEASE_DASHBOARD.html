@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Profu’ de mate — controlul lansării</title>
+  <style>
+    :root {
+      --paper: #f3f0e8;
+      --surface: #fbfaf6;
+      --ink: #17172b;
+      --muted: #686777;
+      --line: #d6d1c5;
+      --done: #b7f34a;
+      --done-deep: #2b5700;
+      --next: #ffd560;
+      --next-deep: #664500;
+      --blocked: #ff806f;
+      --blocked-deep: #711b12;
+      --info: #c8c1ff;
+      --shadow: 0 18px 55px rgba(23, 23, 43, .09);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(23, 23, 43, .035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 100% 32px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    button, input { font: inherit; }
+    a { color: inherit; text-underline-offset: 3px; }
+    strong { font-weight: 760; }
+
+    .shell {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 22px;
+      display: grid;
+      grid-template-columns: 255px minmax(0, 1fr);
+      gap: 22px;
+    }
+
+    .rail {
+      position: sticky;
+      top: 22px;
+      height: calc(100vh - 44px);
+      min-height: 610px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      color: #fff;
+      background: var(--ink);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .brand { padding: 26px 24px 22px; }
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      margin-bottom: 18px;
+      color: var(--ink);
+      background: var(--done);
+      border: 2px solid #fff;
+      border-radius: 15px 15px 15px 6px;
+      font-size: 24px;
+      font-weight: 900;
+      transform: rotate(-3deg);
+    }
+    .brand h1 { margin: 0; font-size: 21px; letter-spacing: -.03em; }
+    .brand p { margin: 6px 0 0; color: #b9b7c8; font-size: 13px; }
+
+    .rail nav { padding: 6px 12px; }
+    .rail nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      color: #c9c7d5;
+      border-radius: 11px;
+      text-decoration: none;
+      font-size: 14px;
+      transition: background .18s ease, color .18s ease;
+    }
+    .rail nav a:hover, .rail nav a:focus-visible { color: white; background: rgba(255,255,255,.08); outline: none; }
+    .rail nav span { width: 20px; color: var(--done); font-weight: 850; }
+
+    .rail-foot {
+      margin-top: auto;
+      padding: 20px 24px 23px;
+      border-top: 1px solid rgba(255,255,255,.12);
+      color: #aaa8ba;
+      font-size: 12px;
+    }
+    .rail-foot strong { display: block; margin-bottom: 5px; color: white; font-size: 13px; }
+
+    main { min-width: 0; }
+
+    .masthead {
+      padding: 34px 36px 31px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .kicker { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: 820; letter-spacing: .14em; text-transform: uppercase; }
+    .masthead h2 { max-width: 860px; margin: 0; font-size: clamp(34px, 5vw, 68px); line-height: .99; letter-spacing: -.065em; }
+    .masthead h2 em { color: var(--done-deep); font-style: normal; }
+    .verdict { max-width: 850px; margin: 21px 0 0; color: var(--muted); font-size: 17px; }
+
+    .scoreline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 24px;
+      margin-top: 30px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+    }
+    .progress-track { height: 9px; margin-top: 11px; overflow: hidden; background: #e3dfd5; border-radius: 99px; }
+    .progress-fill { width: 58%; height: 100%; background: var(--done-deep); border-radius: inherit; }
+    .score-copy { color: var(--muted); font-size: 13px; }
+    .score-copy strong { color: var(--ink); }
+    .score-number { font-size: 38px; line-height: 1; letter-spacing: -.05em; font-weight: 850; }
+
+    .filters {
+      position: sticky;
+      top: 10px;
+      z-index: 5;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 18px 0;
+      padding: 10px;
+      background: rgba(243, 240, 232, .88);
+      border: 1px solid rgba(214, 209, 197, .8);
+      border-radius: 17px;
+      backdrop-filter: blur(15px);
+    }
+    .filter {
+      min-height: 38px;
+      padding: 7px 13px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 720;
+    }
+    .filter:hover, .filter:focus-visible { border-color: var(--line); outline: none; }
+    .filter.active { color: white; background: var(--ink); }
+    .print { margin-left: auto; border-color: var(--ink); color: var(--ink); }
+
+    .section {
+      margin: 18px 0;
+      padding: 29px 32px 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 32px rgba(23, 23, 43, .045);
+    }
+    .section-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: start;
+      margin-bottom: 13px;
+    }
+    .section h3 { margin: 0; font-size: 25px; line-height: 1.1; letter-spacing: -.035em; }
+    .section-intro { max-width: 760px; margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+    .owner { padding: 6px 9px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+
+    .task {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding: 16px 0;
+      border-top: 1px solid var(--line);
+    }
+    .task[hidden] { display: none; }
+    .check {
+      width: 25px;
+      height: 25px;
+      display: grid;
+      place-items: center;
+      margin-top: 1px;
+      border: 2px solid currentColor;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .task.done .check { color: var(--done-deep); background: var(--done); }
+    .task.next .check { color: var(--next-deep); background: var(--next); }
+    .task.blocked .check { color: var(--blocked-deep); background: var(--blocked); }
+    .task-copy h4 { margin: 0; font-size: 15px; line-height: 1.35; }
+    .task-copy p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+    .tag { padding: 5px 8px; white-space: nowrap; border-radius: 7px; font-size: 10px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
+    .done .tag { color: var(--done-deep); background: rgba(183, 243, 74, .38); }
+    .next .tag { color: var(--next-deep); background: rgba(255, 213, 96, .4); }
+    .blocked .tag { color: var(--blocked-deep); background: rgba(255, 128, 111, .28); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      margin: 21px 0 15px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .flow-step { min-height: 160px; padding: 18px; background: var(--surface); }
+    .flow-num { color: var(--muted); font-size: 11px; font-weight: 850; letter-spacing: .1em; }
+    .flow-step h4 { margin: 20px 0 7px; font-size: 15px; }
+    .flow-step p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    .warning {
+      margin: 17px 0;
+      padding: 16px 18px;
+      color: var(--blocked-deep);
+      background: #fff0ec;
+      border-left: 5px solid var(--blocked);
+      border-radius: 5px 13px 13px 5px;
+      font-size: 13px;
+    }
+
+    .evidence {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 24px;
+      margin: 5px 0 15px;
+      padding: 0;
+      list-style: none;
+    }
+    .evidence li { padding: 13px 0; border-top: 1px solid var(--line); font-size: 13px; }
+    .evidence code { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+
+    footer { padding: 25px 10px 40px; color: var(--muted); text-align: center; font-size: 12px; }
+    .empty { display: none; padding: 24px 0; color: var(--muted); text-align: center; border-top: 1px solid var(--line); }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; padding: 12px; }
+      .rail { position: static; height: auto; min-height: 0; }
+      .rail nav, .rail-foot { display: none; }
+      .brand { padding: 17px 18px; display: flex; align-items: center; gap: 13px; }
+      .brand-mark { width: 38px; height: 38px; margin: 0; font-size: 20px; }
+      .brand p { display: none; }
+      .masthead { padding: 28px 24px; }
+      .scoreline { grid-template-columns: 1fr; }
+      .score-number { display: none; }
+      .section { padding: 24px 20px 12px; }
+      .flow { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 580px) {
+      .filters { top: 4px; }
+      .print { display: none; }
+      .task { grid-template-columns: 30px minmax(0, 1fr); }
+      .tag { grid-column: 2; justify-self: start; }
+      .section-head { grid-template-columns: 1fr; }
+      .owner { justify-self: start; }
+      .flow, .evidence { grid-template-columns: 1fr; }
+      .flow-step { min-height: 0; }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .section { animation: reveal .42s ease both; animation-delay: calc(var(--order, 0) * 55ms); }
+      @keyframes reveal { from { opacity: 0; transform: translateY(8px); } }
+    }
+
+    @media print {
+      body { background: white; }
+      .shell { display: block; width: 100%; padding: 0; }
+      .rail, .filters { display: none; }
+      .masthead, .section { box-shadow: none; break-inside: avoid; }
+      .section { margin: 12px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" aria-label="Navigare audit">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">π</div>
+        <div><h1>Profu’ de mate</h1><p>Controlul lansării · Android</p></div>
+      </div>
+      <nav>
+        <a href="#verdict"><span>01</span> Verdict</a>
+        <a href="#identity"><span>02</span> Identitate</a>
+        <a href="#done"><span>03</span> Gata în cod</a>
+        <a href="#codex"><span>04</span> De făcut în cod</a>
+        <a href="#daniel"><span>05</span> De făcut de Daniel</a>
+        <a href="#play"><span>06</span> Traseul Play</a>
+        <a href="#proof"><span>07</span> Dovezi</a>
+      </nav>
+      <div class="rail-foot"><strong>Sursa unică de adevăr</strong>Actualizat la 4 septembrie 2026. Se bifează numai ce are dovadă.</div>
+    </aside>
+
+    <main>
+      <header class="masthead" id="verdict">
+        <p class="kicker">Audit tehnic + plan operațional</p>
+        <h2>Produs solid în cod. <em>Nu încă gata de Play.</em></h2>
+        <p class="verdict">Arhitectura de bază, fluxul guest/Google, cotele server-side, ștergerea datelor, randarea matematicii și infrastructura Firebase există. Lansarea rămâne blocată corect până la configurarea aplicației în Play Console, furnizorul AI permis pentru 13+, plăți, Play Integrity, declarații și testarea închisă.</p>
+        <div class="scoreline">
+          <div>
+            <div class="score-copy"><strong>Pregătire estimată: 58%</strong> · progres de produs, nu probabilitate de aprobare</div>
+            <div class="progress-track" role="progressbar" aria-label="Pregătire estimată" aria-valuemin="0" aria-valuemax="100" aria-valuenow="58"><div class="progress-fill"></div></div>
+          </div>
+          <div class="score-number">58%</div>
+        </div>
+      </header>
+
+      <div class="filters" aria-label="Filtrează activitățile">
+        <button class="filter active" type="button" data-filter="all">Tot</button>
+        <button class="filter" type="button" data-filter="done">✓ Gata</button>
+        <button class="filter" type="button" data-filter="next">→ De făcut</button>
+        <button class="filter" type="button" data-filter="blocked">! Blocant</button>
+        <button class="filter print" type="button" id="print">Tipărește / PDF</button>
+      </div>
+
+      <section class="section" id="identity" style="--order:1">
+        <div class="section-head">
+          <div><h3>Fluxul corect de identitate</h3><p class="section-intro">Acesta este contractul aplicației. Logout nu înseamnă cont nou, ștergerea nu inventează cotă nouă, iar loginul nu este obligatoriu pentru prima utilizare.</p></div>
+          <span class="owner">implementat</span>
+        </div>
+        <div class="flow">
+          <div class="flow-step"><span class="flow-num">01 · INSTALARE</span><h4>Intră direct ca vizitator</h4><p>Firebase creează anonim sesiunea. Utilizatorul primește 5 probleme de bun-venit legate de instalare.</p></div>
+          <div class="flow-step"><span class="flow-num">02 · GOOGLE</span><h4>Conectare opțională</h4><p>Caietul se unește sigur cu acel cont. Consumul zilei este preluat; nu se dublează gratuitatea.</p></div>
+          <div class="flow-step"><span class="flow-num">03 · LOGOUT</span><h4>Revine la aceeași instalare</h4><p>Sesiunea Google se închide local chiar și dacă backendul nu răspunde. Rămân doar problemele guest neconsumate.</p></div>
+          <div class="flow-step"><span class="flow-num">04 · ȘTERGERE</span><h4>Datele contului dispar</h4><p>După reautentificare, serverul șterge datele și aplicația revine la spațiul aceleiași instalări, fără reset artificial.</p></div>
+        </div>
+        <div class="warning"><strong>Limită reală:</strong> la un APK instalat direct, Android poate șterge identificatorul guest la dezinstalare. Protecția robustă după reinstalare se validează prin distribuția Google Play și Play Integrity Device Recall; aplicația nu pretinde acum că poate garanta ceva ce platforma nu oferă.</div>
+      </section>
+
+      <section class="section" id="done" style="--order:2" data-section>
+        <div class="section-head"><div><h3>Gata și verificat în cod</h3><p class="section-intro">Lucruri care există efectiv în repository și au teste automate sau configurație inspectabilă.</p></div><span class="owner">Codex + repo</span></div>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Stack Android actual și aliniat</h4><p>Expo SDK 57.0.20, React Native 0.86.3, Node 22, target/compile SDK 36; dependențele Expo sunt pe patchurile recomandate.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Utilizare fără cont obligatoriu</h4><p>Firebase Anonymous Auth pornește aplicația direct. Google este opțional pentru acces zilnic, recuperarea Caietului și Premium.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Logout fără blocare și fără resetarea cotei</h4><p>Logoutul nu mai depinde de Cloud Functions. Închide Firebase, Credential Manager și RevenueCat local, apoi reconstruiește guest-ul în fundal.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Transfer guest → Google recuperabil</h4><p>Tichetele de transfer sunt persistente, limitate și reluate după întreruperi, schimbări de cont ori restart. Eșecul temporar nu falsifică rezultatul loginului.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Ștergere de cont cu rezultat definitiv</h4><p>Google cere reautentificare; serverul curăță Auth, lecții, feedback, analize, cereri și legături. Un refresh guest offline nu mai transformă succesul în eroare.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Cache-uri izolate pe sesiune</h4><p>Cota și Caietul sunt legate de cheia sesiunii Firebase. Snapshoturile vechi sunt ignorate după schimbarea identității.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Cote și consum controlate pe server</h4><p>5 bun-venit per instalare, 5/zi pe Google, rezervări tranzacționale, idempotency, refund controlat și limite anti-abuz.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Matematică redată într-un document securizat</h4><p>Explicații, formule, pași, tabele și structuri vizuale folosesc un document WebView local, fără rețea, cookies sau script injectabil.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Fotografii temporare, nu arhivă cloud</h4><p>Camera/galeria/crop păstrează fișiere temporar, le curăță la abandon/start și nu salvează fotografia în Firebase Storage.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Securitate client și Firebase</h4><p>Cheile AI rămân server-side, Firestore este deny-by-default, permisiunile Android sunt minimale, backupul este oprit și HTTP cleartext interzis.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Confidențialitate operațională</h4><p>Crashlytics este opt-in, există ștergere în aplicație și pagină publică de ștergere, iar site-ul are headere de securitate.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Pornire controlată</h4><p>Splashul preîncarcă doar resursele critice, are deadline offline și afișează Home numai după ce suprafața este pictată; datele de rețea nu blochează indefinit.</p></div><span class="tag">gata</span></article>
+        <p class="empty">Niciun element din această secțiune pentru filtrul ales.</p>
+      </section>
+
+      <section class="section" id="codex" style="--order:3" data-section>
+        <div class="section-head"><div><h3>Ce mai trebuie făcut în cod</h3><p class="section-intro">Ordinea tehnică. Nimic de aici nu trebuie ascuns sub eticheta „perfect”.</p></div><span class="owner">Codex / dezvoltare</span></div>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Corecțiile Firebase sunt publicate</h4><p>La 4 septembrie 2026 au fost publicate regulile, indexurile, hostingul și toate cele 11 funcții Gen 2. Verificarea din proiectul real arată 11 funcții ACTIVE și 0 erori de deploy.</p></div><span class="tag">publicat</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Development build nou</h4><p>Patchurile modulelor Expo native cer un dev build nou înainte de următoarea rundă de lucru pe telefon.</p></div><span class="tag">următorul</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Triage final pentru advisories npm</h4><p>Auditul de producție raportează 25 de advisories moderate în arborele aplicației și 7 moderate în Functions, fără high sau critical. Remedierea automată propune downgrade-uri incompatibile; actualizăm numai în matricea Expo/Firebase și documentăm excepțiile rămase înainte de beta.</p></div><span class="tag">înainte de beta</span></article>
+        <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>Furnizor AI permis pentru produsul 13+</h4><p>Înlocuire/contract valid, adaptor server-side, politici actualizate și rerularea corpusului matematic. Gemini rămâne numai temporar în dezvoltare.</p></div><span class="tag">blocant</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Premium + RevenueCat end-to-end</h4><p>Entitlement, offering, webhook semnat, sursa de adevăr server-side, restore, grace period, hold, refund și schimbarea contului. Feature flag rămâne oprit până atunci.</p></div><span class="tag">după Play app</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Play Integrity + App Check enforcement</h4><p>Se configurează cu aplicația și semnătura Play reale; întâi metrics, apoi enforcement gradual și rollback documentat.</p></div><span class="tag">după signing</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Observabilitate de producție</h4><p>Dashboard pentru crash-free sessions, erori callable, latență p50/p95, cost AI, rate-limit și rezultate invalide; alerte și bugete explicite.</p></div><span class="tag">înainte de beta</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Suită reală de dispozitive și failure injection</h4><p>Offline între fiecare pas, proces omorât, două telefoane, cont schimbat, delete parțial, imagine mare/rotită/neclară, font 200% și TalkBack.</p></div><span class="tag">QA</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>AAB final și verificare Play-installed</h4><p>Se construiește abia după plăți, Integrity și declarații; se testează pachetul instalat de Google Play, nu doar APK-ul direct.</p></div><span class="tag">final</span></article>
+        <p class="empty">Niciun element din această secțiune pentru filtrul ales.</p>
+      </section>
+
+      <section class="section" id="daniel" style="--order:4" data-section>
+        <div class="section-head"><div><h3>Ce trebuie să faci tu</h3><p class="section-intro">Acțiuni care cer identitatea, conturile, deciziile comerciale sau acceptarea ta explicită.</p></div><span class="owner">Daniel Matei</span></div>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Cont Play Console verificat</h4><p>Cont personal Daniel Matei; utilizatorul a confirmat că verificarea s-a încheiat și poate crea aplicația.</p></div><span class="tag">confirmat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Domeniu și contacte profesionale</h4><p>danielmatei.dev și adresele support@, privacy@ și billing@danielmatei.dev există.</p></div><span class="tag">gata</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Creează aplicația în Play Console</h4><p>Nume Profu’ de mate, limbă implicită română, App, Education, Free cu in-app purchases. Numele de pachet rămâne ro.profudemate.app.</p></div><span class="tag">următorul</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Activează Play App Signing</h4><p>Păstrează upload key separat, apoi transmite SHA-1 și SHA-256 Play App Signing pentru Firebase și Google Sign-In.</p></div><span class="tag">consolă</span></article>
+        <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>Decizie contractuală pentru AI</h4><p>Alege furnizorul/contractul care permite explicit serviciul educațional pentru utilizatori începând de la 13 ani.</p></div><span class="tag">blocant</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Oferta Premium</h4><p>Confirmă perioadele, prețurile RON, trialul și limita de fair use. Mesajele trebuie să arate clar preț, perioadă, auto-renew și anulare.</p></div><span class="tag">decizie</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Conținutul listării</h4><p>Descriere scurtă/lungă, icon 512×512, feature graphic 1024×500, capturi reale, email suport și URL de confidențialitate.</p></div><span class="tag">listing</span></article>
+        <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>Declarațiile Play și revizia legală</h4><p>Data Safety după buildul final, target 13–15 și 16–17, content rating, Ads = No, app access, GDPR/minori și termenii furnizorilor.</p></div><span class="tag">blocant</span></article>
+        <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>Closed testing: minimum 12 testeri / 14 zile</h4><p>Pentru conturile personale noi, testerii trebuie să rămână înscriși continuu înainte de accesul la producție.</p></div><span class="tag">blocant</span></article>
+        <p class="empty">Niciun element din această secțiune pentru filtrul ales.</p>
+      </section>
+
+      <section class="section" id="play" style="--order:5" data-section>
+        <div class="section-head"><div><h3>Ordinea până în Google Play</h3><p class="section-intro">Dependențele sunt deliberate: nu activăm plățile sau enforcementul înainte să existe identitatea Play reală.</p></div><span class="owner">traseu critic</span></div>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>1. Stabilizează fundația</h4><p>Arhitectură, identitate, cote, date, securitate și teste automate.</p></div><span class="tag">gata în cod</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>2. Testează fluxul reparat pe un dev build nou</h4><p>Backendul este publicat. Mai trebuie validat pe telefon fluxul complet guest → Google → logout → guest → delete, inclusiv întreruperea rețelei între pași.</p></div><span class="tag">pe telefon</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>3. Creează aplicația și signingul Play</h4><p>Stabilește certificatele și identitatea reală a buildului distribuit.</p></div><span class="tag">consolă</span></article>
+        <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>4. Închide AI, Premium și Integrity</h4><p>Furnizor 13+, produse/subscriptions, RevenueCat și App Check cu Play Integrity.</p></div><span class="tag">blocant</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>5. Legal, listing și QA final</h4><p>Declarațiile trebuie să descrie exact buildul, apoi matricea completă de dispozitive și cazuri-limită.</p></div><span class="tag">pre-release</span></article>
+        <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>6. AAB în closed testing</h4><p>12 testeri, 14 zile, feedback reparat, rollout intern → closed → producție graduală.</p></div><span class="tag">blocant</span></article>
+        <p class="empty">Niciun element din această secțiune pentru filtrul ales.</p>
+      </section>
+
+      <section class="section" id="proof" style="--order:6">
+        <div class="section-head"><div><h3>Dovezi și criterii de acceptanță</h3><p class="section-intro">Un check verde trebuie să aibă comandă, configurație sau sursă oficială. Verificările finale se actualizează după ultima rulare.</p></div><span class="owner">auditabil</span></div>
+        <ul class="evidence">
+          <li><strong>Calitate proiect · trecut</strong><code>npm run check</code></li>
+          <li><strong>Functions · 62/62</strong><code>npm run functions:test</code></li>
+          <li><strong>Aplicație mobilă · 83/83</strong><code>npm run test:mobile</code></li>
+          <li><strong>Rules + integrare · 18/18</strong><code>npm run test:rules</code></li>
+          <li><strong>Legal public · trecut</strong><code>npm run legal:check</code></li>
+          <li><strong>Bundle de producție · trecut</strong><code>npm run release:bundle-check</code></li>
+          <li><strong>Firebase real · 11 ACTIVE</strong><code>firebase functions:list</code></li>
+          <li><strong>Deploy · 11/11, 0 erori</strong><code>npm run deploy:firebase</code></li>
+          <li><strong>Audit npm · 0 high / 0 critical</strong><code>npm audit --omit=dev</code></li>
+        </ul>
+        <p class="section-intro"><strong>Surse oficiale:</strong> <a href="https://firebase.google.com/docs/auth/android/anonymous-auth">Firebase Anonymous Auth</a> · <a href="https://developer.android.com/identity/sign-in/restore-credentials-implementation">Android Credential Manager</a> · <a href="https://support.google.com/googleplay/android-developer/answer/10144311">User Data</a> · <a href="https://support.google.com/googleplay/android-developer/answer/10787469">Data Safety</a> · <a href="https://support.google.com/googleplay/android-developer/answer/14151465">Personal account testing</a> · <a href="https://support.google.com/googleplay/android-developer/answer/11926878">Target API</a> · <a href="https://www.revenuecat.com/docs/customers/identifying-customers">RevenueCat identity</a>.</p>
+      </section>
+
+      <footer>Acest dashboard descrie starea demonstrabilă a proiectului. „Build reușit” nu înseamnă automat „produs gata de lansare”.</footer>
+    </main>
+  </div>
+
+  <script>
+    const filters = [...document.querySelectorAll('[data-filter]')];
+    const tasks = [...document.querySelectorAll('[data-status]')];
+    const sections = [...document.querySelectorAll('[data-section]')];
+
+    function applyFilter(filter) {
+      filters.forEach((button) => button.classList.toggle('active', button.dataset.filter === filter));
+      tasks.forEach((task) => { task.hidden = filter !== 'all' && task.dataset.status !== filter; });
+      sections.forEach((section) => {
+        const visible = [...section.querySelectorAll('[data-status]')].some((task) => !task.hidden);
+        const empty = section.querySelector('.empty');
+        if (empty) empty.style.display = visible ? 'none' : 'block';
+      });
+    }
+
+    filters.forEach((button) => button.addEventListener('click', () => applyFilter(button.dataset.filter)));
+    document.getElementById('print').addEventListener('click', () => window.print());
+  </script>
+</body>
+</html>

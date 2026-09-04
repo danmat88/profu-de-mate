@@ -168,12 +168,12 @@ test('legarea directă la Google mută utilizarea de bun-venit în cota zilei f�
   assert.equal(completedTicket.data()?.state, 'completed');
   assert.equal(preservedProfile.exists, true);
   assert.equal(preservedProfile.data()?.welcomeRequests, 5);
-  assert.equal(preservedProfile.data()?.welcomeLocked, true);
+  assert.equal(preservedProfile.data()?.welcomeLocked, undefined);
   assert.equal(preservedProfile.data()?.activeMergeTicket, undefined);
   assert.ok(preservedProfile.data()?.expiresAt?.toMillis() >= now + 399 * 24 * 60 * 60 * 1000);
 });
 
-test('rotația UID-ului anonim după logout nu redeschide pachetul guest', async () => {
+test('logout-ul păstrează contorul instalării fără blocare artificială', async () => {
   const access = await readCommercialAccess(
     db,
     `rotated-anonymous-${Date.now()}`,
@@ -181,12 +181,12 @@ test('rotația UID-ului anonim după logout nu redeschide pachetul guest', async
     now + 8 * 61_000,
   );
   assert.equal(access.identity, 'anonymous');
-  assert.equal(access.reason, 'account_required');
+  assert.equal(access.reason, 'welcome_exhausted');
   assert.equal(access.remaining, 0);
   assert.equal(access.purchaseUserId, guestPrincipal.principalId);
 });
 
-test('o sesiune Google sigilează și o instalare creată de versiunea veche', async () => {
+test('o sesiune Google curăță lock-ul vechi fără să consume problemele instalării', async () => {
   await bindInstallationToAccount(
     db,
     legacyInstallationPrincipal.principalId,
@@ -207,8 +207,8 @@ test('o sesiune Google sigilează și o instalare creată de versiunea veche', a
     legacyInstallationPrincipal,
     now + 10 * 61_000,
   );
-  assert.equal(access.reason, 'account_required');
-  assert.equal(access.remaining, 0);
+  assert.equal(access.reason, 'available');
+  assert.equal(access.remaining, 5);
 });
 
 test('ștergerea și recrearea aceluiași Google nu resetează cota zilei', async () => {
@@ -270,7 +270,7 @@ test('ștergerea Google elimină legăturile reversibile de pe toate instalăril
     assert.equal(profile?.linkedAccountPrincipalId, undefined);
     assert.equal(profile?.linkedAccountUserId, undefined);
     assert.equal(profile?.activeMergeTicket, undefined);
-    assert.equal(profile?.welcomeLocked, true);
+    assert.equal(profile?.welcomeLocked, undefined);
   }
   assert.equal(first.data()?.welcomeRequests, 5);
   assert.equal(second.data()?.welcomeRequests, 2);

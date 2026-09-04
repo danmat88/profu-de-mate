@@ -30,7 +30,9 @@ export function isPurchasesConfigured(): boolean {
 export async function initializePurchases(userId: string): Promise<boolean> {
   const apiKey = publicApiKey();
   if (!apiKey) return false;
-  if (!/^[gi]_[a-f0-9]{64}$/.test(userId)) throw new Error('Identitatea comercială pentru Google Play nu este validă.');
+  // Premium belongs to an account that can be recovered across devices. Guest
+  // allowance IDs must never become RevenueCat customer aliases.
+  if (!/^g_[a-f0-9]{64}$/.test(userId)) throw new Error('Contul comercial pentru Google Play nu este valid.');
   if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
   if (!purchasesSdkConfigured) {
     Purchases.configure({ apiKey, appUserID: userId });
@@ -43,6 +45,17 @@ export async function initializePurchases(userId: string): Promise<boolean> {
     configuredUserId = userId;
   }
   return true;
+}
+
+/**
+ * Detaches the native billing SDK from the identified account. RevenueCat
+ * creates its own anonymous SDK identity after logout; the app never uses that
+ * identity for quota, notebook ownership or server entitlements.
+ */
+export async function resetPurchasesForSignedOutUser(): Promise<void> {
+  if (!purchasesSdkConfigured || !configuredUserId) return;
+  configuredUserId = null;
+  await Purchases.logOut();
 }
 
 async function requirePurchases(): Promise<void> {

@@ -99,6 +99,15 @@ test('notebook warming is independent from commercial network refresh and still 
   assert.match(lessonsSource, /setTimeout\(finish, 3_500\)/);
 });
 
+test('notebook cache is bound to the active Firebase identity and ignores stale snapshots', () => {
+  assert.match(lessonsSource, /favoriteLessonsCacheSessionKey/);
+  assert.match(lessonsSource, /currentSessionKey === favoriteLessonsCacheSessionKey/);
+  assert.match(lessonsSource, /favoriteLessonsCacheSessionKey = null/);
+  assert.match(lessonsSource, /const sessionKey = firebaseUserSessionKey\(user\)/);
+  assert.match(lessonsSource, /firebaseUserSessionKey\(getAuth\(getApp\(\)\)\.currentUser\) !== sessionKey/);
+  assert.match(lessonsSource, /favoriteLessonsCacheSessionKey = sessionKey/);
+});
+
 test('commercial refresh has one owner, a staleness policy and identity-race protection', () => {
   assert.match(commercialContextSource, /identityGeneration\.current \+= 1/);
   assert.match(commercialContextSource, /identityTransitionActive\.current/);

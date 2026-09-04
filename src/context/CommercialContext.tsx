@@ -5,6 +5,7 @@ import { AppState } from 'react-native';
 import type { CommercialAccess, CommercialStatus } from '../types';
 import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess, prepareCommercialServices } from '../services/commercial';
 import { recordDiagnosticError } from '../services/diagnostics';
+import { deleteAllUserData, type DataDeletionResult } from '../services/dataManagement';
 import { firebaseUserSessionKey } from '../services/firebase';
 import { prewarmFavoriteLessonsCache } from '../services/lessons';
 import {
@@ -23,6 +24,7 @@ type CommercialContextValue = {
   applyServerAccess: (access: CommercialAccess) => void;
   connectGoogle: () => Promise<CommercialAccess | null>;
   disconnectGoogle: () => Promise<CommercialAccess | null>;
+  deleteAccount: () => Promise<DataDeletionResult>;
 };
 
 const CommercialContext = createContext<CommercialContextValue | null>(null);
@@ -46,6 +48,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   const lastSuccessfulRefreshAt = useRef(0);
   const identityGeneration = useRef(0);
   const identityTransitionInFlight = useRef<Promise<CommercialAccess | null> | null>(null);
+  const accountDeletionInFlight = useRef<Promise<DataDeletionResult> | null>(null);
   const identityTransitionActive = useRef(false);
 
   const markStartupReady = useCallback(() => setStartupReady(true), []);
@@ -150,6 +153,9 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
 
   const connectGoogle = useCallback((): Promise<CommercialAccess | null> => {
     if (identityTransitionInFlight.current) return identityTransitionInFlight.current;
+    if (accountDeletionInFlight.current) {
+      return Promise.reject(new Error('Așteaptă finalizarea ștergerii contului.'));
+    }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
     identityGeneration.current += 1;
@@ -182,6 +188,9 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
 
   const disconnectGoogle = useCallback((): Promise<CommercialAccess | null> => {
     if (identityTransitionInFlight.current) return identityTransitionInFlight.current;
+    if (accountDeletionInFlight.current) {
+      return Promise.reject(new Error('Așteaptă finalizarea ștergerii contului.'));
+    }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
     identityGeneration.current += 1;
@@ -190,8 +199,9 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
 
     const operation = disconnectGoogleAccount()
       .then((user) => {
-        if (firebaseUserSessionKey(user) !== previousSessionKey) clearAccessForIdentityChange();
-        return refresh();
+        if (!user || firebaseUserSessionKey(user) !== previousSessionKey) clearAccessForIdentityChange();
+        void refresh();
+        return null;
       })
       .catch(async (error) => {
         const currentSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
@@ -211,6 +221,44 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
     return operation;
   }, [clearAccessForIdentityChange, refresh]);
 
+  const deleteAccount = useCallback((): Promise<DataDeletionResult> => {
+    if (accountDeletionInFlight.current) return accountDeletionInFlight.current;
+    if (identityTransitionInFlight.current) {
+      return Promise.reject(new Error('Așteaptă finalizarea schimbării de cont înainte de ștergere.'));
+    }
+    const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
+    identityTransitionActive.current = true;
+    identityGeneration.current += 1;
+    refreshInFlight.current = null;
+    setRefreshing(false);
+
+    const operation = deleteAllUserData()
+      .then((result) => {
+        // The remote deletion is already definitive. Clear every trace of the
+        // deleted identity immediately; a failed guest refresh is only an
+        // offline/retry state and cannot turn deletion into a reported failure.
+        clearAccessForIdentityChange();
+        void refresh();
+        return result;
+      })
+      .catch(async (error) => {
+        const currentSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
+        if (currentSessionKey !== previousSessionKey) {
+          clearAccessForIdentityChange();
+          await refresh();
+        }
+        throw error;
+      })
+      .finally(() => {
+        if (accountDeletionInFlight.current === operation) {
+          accountDeletionInFlight.current = null;
+          identityTransitionActive.current = false;
+        }
+      });
+    accountDeletionInFlight.current = operation;
+    return operation;
+  }, [clearAccessForIdentityChange, refresh]);
+
   const value = useMemo(
     () => ({
       access,
@@ -223,8 +271,9 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
       applyServerAccess,
       connectGoogle,
       disconnectGoogle,
+      deleteAccount,
     }),
-    [access, applyServerAccess, connectGoogle, disconnectGoogle, refresh, refreshIfStale, refreshing, startupReady, status],
+    [access, applyServerAccess, connectGoogle, deleteAccount, disconnectGoogle, refresh, refreshIfStale, refreshing, startupReady, status],
   );
   return <CommercialContext.Provider value={value}>{children}</CommercialContext.Provider>;
 }

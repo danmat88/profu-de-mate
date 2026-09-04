@@ -50,9 +50,9 @@ export async function removeOrRetainCommercialUsage(
 
 /**
  * Removes every reversible account link from installation-scoped commercial
- * profiles. The installation principal and consumed welcome allowance remain
- * solely to prevent delete/reinstall abuse, but no Firebase UID or Google
- * principal may survive account deletion.
+ * profiles. The installation principal and its consumed welcome counter remain
+ * solely to prevent allowance resets, but no Firebase UID or Google principal
+ * may survive account deletion. Unused guest problems remain usable.
  */
 export async function unlinkCommercialInstallations(
   db: Firestore,
@@ -76,7 +76,7 @@ export async function unlinkCommercialInstallations(
         linkedAt: FieldValue.delete(),
         activeMergeTicket: FieldValue.delete(),
         activeMergeExpiresAt: FieldValue.delete(),
-        welcomeLocked: true,
+        welcomeLocked: FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
         expiresAt: Timestamp.fromMillis(now + 400 * 24 * 60 * 60 * 1000),
       }, { merge: true });

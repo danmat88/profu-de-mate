@@ -4,7 +4,7 @@ Aplicație Android în limba română pentru rezolvarea și verificarea, pas cu 
 
 ## Începe de aici
 
-[Starea completă a lansării și pașii rămași](./RELEASE_READINESS.md)
+[Deschide dashboardul complet de audit și lansare](./RELEASE_DASHBOARD.html)
 
 
 ## Pornire rapidă după configurarea laptopului

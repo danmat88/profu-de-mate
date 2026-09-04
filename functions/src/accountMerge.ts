@@ -11,7 +11,10 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { bucharestQuotaWindow, COMMERCIAL_PROFILE_RETENTION_MS, getCommercialConfig } from './commercialAccess.js';
 import { isCommercialPrincipalId } from './commercialIdentity.js';
 
-const MERGE_TICKET_LIFETIME_MS = 10 * 60 * 1000;
+// Account selection can outlive a short callable timeout or an app restart.
+// Keep the signed, installation-bound handoff recoverable without forcing the
+// user to lose the anonymous notebook after Google authentication succeeds.
+const MERGE_TICKET_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const COMPLETED_TICKET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 function numeric(value: unknown): number {
@@ -172,7 +175,7 @@ export async function completeAccountMerge(args: {
   }
   const keepsSameUser = sourceUserId === args.targetUserId;
   const expiresAt = ticket?.expiresAt instanceof Timestamp ? ticket.expiresAt.toMillis() : 0;
-  if (ticket?.state !== 'completed' && expiresAt < now) {
+  if (ticket?.state === 'issued' && expiresAt < now) {
     throw new HttpsError('deadline-exceeded', 'Conectarea a expirat. Încearcă din nou.');
   }
   if (ticket?.state === 'completed' && ticket?.targetUserId !== args.targetUserId) {
@@ -192,7 +195,9 @@ export async function completeAccountMerge(args: {
     transaction.update(ticketRef, {
       state: 'merging',
       targetUserId: args.targetUserId,
+      targetPrincipalId: args.targetPrincipalId,
       updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + MERGE_TICKET_LIFETIME_MS),
     });
   });
 
@@ -252,7 +257,7 @@ export async function completeAccountMerge(args: {
     transaction.set(sourceProfileRef, {
       userId: sourceUserId,
       principalId: sourcePrincipalId,
-      welcomeLocked: true,
+      welcomeLocked: FieldValue.delete(),
       linkedAccountPrincipalId: args.targetPrincipalId,
       activeMergeTicket: FieldValue.delete(),
       activeMergeExpiresAt: FieldValue.delete(),

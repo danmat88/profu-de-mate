@@ -11,9 +11,11 @@ export type DiagnosticContext =
   | 'feedback_submission'
   | 'firebase_initialization'
   | 'google_disconnect'
+  | 'google_account_merge'
   | 'notebook_prewarm'
   | 'notebook_update'
-  | 'notebook_subscription';
+  | 'notebook_subscription'
+  | 'purchases_identity';
 
 function safeCode(error: unknown): string {
   if (!error || typeof error !== 'object' || !('code' in error)) return 'unclassified';

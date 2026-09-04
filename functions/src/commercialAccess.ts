@@ -24,7 +24,7 @@ export const COMMERCIAL_PROFILE_RETENTION_MS = 400 * 24 * 60 * 60 * 1000;
 const CONFIG_CACHE_MS = 15_000;
 
 export type CommercialTier = 'guest' | 'free' | 'premium';
-export type CommercialBlockReason = 'available' | 'welcome_exhausted' | 'daily_exhausted' | 'account_required';
+export type CommercialBlockReason = 'available' | 'welcome_exhausted' | 'daily_exhausted';
 
 export type CommercialConfig = {
   welcomeLimit: number;
@@ -111,10 +111,10 @@ export async function getCommercialConfig(db: Firestore, now = Date.now()): Prom
 }
 
 /**
- * Permanently consumes the one-time guest allowance for an installation once
- * that installation has been associated with a Google account. This binding is
- * intentionally kept separate from the Firebase UID: signing out may rotate
- * the anonymous UID, but it must never mint another welcome allowance.
+ * Records which account last received data from this installation. The
+ * installation's one-time allowance remains governed exclusively by its
+ * existing `welcomeRequests` counter: connecting or disconnecting an account
+ * must never consume unused problems and must never mint a new allowance.
  */
 export async function bindInstallationToAccount(
   db: Firestore,
@@ -129,11 +129,14 @@ export async function bindInstallationToAccount(
   }
   const profileRef = db.collection('_commercialUsers').doc(installationPrincipalId);
   const current = await profileRef.get();
-  if (current.data()?.welcomeLocked === true
-    && current.data()?.linkedAccountPrincipalId === accountPrincipalId) return;
+  if (current.data()?.linkedAccountPrincipalId === accountPrincipalId
+    && current.data()?.linkedAccountUserId === accountUserId
+    && current.data()?.welcomeLocked === undefined) return;
   await profileRef.set({
     principalId: installationPrincipalId,
-    welcomeLocked: true,
+    // Remove the obsolete lock written by older releases. The consumed counter
+    // already prevents Firebase UID rotation from granting another allowance.
+    welcomeLocked: FieldValue.delete(),
     linkedAccountPrincipalId: accountPrincipalId,
     linkedAccountUserId: accountUserId,
     linkedAt: FieldValue.serverTimestamp(),
@@ -233,10 +236,7 @@ export function buildCommercialAccess(args: {
     : tier === 'free'
       ? args.config.freeDailyLimit
       : args.config.welcomeLimit;
-  const guestLocked = tier === 'guest' && args.profile?.welcomeLocked === true;
-  const used = guestLocked
-    ? limit
-    : tier === 'guest' ? numeric(args.profile, 'welcomeRequests') : numeric(args.daily, 'requests');
+  const used = tier === 'guest' ? numeric(args.profile, 'welcomeRequests') : numeric(args.daily, 'requests');
   const remaining = Math.max(0, limit - used);
   const deviceRecallVerified = args.profile?.deviceRecallClaimed === true;
   return {
@@ -246,7 +246,7 @@ export function buildCommercialAccess(args: {
     used,
     remaining,
     canAnalyze: remaining > 0,
-    reason: remaining > 0 ? 'available' : guestLocked ? 'account_required' : tier === 'guest' ? 'welcome_exhausted' : 'daily_exhausted',
+    reason: remaining > 0 ? 'available' : tier === 'guest' ? 'welcome_exhausted' : 'daily_exhausted',
     resetAt: tier === 'guest' ? null : args.resetAt,
     purchaseUserId: args.principalId,
     allowances: {
@@ -303,13 +303,6 @@ export async function readCommercialAccess(
 }
 
 function quotaError(access: CommercialAccess): HttpsError {
-  if (access.reason === 'account_required') {
-    return new HttpsError(
-      'resource-exhausted',
-      'Problemele de bun-venit au fost deja legate unui cont. Conectează-te cu Google pentru a continua cu limita zilnică.',
-      { commercialReason: access.reason, access },
-    );
-  }
   if (access.reason === 'welcome_exhausted') {
     return new HttpsError(
       'resource-exhausted',

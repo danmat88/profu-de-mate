@@ -16,16 +16,19 @@ import { createWelcomeIntegrityProof, preparePlayIntegrity } from './deviceInteg
 import { firebaseUserSessionKey, initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
 import { getInstallationToken } from './installationIdentity';
 import { clearFavoriteLessonsCache } from './lessons';
-import { initializePurchases } from './purchases';
+import { initializePurchases, resetPurchasesForSignedOutUser } from './purchases';
+import { recordDiagnosticError } from './diagnostics';
 
 type PrepareMergeResponse = { ticket: string };
 type CompleteMergeResponse = { merged: true; copiedLessons: number };
-type PendingMerge = { ticket: string; sourceUserId: string; createdAt: number };
+type PendingMerge = { ticket: string; sourceUserId: string; targetUserId?: string; createdAt: number };
 
 let googleConfigured = false;
 let mergeResume: Promise<void> | null = null;
-const PENDING_MERGE_KEY = 'commercial.pending-google-merge.v1';
-const MERGE_TICKET_CLIENT_LIFETIME_MS = 12 * 60 * 1000;
+const PENDING_MERGES_KEY = 'commercial.pending-google-merges.v2';
+const LEGACY_PENDING_MERGE_KEY = 'commercial.pending-google-merge.v1';
+const MERGE_TICKET_CLIENT_LIFETIME_MS = 6 * 24 * 60 * 60 * 1000;
+const MAX_PENDING_MERGES = 5;
 
 export class CommercialGateError extends Error {
   readonly reason: string;
@@ -69,78 +72,131 @@ function validPendingMerge(value: unknown): value is PendingMerge {
     && data.sourceUserId.length >= 1
     && data.sourceUserId.length <= 128
     && !data.sourceUserId.includes('/')
+    && (data.targetUserId === undefined || (
+      typeof data.targetUserId === 'string'
+      && data.targetUserId.length >= 1
+      && data.targetUserId.length <= 128
+      && !data.targetUserId.includes('/')
+    ))
     && typeof data.createdAt === 'number'
     && Number.isSafeInteger(data.createdAt);
 }
 
-async function readPendingMerge(): Promise<PendingMerge | null> {
+function uniquePendingMerges(values: readonly PendingMerge[]): PendingMerge[] {
+  const tickets = new Set<string>();
+  const sources = new Set<string>();
+  return values.filter((value) => {
+    if (tickets.has(value.ticket) || sources.has(value.sourceUserId)) return false;
+    tickets.add(value.ticket);
+    sources.add(value.sourceUserId);
+    return true;
+  }).slice(-MAX_PENDING_MERGES);
+}
+
+async function readPendingMerges(): Promise<PendingMerge[]> {
   try {
     const storage = await secureStoreModule();
-    const raw = await storage.getItemAsync(PENDING_MERGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!validPendingMerge(parsed) || Date.now() - parsed.createdAt > MERGE_TICKET_CLIENT_LIFETIME_MS) {
-      await storage.deleteItemAsync(PENDING_MERGE_KEY);
-      return null;
-    }
-    return parsed;
+    const [raw, legacyRaw] = await Promise.all([
+      storage.getItemAsync(PENDING_MERGES_KEY),
+      storage.getItemAsync(LEGACY_PENDING_MERGE_KEY),
+    ]);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const legacy: unknown = legacyRaw ? JSON.parse(legacyRaw) : null;
+    const candidates = [
+      ...(Array.isArray(parsed) ? parsed : []),
+      ...(validPendingMerge(legacy) ? [legacy] : []),
+    ];
+    const pending = uniquePendingMerges(candidates.filter((value): value is PendingMerge => (
+      validPendingMerge(value)
+      && value.createdAt <= Date.now() + 5 * 60 * 1000
+      && Date.now() - value.createdAt <= MERGE_TICKET_CLIENT_LIFETIME_MS
+    )));
+    if (pending.length > 0) await storage.setItemAsync(PENDING_MERGES_KEY, JSON.stringify(pending));
+    else await storage.deleteItemAsync(PENDING_MERGES_KEY);
+    await storage.deleteItemAsync(LEGACY_PENDING_MERGE_KEY);
+    return pending;
   } catch {
-    return null;
+    return [];
   }
 }
 
-async function writePendingMerge(value: PendingMerge): Promise<void> {
+async function writePendingMerges(values: readonly PendingMerge[]): Promise<void> {
   try {
     const storage = await secureStoreModule();
-    await storage.setItemAsync(PENDING_MERGE_KEY, JSON.stringify(value));
+    const pending = uniquePendingMerges(values);
+    if (pending.length > 0) await storage.setItemAsync(PENDING_MERGES_KEY, JSON.stringify(pending));
+    else await storage.deleteItemAsync(PENDING_MERGES_KEY);
+    await storage.deleteItemAsync(LEGACY_PENDING_MERGE_KEY);
   } catch {
     throw new Error('Conectarea sigură cu Google are nevoie de un development build nou.');
   }
 }
 
-async function clearPendingMerge(): Promise<void> {
-  try {
-    const storage = await secureStoreModule();
-    await storage.deleteItemAsync(PENDING_MERGE_KEY);
-  } catch {
-    // A missing native module cannot leave a marker because writing it would also have failed.
-  }
+export async function removePendingGoogleMergesForUser(userId: string): Promise<void> {
+  const pending = await readPendingMerges();
+  await writePendingMerges(pending.filter((merge) => (
+    merge.targetUserId !== undefined && merge.targetUserId !== userId
+  )));
 }
 
-export async function clearPendingGoogleMerge(): Promise<void> {
-  await clearPendingMerge();
+export async function pendingGoogleMergeTickets(userId: string): Promise<string[]> {
+  return (await readPendingMerges())
+    .filter((pending) => pending.targetUserId === undefined || pending.targetUserId === userId)
+    .map((pending) => pending.ticket);
 }
 
 function terminalMergeError(error: unknown): boolean {
   const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
-  return code === 'functions/deadline-exceeded'
-    || code === 'functions/permission-denied'
+  return code === 'functions/permission-denied'
     || code === 'functions/failed-precondition'
     || code === 'functions/invalid-argument'
     || code === 'functions/not-found';
 }
 
-async function completePendingMerge(user: User): Promise<void> {
+async function resumePendingMergeWithoutBlocking(user: User): Promise<void> {
+  try {
+    await completePendingMerges(user);
+  } catch (error) {
+    // Authentication already succeeded. Keep transient handoffs in secure
+    // storage and retry them on the next access/foreground instead of making
+    // the signed-in app unusable or claiming that sign-in failed.
+    recordDiagnosticError('google_account_merge', error);
+  }
+}
+
+async function completePendingMerges(user: User): Promise<void> {
   if (mergeResume) return mergeResume;
   mergeResume = (async () => {
-    const pending = await readPendingMerge();
-    if (!pending) return;
-    if (user.uid === pending.sourceUserId && user.isAnonymous) return;
+    const pendingMerges = await readPendingMerges();
+    if (pendingMerges.length === 0) return;
     const hasGoogle = user.providerData.some((provider) => provider.providerId === 'google.com');
-    if (!hasGoogle) {
-      await clearPendingMerge();
-      return;
-    }
+    if (!hasGoogle) return;
+    // Bind every legacy/unbound handoff to the first Google identity that can
+    // actually complete it. On a shared device, a later account must never
+    // inherit a previous person's pending notebook.
+    const boundMerges = pendingMerges.map((pending) => pending.targetUserId
+      ? pending
+      : { ...pending, targetUserId: user.uid });
+    await writePendingMerges(boundMerges);
     const installationToken = await getInstallationToken();
     const complete = httpsCallable<{ ticket: string; installationToken: string }, CompleteMergeResponse>(functionsInstance(), 'completeAccountMergeWithGoogle', { timeout: 120_000 });
-    try {
-      await complete({ ticket: pending.ticket, installationToken });
-      clearFavoriteLessonsCache();
-      await clearPendingMerge();
-    } catch (error) {
-      if (terminalMergeError(error)) await clearPendingMerge();
-      throw error;
+    const remaining = [...boundMerges];
+    let firstError: unknown;
+    for (const pending of boundMerges.filter((merge) => merge.targetUserId === user.uid)) {
+      try {
+        await complete({ ticket: pending.ticket, installationToken });
+        remaining.splice(remaining.findIndex((value) => value.ticket === pending.ticket), 1);
+        clearFavoriteLessonsCache();
+      } catch (error) {
+        if (terminalMergeError(error)) {
+          remaining.splice(remaining.findIndex((value) => value.ticket === pending.ticket), 1);
+        } else if (firstError === undefined) {
+          firstError = error;
+        }
+      }
     }
+    await writePendingMerges(remaining);
+    if (firstError !== undefined) throw firstError;
   })().finally(() => { mergeResume = null; });
   return mergeResume;
 }
@@ -160,7 +216,7 @@ async function configureGoogle(): Promise<void> {
 
 export async function prepareCommercialServices(): Promise<void> {
   const user = await initializeVerifiedFirebaseServices();
-  await completePendingMerge(user);
+  await resumePendingMergeWithoutBlocking(user);
   await Promise.all([preparePlayIntegrity().catch(() => undefined), getInstallationToken()]);
 }
 
@@ -168,14 +224,19 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
   const user = await initializeVerifiedFirebaseServices();
   const requestedSessionKey = firebaseUserSessionKey(user);
   if (!requestedSessionKey) throw new StaleCommercialSessionError();
-  await completePendingMerge(user);
+  await resumePendingMergeWithoutBlocking(user);
   const installationToken = await getInstallationToken();
   const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 30_000 });
   const access = (await callable({ installationToken })).data;
   const activeSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
   if (activeSessionKey !== requestedSessionKey) throw new StaleCommercialSessionError();
   await writeCachedCommercialAccess(access, requestedSessionKey);
-  await initializePurchases(access.purchaseUserId).catch(() => false);
+  if (access.identity === 'google') {
+    await initializePurchases(access.purchaseUserId).catch((error) => {
+      recordDiagnosticError('purchases_identity', error);
+      return false;
+    });
+  }
   return access;
 }
 
@@ -244,18 +305,18 @@ export async function connectWithGoogle(): Promise<User | null> {
   } = await googleSigninModule();
   const sourceUser = await initializeVerifiedFirebaseServices();
   if (!sourceUser.isAnonymous && sourceUser.providerData.some((provider) => provider.providerId === 'google.com')) {
-    await completePendingMerge(sourceUser);
+    await resumePendingMergeWithoutBlocking(sourceUser);
     return sourceUser;
   }
 
-  const existingPending = await readPendingMerge();
-  let pending = existingPending?.sourceUserId === sourceUser.uid ? existingPending : null;
+  const pendingMerges = await readPendingMerges();
+  let pending = pendingMerges.find((value) => value.sourceUserId === sourceUser.uid) ?? null;
   if (!pending) {
     const installationToken = await getInstallationToken();
     const prepare = httpsCallable<{ installationToken: string }, PrepareMergeResponse>(functionsInstance(), 'prepareAccountMerge', { timeout: 30_000 });
     const { data: merge } = await prepare({ installationToken });
     pending = { ticket: merge.ticket, sourceUserId: sourceUser.uid, createdAt: Date.now() };
-    await writePendingMerge(pending);
+    await writePendingMerges([...pendingMerges, pending]);
   }
   await GoogleOneTapSignIn.checkPlayServices(true);
   let response = await GoogleOneTapSignIn.signIn();
@@ -263,7 +324,6 @@ export async function connectWithGoogle(): Promise<User | null> {
     response = await GoogleOneTapSignIn.createAccount();
   }
   if (isCancelledResponse(response)) {
-    await clearPendingMerge();
     return null;
   }
   if (!isSuccessResponse(response) || !response.data.idToken) {
@@ -283,10 +343,12 @@ export async function connectWithGoogle(): Promise<User | null> {
   }
 
   resetFirebaseInitialization();
+  clearFavoriteLessonsCache();
+  await writePendingMerges((await readPendingMerges()).map((merge) => (
+    merge.ticket === pending.ticket ? { ...merge, targetUserId: targetUser.uid } : merge
+  ))).catch((error) => recordDiagnosticError('google_account_merge', error));
   await getIdToken(targetUser, true);
-  if (needsMerge) {
-    await completePendingMerge(targetUser);
-  }
+  if (needsMerge) await resumePendingMergeWithoutBlocking(targetUser);
   return targetUser;
 }
 
@@ -319,25 +381,23 @@ export async function confirmGoogleIdentityForDeletion(): Promise<boolean> {
   return true;
 }
 
-export async function disconnectGoogleAccount(): Promise<User> {
+export async function disconnectGoogleAccount(): Promise<User | null> {
   const app = getApp();
   const current = await initializeVerifiedFirebaseServices();
   if (current.isAnonymous) return current;
 
-  const installationToken = await getInstallationToken();
-  const prepareLogout = httpsCallable<{ installationToken: string }, { ready: true }>(
-    functionsInstance(),
-    'prepareAccountLogout',
-    { timeout: 30_000 },
-  );
-  await prepareLogout({ installationToken });
-  await clearPendingMerge();
   await clearCachedCommercialAccess();
+  // Firebase sign-out is the authoritative local boundary. It must not depend
+  // on a callable, because users must be able to leave an account while the
+  // backend is slow or unavailable.
   await signOut(getAuth(app));
-  await googleSigninModule()
-    .then(({ GoogleOneTapSignIn }) => GoogleOneTapSignIn.signOut())
-    .catch(() => undefined);
+  await Promise.allSettled([
+    googleSigninModule().then(({ GoogleOneTapSignIn }) => GoogleOneTapSignIn.signOut()),
+    resetPurchasesForSignedOutUser(),
+  ]);
   clearFavoriteLessonsCache();
   resetFirebaseInitialization();
-  return initializeVerifiedFirebaseServices();
+  // Guest creation may need a network connection, so the context performs it
+  // as a recoverable refresh instead of keeping the logout button blocked.
+  return null;
 }

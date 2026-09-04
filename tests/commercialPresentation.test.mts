@@ -21,7 +21,7 @@ function access(overrides: Partial<CommercialAccess> = {}): CommercialAccess {
   };
 }
 
-test('presents guest, free, account-required and Premium access without ambiguity', () => {
+test('presents guest, free, migrated legacy and Premium access without ambiguity', () => {
   assert.deepEqual(allowancePresentation(access(), 'ready'), {
     label: '4 din 5 cadou',
     note: 'PROBLEME',
@@ -34,9 +34,9 @@ test('presents guest, free, account-required and Premium access without ambiguit
   assert.deepEqual(
     allowancePresentation(access({ canAnalyze: false, reason: 'account_required', remaining: 0, used: 5 }), 'ready'),
     {
-      label: 'Conectează-te',
-      note: 'CONT',
-      accessibilityLabel: 'Conectează-te. Deschide opțiunile de acces.',
+      label: '0 din 5 cadou',
+      note: 'PROBLEME',
+      accessibilityLabel: '0 din 5 cadou. Deschide opțiunile de acces.',
       canOpenAccess: true,
       canRetry: false,
     },

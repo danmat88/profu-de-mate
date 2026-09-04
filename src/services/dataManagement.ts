@@ -4,12 +4,13 @@ import { getCrashlytics, setCrashlyticsCollectionEnabled } from '@react-native-f
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import { clearFavoriteLessonsCache } from './lessons';
 import { clearCachedCommercialAccess } from './commercialAccessCache';
-import { clearPendingGoogleMerge, confirmGoogleIdentityForDeletion, getCommercialAccess } from './commercial';
+import { confirmGoogleIdentityForDeletion, pendingGoogleMergeTickets, removePendingGoogleMergesForUser } from './commercial';
 import { initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
 import { clearLocalPreferences } from './localPreferences';
 import { clearPendingAnalysis } from './pendingAnalysis';
 import { clearTemporaryCapturedImages } from './temporaryImages';
 import { getInstallationToken } from './installationIdentity';
+import { resetPurchasesForSignedOutUser } from './purchases';
 
 type DeleteMyDataResponse = { deleted: boolean; revenueCatDeletionPending?: boolean };
 
@@ -25,28 +26,36 @@ export class DataDeletionCancelledError extends Error {
 }
 
 export async function deleteAllUserData(): Promise<DataDeletionResult> {
-  await initializeVerifiedFirebaseServices();
+  const user = await initializeVerifiedFirebaseServices();
   if (!await confirmGoogleIdentityForDeletion()) throw new DataDeletionCancelledError();
   const app = getApp();
   const functions = getFunctions(app, 'europe-west1');
   const installationToken = await getInstallationToken();
-  const deleteData = httpsCallable<{ installationToken: string }, DeleteMyDataResponse>(functions, 'deleteMyData', { timeout: 120_000 });
-  const response = await deleteData({ installationToken });
+  const pendingMergeTickets = await pendingGoogleMergeTickets(user.uid);
+  const deleteData = httpsCallable<{ installationToken: string; pendingMergeTickets: string[] }, DeleteMyDataResponse>(functions, 'deleteMyData', { timeout: 120_000 });
+  const response = await deleteData({ installationToken, pendingMergeTickets });
   if (response.data?.deleted !== true) throw new Error('Ștergerea nu a fost confirmată.');
 
   clearTemporaryCapturedImages();
   clearPendingAnalysis();
   clearLocalPreferences();
-  await clearCachedCommercialAccess();
-  await clearPendingGoogleMerge();
-  await setCrashlyticsCollectionEnabled(getCrashlytics(app), false).catch(() => undefined);
+  await Promise.allSettled([
+    clearCachedCommercialAccess(),
+    removePendingGoogleMergesForUser(user.uid),
+    setCrashlyticsCollectionEnabled(getCrashlytics(app), false),
+    resetPurchasesForSignedOutUser(),
+  ]);
   await signOut(getAuth(app)).catch(() => undefined);
-  await import('react-native-nitro-google-signin')
-    .then(({ GoogleOneTapSignIn }) => GoogleOneTapSignIn.signOut())
-    .catch(() => undefined);
+  await Promise.allSettled([
+    import('react-native-nitro-google-signin')
+      .then(({ GoogleOneTapSignIn }) => GoogleOneTapSignIn.signOut()),
+  ]);
   clearFavoriteLessonsCache();
   resetFirebaseInitialization();
-  await initializeVerifiedFirebaseServices();
-  await getCommercialAccess();
-  return { externalBillingProfilePending: response.data.revenueCatDeletionPending === true };
+  // Once the callable confirms deletion, a later offline bootstrap must never
+  // turn the result into the false message "deletion failed". CommercialContext
+  // owns the next authoritative access refresh.
+  return {
+    externalBillingProfilePending: response.data.revenueCatDeletionPending === true,
+  };
 }

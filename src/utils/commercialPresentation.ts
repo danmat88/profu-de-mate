@@ -18,16 +18,12 @@ export function allowancePresentation(
   status: CommercialStatus,
 ): AllowancePresentation {
   if (access) {
-    const label = access.reason === 'account_required'
-      ? 'Conectează-te'
-      : access.tier === 'guest'
-        ? `${access.remaining} din ${access.limit} cadou`
-        : `${access.remaining} din ${access.limit} azi`;
+    const label = access.tier === 'guest'
+      ? `${access.remaining} din ${access.limit} cadou`
+      : `${access.remaining} din ${access.limit} azi`;
     const note = access.premium.active
       ? 'PREMIUM'
-      : access.reason === 'account_required'
-        ? 'CONT'
-        : 'PROBLEME';
+      : 'PROBLEME';
     return {
       label,
       note,
