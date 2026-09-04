@@ -4,6 +4,8 @@ Aplicație Android în limba română pentru rezolvarea și verificarea, pas cu 
 
 ## Începe de aici
 
+[Starea completă a lansării și pașii rămași](./RELEASE_READINESS.md)
+
 
 ## Pornire rapidă după configurarea laptopului
 
@@ -27,7 +29,7 @@ npm run test:rules
 npm run legal:check
 ```
 
-Ultima comandă poate rămâne blocată intenționat până când publisherul completează identitatea legală și contactele publice. Nu se forțează publicarea Hosting sau Play Store cât timp gate-urile juridice și de release sunt deschise.
+Toate comenzile trebuie să se încheie fără eroare înainte de commit sau build. Pentru publicarea infrastructurii Firebase se folosește `npm run deploy:firebase`; comanda publică numai Functions, regulile/indexurile Firestore și Hosting, deoarece aplicația nu folosește Firebase Storage.
 
 ## Fișiere care nu intră în Git
 

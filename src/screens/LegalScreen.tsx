@@ -16,7 +16,7 @@ import type { RootStackParamList } from '../types';
 type Props = NativeStackScreenProps<RootStackParamList, 'Legal'>;
 type DocumentTab = 'overview' | 'privacy' | 'terms';
 
-const tabs: Array<{ id: DocumentTab; label: string }> = [
+const tabs: { id: DocumentTab; label: string }[] = [
   { id: 'overview', label: 'Pe scurt' },
   { id: 'privacy', label: 'Datele tale' },
   { id: 'terms', label: 'Reguli' },

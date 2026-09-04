@@ -51,12 +51,10 @@ export function RichMathContent({
   const visibleContent = prepareRichContentForPresentation(content)
     .filter((block) => block.type === 'math' || block.type === 'visual' || block.text.trim().length > 0);
 
-  const rows: Array<
-    | { kind: 'flow'; blocks: FlowContentBlock[] }
+  const rows: (| { kind: 'flow'; blocks: FlowContentBlock[] }
     | { kind: 'phrase'; blocks: FlowContentBlock[] }
     | { kind: 'display'; block: MathContentBlock; prefix?: Extract<FlowContentBlock, { type: 'text' }> }
-    | { kind: 'visual'; block: VisualContentBlock }
-  > = [];
+    | { kind: 'visual'; block: VisualContentBlock })[] = [];
   let flow: FlowContentBlock[] = [];
   const flushFlow = () => {
     if (flow.length > 0) rows.push({ kind: 'flow', blocks: flow });
@@ -110,12 +108,10 @@ export function RichMathContent({
   }
   flushFlow();
 
-  const groupedRows: Array<
-    | { kind: 'flow'; blocks: FlowContentBlock[] }
+  const groupedRows: (| { kind: 'flow'; blocks: FlowContentBlock[] }
     | { kind: 'phrase'; blocks: FlowContentBlock[] }
     | { kind: 'derivation'; blocks: MathContentBlock[]; prefix?: Extract<FlowContentBlock, { type: 'text' }> }
-    | { kind: 'visual'; block: VisualContentBlock }
-  > = [];
+    | { kind: 'visual'; block: VisualContentBlock })[] = [];
   rows.forEach((row) => {
     if (row.kind !== 'display') {
       groupedRows.push(row);

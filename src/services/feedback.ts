@@ -1,18 +1,21 @@
 import { getApp } from '@react-native-firebase/app';
-import { addDoc, collection, getFirestore, serverTimestamp } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import { getFeedbackAppVersion } from './appInfo';
-import { initializeFirebaseServices } from './firebase';
+import { initializeVerifiedFirebaseServices } from './firebase';
 
 export type FeedbackCategory = 'wrong_answer' | 'unclear' | 'unsafe' | 'other';
 
 export async function submitLessonFeedback(lessonId: string, category: FeedbackCategory): Promise<void> {
-  const user = await initializeFirebaseServices();
-  const db = getFirestore(getApp());
-  await addDoc(collection(db, 'feedback'), {
-    userId: user.uid,
+  await initializeVerifiedFirebaseServices();
+  const submit = httpsCallable<{
+    lessonId: string;
+    category: FeedbackCategory;
+    appVersion: string;
+  }, { submitted: boolean }>(getFunctions(getApp(), 'europe-west1'), 'submitLessonFeedback', { timeout: 20_000 });
+  const response = await submit({
     lessonId,
     category,
-    createdAt: serverTimestamp(),
     appVersion: getFeedbackAppVersion(),
   });
+  if (response.data?.submitted !== true) throw new Error('Raportarea nu a fost confirmată.');
 }

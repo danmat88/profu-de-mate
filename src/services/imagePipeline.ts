@@ -1,16 +1,10 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import type { CapturedImage, CaptureSource } from '../types';
-import { deleteTransientCapturedSource, storeTemporaryCapturedImage } from './temporaryImages';
+import type { CapturedImage } from '../types';
+import { storeTemporaryCapturedImage } from './temporaryImages';
 
 const MAX_IMAGE_EDGE = 1800;
 const JPEG_QUALITY = 0.84;
 const EDIT_QUALITY = 0.9;
-
-type RawImage = {
-  uri: string;
-  width: number;
-  height: number;
-};
 
 export type CropRect = {
   originX: number;
@@ -18,34 +12,6 @@ export type CropRect = {
   width: number;
   height: number;
 };
-
-export async function prepareCapturedImage(image: RawImage, source: CaptureSource): Promise<CapturedImage> {
-  try {
-    const context = ImageManipulator.manipulate(image.uri);
-    const longestEdge = Math.max(image.width, image.height);
-
-    if (longestEdge > MAX_IMAGE_EDGE) {
-      if (image.width >= image.height) context.resize({ width: MAX_IMAGE_EDGE, height: null });
-      else context.resize({ width: null, height: MAX_IMAGE_EDGE });
-    }
-
-    const rendered = await context.renderAsync();
-    const result = await rendered.saveAsync({
-      compress: JPEG_QUALITY,
-      format: SaveFormat.JPEG,
-    });
-    const uri = await storeTemporaryCapturedImage(result.uri);
-
-    return {
-      uri,
-      width: result.width,
-      height: result.height,
-      source,
-    };
-  } finally {
-    deleteTransientCapturedSource(image.uri);
-  }
-}
 
 export async function cropCapturedImage(image: CapturedImage, crop: CropRect): Promise<CapturedImage> {
   const originX = Math.min(Math.max(0, Math.round(crop.originX)), Math.max(0, image.width - 1));
@@ -55,8 +21,13 @@ export async function cropCapturedImage(image: CapturedImage, crop: CropRect): P
   const context = ImageManipulator.manipulate(image.uri);
 
   context.crop({ originX, originY, width, height });
+  const longestEdge = Math.max(width, height);
+  if (longestEdge > MAX_IMAGE_EDGE) {
+    if (width >= height) context.resize({ width: MAX_IMAGE_EDGE, height: null });
+    else context.resize({ width: null, height: MAX_IMAGE_EDGE });
+  }
   const rendered = await context.renderAsync();
-  const result = await rendered.saveAsync({ compress: EDIT_QUALITY, format: SaveFormat.JPEG });
+  const result = await rendered.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
   const uri = await storeTemporaryCapturedImage(result.uri);
 
   return { uri, width: result.width, height: result.height, source: image.source };
@@ -66,6 +37,11 @@ export async function rotateCapturedImage(image: CapturedImage): Promise<Capture
   const context = ImageManipulator.manipulate(image.uri);
 
   context.rotate(90);
+  const longestEdge = Math.max(image.width, image.height);
+  if (longestEdge > MAX_IMAGE_EDGE) {
+    if (image.width >= image.height) context.resize({ width: null, height: MAX_IMAGE_EDGE });
+    else context.resize({ width: MAX_IMAGE_EDGE, height: null });
+  }
   const rendered = await context.renderAsync();
   const result = await rendered.saveAsync({ compress: EDIT_QUALITY, format: SaveFormat.JPEG });
   const uri = await storeTemporaryCapturedImage(result.uri);

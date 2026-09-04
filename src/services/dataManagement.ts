@@ -11,7 +11,11 @@ import { clearPendingAnalysis } from './pendingAnalysis';
 import { clearTemporaryCapturedImages } from './temporaryImages';
 import { getInstallationToken } from './installationIdentity';
 
-type DeleteMyDataResponse = { deleted: boolean };
+type DeleteMyDataResponse = { deleted: boolean; revenueCatDeletionPending?: boolean };
+
+export type DataDeletionResult = {
+  externalBillingProfilePending: boolean;
+};
 
 export class DataDeletionCancelledError extends Error {
   constructor() {
@@ -20,7 +24,7 @@ export class DataDeletionCancelledError extends Error {
   }
 }
 
-export async function deleteAllUserData(): Promise<void> {
+export async function deleteAllUserData(): Promise<DataDeletionResult> {
   await initializeVerifiedFirebaseServices();
   if (!await confirmGoogleIdentityForDeletion()) throw new DataDeletionCancelledError();
   const app = getApp();
@@ -44,4 +48,5 @@ export async function deleteAllUserData(): Promise<void> {
   resetFirebaseInitialization();
   await initializeVerifiedFirebaseServices();
   await getCommercialAccess();
+  return { externalBillingProfilePending: response.data.revenueCatDeletionPending === true };
 }

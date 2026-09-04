@@ -204,7 +204,7 @@ export const lessonStepSchema = z.object({
   alternative: z.array(contentBlockSchema).min(1).max(analysisContentLimits.alternative),
 });
 
-const containsVisual = (content: Array<z.infer<typeof contentBlockSchema>>) => content.some((block) => block.type === 'visual');
+const containsVisual = (content: z.infer<typeof contentBlockSchema>[]) => content.some((block) => block.type === 'visual');
 
 export const mathAnalysisSchema = z.object({
   status: analysisStatusSchema,
@@ -296,7 +296,7 @@ function isContentBlockRecord(value: unknown): value is Record<string, unknown> 
 function compactContentBlocks(items: unknown[]): unknown[] {
   if (items.length === 0 || !items.every(isContentBlockRecord)) return items;
 
-  const compacted: Array<Record<string, unknown> & { type: 'text' | 'math' | 'visual' }> = [];
+  const compacted: (Record<string, unknown> & { type: 'text' | 'math' | 'visual' })[] = [];
   items.forEach((item) => {
     if (item.type !== 'text' || typeof item.text !== 'string') {
       compacted.push(item);
@@ -351,9 +351,9 @@ export function normalizeProviderAnalysis(value: unknown): unknown {
   );
 }
 
-export function summarizeAnalysisValidationIssues(error: unknown): Array<{ code: string; path: string }> {
+export function summarizeAnalysisValidationIssues(error: unknown): { code: string; path: string }[] {
   if (!error || typeof error !== 'object' || !Array.isArray((error as { issues?: unknown }).issues)) return [];
-  const issues = (error as { issues: Array<{ code?: unknown; path?: unknown }> }).issues;
+  const issues = (error as { issues: { code?: unknown; path?: unknown }[] }).issues;
   return issues.slice(0, 12).map((issue) => ({
     code: typeof issue.code === 'string' ? issue.code : 'unknown',
     path: Array.isArray(issue.path)

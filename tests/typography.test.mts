@@ -13,12 +13,14 @@ async function sourceFiles(directory: string): Promise<string[]> {
   return nested.flat();
 }
 
-test('design system disables system font scaling for every app text component', async () => {
+test('design system supports Android font scaling without unbounded text growth', async () => {
   const typographyPath = path.resolve('src/components/Typography.tsx');
   const typography = await readFile(typographyPath, 'utf8');
-  assert.equal((typography.match(/allowFontScaling=\{false\}/g) ?? []).length, 2);
+  assert.equal((typography.match(/allowFontScaling maxFontSizeMultiplier=\{props\.maxFontSizeMultiplier \?\? 2\}/g) ?? []).length, 2);
   const mathFormula = await readFile(path.resolve('src/components/MathFormula.tsx'), 'utf8');
-  assert.equal(mathFormula.includes('.fontScale'), false, 'math rendering must use the in-app zoom, not system font scale');
+  assert.equal(mathFormula.includes('.fontScale'), false, 'legacy formula components must not own system scaling');
+  const mathDocument = await readFile(path.resolve('src/components/MathDocumentView.tsx'), 'utf8');
+  assert.match(mathDocument, /textZoom=\{Math\.round\(Math\.min\(2, Math\.max\(1, fontScale\)\) \* 100\)\}/);
 
   for (const file of await sourceFiles(path.resolve('src'))) {
     if (file === typographyPath) continue;

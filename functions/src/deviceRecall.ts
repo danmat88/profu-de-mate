@@ -122,7 +122,7 @@ export async function claimWelcomeDevice(args: {
     accessToken = await playIntegrityAccessToken();
     const response = await decodeIntegrityToken(args.integrityToken, accessToken);
     verdict = parseIntegrityVerdict(response, expectedHash, args.now);
-  } catch (error) {
+  } catch {
     if (args.mode === 'monitor') return { verified: false };
     throw verificationError('unavailable');
   }

@@ -28,27 +28,6 @@ service cloud.firestore {
           || data.onboardingCompleted is bool);
     }
 
-    function validFeedback(data) {
-      return data.keys().hasOnly([
-          'userId',
-          'lessonId',
-          'category',
-          'message',
-          'createdAt',
-          'appVersion'
-        ])
-        && data.keys().hasAll(['userId', 'category', 'createdAt', 'appVersion'])
-        && data.userId == request.auth.uid
-        && data.category in ['wrong_answer', 'unclear', 'unsafe', 'other']
-        && data.createdAt == request.time
-        && data.appVersion is string
-        && data.appVersion.size() <= 24
-        && (!('lessonId' in data)
-          || (data.lessonId is string && data.lessonId.size() <= 128))
-        && (!('message' in data)
-          || (data.message is string && data.message.size() <= 1000));
-    }
-
     match /users/{userId} {
       allow get: if owns(userId);
       allow list: if false;
@@ -86,8 +65,9 @@ service cloud.firestore {
     }
 
     match /feedback/{feedbackId} {
-      allow create: if signedIn() && validFeedback(request.resource.data);
-      allow read, update, delete: if false;
+      // Raportările trec exclusiv prin callable-ul protejat cu App Check și
+      // rate limiting. Clienții nu pot scrie sau citi direct colecția.
+      allow read, write: if false;
     }
 
     // Orice colecție care nu este definită explicit rămâne inaccesibilă clienților.

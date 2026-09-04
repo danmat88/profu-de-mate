@@ -117,25 +117,16 @@ describe('Firestore rules', () => {
     }));
   });
 
-  test('permite feedback minimal, dar nu expune feedbackul altor clienți', async () => {
+  test('feedbackul poate fi scris numai de backendul de încredere', async () => {
     const alice = testEnvironment.authenticatedContext('alice').firestore();
     const feedback = doc(alice, 'feedback/report-1');
-    await assertSucceeds(setDoc(feedback, {
+    await assertFails(setDoc(feedback, {
       userId: 'alice',
       lessonId: 'lesson-1',
       category: 'wrong_answer',
       message: 'Ultimul pas este greșit.',
       createdAt: serverTimestamp(),
       appVersion: '1.0.0',
-    }));
-    await assertFails(setDoc(doc(alice, 'feedback/report-forged-status'), {
-      userId: 'alice',
-      lessonId: 'lesson-1',
-      category: 'unsafe',
-      createdAt: serverTimestamp(),
-      appVersion: '1.0.0',
-      status: 'resolved',
-      severity: 'low',
     }));
     await assertFails(getDoc(feedback));
   });

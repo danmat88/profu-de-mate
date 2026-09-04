@@ -27,8 +27,9 @@ import {
 } from './commercialAccess.js';
 import { assertFirestoreSafeAnalysis } from './documentSize.js';
 import { FEEDBACK_RETENTION_MS, feedbackSeverity, isFeedbackCategory } from './feedbackTriage.js';
+import { FEEDBACK_RATE_WINDOW_MS, nextFeedbackRateState } from './feedbackSubmission.js';
 import { claimWelcomeDevice, welcomeClaimHash } from './deviceRecall.js';
-import { removeOrRetainCommercialUsage } from './dataDeletion.js';
+import { removeOrRetainCommercialUsage, unlinkCommercialInstallations } from './dataDeletion.js';
 import { ProviderCircuitBreaker } from './providerCircuitBreaker.js';
 import { ENFORCE_APP_CHECK } from './releaseSecurity.js';
 import { runProviderPipeline } from './providerPipeline.js';
@@ -41,7 +42,7 @@ import {
   verifyRevenueCatSignature,
 } from './revenueCat.js';
 import { getAIAnalysisConfig } from './runtimeConfig.js';
-import { parseAnalyzeRequest } from './validation.js';
+import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './validation.js';
 
 if (getApps().length === 0) initializeApp();
 
@@ -274,6 +275,88 @@ export const analyzeMathImage = onCall({
     logger.error('Math analysis failed', safeErrorDescriptor(error));
     throw new HttpsError('internal', 'Nu am putut analiza imaginea acum. Încearcă din nou.');
   }
+});
+
+export const getAnalysisStatus = onCall({
+  region: 'europe-west1',
+  serviceAccount: AI_RUNTIME_SERVICE_ACCOUNT,
+  memory: '256MiB',
+  timeoutSeconds: 20,
+  maxInstances: 5,
+  enforceAppCheck: ENFORCE_APP_CHECK,
+}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
+  const { requestId } = parseAnalysisStatusRequest(request.data);
+  const snapshot = await db.collection('_analysisRequests')
+    .doc(`${request.auth.uid}_${requestId}`)
+    .get();
+  if (!snapshot.exists) return { state: 'missing' as const };
+
+  const data = snapshot.data();
+  if (data?.state === 'completed' && data.response) {
+    return { state: 'completed' as const, response: data.response as CachedResponse };
+  }
+  if (data?.state === 'processing') return { state: 'processing' as const };
+  return { state: 'failed' as const };
+});
+
+export const submitLessonFeedback = onCall({
+  region: 'europe-west1',
+  serviceAccount: DATA_RUNTIME_SERVICE_ACCOUNT,
+  memory: '256MiB',
+  timeoutSeconds: 20,
+  maxInstances: 5,
+  enforceAppCheck: ENFORCE_APP_CHECK,
+}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
+  const uid = request.auth.uid;
+  const data = request.data && typeof request.data === 'object'
+    ? request.data as Record<string, unknown>
+    : {};
+  const lessonId = typeof data.lessonId === 'string' ? data.lessonId : '';
+  const category = data.category;
+  const appVersion = typeof data.appVersion === 'string' ? data.appVersion.trim() : '';
+  if (!/^analysis-[a-z0-9]{6,16}-[a-z0-9]{6,16}$/.test(lessonId)
+    || !isFeedbackCategory(category)
+    || appVersion.length < 1
+    || appVersion.length > 24) {
+    throw new HttpsError('invalid-argument', 'Raportarea nu este validă.');
+  }
+
+  const now = Date.now();
+  const lessonRef = db.collection('users').doc(uid).collection('lessons').doc(lessonId);
+  const rateRef = db.collection('_feedbackRateLimits').doc(uid);
+  const feedbackRef = db.collection('feedback').doc();
+  await db.runTransaction(async (transaction) => {
+    const [lesson, rate] = await Promise.all([
+      transaction.get(lessonRef),
+      transaction.get(rateRef),
+    ]);
+    if (!lesson.exists) throw new HttpsError('not-found', 'Lecția nu mai este disponibilă.');
+    const rateData = rate.data();
+    const next = nextFeedbackRateState({
+      windowStartedAt: rateData?.windowStartedAt instanceof Timestamp ? rateData.windowStartedAt.toMillis() : undefined,
+      submissions: rateData?.submissions,
+    }, now);
+    if (!next.allowed) {
+      throw new HttpsError('resource-exhausted', 'Ai trimis mai multe raportări într-un timp scurt. Încearcă din nou mai târziu.');
+    }
+    transaction.set(rateRef, {
+      userId: uid,
+      windowStartedAt: Timestamp.fromMillis(next.state.windowStartedAt),
+      submissions: next.state.submissions,
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(next.state.windowStartedAt + FEEDBACK_RATE_WINDOW_MS + 24 * 60 * 60 * 1000),
+    });
+    transaction.create(feedbackRef, {
+      userId: uid,
+      lessonId,
+      category,
+      appVersion,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  });
+  return { submitted: true };
 });
 
 export const getCommercialAccess = onCall({
@@ -571,13 +654,21 @@ export const deleteMyData = onCall({
       deleteQueryInBatches(db.collection('_accountMergeTickets').where('sourceUserId', '==', userId)),
       deleteQueryInBatches(db.collection('_accountMergeTickets').where('targetUserId', '==', userId)),
       principal.identity === 'google'
-        ? db.collection('_commercialUsers').doc(principal.principalId).delete().catch(() => undefined)
+        ? unlinkCommercialInstallations(db, principal.principalId)
         : Promise.resolve(),
-      db.collection('_commercialEntitlements').doc(principal.principalId).delete().catch(() => undefined),
+      principal.identity === 'google'
+        ? db.collection('_commercialUsers').doc(principal.principalId).delete()
+        : Promise.resolve(),
+      db.collection('_commercialEntitlements').doc(principal.principalId).delete(),
       db.collection('_commercialUsers').doc(installationPrincipal).set({
         principalId: installationPrincipal,
         ...(principal.identity === 'google' ? { welcomeLocked: true } : {}),
+        userId: FieldValue.delete(),
         linkedAccountPrincipalId: FieldValue.delete(),
+        linkedAccountUserId: FieldValue.delete(),
+        linkedAt: FieldValue.delete(),
+        activeMergeTicket: FieldValue.delete(),
+        activeMergeExpiresAt: FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
         expiresAt: Timestamp.fromMillis(Date.now() + 400 * 24 * 60 * 60 * 1000),
       }, { merge: true }),
@@ -666,7 +757,7 @@ export const cleanupExpiredData = onSchedule({
   timeoutSeconds: 300,
 }, async () => {
   const now = Timestamp.now();
-  const [requests, legacyUsage, commercialProfiles, commercialUsage, commercialReservations, commercialEntitlements, commercialGlobal, commercialEvents, mergeTickets, lessons, feedback] = await Promise.all([
+  const [requests, legacyUsage, commercialProfiles, commercialUsage, commercialReservations, commercialEntitlements, commercialGlobal, commercialEvents, mergeTickets, lessons, feedback, feedbackRateLimits] = await Promise.all([
     deleteQueryInBatches(db.collection('_analysisRequests').where('expiresAt', '<=', now)),
     deleteQueryInBatches(db.collection('_aiUsage').where('expiresAt', '<=', now)),
     deleteQueryInBatches(db.collection('_commercialUsers').where('expiresAt', '<=', now)),
@@ -678,6 +769,7 @@ export const cleanupExpiredData = onSchedule({
     deleteQueryInBatches(db.collection('_accountMergeTickets').where('expiresAt', '<=', now)),
     deleteQueryInBatches(db.collectionGroup('lessons').where('expiresAt', '<=', now)),
     deleteQueryInBatches(db.collection('feedback').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db.collection('_feedbackRateLimits').where('expiresAt', '<=', now)),
   ]);
   logger.info('Expired data cleaned', {
     requests,
@@ -691,5 +783,6 @@ export const cleanupExpiredData = onSchedule({
     mergeTickets,
     lessons,
     feedback,
+    feedbackRateLimits,
   });
 });

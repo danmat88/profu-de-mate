@@ -1,9 +1,10 @@
 export const legalDocument = {
-  updatedAt: '25 august 2026',
+  updatedAt: '2 septembrie 2026',
   minimumAge: 13,
-  // Se completează numai după confirmarea numelui legal exact al publisherului.
-  operatorName: '',
-  contactEmail: 'info@danielmatei.dev',
+  operatorName: 'Daniel Matei',
+  contactEmail: 'privacy@danielmatei.dev',
+  supportEmail: 'support@danielmatei.dev',
+  billingEmail: 'billing@danielmatei.dev',
 } as const;
 
 export const legalIdentityIsComplete = Boolean(

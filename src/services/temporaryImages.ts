@@ -76,8 +76,8 @@ export async function storeTemporaryCapturedImage(uri: string): Promise<string> 
 
 /** Deletes only files inside the app-owned capture cache. */
 export function deleteTemporaryCapturedImages(
-  uris: Array<string | null | undefined>,
-  keepUris: Array<string | null | undefined> = [],
+  uris: (string | null | undefined)[],
+  keepUris: (string | null | undefined)[] = [],
 ): void {
   const keep = new Set(keepUris.filter((uri): uri is string => Boolean(uri)));
 
@@ -89,6 +89,23 @@ export function deleteTemporaryCapturedImages(
     } catch {
       // Cache cleanup is best-effort and must not hide the user's next action.
     }
+  }
+}
+
+/**
+ * Releases any capture-flow file that the app is allowed to delete. This covers
+ * both managed edits and raw Camera/ImagePicker cache copies, while gallery
+ * originals remain protected by deleteTransientCapturedSource's cache guard.
+ */
+export function deleteCapturedImageFiles(
+  uris: (string | null | undefined)[],
+  keepUris: (string | null | undefined)[] = [],
+): void {
+  const keep = new Set(keepUris.filter((uri): uri is string => Boolean(uri)));
+  deleteTemporaryCapturedImages(uris, keepUris);
+
+  for (const uri of new Set(uris.filter((value): value is string => Boolean(value)))) {
+    if (!keep.has(uri)) deleteTransientCapturedSource(uri);
   }
 }
 

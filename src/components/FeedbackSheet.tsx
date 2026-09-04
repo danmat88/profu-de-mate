@@ -17,7 +17,7 @@ type Props = {
   onClose: () => void;
 };
 
-const options: Array<{ category: FeedbackCategory; label: string; description: string }> = [
+const options: { category: FeedbackCategory; label: string; description: string }[] = [
   { category: 'wrong_answer', label: 'Răspuns greșit', description: 'Un calcul sau rezultatul final nu este corect.' },
   { category: 'unclear', label: 'Explicație neclară', description: 'Pașii sunt greu de urmărit ori lipsesc detalii.' },
   { category: 'unsafe', label: 'Conținut nepotrivit', description: 'A apărut un text care nu ar trebui să fie aici.' },

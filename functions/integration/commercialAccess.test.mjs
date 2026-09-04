@@ -3,7 +3,7 @@ import { after, before, test } from 'node:test';
 import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { completeAccountMerge, createAccountMergeTicket } from '../lib/accountMerge.js';
-import { removeOrRetainCommercialUsage } from '../lib/dataDeletion.js';
+import { removeOrRetainCommercialUsage, unlinkCommercialInstallations } from '../lib/dataDeletion.js';
 import {
   bindInstallationToAccount,
   bucharestQuotaWindow,
@@ -237,4 +237,42 @@ test('ștergerea și recrearea aceluiași Google nu resetează cota zilei', asyn
   assert.equal(access.identity, 'google');
   assert.equal(access.used, 1);
   assert.equal(access.remaining, 4);
+});
+
+test('ștergerea Google elimină legăturile reversibile de pe toate instalările', async () => {
+  const secondInstallation = `i_${'5'.repeat(64)}`;
+  await Promise.all([
+    db.collection('_commercialUsers').doc(legacyInstallationPrincipal.principalId).set({
+      principalId: legacyInstallationPrincipal.principalId,
+      userId: deletedGoogleUserId,
+      linkedAccountPrincipalId: deletedGooglePrincipal.principalId,
+      linkedAccountUserId: deletedGoogleUserId,
+      linkedAt: new Date(now),
+      welcomeRequests: 5,
+    }, { merge: true }),
+    db.collection('_commercialUsers').doc(secondInstallation).set({
+      principalId: secondInstallation,
+      userId: recreatedGoogleUserId,
+      linkedAccountPrincipalId: deletedGooglePrincipal.principalId,
+      linkedAccountUserId: recreatedGoogleUserId,
+      activeMergeTicket: 'sensitive-ticket',
+      welcomeRequests: 2,
+    }),
+  ]);
+
+  assert.equal(await unlinkCommercialInstallations(db, deletedGooglePrincipal.principalId, now), 2);
+  const [first, second] = await Promise.all([
+    db.collection('_commercialUsers').doc(legacyInstallationPrincipal.principalId).get(),
+    db.collection('_commercialUsers').doc(secondInstallation).get(),
+  ]);
+  for (const profile of [first.data(), second.data()]) {
+    assert.equal(profile?.userId, undefined);
+    assert.equal(profile?.linkedAccountPrincipalId, undefined);
+    assert.equal(profile?.linkedAccountUserId, undefined);
+    assert.equal(profile?.activeMergeTicket, undefined);
+    assert.equal(profile?.welcomeLocked, true);
+  }
+  assert.equal(first.data()?.welcomeRequests, 5);
+  assert.equal(second.data()?.welcomeRequests, 2);
+  await db.collection('_commercialUsers').doc(secondInstallation).delete();
 });

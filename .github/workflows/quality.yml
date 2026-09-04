@@ -61,6 +61,5 @@ jobs:
       - name: Reject high or critical runtime advisories in Functions
         run: npm --prefix functions audit --omit=dev --audit-level=high
 
-      - name: Report legal release readiness
-        continue-on-error: true
+      - name: Enforce legal release readiness
         run: npm run legal:check

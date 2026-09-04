@@ -38,7 +38,7 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notebook'>;
 
-const tabs: Array<{ value: NotebookFilter; label: string }> = [
+const tabs: { value: NotebookFilter; label: string }[] = [
   { value: 'all', label: 'Toate' },
   { value: 'solve', label: 'Rezolvate' },
   { value: 'check', label: 'Verificate' },

@@ -1,7 +1,7 @@
 type AuthSessionIdentity = {
   uid: string;
   isAnonymous: boolean;
-  providerData: ReadonlyArray<{ providerId: string }>;
+  providerData: readonly { providerId: string }[];
 };
 
 /**

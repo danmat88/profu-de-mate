@@ -15,6 +15,24 @@ export type AnalyzeRequest = {
   installationToken: string;
 };
 
+export type AnalysisStatusRequest = {
+  requestId: string;
+};
+
+function parseRequestId(value: unknown): string {
+  if (typeof value !== 'string' || !REQUEST_ID_PATTERN.test(value)) {
+    throw new HttpsError('invalid-argument', 'Identificatorul analizei nu este valid.');
+  }
+  return value;
+}
+
+export function parseAnalysisStatusRequest(value: unknown): AnalysisStatusRequest {
+  if (!value || typeof value !== 'object') {
+    throw new HttpsError('invalid-argument', 'Cererea de reluare nu este validă.');
+  }
+  return { requestId: parseRequestId((value as Record<string, unknown>).requestId) };
+}
+
 export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
   if (!value || typeof value !== 'object') {
     throw new HttpsError('invalid-argument', 'Cererea nu conține o imagine validă.');
@@ -30,9 +48,7 @@ export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
     throw new HttpsError('invalid-argument', 'Formatul imaginii nu este acceptat.');
   }
 
-  if (typeof data.requestId !== 'string' || !REQUEST_ID_PATTERN.test(data.requestId)) {
-    throw new HttpsError('invalid-argument', 'Identificatorul analizei nu este valid.');
-  }
+  const requestId = parseRequestId(data.requestId);
 
   if (typeof data.installationToken !== 'string' || !INSTALLATION_TOKEN_PATTERN.test(data.installationToken)) {
     throw new HttpsError('invalid-argument', 'Identitatea instalării nu este validă.');
@@ -50,7 +66,7 @@ export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
     mode: parsedMode.data,
     imageBase64: data.imageBase64,
     mimeType: data.mimeType,
-    requestId: data.requestId,
+    requestId,
     installationToken: data.installationToken,
   };
 }

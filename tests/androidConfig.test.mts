@@ -66,7 +66,7 @@ test('uses modern Android Credential Manager instead of legacy Google Sign-In', 
 
   assert.match(appConfig, /react-native-nitro-google-signin/);
   assert.equal(dependencies['react-native-nitro-google-signin'], '^2.1.0');
-  assert.equal(dependencies['react-native-nitro-modules'], '^0.37.0');
+  assert.match(dependencies['react-native-nitro-modules'] ?? '', /^\^0\.37\.\d+$/);
   assert.equal(dependencies['@react-native-google-signin/google-signin'], undefined);
 });
 

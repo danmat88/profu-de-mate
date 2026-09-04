@@ -2,7 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../components/Typography';
 import { ComicBackdrop } from '../components/ComicBackdrop';
@@ -13,12 +13,13 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useCommercial } from '../context/CommercialContext';
 import { commercialGateFromError } from '../services/commercial';
-import { analyzeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
+import { analyzeOrResumeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
+import { beginLessonPresentation, waitForLessonPresentation } from '../services/lessonPresentation';
 import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
-import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../types';
+import type { CapturedImage, CommercialAccess, MathAnalysis, RootStackParamList } from '../types';
 import { contentToAccessibleText } from '../utils/mathContent';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
@@ -28,26 +29,72 @@ type ScreenState =
   | { kind: 'commercial'; message: string; reason: string; access: CommercialAccess | null }
   | { kind: 'error'; message: string };
 
+type Rect = { x: number; y: number; width: number; height: number };
+
+function containedImageRect(frameWidth: number, frameHeight: number, image: CapturedImage): Rect {
+  const inset = 10;
+  const availableWidth = Math.max(1, frameWidth - inset * 2);
+  const availableHeight = Math.max(1, frameHeight - inset * 2);
+  if (image.width <= 0 || image.height <= 0) {
+    return { x: inset, y: inset, width: availableWidth, height: availableHeight };
+  }
+  const scale = Math.min(availableWidth / image.width, availableHeight / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+  return {
+    x: inset + (availableWidth - width) / 2,
+    y: inset + (availableHeight - height) / 2,
+    width,
+    height,
+  };
+}
+
 export function ProcessingScreen({ navigation, route }: Props) {
-  const { height, gutter, isNarrow, isVeryShort, isShort, isCompact } = useResponsiveLayout();
+  const { height, gutter, contentWidth, isNarrow, isVeryShort, isShort } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { access: commercialAccess, refresh: refreshCommercialAccess } = useCommercial();
+  const { access: commercialAccess } = useCommercial();
   const [active, setActive] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
   const [takingLong, setTakingLong] = useState(false);
   const [screenState, setScreenState] = useState<ScreenState>({ kind: 'analyzing' });
+  const [sceneReady, setSceneReady] = useState(reducedMotion);
+  const headerEntrance = useRef(new Animated.Value(1)).current;
+  const stageEntrance = useRef(new Animated.Value(1)).current;
+  const copyEntrance = useRef(new Animated.Value(1)).current;
+  const jobsEntrance = useRef(new Animated.Value(1)).current;
+  const messageHeaderEntrance = useRef(new Animated.Value(0)).current;
+  const messageVisualEntrance = useRef(new Animated.Value(0)).current;
+  const messageCardEntrance = useRef(new Animated.Value(0)).current;
+  const messageActionsEntrance = useRef(new Animated.Value(0)).current;
   const orbit = useRef(new Animated.Value(0)).current;
+  const scanVisibility = useRef(new Animated.Value(1)).current;
   const bob = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current;
   const resumeAfterPaywall = useRef(false);
   const isCheck = route.params.mode === 'check';
   const jobs = isCheck
-    ? ['Citesc rezolvarea', 'Verific fiecare pas', 'Pregătesc explicațiile']
-    : ['Citesc enunțul', 'Aleg metoda', 'Scriu explicația'];
-  const stageHeight = Math.max(isVeryShort ? 210 : 260, Math.min(350, height * (isVeryShort ? 0.33 : 0.4)));
-  const orbitSize = isVeryShort ? 188 : isCompact ? 222 : 264;
-  const haloSize = isVeryShort ? 148 : isCompact ? 173 : 204;
+    ? ['Citesc rezolvarea', 'Verific fiecare pas', 'Pregătesc explicațiile', 'Așez verificarea']
+    : ['Citesc enunțul', 'Aleg metoda', 'Scriu explicația', 'Așez rezolvarea'];
+  const jobLabels = isCheck
+    ? ['Citesc', 'Verific', 'Explic', 'Așez']
+    : ['Citesc', 'Aleg', 'Explic', 'Așez'];
+  const stageHeight = Math.max(isVeryShort ? 220 : 270, Math.min(330, height * (isVeryShort ? 0.34 : 0.39)));
+  const analysisFrameHeight = Math.max(isVeryShort ? 166 : 198, Math.min(236, stageHeight - 54));
+  const analysisFrameWidth = Math.min(440, Math.max(220, contentWidth - 8));
+  const analysisImageRect = containedImageRect(analysisFrameWidth, analysisFrameHeight, route.params.image);
+  const analysisImageStyle = {
+    left: analysisImageRect.x,
+    top: analysisImageRect.y,
+    width: analysisImageRect.width,
+    height: analysisImageRect.height,
+  };
+  const scanStart = analysisImageRect.y + 8;
+  const scanEnd = analysisImageRect.y + Math.max(8, analysisImageRect.height - 8);
+  const scanOpacity = Animated.multiply(
+    scanVisibility,
+    orbit.interpolate({ inputRange: [0, 0.06, 0.9, 1], outputRange: [0, 0.92, 0.92, 0] }),
+  );
   const bottomSpace = Math.max(insets.bottom, 12);
   const canReturnToPhoto = route.params.origin === 'review' && navigation.canGoBack();
   const returnToPhotoOrHome = () => {
@@ -75,11 +122,39 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (reducedMotion) {
-      orbit.setValue(0.12);
-      bob.setValue(0.5);
-      return;
+      setSceneReady(true);
+      return undefined;
     }
-    const orbiting = Animated.loop(Animated.timing(orbit, { toValue: 1, duration: 2400, useNativeDriver: true }));
+    setSceneReady(false);
+    let settled = false;
+    const markReady = () => {
+      if (settled) return;
+      settled = true;
+      setSceneReady(true);
+    };
+    const unsubscribe = navigation.addListener('transitionEnd', (event) => {
+      if (!event.data.closing) markReady();
+    });
+    const fallback = setTimeout(markReady, 550);
+    return () => {
+      settled = true;
+      clearTimeout(fallback);
+      unsubscribe();
+    };
+  }, [navigation, reducedMotion]);
+
+  useEffect(() => {
+    if (!sceneReady || screenState.kind !== 'analyzing') return undefined;
+    if (reducedMotion) {
+      orbit.setValue(0.48);
+      bob.setValue(0.5);
+      return undefined;
+    }
+    orbit.setValue(0);
+    const orbiting = Animated.loop(Animated.sequence([
+      Animated.timing(orbit, { toValue: 1, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(orbit, { toValue: 0, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+    ]));
     const floating = Animated.loop(Animated.sequence([
       Animated.timing(bob, { toValue: 1, duration: 900, useNativeDriver: true }),
       Animated.timing(bob, { toValue: 0, duration: 900, useNativeDriver: true }),
@@ -87,7 +162,33 @@ export function ProcessingScreen({ navigation, route }: Props) {
     orbiting.start();
     floating.start();
     return () => { orbiting.stop(); floating.stop(); };
-  }, [bob, orbit, reducedMotion]);
+  }, [bob, orbit, reducedMotion, sceneReady, screenState.kind]);
+
+  useEffect(() => {
+    if (screenState.kind === 'analyzing') {
+      messageHeaderEntrance.setValue(0);
+      messageVisualEntrance.setValue(0);
+      messageCardEntrance.setValue(0);
+      messageActionsEntrance.setValue(0);
+      return undefined;
+    }
+    if (reducedMotion) {
+      messageHeaderEntrance.setValue(1);
+      messageVisualEntrance.setValue(1);
+      messageCardEntrance.setValue(1);
+      messageActionsEntrance.setValue(1);
+      return undefined;
+    }
+    const easing = Easing.out(Easing.cubic);
+    const entrance = Animated.sequence([
+      Animated.timing(messageHeaderEntrance, { toValue: 1, duration: 130, easing, useNativeDriver: true }),
+      Animated.timing(messageVisualEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
+      Animated.timing(messageCardEntrance, { toValue: 1, duration: 200, easing, useNativeDriver: true }),
+      Animated.timing(messageActionsEntrance, { toValue: 1, duration: 170, easing, useNativeDriver: true }),
+    ]);
+    entrance.start();
+    return () => entrance.stop();
+  }, [messageActionsEntrance, messageCardEntrance, messageHeaderEntrance, messageVisualEntrance, reducedMotion, screenState.kind]);
 
   useFocusEffect(useCallback(() => {
     if (resumeAfterPaywall.current && commercialAccess?.canAnalyze) {
@@ -98,6 +199,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   }, [commercialAccess?.canAnalyze]));
 
   useEffect(() => {
+    if (!sceneReady) return undefined;
     let mounted = true;
     savePendingAnalysis(route.params.mode, route.params.image, route.params.requestId);
     setScreenState({ kind: 'analyzing' });
@@ -105,44 +207,88 @@ export function ProcessingScreen({ navigation, route }: Props) {
     setActive(0);
     progress.stopAnimation();
     progress.setValue(0);
-    if (reducedMotion) progress.setValue(0.18);
-    else Animated.timing(progress, { toValue: 0.9, duration: 22_000, useNativeDriver: false }).start();
+    scanVisibility.stopAnimation();
+    scanVisibility.setValue(1);
+
+    const moveProgressToStep = (step: number) => {
+      const nextValue = step / 3;
+      progress.stopAnimation();
+      if (reducedMotion) progress.setValue(nextValue);
+      else Animated.timing(progress, {
+        toValue: nextValue,
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    };
 
     const secondStage = setTimeout(() => {
       if (!mounted) return;
       setActive(1);
-      if (reducedMotion) progress.setValue(0.5);
+      moveProgressToStep(1);
     }, 1_400);
     const thirdStage = setTimeout(() => {
       if (!mounted) return;
       setActive(2);
-      if (reducedMotion) progress.setValue(0.76);
+      moveProgressToStep(2);
     }, 3_800);
     const slowStage = setTimeout(() => {
       if (mounted) setTakingLong(true);
     }, 20_000);
 
-    analyzeMathImage(route.params.mode, route.params.image, route.params.requestId)
-      .then(({ lessonId, result }) => {
+    analyzeOrResumeMathImage(
+      route.params.mode,
+      route.params.image,
+      route.params.requestId,
+      route.params.origin === 'home',
+      () => !mounted,
+    )
+      .then(async ({ lessonId, result }) => {
         if (!mounted) return;
         progress.stopAnimation();
-        const finish = () => {
+        let lessonParams: RootStackParamList['Lesson'] | undefined;
+        let lessonPresentation: Promise<boolean> | undefined;
+        if (result.status === 'ready' && lessonId) {
+          setActive(3);
+          orbit.stopAnimation();
+          Animated.timing(scanVisibility, {
+            toValue: 0,
+            duration: reducedMotion ? 0 : 150,
+            useNativeDriver: true,
+          }).start();
+          lessonParams = {
+            lesson: result,
+            lessonId,
+            source: 'flow',
+            sourceImage: route.params.image,
+          };
+          beginLessonPresentation(lessonId);
+          navigation.preload('Lesson', lessonParams);
+          lessonPresentation = waitForLessonPresentation(lessonId);
+        }
+        const finish = async () => {
           if (!mounted) return;
-          clearPendingAnalysis();
-          void refreshCommercialAccess();
-          if (result.status === 'ready' && lessonId) {
-            navigation.replace('Lesson', { lesson: result, lessonId, source: 'flow', sourceImage: route.params.image });
+          if (result.status === 'ready' && lessonId && lessonParams && lessonPresentation) {
+            await lessonPresentation;
+            if (!mounted) return;
+            clearPendingAnalysis();
+            navigation.replace('Lesson', lessonParams);
           } else if (result.status !== 'ready') {
+            clearPendingAnalysis();
             setScreenState({ kind: 'rejected', result });
           } else {
+            clearPendingAnalysis();
             setScreenState({ kind: 'error', message: 'Nu am putut salva lecția. Încearcă din nou.' });
           }
         };
         if (reducedMotion) {
           progress.setValue(1);
-          finish();
+          await finish();
         } else {
-          Animated.timing(progress, { toValue: 1, duration: 240, useNativeDriver: false }).start(finish);
+          await new Promise<void>((resolve) => {
+            Animated.timing(progress, { toValue: 1, duration: 180, useNativeDriver: false }).start(() => resolve());
+          });
+          await finish();
         }
       })
       .catch((error) => {
@@ -162,8 +308,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
       clearTimeout(thirdStage);
       clearTimeout(slowStage);
       progress.stopAnimation();
+      scanVisibility.stopAnimation();
     };
-  }, [navigation, progress, reducedMotion, refreshCommercialAccess, requestKey, route.params.image, route.params.mode, route.params.requestId]);
+  }, [copyEntrance, headerEntrance, jobsEntrance, navigation, orbit, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, scanVisibility, sceneReady, stageEntrance]);
 
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
@@ -177,12 +324,15 @@ export function ProcessingScreen({ navigation, route }: Props) {
       <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
         <StatusBar style="light" />
         <ComicBackdrop dark />
-        <View style={styles.top}>
+        <Animated.View style={[styles.top, {
+          opacity: messageHeaderEntrance,
+          transform: [{ translateY: messageHeaderEntrance.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+        }]}>
           <Text style={styles.brand}>Profu’ de mate</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={canReturnToPhoto ? 'Înapoi la fotografie' : 'Înapoi acasă'} onPress={returnToPhotoOrHome} style={styles.closeButton}>
             <MiniGlyph name="close" size={20} color={colors.paper} />
           </Pressable>
-        </View>
+        </Animated.View>
         <ScrollView
           style={styles.messageScroll}
           bounces={false}
@@ -190,21 +340,34 @@ export function ProcessingScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.messageArea, isVeryShort && styles.messageAreaShort]}
         >
-          <View style={styles.messageMascotWrap}>
+          <Animated.View style={[styles.messageMascotWrap, {
+            opacity: messageVisualEntrance,
+            transform: [
+              { translateY: messageVisualEntrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
+              { scale: messageVisualEntrance.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+          }]}>
             <View style={styles.messageHalo} />
             <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.messageMascot} />
             <View style={styles.messageGlyph}>{rejected ? <AppIcon name="camera" size={40} /> : <MiniGlyph name="spark" size={26} />}</View>
-          </View>
-          <View style={styles.messageCardWrap}>
+          </Animated.View>
+          <Animated.View style={[styles.messageCardWrap, {
+            opacity: messageCardEntrance,
+            transform: [{ translateY: messageCardEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+          }]}>
             <View style={styles.messageCardShadow} />
             <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.messageCard}>
               <Text style={styles.messageEyebrow}>{rejected ? 'HAI SĂ MAI ÎNCERCĂM' : commercialBlocked ? 'ACCESUL TĂU' : 'A APĂRUT O PROBLEMĂ'}</Text>
               <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
               <Text style={styles.messageText}>{message}</Text>
             </View>
-          </View>
+          </Animated.View>
         </ScrollView>
-        <View style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
+        <Animated.View style={[styles.messageActions, {
+          paddingBottom: bottomSpace,
+          opacity: messageActionsEntrance,
+          transform: [{ translateY: messageActionsEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+        }]}>
           {commercialBlocked ? <ComicButton compact title="Vezi opțiunile" subtitle="Probleme gratuite sau Premium." icon="trophy" tone="lime" onPress={() => {
             resumeAfterPaywall.current = true;
             navigation.navigate('Paywall', { source: 'quota', ...(screenState.access ? { access: screenState.access } : {}) });
@@ -214,7 +377,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
             <Text style={styles.backLinkText}>{canReturnToPhoto ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </SafeAreaView>
     );
   }
@@ -223,85 +386,164 @@ export function ProcessingScreen({ navigation, route }: Props) {
     <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
       <StatusBar style="light" />
       <ComicBackdrop dark />
-      <View style={styles.top}>
-        <Text style={styles.brand}>Profu’ lucrează</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Continuă analiza în fundal și revino acasă" onPress={continueInBackground} style={styles.stopButton}>
-          <MiniGlyph name="back" size={15} color={colors.paper} />
-          <Text style={styles.stopText}>ACASĂ</Text>
-        </Pressable>
-      </View>
-      <View style={[styles.stage, { height: stageHeight }]}>
-        <Animated.View style={[styles.orbit, { width: orbitSize, height: orbitSize, borderRadius: orbitSize / 2, transform: [{ rotate: orbit.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }]}>
-          <View style={styles.orbitDotA} /><View style={styles.orbitDotB} /><View style={styles.orbitDotC} />
+      <View style={styles.sceneContent}>
+        <Animated.View style={[styles.top, {
+          opacity: headerEntrance,
+          transform: [{ translateY: headerEntrance.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+        }]}>
+          <Text style={styles.brand}>Profu’ lucrează</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Continuă analiza în fundal și revino acasă" onPress={continueInBackground} style={styles.stopButton}>
+            <MiniGlyph name="back" size={15} color={colors.paper} />
+            <Text style={styles.stopText}>ACASĂ</Text>
+          </Pressable>
         </Animated.View>
-        <View style={[styles.halo, { width: haloSize, height: haloSize, borderRadius: haloSize / 2 }]} />
-        <Animated.View style={{ transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [5, -7] }) }] }}>
-          <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isCompact && styles.mascotCompact, isVeryShort && styles.mascotShort]} />
-        </Animated.View>
-        <View style={[styles.thought, isCompact && styles.thoughtCompact]}><Text style={styles.thoughtText}>{isCheck ? 'Mă uit cu atenție la fiecare pas.' : 'Citesc cu atenție enunțul.'}</Text></View>
-      </View>
-      <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}</Text>
-      <Text accessibilityLiveRegion="polite" style={styles.subtitle}>
-        {takingLong ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.' : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
-      </Text>
-      <View
-        accessible
-        accessibilityLabel={`Analiză în curs. ${jobs[active]}. Pasul ${active + 1} din ${jobs.length}.`}
-        accessibilityLiveRegion="polite"
-        style={[styles.jobs, isShort && styles.jobsCompact]}
-      >
-        {jobs.map((job, index) => {
-          const done = index < active;
-          const current = index === active;
-          return (
-            <View key={job} style={styles.job}>
-              <View style={[styles.jobIcon, done && styles.jobDone, current && styles.jobCurrent]}>
-                <MiniGlyph name={done ? 'check' : current ? 'spark' : 'dot'} size={done ? 17 : current ? 15 : 16} color={done || current ? colors.ink : '#9187AF'} />
-              </View>
-              <Text style={[styles.jobText, (done || current) && styles.jobTextActive]}>{job}</Text>
-              {current ? <Text style={styles.now}>ACUM</Text> : null}
+        <Animated.View style={[styles.stage, { height: stageHeight, opacity: stageEntrance, transform: [
+          { translateY: stageEntrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+          { scale: stageEntrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+        ] }]}>
+          <View pointerEvents="none" style={[styles.analysisFrame, isCheck && styles.analysisFrameCheck, { width: analysisFrameWidth, height: analysisFrameHeight }]}>
+            <Image accessible={false} source={{ uri: route.params.image.uri }} resizeMode="contain" style={[styles.analysisPhoto, analysisImageStyle]} />
+            <View style={[styles.analysisVeil, analysisImageStyle]} />
+            <Animated.View style={[styles.analysisScan, {
+              left: analysisImageRect.x + 12,
+              width: Math.max(24, analysisImageRect.width - 24),
+              opacity: scanOpacity,
+              transform: [{ translateY: orbit.interpolate({ inputRange: [0, 1], outputRange: [scanStart, scanEnd] }) }],
+            }]}>
+              <View style={[styles.analysisScanCore, isCheck && styles.analysisScanCoreCheck]} />
+            </Animated.View>
+            <View style={[styles.corner, styles.cornerTL, { left: analysisImageRect.x, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
+            <View style={[styles.corner, styles.cornerTR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
+            <View style={[styles.corner, styles.cornerBL, { left: analysisImageRect.x, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+            <View style={[styles.corner, styles.cornerBR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+          </View>
+          <Animated.View pointerEvents="none" style={[styles.guide, { transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [3, -5] }) }] }]}>
+            <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck]}>
+              <Text style={styles.guideText}>{isCheck ? 'Verific atent.' : 'Citesc atent.'}</Text>
             </View>
-          );
-        })}
+            <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.guideMascot} />
+          </Animated.View>
+        </Animated.View>
+        <View style={[styles.statusArea, isVeryShort && styles.statusAreaShort, { paddingBottom: bottomSpace }]}>
+          <Animated.View style={{
+            opacity: copyEntrance,
+            transform: [{ translateY: copyEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+          }}>
+            <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.subtitle}>
+              {takingLong ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.' : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
+            </Text>
+          </Animated.View>
+          <Animated.View
+            accessible
+            accessibilityLabel={`Analiză în curs. ${jobs[active]}. Pasul ${active + 1} din ${jobs.length}.`}
+            accessibilityLiveRegion="polite"
+            style={[styles.jobs, isShort && styles.jobsCompact, {
+              opacity: jobsEntrance,
+              transform: [{ translateY: jobsEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+            }]}
+          >
+            <View style={styles.currentJob}>
+              <View style={[styles.currentJobIcon, isCheck && styles.currentJobIconCheck]}>
+                <MiniGlyph name="spark" size={16} color={colors.ink} />
+              </View>
+              <View style={styles.currentJobCopy}>
+                <Text style={[styles.currentJobEyebrow, isCheck && styles.currentJobEyebrowCheck]}>ACUM</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.currentJobText}>{jobs[active]}</Text>
+              </View>
+              <Text style={styles.currentJobCount}>{active + 1}/{jobs.length}</Text>
+            </View>
+            <View style={styles.timeline}>
+              <View style={styles.timelineTrack}>
+                <Animated.View style={[styles.timelineFill, isCheck && styles.timelineFillCheck, {
+                  width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                }]} />
+              </View>
+              <View style={styles.timelineSteps}>
+                {jobs.map((job, index) => {
+                  const done = index < active;
+                  const current = index === active;
+                  return (
+                    <View key={job} style={styles.timelineStep}>
+                      <View style={[
+                        styles.timelineNode,
+                        done && styles.timelineNodeDone,
+                        current && styles.timelineNodeCurrent,
+                        current && isCheck && styles.timelineNodeCurrentCheck,
+                      ]}>
+                        <MiniGlyph
+                          name={done ? 'check' : current ? 'spark' : 'dot'}
+                          size={done ? 14 : current ? 12 : 13}
+                          color={done || current ? colors.ink : '#81799C'}
+                        />
+                      </View>
+                      <Text style={[styles.timelineLabel, (done || current) && styles.timelineLabelActive]}>{jobLabels[index]}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </Animated.View>
+        </View>
       </View>
-      <View style={styles.progressTrack}><Animated.View style={[styles.progressFill, { width: progress.interpolate({ inputRange: [0, 1], outputRange: ['3%', '100%'] }) }]} /></View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.ink },
+  sceneContent: { flex: 1 },
   top: { height: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18 },
   closeButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2, borderColor: '#6557A1', backgroundColor: '#2C2457', alignItems: 'center', justifyContent: 'center' },
   stopButton: { minWidth: 88, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderColor: '#6557A1', backgroundColor: '#2C2457', borderRadius: 15, paddingHorizontal: 10 },
   stopText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
-  stage: { alignItems: 'center', justifyContent: 'center' },
-  orbit: { position: 'absolute', borderWidth: 3, borderColor: '#6557A1', borderStyle: 'dashed' },
-  halo: { position: 'absolute', backgroundColor: '#302368' },
-  orbitDotA: { position: 'absolute', width: 21, height: 21, borderRadius: 8, backgroundColor: colors.lime, borderWidth: 2, borderColor: colors.ink, top: 11, left: 28 },
-  orbitDotB: { position: 'absolute', width: 17, height: 17, borderRadius: 9, backgroundColor: colors.peach, borderWidth: 2, borderColor: colors.ink, bottom: 28, right: 8 },
-  orbitDotC: { position: 'absolute', width: 13, height: 13, backgroundColor: colors.cyan, borderWidth: 2, borderColor: colors.ink, top: 109, right: -7, transform: [{ rotate: '14deg' }] },
-  mascot: { width: 205, height: 216 },
-  mascotCompact: { width: 176, height: 186 },
-  mascotShort: { width: 148, height: 156 },
-  thought: { position: 'absolute', right: 0, top: 35, maxWidth: 135, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 17, paddingHorizontal: 10, paddingVertical: 8, transform: [{ rotate: '4deg' }] },
-  thoughtCompact: { top: 23, right: -2, maxWidth: 121 },
-  thoughtText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, lineHeight: 17, textAlign: 'center' },
+  stage: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  analysisFrame: { width: '100%', maxWidth: 440, borderRadius: 25, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: '#05040C', overflow: 'hidden', shadowColor: '#070512', shadowOpacity: 0.7, shadowRadius: 0, shadowOffset: { width: 0, height: 7 }, elevation: 8 },
+  analysisFrameCheck: { borderColor: 'rgba(255,178,139,0.52)' },
+  analysisPhoto: { position: 'absolute', borderRadius: 18 },
+  analysisVeil: { position: 'absolute', borderRadius: 18, backgroundColor: 'rgba(12,9,28,0.12)' },
+  analysisScan: { position: 'absolute', top: 0, height: 2 },
+  analysisScanCore: { width: '100%', height: 2, borderRadius: 2, backgroundColor: colors.lime },
+  analysisScanCoreCheck: { backgroundColor: colors.peach },
+  corner: { position: 'absolute', width: 32, height: 32, borderColor: colors.lime },
+  cornerCheck: { borderColor: colors.peach },
+  cornerTL: { left: 13, top: 13, borderLeftWidth: 5, borderTopWidth: 5, borderTopLeftRadius: 9 },
+  cornerTR: { right: 13, top: 13, borderRightWidth: 5, borderTopWidth: 5, borderTopRightRadius: 9 },
+  cornerBL: { left: 13, bottom: 13, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 9 },
+  cornerBR: { right: 13, bottom: 13, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 9 },
+  guide: { position: 'absolute', zIndex: 5, right: -2, bottom: 2, width: 104, height: 106, alignItems: 'flex-end', justifyContent: 'flex-end' },
+  guideMascot: { width: 80, height: 84 },
+  guideBubble: { position: 'absolute', right: 48, top: 0, minWidth: 92, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, paddingHorizontal: 9, paddingVertical: 6, transform: [{ rotate: '-2deg' }] },
+  guideBubbleCheck: { backgroundColor: colors.peach },
+  guideText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10.5, lineHeight: 13, textAlign: 'center' },
+  statusArea: { flex: 1, minHeight: 0, justifyContent: 'space-evenly' },
+  statusAreaShort: { justifyContent: 'space-between', paddingTop: 4 },
   title: { fontFamily: fonts.display, color: colors.paper, fontSize: 31, lineHeight: 34, textAlign: 'center' },
   titleNarrow: { fontSize: 27, lineHeight: 30 },
   subtitle: { minHeight: 36, paddingHorizontal: 8, fontFamily: fonts.body, color: '#B9B0D2', fontSize: 13, lineHeight: 17, textAlign: 'center', marginTop: 3 },
-  jobs: { marginTop: 25, marginHorizontal: 10 },
-  jobsCompact: { marginTop: 17 },
-  job: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: '#39305F' },
-  jobIcon: { width: 28, height: 28, borderRadius: 10, borderWidth: 2, borderColor: '#655C81', alignItems: 'center', justifyContent: 'center' },
-  jobDone: { backgroundColor: colors.mint, borderColor: colors.ink },
-  jobCurrent: { backgroundColor: colors.lime, borderColor: colors.ink, transform: [{ rotate: '-4deg' }] },
-  jobText: { flex: 1, fontFamily: fonts.body, color: '#8D84A8', fontSize: 13 },
-  jobTextActive: { color: colors.paper, fontFamily: fonts.bodyBold },
-  now: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1 },
-  progressTrack: { height: 7, marginHorizontal: 10, marginTop: 15, borderRadius: 5, backgroundColor: '#38305C', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 5, backgroundColor: colors.lime },
+  jobs: { marginTop: 18, marginHorizontal: 10, paddingHorizontal: 4 },
+  jobsCompact: { marginTop: 12 },
+  currentJob: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  currentJobIcon: { width: 34, height: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  currentJobIconCheck: { backgroundColor: colors.peach },
+  currentJobCopy: { flex: 1, minWidth: 0 },
+  currentJobEyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1.15 },
+  currentJobEyebrowCheck: { color: colors.peach },
+  currentJobText: { marginTop: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 14, lineHeight: 18 },
+  currentJobCount: { minWidth: 42, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: '#50466F', backgroundColor: '#251E4B', fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10.5, letterSpacing: 0.5, textAlign: 'center', overflow: 'hidden' },
+  timeline: { height: 54, marginTop: 5, justifyContent: 'flex-start' },
+  timelineTrack: { position: 'absolute', left: '12.5%', right: '12.5%', top: 12, height: 3, borderRadius: 3, backgroundColor: '#3D345F', overflow: 'hidden' },
+  timelineFill: { height: '100%', borderRadius: 3, backgroundColor: colors.lime },
+  timelineFillCheck: { backgroundColor: colors.peach },
+  timelineSteps: { flexDirection: 'row' },
+  timelineStep: { flex: 1, alignItems: 'center' },
+  timelineNode: { width: 27, height: 27, borderRadius: 10, borderWidth: 2, borderColor: '#544B70', backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  timelineNodeDone: { borderColor: colors.ink, backgroundColor: colors.mint },
+  timelineNodeCurrent: { borderColor: colors.ink, backgroundColor: colors.lime, transform: [{ rotate: '-4deg' }] },
+  timelineNodeCurrentCheck: { backgroundColor: colors.peach },
+  timelineLabel: { marginTop: 5, fontFamily: fonts.bodyBold, color: '#81799C', fontSize: 9.5 },
+  timelineLabelActive: { color: colors.paper },
   messageScroll: { flex: 1 },
   messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 10 },
   messageAreaShort: { paddingTop: 8 },

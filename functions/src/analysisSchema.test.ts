@@ -150,7 +150,7 @@ test('compacts harmless provider punctuation and adjacent prose', () => {
     { type: 'text', text: 'Apoi calculăm.', latex: '', spoken: '', visual: '' },
     { type: 'math', text: '', latex: 'x=2', spoken: 'x este egal cu doi', visual: '' },
     { type: 'text', text: '.', latex: '', spoken: '', visual: '' },
-  ]) as Array<{ type: string; text?: string }>;
+  ]) as { type: string; text?: string }[];
 
   assert.deepEqual(normalized, [
     { type: 'text', text: 'Aplicăm teorema. Apoi calculăm.', latex: '', spoken: '' },
@@ -290,7 +290,7 @@ test('renders formulas from structured table cells before storage', async () => 
     steps: [{ ...solvedLesson().steps[0], explanation: [visual(table, 'Pentru x egal cu doi, f de x este patru.')] }],
   });
   const rendered = await renderMathAnalysis(parsed);
-  const block = rendered.steps[0].explanation[0] as unknown as { visual: { rows: Array<{ cells: Array<{ rendered: { svg: string } }> }> } };
+  const block = rendered.steps[0].explanation[0] as unknown as { visual: { rows: { cells: { rendered: { svg: string } }[] }[] } };
   assert.match(block.visual.rows[0].cells[0].rendered.svg, /^<svg/);
   assert.equal(rendered.schemaVersion, 4);
 });

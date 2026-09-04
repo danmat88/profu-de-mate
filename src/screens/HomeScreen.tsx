@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '../components/Typography';
 import { AppIcon, type AppIconName } from '../components/AppIcon';
@@ -15,7 +15,6 @@ import { PlayfulLoader } from '../components/PlayfulLoader';
 import { useCommercial } from '../context/CommercialContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-import { prepareCapturedImage } from '../services/imagePipeline';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../services/pendingAnalysis';
 import { colors, fonts } from '../theme';
 import type { FlowMode, RootStackParamList } from '../types';
@@ -92,6 +91,9 @@ export function HomeScreen() {
   const float = useRef(new Animated.Value(0)).current;
   const beam = useRef(new Animated.Value(0)).current;
   const modePop = useRef(new Animated.Value(1)).current;
+  const secondaryExit = useRef(new Animated.Value(0)).current;
+  const modeExit = useRef(new Animated.Value(0)).current;
+  const heroExit = useRef(new Animated.Value(0)).current;
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
 
@@ -99,12 +101,15 @@ export function HomeScreen() {
     let active = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
+    secondaryExit.setValue(0);
+    modeExit.setValue(0);
+    heroExit.setValue(0);
     void preparePendingAnalysisOnStartup().then((pending) => {
       if (active) setPendingAnalysis(pending);
     });
     void refreshCommercialAccessIfStale();
     return () => { active = false; };
-  }, [refreshCommercialAccessIfStale]));
+  }, [heroExit, modeExit, refreshCommercialAccessIfStale, secondaryExit]));
 
   useEffect(() => {
     if (reducedMotion) {
@@ -138,13 +143,30 @@ export function HomeScreen() {
     Animated.spring(modePop, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 11 }).start();
   };
 
+  const leaveHome = useCallback((next: () => void) => new Promise<void>((resolve) => {
+    if (reducedMotion) {
+      next();
+      resolve();
+      return;
+    }
+    const easing = Easing.out(Easing.cubic);
+    Animated.sequence([
+      Animated.timing(secondaryExit, { toValue: 1, duration: 120, easing, useNativeDriver: true }),
+      Animated.timing(modeExit, { toValue: 1, duration: 110, easing, useNativeDriver: true }),
+      Animated.timing(heroExit, { toValue: 1, duration: 170, easing, useNativeDriver: true }),
+    ]).start(({ finished }) => {
+      if (finished) next();
+      resolve();
+    });
+  }), [heroExit, modeExit, reducedMotion, secondaryExit]);
+
   const openCapture = () => {
     if (navigationLocked.current) return;
     navigationLocked.current = true;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (pendingAnalysis) {
       setPendingAnalysis(null);
-      navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' });
+      void leaveHome(() => navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' }));
       return;
     }
     navigation.navigate('Capture', { mode });
@@ -156,7 +178,7 @@ export function HomeScreen() {
       galleryLocked.current = true;
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setPendingAnalysis(null);
-      navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' });
+      await leaveHome(() => navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' }));
       return;
     }
     galleryLocked.current = true;
@@ -176,8 +198,13 @@ export function HomeScreen() {
       if (!asset?.uri || asset.width <= 0 || asset.height <= 0) {
         throw new Error('invalid-image');
       }
-      const image = await prepareCapturedImage(asset, 'gallery');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const image = {
+        uri: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        source: 'gallery' as const,
+      };
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       navigation.navigate('Review', { mode, image });
     } catch {
       setGalleryError('Fotografia nu a putut fi deschisă. Alege altă imagine.');
@@ -186,7 +213,7 @@ export function HomeScreen() {
       galleryLocked.current = false;
       setGalleryBusy(false);
     }
-  }, [mode, navigation, pendingAnalysis]);
+  }, [leaveHome, mode, navigation, pendingAnalysis]);
 
   const activeMode = pendingAnalysis?.mode ?? mode;
   const isSolve = activeMode === 'solve';
@@ -206,14 +233,18 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
-      <ComicBackdrop />
-      <ScrollView
-        bounces={false}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 10) + 10 }}
-      >
+      <View style={styles.homeScene}>
+        <ComicBackdrop />
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 10) + 10 }}
+        >
         <View style={[styles.page, { width: contentWidth }]}>
-          <View style={styles.header}>
+          <Animated.View style={[styles.header, {
+            opacity: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            transform: [{ translateY: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }],
+          }]}>
             <View style={styles.brandRow}>
               <View style={styles.logoShadow} />
               <View style={styles.logo}>
@@ -246,11 +277,14 @@ export function HomeScreen() {
             >
               <View style={styles.settingsButton}><AppIcon name="settings" size={36} /></View>
             </Pressable>
-          </View>
+          </Animated.View>
 
           <Animated.View style={[styles.intro, {
-            opacity: entrance,
-            transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+            opacity: Animated.multiply(entrance, secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })),
+            transform: [
+              { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+              { translateY: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) },
+            ],
           }]}>
             <View style={styles.kickerRow}>
               <View style={styles.kickerMark}><Text style={styles.kickerMarkText}>✦</Text></View>
@@ -262,8 +296,11 @@ export function HomeScreen() {
           <Animated.View
             accessibilityRole="tablist"
             style={[styles.modeRow, isLargeText && styles.modeRowLargeText, {
-              opacity: entrance,
-              transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+              opacity: Animated.multiply(entrance, modeExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })),
+              transform: [
+                { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
+                { translateY: modeExit.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) },
+              ],
             }]}
           >
             <ModeOption active={isSolve} compact={isVeryNarrow && !isLargeText} largeText={isLargeText} icon="camera" label="Rezolvă" note="o problemă" tone="violet" onPress={() => chooseMode('solve')} />
@@ -273,7 +310,14 @@ export function HomeScreen() {
           <Animated.View
             style={[
               styles.cameraStageShadow,
-              { height: stageHeight, opacity: entrance, transform: [{ scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] },
+              {
+                height: stageHeight,
+                opacity: entrance,
+                transform: [
+                  { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
+                  { scale: heroExit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) },
+                ],
+              },
             ]}
           >
             <LinearGradient
@@ -341,6 +385,10 @@ export function HomeScreen() {
             </LinearGradient>
           </Animated.View>
 
+          <Animated.View style={{
+            opacity: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            transform: [{ translateY: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [0, 12] }) }],
+          }}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Deschide caietul cu lecții salvate"
@@ -382,14 +430,17 @@ export function HomeScreen() {
             <Text style={styles.promiseSpark}>✦</Text>
             <Text numberOfLines={isLargeText ? 3 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.8} style={styles.promiseText}>Îți explic de ce, nu îți dau doar răspunsul.</Text>
           </View>
+          </Animated.View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  homeScene: { flex: 1, overflow: 'hidden' },
   page: { flex: 1, maxWidth: 560, alignSelf: 'center' },
   pressed: { transform: [{ translateY: 2 }], opacity: 0.94 },
   header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

@@ -11,6 +11,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LaunchSplash } from './src/components/LaunchSplash';
@@ -83,16 +84,16 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
           >
             <StatusBar style="dark" />
             <Stack.Navigator initialRouteName={pendingAnalysis ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
-              <Stack.Screen name="Home" component={HomeScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
               <Stack.Screen name="Notebook" component={NotebookScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Legal" component={LegalScreen} />
               <Stack.Screen name="Paywall" component={PaywallScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
-              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
-              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={pendingAnalysis ?? undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
-              <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
-              <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'fade' }} />
+              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: 'none', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={pendingAnalysis ?? undefined} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false }} />
+              <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_right' }} />
             </Stack.Navigator>
         </NavigationContainer>
       </View>
@@ -174,6 +175,7 @@ function AppRoot() {
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: { flex: 1 },
   app: { flex: 1, backgroundColor: colors.canvas },
   preloadSurface: { flex: 1, backgroundColor: colors.ink },
   navigator: { flex: 1 },
@@ -181,13 +183,15 @@ const styles = StyleSheet.create({
 
 export default function App() {
   return (
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <AppErrorBoundary onError={(error) => {
-        void SplashScreen.hideAsync();
-        recordDiagnosticError('app_render', error);
-      }}>
-        <AppRoot />
-      </AppErrorBoundary>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <AppErrorBoundary onError={(error) => {
+          void SplashScreen.hideAsync();
+          recordDiagnosticError('app_render', error);
+        }}>
+          <AppRoot />
+        </AppErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

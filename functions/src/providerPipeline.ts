@@ -18,12 +18,12 @@ export type ProviderPipelineRejection = {
   call: number;
   requestKind: ProviderGenerationRequest['kind'];
   stage: 'provider' | 'schema' | 'render';
-  issues: Array<{ code: string; path: string }>;
+  issues: { code: string; path: string }[];
 };
 
 type InternalRequest =
   | { kind: 'image'; attempt: number }
-  | { kind: 'repair'; source: string; issues: Array<{ code: string; path: string }>; stage: 'schema' | 'render' };
+  | { kind: 'repair'; source: string; issues: { code: string; path: string }[]; stage: 'schema' | 'render' };
 
 type RunProviderPipelineInput = {
   mode: FlowMode;
@@ -33,7 +33,7 @@ type RunProviderPipelineInput = {
   onRejected?: (event: ProviderPipelineRejection, error: unknown) => void;
 };
 
-function queueRepair(queue: InternalRequest[], request: InternalRequest, source: string, issues: Array<{ code: string; path: string }>, stage: 'schema' | 'render'): void {
+function queueRepair(queue: InternalRequest[], request: InternalRequest, source: string, issues: { code: string; path: string }[], stage: 'schema' | 'render'): void {
   if (request.kind === 'image' && source.length <= MAX_REPAIR_SOURCE_CHARS) {
     queue.unshift({ kind: 'repair', source, issues, stage });
   }

@@ -4,7 +4,7 @@ import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
 import { Asset } from 'expo-asset';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewHandle } from 'react-native-webview';
 import { colors, fonts } from '../theme';
@@ -22,6 +22,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   scrollEnabled?: boolean;
   testID?: string;
+  onReady?: () => void;
 };
 
 let documentFontsPromise: Promise<MathDocumentFonts> | undefined;
@@ -41,7 +42,8 @@ function loadDocumentFonts() {
   return documentFontsPromise;
 }
 
-export function MathDocumentView({ definition, style, scrollEnabled = true, testID }: Props) {
+export function MathDocumentView({ definition, style, scrollEnabled = true, testID, onReady }: Props) {
+  const { fontScale } = useWindowDimensions();
   const webViewRef = useRef<WebViewHandle>(null);
   const latestDefinition = useRef(definition);
   const loaded = useRef(false);
@@ -67,12 +69,12 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
   if (fontsReady && initialMarkup.current === undefined) initialMarkup.current = markup;
 
   const source = useMemo(() => fontsReady
-    ? { html: buildMathDocumentHtml(definition, fontsReady), baseUrl: 'about:blank' }
+    ? { html: buildMathDocumentHtml(definition, fontsReady, initialMarkup.current ?? markup), baseUrl: 'about:blank' }
     : undefined,
   // The first document becomes the immutable WebView shell. Later definitions
   // are injected into the existing DOM so the native view never remounts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [fontsReady, webViewKey]);
+  [fontsReady, markup, webViewKey]);
 
   useEffect(() => {
     if (!loaded.current || !fontsReady || failed) return;
@@ -132,7 +134,7 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
         scrollEnabled={scrollEnabled}
         showsVerticalScrollIndicator={false}
         showsHorizontalScrollIndicator={false}
-        textZoom={100}
+        textZoom={Math.round(Math.min(2, Math.max(1, fontScale)) * 100)}
         onShouldStartLoadWithRequest={(request) => request.url === 'about:blank' || request.url.startsWith('data:text/html')}
         onLoadEnd={() => {
           loaded.current = true;
@@ -144,7 +146,10 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
         onMessage={(event) => {
           try {
             const message = JSON.parse(event.nativeEvent.data) as { type?: unknown };
-            if (message.type === 'document-ready') setDocumentReady(true);
+            if (message.type === 'document-ready') {
+              setDocumentReady(true);
+              onReady?.();
+            }
           } catch {
             // The document bridge accepts only the tiny JSON readiness message.
           }
@@ -167,12 +172,12 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
 }
 
 const styles = StyleSheet.create({
-  frame: { flex: 1, minHeight: 120, overflow: 'hidden', backgroundColor: colors.paper },
+  frame: { flex: 1, minHeight: 120, overflow: 'hidden', backgroundColor: 'transparent' },
   webViewContainer: { backgroundColor: 'transparent' },
   webView: { flex: 1, backgroundColor: 'transparent', opacity: 1 },
   webViewLoading: { opacity: 0 },
   loading: { alignItems: 'center', justifyContent: 'center', padding: 18 },
-  loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', padding: 18 },
+  loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', padding: 18 },
   error: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19, textAlign: 'center' },
   errorText: { marginTop: 4, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, textAlign: 'center' },

@@ -71,10 +71,10 @@ export type VisualColor = 'violet' | 'cyan' | 'lime' | 'peach' | 'rose';
 export type GeometryVisual = {
   kind: 'geometry';
   title: string;
-  points: Array<{ id: string; label: string; x: number; y: number }>;
-  segments: Array<{ from: string; to: string; style: 'solid' | 'dashed'; color: VisualColor }>;
-  circles: Array<{ center: string; radius: number; color: VisualColor }>;
-  polygons: Array<{ points: string[]; color: VisualColor }>;
+  points: { id: string; label: string; x: number; y: number }[];
+  segments: { from: string; to: string; style: 'solid' | 'dashed'; color: VisualColor }[];
+  circles: { center: string; radius: number; color: VisualColor }[];
+  polygons: { points: string[]; color: VisualColor }[];
 };
 
 export type GraphVisual = {
@@ -86,7 +86,7 @@ export type GraphVisual = {
   yMax: number;
   xStep: number;
   yStep: number;
-  series: Array<{ label: string; color: VisualColor; points: Array<{ x: number; y: number }> }>;
+  series: { label: string; color: VisualColor; points: { x: number; y: number }[] }[];
 };
 
 export type TableCell =
@@ -97,7 +97,7 @@ export type TableVisual = {
   kind: 'table';
   title: string;
   headers: string[];
-  rows: Array<{ cells: TableCell[] }>;
+  rows: { cells: TableCell[] }[];
 };
 
 export type NumberLineVisual = {
@@ -106,8 +106,8 @@ export type NumberLineVisual = {
   min: number;
   max: number;
   step: number;
-  markers: Array<{ value: number; label: string; closed: boolean; color: VisualColor }>;
-  intervals: Array<{ start: number; end: number; startClosed: boolean; endClosed: boolean; color: VisualColor }>;
+  markers: { value: number; label: string; closed: boolean; color: VisualColor }[];
+  intervals: { start: number; end: number; startClosed: boolean; endClosed: boolean; color: VisualColor }[];
 };
 
 export type StructuredVisual = GeometryVisual | GraphVisual | TableVisual | NumberLineVisual;
@@ -144,7 +144,7 @@ export type MathAnalysis = {
   summary: RichContent;
   finalAnswer: RichContent;
   steps: LessonStep[];
-  takeaways: Array<{ content: RichContent }>;
+  takeaways: { content: RichContent }[];
 };
 
 export type StoredLesson = MathAnalysis & {

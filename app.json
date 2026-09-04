@@ -16,7 +16,6 @@
     },
     "android": {
       "package": "ro.profudemate.app",
-      "versionCode": 1,
       "allowBackup": false,
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",

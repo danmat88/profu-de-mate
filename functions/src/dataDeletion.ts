@@ -2,6 +2,8 @@ import { FieldValue, type Firestore, Timestamp } from 'firebase-admin/firestore'
 import { bucharestQuotaWindow } from './commercialAccess.js';
 import type { CommercialPrincipal } from './commercialIdentity.js';
 
+const PROFILE_BATCH_SIZE = 400;
+
 function retainedRequestCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.floor(value))
@@ -44,4 +46,42 @@ export async function removeOrRetainCommercialUsage(
     }
   });
   await batch.commit();
+}
+
+/**
+ * Removes every reversible account link from installation-scoped commercial
+ * profiles. The installation principal and consumed welcome allowance remain
+ * solely to prevent delete/reinstall abuse, but no Firebase UID or Google
+ * principal may survive account deletion.
+ */
+export async function unlinkCommercialInstallations(
+  db: Firestore,
+  accountPrincipalId: string,
+  now = Date.now(),
+): Promise<number> {
+  let updated = 0;
+  while (true) {
+    const snapshot = await db.collection('_commercialUsers')
+      .where('linkedAccountPrincipalId', '==', accountPrincipalId)
+      .limit(PROFILE_BATCH_SIZE)
+      .get();
+    if (snapshot.empty) return updated;
+
+    const batch = db.batch();
+    snapshot.docs.forEach((document) => {
+      batch.set(document.ref, {
+        userId: FieldValue.delete(),
+        linkedAccountPrincipalId: FieldValue.delete(),
+        linkedAccountUserId: FieldValue.delete(),
+        linkedAt: FieldValue.delete(),
+        activeMergeTicket: FieldValue.delete(),
+        activeMergeExpiresAt: FieldValue.delete(),
+        welcomeLocked: true,
+        updatedAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(now + 400 * 24 * 60 * 60 * 1000),
+      }, { merge: true });
+    });
+    await batch.commit();
+    updated += snapshot.size;
+  }
 }

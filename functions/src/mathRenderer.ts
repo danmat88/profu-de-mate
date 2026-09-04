@@ -29,12 +29,12 @@ export type RenderedMathAnalysis = Omit<MathAnalysis, 'problem' | 'summary' | 'f
   problem: RenderedRichContent;
   summary: RenderedRichContent;
   finalAnswer: RenderedRichContent;
-  steps: Array<Omit<MathAnalysis['steps'][number], 'explanation' | 'note' | 'alternative'> & {
+  steps: (Omit<MathAnalysis['steps'][number], 'explanation' | 'note' | 'alternative'> & {
     explanation: RenderedRichContent;
     note: RenderedRichContent;
     alternative: RenderedRichContent;
-  }>;
-  takeaways: Array<{ content: RenderedRichContent }>;
+  })[];
+  takeaways: { content: RenderedRichContent }[];
 };
 
 let mathJaxReady: Promise<MathJaxApi> | null = null;

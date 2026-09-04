@@ -42,6 +42,7 @@ export function SettingsScreen({ navigation }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleteComplete, setDeleteComplete] = useState(false);
+  const [externalDeletionPending, setExternalDeletionPending] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
@@ -98,7 +99,8 @@ export function SettingsScreen({ navigation }: Props) {
     setDeleting(true);
     setDeleteError(false);
     try {
-      await deleteAllUserData();
+      const result = await deleteAllUserData();
+      setExternalDeletionPending(result.externalBillingProfilePending);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
       setDeleteComplete(true);
@@ -282,7 +284,9 @@ export function SettingsScreen({ navigation }: Props) {
               <View style={styles.successIcon}><MiniGlyph name="check" size={29} color={colors.ink} /></View>
               <Text style={styles.successEyebrow}>ȘTERGERE ÎNCHEIATĂ</Text>
               <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
-              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul aplicației au fost șterse. Ai acum un spațiu nou și gol, gata să începi din nou.</Text>
+              <Text style={styles.confirmText}>{externalDeletionPending
+                ? 'Datele aplicației au fost șterse. Ștergerea profilului tehnic de plăți a fost înregistrată și va fi reîncercată automat.'
+                : 'Caietul, lecțiile, raportările și contul aplicației au fost șterse. Ai acum un spațiu nou și gol, gata să începi din nou.'}</Text>
               <Pressable accessibilityRole="button" onPress={() => { setDeleteComplete(false); navigation.popToTop(); }} style={styles.successButton}>
                 <Text style={styles.successButtonText}>Înapoi la început</Text>
                 <MiniGlyph name="next" size={19} color={colors.ink} />

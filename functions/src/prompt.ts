@@ -92,7 +92,7 @@ export function buildProviderPrompt(mode: FlowMode, attempt: number): string {
 
 export function buildRepairPrompt(
   mode: FlowMode,
-  issues: ReadonlyArray<{ code: string; path: string }>,
+  issues: readonly { code: string; path: string }[],
   stage: 'schema' | 'render',
 ): string {
   const issuePaths = issues.map((issue) => `${issue.code}:${issue.path || 'root'}`).join(', ') || 'nespecificat';

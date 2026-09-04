@@ -433,8 +433,12 @@ function safeScriptJson(value: string) {
   return JSON.stringify(value).replace(/<\//g, '<\\/');
 }
 
-export function buildMathDocumentHtml(definition: MathDocumentDefinition, fonts: MathDocumentFonts = {}) {
-  const markup = buildMathDocumentMarkup(definition);
+export function buildMathDocumentHtml(
+  definition: MathDocumentDefinition,
+  fonts: MathDocumentFonts = {},
+  preparedMarkup = buildMathDocumentMarkup(definition),
+) {
+  const markup = preparedMarkup;
   const label = escapeDocumentHtml(definition.accessibilityLabel);
   return `<!doctype html><html lang="ro"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src file: data: http: https:; img-src file: data:; connect-src 'none'; media-src 'none'; frame-src 'none';"><style>${documentCss(fonts)}</style></head><body class="${definition.variant}"><main id="document" role="document" aria-label="${label}">${markup}</main><script>(function(){var root=document.getElementById('document');function ready(revision){root.classList.add('visible');if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify({type:'document-ready',revision:revision||'initial'}));}}function afterFonts(callback){if(document.fonts&&document.fonts.ready){document.fonts.ready.then(callback,callback);}else{callback();}}window.__setDocument=function(markup,label,variant,revision){root.classList.remove('visible');requestAnimationFrame(function(){root.innerHTML=markup;root.setAttribute('aria-label',label);document.body.className=variant;window.scrollTo(0,0);requestAnimationFrame(function(){afterFonts(function(){ready(revision);});});});};requestAnimationFrame(function(){afterFonts(function(){ready('initial');});});})();</script></body></html>`;
 }

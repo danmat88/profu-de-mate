@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseAnalyzeRequest } from './validation.js';
+import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './validation.js';
 
 const validRequest = {
   mode: 'solve',
@@ -23,4 +23,12 @@ test('rejects a missing or malformed analysis request id', () => {
 test('requires the stable installation credential on every analysis', () => {
   assert.throws(() => parseAnalyzeRequest({ ...validRequest, installationToken: '' }));
   assert.throws(() => parseAnalyzeRequest({ ...validRequest, installationToken: 'a'.repeat(63) }));
+});
+
+test('status lookup accepts only the scoped analysis request identifier', () => {
+  assert.deepEqual(parseAnalysisStatusRequest({ requestId: validRequest.requestId }), {
+    requestId: validRequest.requestId,
+  });
+  assert.throws(() => parseAnalysisStatusRequest({ requestId: '../another-user' }));
+  assert.throws(() => parseAnalysisStatusRequest(null));
 });

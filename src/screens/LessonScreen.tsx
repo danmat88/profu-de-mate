@@ -12,9 +12,11 @@ import { MathDocumentView } from '../components/MathDocumentView';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Text } from '../components/Typography';
+import { useCommercial } from '../context/CommercialContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { setLessonFavorite } from '../services/lessons';
+import { forgetLessonPresentation, markLessonPresentationReady } from '../services/lessonPresentation';
 import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
@@ -30,6 +32,7 @@ export function LessonScreen({ navigation, route }: Props) {
   const { gutter } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { refresh: refreshCommercialAccess } = useCommercial();
   const lesson = route.params.lesson;
   const sourceImage = route.params.sourceImage;
   const isCheck = lesson.mode === 'check';
@@ -41,7 +44,6 @@ export function LessonScreen({ navigation, route }: Props) {
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const reveal = useRef(new Animated.Value(0)).current;
   const alternateReveal = useRef(new Animated.Value(0)).current;
   const problemReveal = useRef(new Animated.Value(0)).current;
   const savedReveal = useRef(new Animated.Value(0)).current;
@@ -82,13 +84,7 @@ export function LessonScreen({ navigation, route }: Props) {
   useEffect(() => {
     setAlternate(false);
     alternateReveal.setValue(0);
-    reveal.setValue(0);
-    if (reducedMotion) {
-      reveal.setValue(1);
-      return;
-    }
-    Animated.spring(reveal, { toValue: 1, useNativeDriver: true, speed: 14, bounciness: 5 }).start();
-  }, [alternateReveal, reducedMotion, reveal, step]);
+  }, [alternateReveal, step]);
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -96,8 +92,19 @@ export function LessonScreen({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => navigation.addListener('beforeRemove', () => {
+    forgetLessonPresentation(route.params.lessonId);
     deleteTemporaryCapturedImages([sourceImage?.uri]);
-  }), [navigation, sourceImage?.uri]);
+  }), [navigation, route.params.lessonId, sourceImage?.uri]);
+
+  useEffect(() => {
+    if (route.params.source !== 'flow') return undefined;
+    let refreshed = false;
+    return navigation.addListener('transitionEnd', (event) => {
+      if (event.data.closing || refreshed) return;
+      refreshed = true;
+      void refreshCommercialAccess();
+    });
+  }, [navigation, refreshCommercialAccess, route.params.source]);
 
   const lockPaging = () => {
     if (pagingLocked.current) return false;
@@ -236,7 +243,16 @@ export function LessonScreen({ navigation, route }: Props) {
         accessibilityValue={{ min: 1, max: lesson.steps.length, now: step + 1, text: `Pasul ${step + 1} din ${lesson.steps.length}` }}
         style={[styles.progress, { marginHorizontal: gutter }]}
       >
-        <View style={[styles.progressPartActive, { width: `${((step + 1) / lesson.steps.length) * 100}%` }]} />
+        {lesson.steps.map((lessonStep, index) => (
+          <View
+            key={`${lessonStep.title}-${index}`}
+            style={[
+              styles.progressPart,
+              index < step && styles.progressPartDone,
+              index === step && styles.progressPartCurrent,
+            ]}
+          />
+        ))}
       </View>
 
       <View style={[styles.stage, { paddingHorizontal: gutter }]}>
@@ -249,18 +265,18 @@ export function LessonScreen({ navigation, route }: Props) {
           <View style={styles.problemIcon}><Text style={styles.problemIconText}>x²</Text></View>
           <View style={styles.problemCopy}>
             <Text style={styles.problemLabel}>PROBLEMA CURENTĂ</Text>
-            <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
+            <Text numberOfLines={2} style={styles.problem}>{lesson.title}</Text>
           </View>
           <Text style={styles.problemAction}>Enunț</Text>
           <MiniGlyph name="next" size={15} color={colors.violetDeep} />
         </Pressable>
 
-        <Animated.View style={[styles.documentFrame, {
-          opacity: reveal,
-          transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [22, 0] }) }],
-        }]}>
-          <MathDocumentView definition={lessonDocument} testID="lesson-math-document" />
-        </Animated.View>
+        <View style={styles.documentFrame}>
+          <MathDocumentView definition={lessonDocument}
+            testID="lesson-math-document"
+            onReady={() => markLessonPresentationReady(route.params.lessonId)}
+          />
+        </View>
       </View>
 
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
@@ -272,9 +288,9 @@ export function LessonScreen({ navigation, route }: Props) {
             </View>
             <MiniGlyph name="next" size={15} color={colors.violetDeep} />
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => setFeedbackOpen(true)} style={({ pressed }) => [styles.reportAction, pressed && styles.pressed]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Raportează o problemă în explicație" onPress={() => setFeedbackOpen(true)} style={({ pressed }) => [styles.reportAction, pressed && styles.pressed]}>
             <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
-            <Text style={styles.reportText}>Raportează</Text>
+            <Text numberOfLines={1} style={styles.reportText}>Semnalează</Text>
           </Pressable>
         </View>
         <ComicButton compact title={nextTitle} trailingIcon={step === lesson.steps.length - 1 ? 'check' : 'next'} tone="lime" onPress={next} />
@@ -341,26 +357,28 @@ export function LessonScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  progress: { height: 6, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden', marginBottom: 8 },
-  progressPartActive: { height: '100%', borderRadius: 4, backgroundColor: colors.violet },
+  progress: { height: 7, flexDirection: 'row', gap: 4, marginBottom: 8 },
+  progressPart: { flex: 1, height: '100%', borderRadius: 5, backgroundColor: colors.line },
+  progressPartDone: { backgroundColor: colors.violetSoft },
+  progressPartCurrent: { backgroundColor: colors.violet },
   savedToast: { position: 'absolute', zIndex: 20, right: 18, top: 59, minHeight: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9 },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
   stage: { flex: 1, minHeight: 0, paddingBottom: 4 },
-  problemRow: { height: 45, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 2 },
+  problemRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7, borderRadius: 18, backgroundColor: '#F1E9FF', paddingHorizontal: 9, paddingVertical: 6 },
   problemIcon: { width: 31, height: 31, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
   problemIconText: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 15 },
   problemCopy: { flex: 1, minWidth: 0 },
   problemLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 1.05 },
-  problem: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 14 },
+  problem: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 14.5 },
   problemAction: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10 },
-  documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.line, backgroundColor: colors.paper },
-  actionDock: { backgroundColor: colors.canvas, borderTopWidth: 1, borderTopColor: colors.line, paddingTop: 5 },
-  secondaryRow: { height: 38, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 2 },
-  secondaryAction: { flex: 1, minWidth: 0, height: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 4 },
+  documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'transparent' },
+  actionDock: { backgroundColor: colors.canvas, paddingTop: 8 },
+  secondaryRow: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 },
+  secondaryAction: { flex: 1, minWidth: 0, height: 42, borderRadius: 14, backgroundColor: colors.violetSoft, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 9 },
   secondaryCopy: { flex: 1, minWidth: 0 },
   secondaryTitle: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11 },
-  reportAction: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6 },
-  reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10 },
+  reportAction: { minWidth: 96, height: 42, borderRadius: 14, backgroundColor: '#EFE9F4', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 8 },
+  reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 9.5 },
   pressed: { opacity: 0.62, transform: [{ translateY: 1 }] },
   modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.46)' },
