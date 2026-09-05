@@ -21,6 +21,7 @@ import {
   getCommercialConfig,
   identityFromAuthToken,
   readCommercialAccess,
+  reconcileStaleAnalysisReservations,
   refundAnalysisQuota,
   reserveAnalysisQuota,
   settleAnalysisQuota,
@@ -29,7 +30,11 @@ import { assertFirestoreSafeAnalysis } from './documentSize.js';
 import { FEEDBACK_RETENTION_MS, feedbackSeverity, isFeedbackCategory } from './feedbackTriage.js';
 import { FEEDBACK_RATE_WINDOW_MS, nextFeedbackRateState } from './feedbackSubmission.js';
 import { claimWelcomeDevice, welcomeClaimHash } from './deviceRecall.js';
-import { removeOrRetainCommercialUsage, unlinkCommercialInstallations } from './dataDeletion.js';
+import {
+  minimizeInstallationProfileForDeletion,
+  removeOrRetainCommercialUsage,
+  unlinkCommercialInstallations,
+} from './dataDeletion.js';
 import { ProviderCircuitBreaker } from './providerCircuitBreaker.js';
 import { ENFORCE_APP_CHECK } from './releaseSecurity.js';
 import { runProviderPipeline } from './providerPipeline.js';
@@ -133,6 +138,7 @@ async function removePendingMergeSourcesForDeletion(
       deleteQueryInBatches(db.collection('_aiUsage').where('userId', '==', sourceUserId)),
       deleteQueryInBatches(db.collection('_analysisRequests').where('userId', '==', sourceUserId)),
       deleteQueryInBatches(db.collection('_commercialReservations').where('userId', '==', sourceUserId)),
+      db.collection('_feedbackRateLimits').doc(sourceUserId).delete(),
     ]);
     await getAuth().deleteUser(sourceUserId).catch((error: unknown) => {
       const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
@@ -424,6 +430,11 @@ export const getCommercialAccess = onCall({
   const installationToken = installationTokenFromData(request.data);
   const installationPrincipal = installationPrincipalId(installationToken, commercialIdentityHmacKey.value());
   const principal = requestCommercialPrincipal(request.auth.token, request.auth.uid, installationToken);
+  await reconcileStaleAnalysisReservations(db, principal.principalId).catch((error) => {
+    // Index propagation or a transient database failure must not block access;
+    // the same idempotent recovery runs again on the next refresh.
+    logger.warn('Stale quota reconciliation deferred', safeErrorDescriptor(error));
+  });
   if (principal.identity === 'google') {
     await bindInstallationToAccount(
       db,
@@ -716,24 +727,14 @@ export const deleteMyData = onCall({
       deleteQueryInBatches(db.collection('_analysisRequests').where('userId', '==', userId)),
       removeOrRetainCommercialUsage(db, principal),
       deleteQueryInBatches(db.collection('_commercialReservations').where('userId', '==', userId)),
+      db.collection('_feedbackRateLimits').doc(userId).delete(),
       deleteQueryInBatches(db.collection('_accountMergeTickets').where('sourceUserId', '==', userId)),
       deleteQueryInBatches(db.collection('_accountMergeTickets').where('targetUserId', '==', userId)),
       principal.identity === 'google'
         ? db.collection('_commercialUsers').doc(principal.principalId).delete()
         : Promise.resolve(),
       db.collection('_commercialEntitlements').doc(principal.principalId).delete(),
-      db.collection('_commercialUsers').doc(installationPrincipal).set({
-        principalId: installationPrincipal,
-        welcomeLocked: FieldValue.delete(),
-        userId: FieldValue.delete(),
-        linkedAccountPrincipalId: FieldValue.delete(),
-        linkedAccountUserId: FieldValue.delete(),
-        linkedAt: FieldValue.delete(),
-        activeMergeTicket: FieldValue.delete(),
-        activeMergeExpiresAt: FieldValue.delete(),
-        updatedAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.now() + 400 * 24 * 60 * 60 * 1000),
-      }, { merge: true }),
+      minimizeInstallationProfileForDeletion(db, installationPrincipal),
     ]);
     await getAuth().deleteUser(userId).catch((error: unknown) => {
       const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;

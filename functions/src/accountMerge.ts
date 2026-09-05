@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { getAuth } from 'firebase-admin/auth';
 import {
   FieldPath,
@@ -25,19 +25,65 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+function transferHash(requestId: string): string {
+  return createHash('sha256').update(`quota-transfer:${requestId}`, 'utf8').digest('hex');
+}
+
+function transferHashes(value: unknown): string[] {
+  return stringArray(value).filter((item) => /^[a-f0-9]{64}$/.test(item));
+}
+
+function legacyTransferHashes(sourcePrincipalId: string, count: number): string[] {
+  if (!isCommercialPrincipalId(sourcePrincipalId) || !sourcePrincipalId.startsWith('i_')) return [];
+  return Array.from({ length: count }, (_, index) => (
+    createHash('sha256')
+      .update(`quota-transfer:legacy:${sourcePrincipalId}:${index}`, 'utf8')
+      .digest('hex')
+  ));
+}
+
 export function mergeConsumedUsage(
   targetUsed: unknown,
   targetRequestIds: unknown,
+  targetTransferHashes: unknown,
   sourceTodayRequestIds: unknown,
+  sourceTodayRetainedRequests: unknown,
+  sourceTodayTransferHashes: unknown,
+  sourcePrincipalId: string,
   limit: number,
-): { used: number; requestIds: string[] } {
+): { used: number; requestIds: string[]; transferHashes: string[] } {
   const targetIds = stringArray(targetRequestIds);
   const sourceIds = stringArray(sourceTodayRequestIds);
+  const targetHashes = new Set([
+    ...transferHashes(targetTransferHashes),
+    ...targetIds.map(transferHash),
+  ]);
+  const sourceRetainedHashes = [...new Set(transferHashes(sourceTodayTransferHashes))];
+  const legacyRetainedCount = Math.max(
+    0,
+    numeric(sourceTodayRetainedRequests) - sourceRetainedHashes.length,
+  );
+  // Profiles minimized by the immediately previous schema retained only a
+  // count. Derive stable, one-way placeholders from the already opaque
+  // installation principal so reconnecting the same profile stays idempotent.
+  const legacyHashes = legacyTransferHashes(sourcePrincipalId, legacyRetainedCount);
+  const sourceHashes = [...new Set([
+    ...sourceIds.map(transferHash),
+    ...sourceRetainedHashes,
+    ...legacyHashes,
+  ])];
+  const uniqueSourceAdds = sourceHashes.filter((hash) => !targetHashes.has(hash)).length;
   const requestIds = [...new Set([...targetIds, ...sourceIds])].slice(-limit);
-  const uniqueSourceAdds = sourceIds.filter((value) => !targetIds.includes(value)).length;
   return {
-    used: Math.min(limit, Math.max(numeric(targetUsed), targetIds.length) + uniqueSourceAdds),
+    used: Math.min(
+      limit,
+      Math.max(numeric(targetUsed), targetIds.length) + uniqueSourceAdds,
+    ),
     requestIds,
+    transferHashes: [...new Set([
+      ...transferHashes(targetTransferHashes),
+      ...sourceHashes,
+    ])].slice(-limit),
   };
 }
 
@@ -141,8 +187,10 @@ async function deleteQueryInBatches(db: Firestore, query: Query): Promise<void> 
 export async function cleanupMergedSource(db: Firestore, sourceUserId: string): Promise<void> {
   await Promise.all([
     db.recursiveDelete(db.collection('users').doc(sourceUserId)),
+    deleteQueryInBatches(db, db.collection('_aiUsage').where('userId', '==', sourceUserId)),
     deleteQueryInBatches(db, db.collection('_analysisRequests').where('userId', '==', sourceUserId)),
     deleteQueryInBatches(db, db.collection('_commercialReservations').where('userId', '==', sourceUserId)),
+    db.collection('_feedbackRateLimits').doc(sourceUserId).delete(),
   ]);
   await getAuth().deleteUser(sourceUserId).catch((error: unknown) => {
     const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
@@ -232,10 +280,20 @@ export async function completeAccountMerge(args: {
     const sourceTodayRequestIds = sourceProfile.data()?.welcomeTodayDay === window.day
       ? stringArray(sourceProfile.data()?.welcomeTodayRequestIds)
       : [];
+    const sourceTodayRetainedRequests = sourceProfile.data()?.welcomeTodayDay === window.day
+      ? numeric(sourceProfile.data()?.welcomeTodayRetainedRequests)
+      : 0;
+    const sourceTodayTransferHashes = sourceProfile.data()?.welcomeTodayDay === window.day
+      ? transferHashes(sourceProfile.data()?.welcomeTodayTransferHashes)
+      : [];
     const merged = mergeConsumedUsage(
       targetUsed,
       targetDaily.data()?.requestIds,
+      targetDaily.data()?.transferHashes,
       sourceTodayRequestIds,
+      sourceTodayRetainedRequests,
+      sourceTodayTransferHashes,
+      sourcePrincipalId,
       dailyLimit,
     );
 
@@ -244,6 +302,7 @@ export async function completeAccountMerge(args: {
       day: window.day,
       requests: merged.used,
       requestIds: merged.requestIds,
+      transferHashes: merged.transferHashes,
       updatedAt: FieldValue.serverTimestamp(),
       expiresAt: Timestamp.fromMillis(now + 35 * 24 * 60 * 60 * 1000),
     }, { merge: true });

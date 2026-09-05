@@ -15,6 +15,15 @@
         { "fieldPath": "mode", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "_commercialReservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "principalId", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "reservedAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [

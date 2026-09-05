@@ -10,12 +10,18 @@ const contextSource = readFileSync(join(process.cwd(), 'src/context/CommercialCo
 const backendSource = readFileSync(join(process.cwd(), 'functions/src/index.ts'), 'utf8');
 const identitySource = readFileSync(join(process.cwd(), 'functions/src/commercialIdentity.ts'), 'utf8');
 
-test('restores the native Firebase session without forcing a cold-start token refresh', () => {
+test('validates a restored Firebase session once and replaces only a terminal identity', () => {
   assert.match(firebaseSource, /const current = auth\.currentUser;/);
   assert.match(firebaseSource, /if \(current\) return current;/);
-  assert.doesNotMatch(firebaseSource, /getIdToken\(current, true\)/);
-  assert.doesNotMatch(firebaseSource, /terminalAuthSessionError|offlineAuthRefreshError/);
+  assert.match(firebaseSource, /verifyServerAuthSession\(initializedUser\)/);
+  assert.match(firebaseSource, /getIdToken\(user, true\)/);
+  assert.match(firebaseSource, /isTerminalAuthSessionError\(error\)/);
+  assert.match(firebaseSource, /authVerification\?\.sessionKey === sessionKey\) authVerification = null/);
+  assert.match(firebaseSource, /replaceTerminalFirebaseSession\(sessionKey\)/);
   assert.match(firebaseSource, /signInAnonymously\(auth\)/);
+  assert.match(firebaseSource, /await getIdToken\(active, true\);\s*return active;/);
+  assert.match(commercialSource, /recoverFirebaseSessionAfterCallableFailure\(error, requestedSessionKey\)/);
+  assert.match(commercialSource, /if \(replacement\) return requestCommercialAccess\(false\)/);
 });
 
 test('logout rotates only Firebase auth while commercial guest identity stays installation-bound', () => {
@@ -58,6 +64,8 @@ test('reauthenticates before remote deletion and clears local state only after s
   assert.doesNotMatch(deletionSource, /getCommercialAccess\(\)/);
   assert.match(deletionSource, /pendingGoogleMergeTickets\(user\.uid\)/);
   assert.match(deletionSource, /removePendingGoogleMergesForUser\(user\.uid\)/);
+  assert.match(backendSource, /_feedbackRateLimits'\)\.doc\(userId\)\.delete\(\)/);
+  assert.match(backendSource, /minimizeInstallationProfileForDeletion\(db, installationPrincipal\)/);
   assert.match(contextSource, /const operation = deleteAllUserData\(\)[\s\S]*?clearAccessForIdentityChange\(\);[\s\S]*?void refresh\(\);/);
 });
 

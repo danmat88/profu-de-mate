@@ -84,7 +84,7 @@ test('cached access is uid-bound, expiring and display-only', () => {
   assert.match(cacheSource, /age < 0 \|\| age > MAX_CACHE_AGE_MS/);
   assert.match(cacheSource, /Date\.parse\(entry\.access\.resetAt\) <= Date\.now\(\)/);
   assert.match(cacheSource, /premium\.expiresAt[\s\S]*Date\.parse/);
-  assert.match(commercialSource, /const access = \(await callable\(\{ installationToken \}\)\)\.data;[\s\S]*activeSessionKey !== requestedSessionKey[\s\S]*writeCachedCommercialAccess\(access, requestedSessionKey\)/);
+  assert.match(commercialSource, /access = \(await callable\(\{ installationToken \}\)\)\.data;[\s\S]*activeSessionKey !== requestedSessionKey[\s\S]*writeCachedCommercialAccess\(access, requestedSessionKey\)/);
   assert.match(commercialSource, /preflightAnalysisAccess[\s\S]*let access = await getCommercialAccess\(\)/);
   assert.match(deletionSource, /clearCachedCommercialAccess\(\)/);
 });

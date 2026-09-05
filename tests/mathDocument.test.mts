@@ -57,6 +57,23 @@ test('flows compact mathematics inline and keeps complex mathematics in a deriva
   assert.match(html, /<div class="derivation"><div class="math-display/);
 });
 
+test('renders consecutive calculations as a derivation instead of cramming them into prose', () => {
+  const content: RichContent = [
+    { type: 'text', text: 'Adunăm mai întâi zecile:', latex: '', spoken: '' },
+    math('10+10=20', 'zece plus zece este egal cu douăzeci'),
+    math('4+4=8', 'patru plus patru este egal cu opt'),
+    { type: 'text', text: 'Apoi însumăm rezultatele.', latex: '', spoken: '' },
+  ];
+  const html = renderRichMathDocument(content);
+
+  assert.match(html, /<p>Adunăm mai întâi zecile:<\/p>/);
+  assert.equal([...html.matchAll(/class="math-display"/g)].length, 2);
+  assert.ok(html.indexOf('aria-label="zece plus zece este egal cu douăzeci"')
+    < html.indexOf('aria-label="patru plus patru este egal cu opt"'));
+  assert.match(html, /<p>Apoi însumăm rezultatele\.<\/p>/);
+  assert.doesNotMatch(html, /class="math-inline"/);
+});
+
 test('groups labels with their own final answers', () => {
   const content: RichContent = [
     { type: 'text', text: 'a)', latex: '', spoken: '' },

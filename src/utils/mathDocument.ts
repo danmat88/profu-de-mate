@@ -227,7 +227,11 @@ function renderCoreContent(content: RichContent, context: RenderContext) {
     const previous = prepared[index - 1];
     const next = prepared[index + 1];
     const hasTextNeighbor = previous?.type === 'text' || next?.type === 'text';
-    if (isInlineFormula(block, hasTextNeighbor)) {
+    // A run of formulas represents successive calculations, not two words in
+    // one sentence. Keep a single compact expression inline with prose, but
+    // render adjacent formulas as a readable, vertically separated derivation.
+    const belongsToFormulaRun = previous?.type === 'math' || next?.type === 'math';
+    if (!belongsToFormulaRun && isInlineFormula(block, hasTextNeighbor)) {
       flushDisplays();
       paragraph.push(inlineFormula(block, context));
       return;

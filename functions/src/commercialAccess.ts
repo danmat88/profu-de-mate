@@ -21,6 +21,7 @@ const BURST_LIMIT = 4;
 const BURST_WINDOW_MS = 60_000;
 const COUNTER_RETENTION_MS = 35 * 24 * 60 * 60 * 1000;
 export const COMMERCIAL_PROFILE_RETENTION_MS = 400 * 24 * 60 * 60 * 1000;
+const STALE_RESERVATION_RECOVERY_MS = 5 * 60 * 1000;
 const CONFIG_CACHE_MS = 15_000;
 
 export type CommercialTier = 'guest' | 'free' | 'premium';
@@ -75,6 +76,7 @@ type ReservationData = {
   day?: unknown;
   requestId?: unknown;
   principalId?: unknown;
+  reservedAt?: unknown;
 };
 
 let cachedConfig: { value: CommercialConfig; expiresAt: number } | null = null;
@@ -357,7 +359,17 @@ export async function reserveAnalysisQuota(
       resetAt: window.resetAt,
     });
 
-    if (reservation?.state === 'reserved' || reservation?.state === 'consumed') return access;
+    if (reservation?.state === 'reserved') {
+      // A legitimate retry takes ownership of the existing quota lease. This
+      // prevents stale-reservation recovery from refunding a retry that is
+      // currently talking to the provider.
+      transaction.update(refs.reservation, {
+        reservedAt: Timestamp.fromMillis(now),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return access;
+    }
+    if (reservation?.state === 'consumed') return access;
 
     const windowStartedAt = timestampMillis(profile?.burstWindowStartedAt) ?? 0;
     const inCurrentBurstWindow = now - windowStartedAt < BURST_WINDOW_MS;
@@ -400,13 +412,18 @@ export async function reserveAnalysisQuota(
 
     if (scope === 'welcome') {
       const requestIds = stringArray(profile, 'welcomeRequestIds');
-      const todayRequestIds = profile?.welcomeTodayDay === window.day
+      const continuesCurrentDay = profile?.welcomeTodayDay === window.day;
+      const todayRequestIds = continuesCurrentDay
         ? stringArray(profile, 'welcomeTodayRequestIds')
         : [];
       profileWrite.welcomeRequests = access.used + 1;
       profileWrite.welcomeRequestIds = [...requestIds.filter((value) => value !== requestId), requestId].slice(-config.welcomeLimit);
       profileWrite.welcomeTodayDay = window.day;
       profileWrite.welcomeTodayRequestIds = [...todayRequestIds.filter((value) => value !== requestId), requestId].slice(-config.welcomeLimit);
+      if (!continuesCurrentDay) {
+        profileWrite.welcomeTodayRetainedRequests = FieldValue.delete();
+        profileWrite.welcomeTodayTransferHashes = FieldValue.delete();
+      }
     } else {
       const requestIds = stringArray(daily, 'requestIds');
       transaction.set(refs.daily, {
@@ -434,7 +451,7 @@ export async function reserveAnalysisQuota(
       scope,
       tier: access.tier,
       state: 'reserved',
-      reservedAt: FieldValue.serverTimestamp(),
+      reservedAt: Timestamp.fromMillis(now),
       updatedAt: FieldValue.serverTimestamp(),
       expiresAt,
     }, { merge: true });
@@ -499,9 +516,10 @@ export async function settleAnalysisQuota(
   requestId: string,
   charge: boolean,
   addResultWrites: (transaction: Transaction) => void,
-): Promise<void> {
+  onlyIfReservedBefore?: number,
+): Promise<boolean> {
   const reservationRef = db.collection('_commercialReservations').doc(`${principalId}_${requestId}`);
-  await db.runTransaction(async (transaction) => {
+  return db.runTransaction(async (transaction) => {
     const reservationSnapshot = await transaction.get(reservationRef);
     const reservation = reservationSnapshot.data() as ReservationData | undefined;
     if (!reservationSnapshot.exists || !reservation) {
@@ -512,6 +530,9 @@ export async function settleAnalysisQuota(
       if (reservation.state === 'refunded') {
         throw new HttpsError('failed-precondition', 'Rezervarea pentru această analiză a expirat. Încearcă din nou.');
       }
+      if (reservation.state !== 'reserved' && reservation.state !== 'consumed') {
+        throw new HttpsError('internal', 'Rezervarea comercială are o stare invalidă.');
+      }
       if (reservation.state === 'reserved') {
         transaction.update(reservationRef, {
           state: 'consumed',
@@ -520,10 +541,15 @@ export async function settleAnalysisQuota(
         });
       }
       addResultWrites(transaction);
-      return;
+      return true;
     }
 
     if (reservation.state === 'reserved') {
+      const reservedAt = timestampMillis(reservation.reservedAt);
+      if (onlyIfReservedBefore !== undefined
+        && (reservedAt === null || reservedAt > onlyIfReservedBefore)) {
+        return false;
+      }
       const counter = counterReference(db, reservation);
       if (!counter || typeof reservation.day !== 'string') {
         throw new HttpsError('internal', 'Rezervarea comercială nu este validă.');
@@ -545,11 +571,46 @@ export async function settleAnalysisQuota(
         settledAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      addResultWrites(transaction);
+      return refunded;
     }
-    addResultWrites(transaction);
+    return false;
   });
 }
 
-export async function refundAnalysisQuota(db: Firestore, principalId: string, requestId: string): Promise<void> {
-  await settleAnalysisQuota(db, principalId, requestId, false, () => undefined);
+export async function refundAnalysisQuota(
+  db: Firestore,
+  principalId: string,
+  requestId: string,
+  onlyIfReservedBefore?: number,
+): Promise<boolean> {
+  return settleAnalysisQuota(db, principalId, requestId, false, () => undefined, onlyIfReservedBefore);
+}
+
+/**
+ * A killed process or provider timeout can strand a reserved allowance slot.
+ * Recover only leases older than the full callable lifetime, and use the same
+ * transactional refund path so concurrent retries cannot return it twice.
+ */
+export async function reconcileStaleAnalysisReservations(
+  db: Firestore,
+  principalId: string,
+  now = Date.now(),
+): Promise<number> {
+  if (!isCommercialPrincipalId(principalId)) return 0;
+  const staleBeforeMs = now - STALE_RESERVATION_RECOVERY_MS;
+  const staleBefore = Timestamp.fromMillis(staleBeforeMs);
+  const snapshot = await db.collection('_commercialReservations')
+    .where('principalId', '==', principalId)
+    .where('state', '==', 'reserved')
+    .where('reservedAt', '<=', staleBefore)
+    .orderBy('reservedAt', 'asc')
+    .limit(20)
+    .get();
+  const results = await Promise.all(snapshot.docs.map(async (document) => {
+    const requestId = document.data().requestId;
+    if (typeof requestId !== 'string') return false;
+    return refundAnalysisQuota(db, principalId, requestId, staleBeforeMs);
+  }));
+  return results.filter(Boolean).length;
 }

@@ -5,11 +5,13 @@ import {
   ReactNativeFirebaseAppCheckProvider,
   type AppCheck,
 } from '@react-native-firebase/app-check';
-import { getAuth, signInAnonymously, type User } from '@react-native-firebase/auth';
+import { getAuth, getIdToken, signInAnonymously, signOut, type User } from '@react-native-firebase/auth';
 import { authSessionIdentityKey } from './authSessionIdentity';
+import { isTerminalAuthSessionError, isUnauthenticatedCallableError } from './firebaseAuthRecovery';
 
 let initialization: Promise<User> | null = null;
-let verification: Promise<void> | null = null;
+let appCheckVerification: Promise<void> | null = null;
+let authVerification: { sessionKey: string; promise: Promise<User> } | null = null;
 let appCheckInstance: AppCheck | null = null;
 
 type AppCheckMode = 'debug' | 'none' | 'playIntegrity';
@@ -31,6 +33,46 @@ async function currentOrAnonymousUser(): Promise<User> {
   // every cold start into an unnecessary network dependency.
   if (current) return current;
   return (await signInAnonymously(auth)).user;
+}
+
+async function replaceTerminalFirebaseSession(expectedSessionKey: string): Promise<User> {
+  const auth = getAuth(getApp());
+  const active = auth.currentUser;
+  const activeSessionKey = authSessionIdentityKey(active);
+
+  // Another account transition won the race. Never sign that newer identity
+  // out while recovering an older request.
+  if (active && activeSessionKey !== expectedSessionKey) return active;
+
+  if (active) await signOut(auth).catch(() => undefined);
+  const replacement = (await signInAnonymously(auth)).user;
+  initialization = Promise.resolve(replacement);
+  authVerification = null;
+  return replacement;
+}
+
+async function verifyServerAuthSession(user: User): Promise<User> {
+  const sessionKey = authSessionIdentityKey(user);
+  if (!sessionKey) return currentOrAnonymousUser();
+  if (authVerification?.sessionKey === sessionKey) return authVerification.promise;
+
+  const promise = getIdToken(user, true)
+    .then(() => {
+      const active = getAuth(getApp()).currentUser;
+      return authSessionIdentityKey(active) === sessionKey ? user : currentOrAnonymousUser();
+    })
+    .catch((error: unknown) => {
+      if (!isTerminalAuthSessionError(error)) {
+        // A temporary network / Play Services failure must not poison the
+        // process-wide verification cache. The next protected request gets a
+        // clean retry without forcing the user to restart the app.
+        if (authVerification?.sessionKey === sessionKey) authVerification = null;
+        throw error;
+      }
+      return replaceTerminalFirebaseSession(sessionKey);
+    });
+  authVerification = { sessionKey, promise };
+  return promise;
 }
 
 /**
@@ -101,20 +143,45 @@ export function initializeFirebaseServices(): Promise<User> {
 }
 
 export async function initializeVerifiedFirebaseServices(): Promise<User> {
-  const user = await initializeFirebaseServices();
+  const initializedUser = await initializeFirebaseServices();
+  const user = await verifyServerAuthSession(initializedUser);
   if (configuredAppCheckMode() === 'none') return user;
   if (!appCheckInstance) throw new Error('Firebase App Check nu a fost inițializat.');
-  if (!verification) {
-    verification = ensureAppCheckReady(appCheckInstance).catch((error) => {
-      verification = null;
+  if (!appCheckVerification) {
+    appCheckVerification = ensureAppCheckReady(appCheckInstance).catch((error) => {
+      appCheckVerification = null;
       throw error;
     });
   }
-  await verification;
+  await appCheckVerification;
   return user;
+}
+
+/**
+ * A deleted/disabled account can keep an already-issued ID token briefly. If
+ * a callable rejects it, force-refresh the token and rotate only when Firebase
+ * confirms that the identity is terminal. Returns the refreshed or replacement
+ * user when the caller should safely retry once.
+ */
+export async function recoverFirebaseSessionAfterCallableFailure(
+  error: unknown,
+  expectedSessionKey: string,
+): Promise<User | null> {
+  if (!isUnauthenticatedCallableError(error)) return null;
+  const active = getAuth(getApp()).currentUser;
+  if (!active || authSessionIdentityKey(active) !== expectedSessionKey) return null;
+
+  try {
+    await getIdToken(active, true);
+    return active;
+  } catch (refreshError) {
+    if (!isTerminalAuthSessionError(refreshError)) return null;
+    return replaceTerminalFirebaseSession(expectedSessionKey);
+  }
 }
 
 export function resetFirebaseInitialization() {
   initialization = null;
-  verification = null;
+  appCheckVerification = null;
+  authVerification = null;
 }

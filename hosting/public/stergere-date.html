@@ -19,28 +19,28 @@
         <h1>Ștergi contul direct din aplicație.</h1>
         <p class="lead">Poți începe cu un cont tehnic anonim și poți alege ulterior conectarea Google. Ambele se șterg din același loc.</p>
 
-        <div class="notice"><strong>Acțiune definitivă:</strong> ștergerea elimină lecțiile, raportările și contul Firebase, apoi cere ștergerea profilului RevenueCat. Numai cota opacă a zilei poate rămâne temporar pentru prevenirea abuzului. Datele contului nu pot fi recuperate. Un abonament Google Play trebuie oprit separat.</div>
+        <div class="notice"><strong>Acțiune definitivă:</strong> ștergerea elimină lecțiile, raportările și contul Firebase, apoi cere ștergerea profilului RevenueCat. Pot rămâne numai markerii tehnici minimizați descriși mai jos, strict pentru prevenirea abuzului. Datele contului nu pot fi recuperate. Un abonament Google Play trebuie oprit separat.</div>
 
         <h2>Pașii de ștergere</h2>
         <ol>
           <li>Deschide aplicația Profu’ de mate.</li>
           <li>Din ecranul Acasă, apasă iconul Setări din dreapta sus.</li>
-          <li>În secțiunea „Datele tale”, apasă „Șterge toate datele”.</li>
-          <li>Citește confirmarea și apasă „Da, șterge definitiv”.</li>
-          <li>Așteaptă mesajul de succes; aplicația revine la început cu o identitate nouă la următoarea folosire.</li>
+          <li>În secțiunea „Datele tale”, apasă „Șterge contul și datele” dacă ai conectat Google sau „Șterge datele temporare” dacă folosești modul guest.</li>
+          <li>Citește confirmarea și apasă butonul roșu de ștergere.</li>
+          <li>Așteaptă mesajul de succes; aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă.</li>
         </ol>
 
         <h2>Ce se șterge</h2>
         <ul>
           <li>toate lecțiile, inclusiv cele din Caiet;</li>
           <li>rapoartele și categoriile de feedback asociate instalării;</li>
-          <li>cache-ul cererilor și contoarele asociate UID-ului; numai cota opacă a zilei poate urma retenția anti-abuz de mai jos;</li>
+          <li>cache-ul cererilor, limitele de feedback și contoarele asociate UID-ului; numai markerii anti-abuz minimizați pot urma retențiile de mai jos;</li>
           <li>utilizatorul Firebase anonim sau conectat cu Google;</li>
           <li>profilul RevenueCat asociat identificatorului aplicației; dacă serviciul nu răspunde, cererea este reîncercată automat de backend.</li>
         </ul>
 
         <h2>Ce nu anulează și ce poate rămâne limitat</h2>
-        <p>Ștergerea nu anulează abonamentul din Google Play și nu șterge totalurile agregate care nu identifică un utilizator. Pentru un cont Google, codul HMAC opac și numărul problemelor folosite în ziua curentă pot rămâne până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi. Nu conțin e-mailul sau UID-ul Firebase. Logurile de securitate și semnalele anti-abuz Play Integrity/Device Recall pot urma perioadele limitate descrise în Politica de confidențialitate.</p>
+        <p>Ștergerea nu anulează abonamentul din Google Play și nu șterge totalurile agregate care nu identifică un utilizator. Pentru un cont Google, codul HMAC opac, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul problemelor folosite în ziua curentă pot rămâne până la următoarea resetare. Markerul HMAC al instalării și numărul problemelor de bun-venit folosite pot rămâne maximum 400 de zile de la ultima activitate, exclusiv pentru a împiedica refolosirea artificială a ofertei. Nu conțin e-mailul sau UID-ul Firebase. Dacă Device Recall este aprobat și activat, Google poate păstra bitul anti-abuz până la 3 ani de la ultima citire sau scriere. Logurile strict necesare securității pot urma perioadele limitate descrise în Politica de confidențialitate.</p>
 
         <h2>Ce nu este stocat de aplicație</h2>
         <p>Fotografiile nu sunt păstrate în Firebase Storage sau Caiet. Furnizorul AI poate avea loguri limitate de siguranță care urmează termenii și retenția sa și nu sunt controlate direct de butonul din aplicație.</p>

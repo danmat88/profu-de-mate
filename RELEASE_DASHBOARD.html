@@ -132,7 +132,7 @@
       border-top: 1px solid var(--line);
     }
     .progress-track { height: 9px; margin-top: 11px; overflow: hidden; background: #e3dfd5; border-radius: 99px; }
-    .progress-fill { width: 58%; height: 100%; background: var(--done-deep); border-radius: inherit; }
+    .progress-fill { width: 66%; height: 100%; background: var(--done-deep); border-radius: inherit; }
     .score-copy { color: var(--muted); font-size: 13px; }
     .score-copy strong { color: var(--ink); }
     .score-number { font-size: 38px; line-height: 1; letter-spacing: -.05em; font-weight: 850; }
@@ -310,7 +310,7 @@
         <a href="#play"><span>06</span> Traseul Play</a>
         <a href="#proof"><span>07</span> Dovezi</a>
       </nav>
-      <div class="rail-foot"><strong>Sursa unică de adevăr</strong>Actualizat la 4 septembrie 2026. Se bifează numai ce are dovadă.</div>
+      <div class="rail-foot"><strong>Sursa unică de adevăr</strong>Actualizat la 5 septembrie 2026. Se bifează numai ce are dovadă.</div>
     </aside>
 
     <main>
@@ -320,10 +320,10 @@
         <p class="verdict">Arhitectura de bază, fluxul guest/Google, cotele server-side, ștergerea datelor, randarea matematicii și infrastructura Firebase există. Lansarea rămâne blocată corect până la configurarea aplicației în Play Console, furnizorul AI permis pentru 13+, plăți, Play Integrity, declarații și testarea închisă.</p>
         <div class="scoreline">
           <div>
-            <div class="score-copy"><strong>Pregătire estimată: 58%</strong> · progres de produs, nu probabilitate de aprobare</div>
-            <div class="progress-track" role="progressbar" aria-label="Pregătire estimată" aria-valuemin="0" aria-valuemax="100" aria-valuenow="58"><div class="progress-fill"></div></div>
+            <div class="score-copy"><strong>Pregătire estimată: 66%</strong> · progres de produs, nu probabilitate de aprobare</div>
+            <div class="progress-track" role="progressbar" aria-label="Pregătire estimată" aria-valuemin="0" aria-valuemax="100" aria-valuenow="66"><div class="progress-fill"></div></div>
           </div>
-          <div class="score-number">58%</div>
+          <div class="score-number">66%</div>
         </div>
       </header>
 
@@ -355,10 +355,13 @@
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Utilizare fără cont obligatoriu</h4><p>Firebase Anonymous Auth pornește aplicația direct. Google este opțional pentru acces zilnic, recuperarea Caietului și Premium.</p></div><span class="tag">gata</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Logout fără blocare și fără resetarea cotei</h4><p>Logoutul nu mai depinde de Cloud Functions. Închide Firebase, Credential Manager și RevenueCat local, apoi reconstruiește guest-ul în fundal.</p></div><span class="tag">reparat</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Transfer guest → Google recuperabil</h4><p>Tichetele de transfer sunt persistente, limitate și reluate după întreruperi, schimbări de cont ori restart. Eșecul temporar nu falsifică rezultatul loginului.</p></div><span class="tag">reparat</span></article>
-        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Ștergere de cont cu rezultat definitiv</h4><p>Google cere reautentificare; serverul curăță Auth, lecții, feedback, analize, cereri și legături. Un refresh guest offline nu mai transformă succesul în eroare.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Consum transferat exact, inclusiv după ștergere</h4><p>Hashurile unidirecționale deduplică fiecare folosire guest la conectarea Google. Profilurile legacy care aveau numai un număr primesc markeri deterministici, astfel încât reconectările din aceeași zi nu mai acordă bonus și nu dublează consumul.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Ștergere de cont cu rezultat definitiv</h4><p>Google cere reautentificare; serverul curăță Auth, lecții, feedback, rate-limituri, analize, cereri și legături. Profilurile instalării fără consum dispar, iar cele necesare anti-abuz sunt reduse la markerul minim.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Sesiuni Firebase șterse sau expirate se repară sigur</h4><p>Aplicația verifică sesiunea restaurată o singură dată și o înlocuiește numai dacă Firebase confirmă că este invalidă definitiv. Erorile de rețea, App Check și backend nu rotesc identitatea; un token reîmprospătat valid primește o singură reîncercare a operației.</p></div><span class="tag">reparat</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Cache-uri izolate pe sesiune</h4><p>Cota și Caietul sunt legate de cheia sesiunii Firebase. Snapshoturile vechi sunt ignorate după schimbarea identității.</p></div><span class="tag">reparat</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Cote și consum controlate pe server</h4><p>5 bun-venit per instalare, 5/zi pe Google, rezervări tranzacționale, idempotency, refund controlat și limite anti-abuz.</p></div><span class="tag">gata</span></article>
-        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Matematică redată într-un document securizat</h4><p>Explicații, formule, pași, tabele și structuri vizuale folosesc un document WebView local, fără rețea, cookies sau script injectabil.</p></div><span class="tag">gata</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Rezervările abandonate sunt recuperate</h4><p>O analiză întreruptă nu poate bloca definitiv o problemă disponibilă. După expirarea lease-ului, serverul restituie atomic cota și plafonul global, o singură dată, fără cursă cu un retry activ.</p></div><span class="tag">reparat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Matematică redată într-un document securizat</h4><p>Explicații, formule, pași, tabele și structuri vizuale folosesc un document WebView local, fără rețea, cookies sau script injectabil. Calculele consecutive sunt așezate vertical ca o derivare, iar formulele scurte izolate rămân natural în text.</p></div><span class="tag">verificat pe telefon</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Fotografii temporare, nu arhivă cloud</h4><p>Camera/galeria/crop păstrează fișiere temporar, le curăță la abandon/start și nu salvează fotografia în Firebase Storage.</p></div><span class="tag">gata</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Securitate client și Firebase</h4><p>Cheile AI rămân server-side, Firestore este deny-by-default, permisiunile Android sunt minimale, backupul este oprit și HTTP cleartext interzis.</p></div><span class="tag">gata</span></article>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Confidențialitate operațională</h4><p>Crashlytics este opt-in, există ștergere în aplicație și pagină publică de ștergere, iar site-ul are headere de securitate.</p></div><span class="tag">gata</span></article>
@@ -368,8 +371,8 @@
 
       <section class="section" id="codex" style="--order:3" data-section>
         <div class="section-head"><div><h3>Ce mai trebuie făcut în cod</h3><p class="section-intro">Ordinea tehnică. Nimic de aici nu trebuie ascuns sub eticheta „perfect”.</p></div><span class="owner">Codex / dezvoltare</span></div>
-        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Corecțiile Firebase sunt publicate</h4><p>La 4 septembrie 2026 au fost publicate regulile, indexurile, hostingul și toate cele 11 funcții Gen 2. Verificarea din proiectul real arată 11 funcții ACTIVE și 0 erori de deploy.</p></div><span class="tag">publicat</span></article>
-        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Development build nou</h4><p>Patchurile modulelor Expo native cer un dev build nou înainte de următoarea rundă de lucru pe telefon.</p></div><span class="tag">următorul</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Corecțiile Firebase sunt publicate</h4><p>La 5 septembrie 2026 au fost publicate regulile, indexurile, hostingul și toate cele 11 funcții Gen 2. Verificarea din proiectul real arată 11 funcții ACTIVE și 0 erori de deploy.</p></div><span class="tag">publicat</span></article>
+        <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>Development build v18 instalat și verificat</h4><p>Buildul EAS SDK 57, target SDK 36, a fost instalat peste v17 fără ștergerea datelor. Cold start-ul a trecut, sesiunea a rămas stabilă și cota server-side a rămas 2/5 după upgrade. <a href="https://expo.dev/accounts/matdan88/projects/profu-de-mate/builds/c36ed88b-aff1-4e45-ad13-162152f1e1fe">Deschide dovada EAS</a>.</p></div><span class="tag">v18 · gata</span></article>
         <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Triage final pentru advisories npm</h4><p>Auditul de producție raportează 25 de advisories moderate în arborele aplicației și 7 moderate în Functions, fără high sau critical. Remedierea automată propune downgrade-uri incompatibile; actualizăm numai în matricea Expo/Firebase și documentăm excepțiile rămase înainte de beta.</p></div><span class="tag">înainte de beta</span></article>
         <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>Furnizor AI permis pentru produsul 13+</h4><p>Înlocuire/contract valid, adaptor server-side, politici actualizate și rerularea corpusului matematic. Gemini rămâne numai temporar în dezvoltare.</p></div><span class="tag">blocant</span></article>
         <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>Premium + RevenueCat end-to-end</h4><p>Entitlement, offering, webhook semnat, sursa de adevăr server-side, restore, grace period, hold, refund și schimbarea contului. Feature flag rămâne oprit până atunci.</p></div><span class="tag">după Play app</span></article>
@@ -397,7 +400,7 @@
       <section class="section" id="play" style="--order:5" data-section>
         <div class="section-head"><div><h3>Ordinea până în Google Play</h3><p class="section-intro">Dependențele sunt deliberate: nu activăm plățile sau enforcementul înainte să existe identitatea Play reală.</p></div><span class="owner">traseu critic</span></div>
         <article class="task done" data-status="done"><span class="check">✓</span><div class="task-copy"><h4>1. Stabilizează fundația</h4><p>Arhitectură, identitate, cote, date, securitate și teste automate.</p></div><span class="tag">gata în cod</span></article>
-        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>2. Testează fluxul reparat pe un dev build nou</h4><p>Backendul este publicat. Mai trebuie validat pe telefon fluxul complet guest → Google → logout → guest → delete, inclusiv întreruperea rețelei între pași.</p></div><span class="tag">pe telefon</span></article>
+        <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>2. Închide matricea manuală de conturi pe v18</h4><p>Galerie → crop → analiză → lecție → sumar, consumul 3/5 → 2/5, recuperarea sesiunii și upgrade-ul v17 → v18 sunt validate pe telefon real. Mai rămân Google → logout → același guest, ștergerea cu reautentificare, două telefoane și întreruperea rețelei între pași; aceste teste nu se mimează prin ștergerea datelor reale fără acord.</p></div><span class="tag">QA manual rămas</span></article>
         <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>3. Creează aplicația și signingul Play</h4><p>Stabilește certificatele și identitatea reală a buildului distribuit.</p></div><span class="tag">consolă</span></article>
         <article class="task blocked" data-status="blocked"><span class="check">!</span><div class="task-copy"><h4>4. Închide AI, Premium și Integrity</h4><p>Furnizor 13+, produse/subscriptions, RevenueCat și App Check cu Play Integrity.</p></div><span class="tag">blocant</span></article>
         <article class="task next" data-status="next"><span class="check">→</span><div class="task-copy"><h4>5. Legal, listing și QA final</h4><p>Declarațiile trebuie să descrie exact buildul, apoi matricea completă de dispozitive și cazuri-limită.</p></div><span class="tag">pre-release</span></article>
@@ -409,13 +412,15 @@
         <div class="section-head"><div><h3>Dovezi și criterii de acceptanță</h3><p class="section-intro">Un check verde trebuie să aibă comandă, configurație sau sursă oficială. Verificările finale se actualizează după ultima rulare.</p></div><span class="owner">auditabil</span></div>
         <ul class="evidence">
           <li><strong>Calitate proiect · trecut</strong><code>npm run check</code></li>
-          <li><strong>Functions · 62/62</strong><code>npm run functions:test</code></li>
-          <li><strong>Aplicație mobilă · 83/83</strong><code>npm run test:mobile</code></li>
-          <li><strong>Rules + integrare · 18/18</strong><code>npm run test:rules</code></li>
+          <li><strong>Functions · 64/64</strong><code>npm run functions:test</code></li>
+          <li><strong>Aplicație mobilă · 87/87</strong><code>npm run test:mobile</code></li>
+          <li><strong>Rules + integrare · 22/22</strong><code>npm run test:rules</code></li>
           <li><strong>Legal public · trecut</strong><code>npm run legal:check</code></li>
           <li><strong>Bundle de producție · trecut</strong><code>npm run release:bundle-check</code></li>
           <li><strong>Firebase real · 11 ACTIVE</strong><code>firebase functions:list</code></li>
           <li><strong>Deploy · 11/11, 0 erori</strong><code>npm run deploy:firebase</code></li>
+          <li><strong>EAS development · v18 instalat</strong><code>build c36ed88b-aff1-4e45-ad13-162152f1e1fe</code></li>
+          <li><strong>Telefon real · flux principal trecut</strong><code>3/5 → analiză reușită → 2/5 → upgrade → 2/5</code></li>
           <li><strong>Audit npm · 0 high / 0 critical</strong><code>npm audit --omit=dev</code></li>
         </ul>
         <p class="section-intro"><strong>Surse oficiale:</strong> <a href="https://firebase.google.com/docs/auth/android/anonymous-auth">Firebase Anonymous Auth</a> · <a href="https://developer.android.com/identity/sign-in/restore-credentials-implementation">Android Credential Manager</a> · <a href="https://support.google.com/googleplay/android-developer/answer/10144311">User Data</a> · <a href="https://support.google.com/googleplay/android-developer/answer/10787469">Data Safety</a> · <a href="https://support.google.com/googleplay/android-developer/answer/14151465">Personal account testing</a> · <a href="https://support.google.com/googleplay/android-developer/answer/11926878">Target API</a> · <a href="https://www.revenuecat.com/docs/customers/identifying-customers">RevenueCat identity</a>.</p>

@@ -18,7 +18,7 @@
         <p class="eyebrow">Politica de confidențialitate</p>
         <h1>Date puține, scop clar.</h1>
         <p class="lead">Această politică explică modul în care Daniel Matei operează aplicația Profu’ de mate și prelucrează datele utilizatorilor.</p>
-        <p class="meta">Versiune actualizată la 2 septembrie 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
+        <p class="meta">Versiune actualizată la 5 septembrie 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
 
         <div class="notice"><strong>Pe scurt:</strong> fotografia este folosită pentru analiza cerută, nu este pusă în Firebase Storage sau în Caiet, nu avem reclame și poți șterge datele aplicației din Setări.</div>
 
@@ -59,8 +59,10 @@
         <ul>
           <li>lecțiile nesalvate și cache-ul unei cereri: maximum 7 zile;</li>
           <li>contoarele zilnice și rezervările de siguranță: maximum 35 de zile;</li>
-          <li>după ștergerea unui cont Google, codul HMAC și numărul problemelor folosite în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi;</li>
-          <li>profilul tehnic minim de bun-venit, semnalele de securitate și evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există;</li>
+          <li>după ștergerea unui cont Google, codul HMAC, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi;</li>
+          <li>markerul HMAC al instalării și numărul problemelor de bun-venit folosite pot rămâne maximum 400 de zile de la ultima activitate, inclusiv după ștergere, exclusiv pentru prevenirea refolosirii artificiale a ofertei; nu conțin e-mailul sau UID-ul Firebase;</li>
+          <li>dacă Device Recall este aprobat și activat, Google poate păstra bitul anti-abuz până la 3 ani de la ultima citire sau scriere, conform documentației Play Integrity; aplicația îl folosește numai pentru oferta de bun-venit;</li>
+          <li>evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există;</li>
           <li>metadatele standard din bucket-ul implicit Cloud Logging: în mod normal 30 de zile;</li>
           <li>lecțiile din Caiet: cât timp sunt folosite, dar maximum aproximativ 13 luni fără activitate;</li>
           <li>rapoartele trimise: până când ștergi toate datele sau atât cât este necesar pentru investigare și obligații legale;</li>
@@ -68,7 +70,7 @@
         </ul>
 
         <h2>7. Controlul tău</h2>
-        <p>Poți opri Diagnosticarea, te poți deconecta fără ștergere sau poți șterge definitiv contul, lecțiile și rapoartele din <strong>Setări → Șterge toate datele</strong>. Ștergerea cere și eliminarea profilului RevenueCat, dar nu anulează abonamentul din Google Play. Cota opacă a zilei, totalurile anonime, logurile și semnalele strict necesare securității pot urma retențiile limitate explicate aici. Vezi și pagina <a href="/stergere-date">Ștergerea datelor</a>.</p>
+        <p>Poți opri Diagnosticarea, te poți deconecta fără ștergere sau poți șterge definitiv contul, lecțiile și rapoartele din secțiunea <strong>Datele tale</strong> din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu anulează abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime, logurile și semnalele strict necesare securității pot urma retențiile limitate explicate aici. Vezi și pagina <a href="/stergere-date">Ștergerea datelor</a>.</p>
 
         <h2>8. Utilizatori 13–17 ani</h2>
         <p>Aplicația este destinată persoanelor de minimum 13 ani. Nu fotografia fețe, nume, note, adrese, conversații sau alte informații personale; încadrează numai problema de matematică. Pentru utilizatorii minori se aplică și regulile legale locale privind autoritatea părintească și consimțământul.</p>

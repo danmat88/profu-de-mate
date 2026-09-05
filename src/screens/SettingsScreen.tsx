@@ -49,6 +49,15 @@ export function SettingsScreen({ navigation }: Props) {
   const [accountError, setAccountError] = useState<string | null>(null);
   const { access, loading: accessLoading, connectGoogle, disconnectGoogle, deleteAccount, refresh } = useCommercial();
   const freeDailyLimit = access?.allowances.freeDaily ?? 5;
+  const hasGoogleAccount = access?.identity === 'google';
+  const deletionActionTitle = hasGoogleAccount ? 'Șterge contul și datele' : 'Șterge datele temporare';
+  const deletionActionText = hasGoogleAccount
+    ? 'Șterge definitiv contul Profu’ de mate, Caietul și raportările. Abonamentul Google Play se oprește separat.'
+    : 'Șterge profilul temporar, Caietul și raportările. Aplicația va porni apoi cu un spațiu temporar nou.';
+  const deletionConfirmTitle = hasGoogleAccount ? 'Ștergi contul și datele?' : 'Ștergi datele temporare?';
+  const deletionConfirmText = hasGoogleAccount
+    ? 'Contul Profu’ de mate, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește problemele disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
+    : 'Profilul temporar, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
   const diagnosticsLocked = useRef(false);
   const deletionLocked = useRef(false);
   const accountLabel = !access ? 'STARE INDISPONIBILĂ' : access.premium.active ? 'PROFU’ PREMIUM' : access.identity === 'google' ? 'CONT GOOGLE CONECTAT' : 'CONT TEMPORAR';
@@ -205,14 +214,14 @@ export function SettingsScreen({ navigation }: Props) {
             <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={36} /></View>
             <View style={styles.rowCopy}>
               <Text style={styles.rowTitle}>Cât timp păstrăm datele</Text>
-              <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergerea contului, numai cota opacă a zilei poate rămâne până după următoarea resetare, pentru prevenirea abuzului.</Text>
+              <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergere pot rămâne numai markerii anti-abuz minimizați, pentru perioadele explicate la „Legal și siguranță”.</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" onPress={() => { setDeleteError(false); setConfirmDelete(true); }} style={styles.deleteRow}>
             <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
             <View style={styles.rowCopy}>
-              <Text style={styles.deleteTitle}>Șterge toate datele</Text>
-              <Text style={styles.rowText}>Șterge contul, Caietul și raportările. Marcajul opac al cotei de azi poate rămâne temporar pentru a împiedica resetarea artificială. Abonamentul Play se oprește separat.</Text>
+              <Text style={styles.deleteTitle}>{deletionActionTitle}</Text>
+              <Text style={styles.rowText}>{deletionActionText}</Text>
             </View>
             <MiniGlyph name="next" size={18} color={colors.rose} />
           </Pressable>
@@ -245,12 +254,12 @@ export function SettingsScreen({ navigation }: Props) {
             >
               <View style={styles.confirmIcon}><MiniGlyph name="wrong" size={28} color={colors.paper} /></View>
               <Text style={styles.confirmEyebrow}>ACȚIUNE DEFINITIVĂ</Text>
-              <Text style={styles.confirmTitle}>Ștergi toate datele?</Text>
-              <Text style={styles.confirmText}>Caietul, lecțiile, raportările și contul aplicației vor fi șterse definitiv. Pentru a împiedica resetarea artificială a accesului gratuit, numărul problemelor folosite azi poate rămâne temporar sub un cod opac, fără e-mail sau UID. Un abonament activ se oprește separat în Google Play.</Text>
+              <Text style={styles.confirmTitle}>{deletionConfirmTitle}</Text>
+              <Text style={styles.confirmText}>{deletionConfirmText}</Text>
               {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
               <Pressable accessibilityRole="button" disabled={deleting} onPress={() => void deleteData()} style={styles.confirmDelete}>
                 {deleting ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
-                <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : 'Da, șterge definitiv'}</Text>
+                <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : hasGoogleAccount ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}><Text style={styles.cancelText}>Păstrează datele</Text></Pressable>
             </ScrollView>
@@ -292,7 +301,7 @@ export function SettingsScreen({ navigation }: Props) {
               <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
               <Text style={styles.confirmText}>{externalDeletionPending
                 ? 'Datele aplicației au fost șterse. Ștergerea profilului tehnic de plăți a fost înregistrată și va fi reîncercată automat.'
-                : 'Caietul, lecțiile, raportările și contul aplicației au fost șterse. Ai acum un spațiu nou și gol, gata să începi din nou.'}</Text>
+                : 'Contul sau profilul anterior și datele asociate au fost șterse. Aplicația pornește acum cu un spațiu temporar nou, fără legătură cu identitatea ștearsă.'}</Text>
               <Pressable accessibilityRole="button" onPress={() => { setDeleteComplete(false); navigation.popToTop(); }} style={styles.successButton}>
                 <Text style={styles.successButtonText}>Înapoi la început</Text>
                 <MiniGlyph name="next" size={19} color={colors.ink} />

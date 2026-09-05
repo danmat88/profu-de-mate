@@ -13,7 +13,12 @@ import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import type { CommercialAccess } from '../types';
 import { clearCachedCommercialAccess, writeCachedCommercialAccess } from './commercialAccessCache';
 import { createWelcomeIntegrityProof, preparePlayIntegrity } from './deviceIntegrity';
-import { firebaseUserSessionKey, initializeVerifiedFirebaseServices, resetFirebaseInitialization } from './firebase';
+import {
+  firebaseUserSessionKey,
+  initializeVerifiedFirebaseServices,
+  recoverFirebaseSessionAfterCallableFailure,
+  resetFirebaseInitialization,
+} from './firebase';
 import { getInstallationToken } from './installationIdentity';
 import { clearFavoriteLessonsCache } from './lessons';
 import { initializePurchases, resetPurchasesForSignedOutUser } from './purchases';
@@ -220,14 +225,23 @@ export async function prepareCommercialServices(): Promise<void> {
   await Promise.all([preparePlayIntegrity().catch(() => undefined), getInstallationToken()]);
 }
 
-export async function getCommercialAccess(): Promise<CommercialAccess> {
+async function requestCommercialAccess(allowSessionRecovery: boolean): Promise<CommercialAccess> {
   const user = await initializeVerifiedFirebaseServices();
   const requestedSessionKey = firebaseUserSessionKey(user);
   if (!requestedSessionKey) throw new StaleCommercialSessionError();
   await resumePendingMergeWithoutBlocking(user);
   const installationToken = await getInstallationToken();
   const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 30_000 });
-  const access = (await callable({ installationToken })).data;
+  let access: CommercialAccess;
+  try {
+    access = (await callable({ installationToken })).data;
+  } catch (error) {
+    const replacement = allowSessionRecovery
+      ? await recoverFirebaseSessionAfterCallableFailure(error, requestedSessionKey)
+      : null;
+    if (replacement) return requestCommercialAccess(false);
+    throw error;
+  }
   const activeSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
   if (activeSessionKey !== requestedSessionKey) throw new StaleCommercialSessionError();
   await writeCachedCommercialAccess(access, requestedSessionKey);
@@ -238,6 +252,10 @@ export async function getCommercialAccess(): Promise<CommercialAccess> {
     });
   }
   return access;
+}
+
+export function getCommercialAccess(): Promise<CommercialAccess> {
+  return requestCommercialAccess(true);
 }
 
 function detailsFromError(error: unknown): { reason: string; access: CommercialAccess | null } | null {

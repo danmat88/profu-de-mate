@@ -3,11 +3,16 @@ import { after, before, test } from 'node:test';
 import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { completeAccountMerge, createAccountMergeTicket } from '../lib/accountMerge.js';
-import { removeOrRetainCommercialUsage, unlinkCommercialInstallations } from '../lib/dataDeletion.js';
+import {
+  minimizeInstallationProfileForDeletion,
+  removeOrRetainCommercialUsage,
+  unlinkCommercialInstallations,
+} from '../lib/dataDeletion.js';
 import {
   bindInstallationToAccount,
   bucharestQuotaWindow,
   readCommercialAccess,
+  reconcileStaleAnalysisReservations,
   reserveAnalysisQuota,
   settleAnalysisQuota,
 } from '../lib/commercialAccess.js';
@@ -24,6 +29,13 @@ const guestPrincipal = { identity: 'anonymous', principalId: `i_${'1'.repeat(64)
 const linkedGooglePrincipal = { identity: 'google', principalId: `g_${'2'.repeat(64)}` };
 const deletedGooglePrincipal = { identity: 'google', principalId: `g_${'3'.repeat(64)}` };
 const legacyInstallationPrincipal = { identity: 'anonymous', principalId: `i_${'4'.repeat(64)}` };
+const minimizedInstallationPrincipal = `i_${'6'.repeat(64)}`;
+const emptyInstallationPrincipal = `i_${'7'.repeat(64)}`;
+const retainedMergeInstallationPrincipal = `i_${'8'.repeat(64)}`;
+const retainedMergeGooglePrincipal = { identity: 'google', principalId: `g_${'9'.repeat(64)}` };
+const retainedMergeUserId = `retained-merge-${Date.now()}`;
+const staleReservationUserId = `stale-reservation-${Date.now()}`;
+const staleReservationPrincipal = { identity: 'anonymous', principalId: `i_${'a'.repeat(64)}` };
 
 async function deleteIfPresent(reference) {
   await reference.delete().catch(() => undefined);
@@ -34,10 +46,14 @@ before(() => {
 });
 
 after(async () => {
-  const reservations = await db.collection('_commercialReservations').where('userId', 'in', [userId, deletedGoogleUserId]).get();
+  const reservations = await db.collection('_commercialReservations')
+    .where('userId', 'in', [userId, deletedGoogleUserId, staleReservationUserId])
+    .get();
   const batch = db.batch();
   reservations.docs.forEach((document) => batch.delete(document.ref));
-  const mergeTickets = await db.collection('_accountMergeTickets').where('sourceUserId', '==', userId).get();
+  const mergeTickets = await db.collection('_accountMergeTickets')
+    .where('sourceUserId', 'in', [userId, retainedMergeUserId])
+    .get();
   mergeTickets.docs.forEach((document) => batch.delete(document.ref));
   await batch.commit();
   await Promise.all([
@@ -45,8 +61,14 @@ after(async () => {
     deleteIfPresent(db.collection('_commercialUsers').doc(linkedGooglePrincipal.principalId)),
     deleteIfPresent(db.collection('_commercialUsers').doc(deletedGooglePrincipal.principalId)),
     deleteIfPresent(db.collection('_commercialUsers').doc(legacyInstallationPrincipal.principalId)),
+    deleteIfPresent(db.collection('_commercialUsers').doc(minimizedInstallationPrincipal)),
+    deleteIfPresent(db.collection('_commercialUsers').doc(emptyInstallationPrincipal)),
+    deleteIfPresent(db.collection('_commercialUsers').doc(retainedMergeInstallationPrincipal)),
+    deleteIfPresent(db.collection('_commercialUsers').doc(staleReservationPrincipal.principalId)),
+    deleteIfPresent(db.collection('_commercialUsers').doc(retainedMergeGooglePrincipal.principalId)),
     deleteIfPresent(db.collection('_commercialUsage').doc(`${linkedGooglePrincipal.principalId}_${day}`)),
     deleteIfPresent(db.collection('_commercialUsage').doc(`${deletedGooglePrincipal.principalId}_${day}`)),
+    deleteIfPresent(db.collection('_commercialUsage').doc(`${retainedMergeGooglePrincipal.principalId}_${day}`)),
     deleteIfPresent(db.collection('_commercialEntitlements').doc(linkedGooglePrincipal.principalId)),
     deleteIfPresent(db.collection('_commercialGlobal').doc(day)),
     deleteIfPresent(db.collection('_integrationResults').doc(userId)),
@@ -99,6 +121,27 @@ test('un rezultat nefinalizat restituie atomic problema și plafonul global', as
   assert.equal(global.data()?.requests, 0);
   assert.equal(reservation.data()?.state, 'refunded');
   assert.equal(result.data()?.status, 'not_math');
+});
+
+test('o rezervare abandonată restituie automat problema fără dublu refund', async () => {
+  const requestId = 'analysis-stale-000001';
+  await reserveAnalysisQuota(db, staleReservationUserId, requestId, staleReservationPrincipal, now, 300);
+  assert.equal(
+    await reconcileStaleAnalysisReservations(db, staleReservationPrincipal.principalId, now + 6 * 60_000),
+    1,
+  );
+  assert.equal(
+    await reconcileStaleAnalysisReservations(db, staleReservationPrincipal.principalId, now + 7 * 60_000),
+    0,
+  );
+  const access = await readCommercialAccess(
+    db,
+    staleReservationUserId,
+    staleReservationPrincipal,
+    now + 7 * 60_000,
+  );
+  assert.equal(access.used, 0);
+  assert.equal(access.remaining, 5);
 });
 
 test('aceeași cerere poate fi reluată după refund și este taxată o singură dată la succes', async () => {
@@ -275,4 +318,112 @@ test('ștergerea Google elimină legăturile reversibile de pe toate instalăril
   assert.equal(first.data()?.welcomeRequests, 5);
   assert.equal(second.data()?.welcomeRequests, 2);
   await db.collection('_commercialUsers').doc(secondInstallation).delete();
+});
+
+test('ștergerea păstrează numai markerul minim necesar pentru oferta guest', async () => {
+  const reference = db.collection('_commercialUsers').doc(minimizedInstallationPrincipal);
+  await reference.set({
+    principalId: minimizedInstallationPrincipal,
+    userId: userId,
+    linkedAccountPrincipalId: linkedGooglePrincipal.principalId,
+    linkedAccountUserId: userId,
+    welcomeRequests: 3,
+    welcomeRequestIds: ['request-that-must-not-survive'],
+    welcomeTodayDay: day,
+    welcomeTodayRetainedRequests: 1,
+    welcomeTodayRequestIds: ['request-that-must-not-survive', 'request-that-must-not-survive'],
+    burstRequests: 4,
+    deviceRecallClaimed: true,
+    accidentalMetadata: 'must-not-survive',
+  });
+
+  assert.equal(await minimizeInstallationProfileForDeletion(db, minimizedInstallationPrincipal, now), 'retained');
+  const retained = await reference.get();
+  assert.equal(retained.data()?.principalId, minimizedInstallationPrincipal);
+  assert.equal(retained.data()?.welcomeRequests, 3);
+  assert.equal(retained.data()?.welcomeTodayDay, day);
+  assert.equal(retained.data()?.welcomeTodayRetainedRequests, 2);
+  assert.equal(retained.data()?.deviceRecallClaimed, true);
+  assert.equal(retained.data()?.retainedFor, 'welcome-abuse-prevention');
+  assert.equal(retained.data()?.expiresAt?.toMillis(), now + 400 * 24 * 60 * 60 * 1000);
+  assert.equal(retained.data()?.welcomeTodayTransferHashes?.length, 1);
+  retained.data()?.welcomeTodayTransferHashes?.forEach((hash) => assert.match(hash, /^[a-f0-9]{64}$/));
+  assert.deepEqual(
+    Object.keys(retained.data() ?? {}).sort(),
+    ['deviceRecallClaimed', 'expiresAt', 'principalId', 'retainedFor', 'updatedAt', 'welcomeRequests', 'welcomeTodayDay', 'welcomeTodayRetainedRequests', 'welcomeTodayTransferHashes'],
+  );
+});
+
+test('conectarea Google preia consumul zilei chiar după minimizarea profilului temporar', async () => {
+  const reference = db.collection('_commercialUsers').doc(retainedMergeInstallationPrincipal);
+  await reference.set({
+    principalId: retainedMergeInstallationPrincipal,
+    welcomeRequests: 2,
+    welcomeTodayDay: day,
+    welcomeTodayRequestIds: ['guest-before-delete-1', 'guest-before-delete-2'],
+  });
+  assert.equal(await minimizeInstallationProfileForDeletion(db, retainedMergeInstallationPrincipal, now), 'retained');
+
+  const ticket = await createAccountMergeTicket(
+    db,
+    retainedMergeUserId,
+    retainedMergeInstallationPrincipal,
+    now + 1_000,
+  );
+  await completeAccountMerge({
+    db,
+    ticket,
+    targetUserId: retainedMergeUserId,
+    targetPrincipalId: retainedMergeGooglePrincipal.principalId,
+    expectedSourcePrincipalId: retainedMergeInstallationPrincipal,
+    now: now + 2_000,
+  });
+
+  const daily = await db.collection('_commercialUsage')
+    .doc(`${retainedMergeGooglePrincipal.principalId}_${day}`)
+    .get();
+  assert.equal(daily.data()?.requests, 2);
+  assert.deepEqual(daily.data()?.requestIds, []);
+  assert.equal(daily.data()?.transferHashes?.length, 2);
+
+  // Account deletion minimizes both sides. Recreating and reconnecting the
+  // same Google identity must recognize the previously transferred guest use
+  // instead of counting those same two problems a second time.
+  await removeOrRetainCommercialUsage(db, retainedMergeGooglePrincipal, now + 3_000);
+  assert.equal(await minimizeInstallationProfileForDeletion(
+    db,
+    retainedMergeInstallationPrincipal,
+    now + 4_000,
+  ), 'retained');
+  const recreatedTicket = await createAccountMergeTicket(
+    db,
+    retainedMergeUserId,
+    retainedMergeInstallationPrincipal,
+    now + 5_000,
+  );
+  await completeAccountMerge({
+    db,
+    ticket: recreatedTicket,
+    targetUserId: retainedMergeUserId,
+    targetPrincipalId: retainedMergeGooglePrincipal.principalId,
+    expectedSourcePrincipalId: retainedMergeInstallationPrincipal,
+    now: now + 6_000,
+  });
+  const reconnectedDaily = await db.collection('_commercialUsage')
+    .doc(`${retainedMergeGooglePrincipal.principalId}_${day}`)
+    .get();
+  assert.equal(reconnectedDaily.data()?.requests, 2);
+});
+
+test('ștergerea elimină profilul anonim gol creat numai pentru legarea contului', async () => {
+  const reference = db.collection('_commercialUsers').doc(emptyInstallationPrincipal);
+  await reference.set({
+    principalId: emptyInstallationPrincipal,
+    userId,
+    linkedAccountPrincipalId: linkedGooglePrincipal.principalId,
+    linkedAccountUserId: userId,
+  });
+
+  assert.equal(await minimizeInstallationProfileForDeletion(db, emptyInstallationPrincipal, now), 'deleted');
+  assert.equal((await reference.get()).exists, false);
 });
