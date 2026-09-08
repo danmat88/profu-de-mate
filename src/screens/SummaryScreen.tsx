@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
@@ -78,7 +78,7 @@ export function SummaryScreen({ navigation, route }: Props) {
   }), [isCheck, lesson.finalAnswer, lesson.summary, lesson.takeaways]);
 
   useEffect(() => {
-    Haptics.notificationAsync(isPositive
+    Haptics.notification(isPositive
       ? Haptics.NotificationFeedbackType.Success
       : Haptics.NotificationFeedbackType.Warning);
     if (reducedMotion) {
@@ -125,12 +125,12 @@ export function SummaryScreen({ navigation, route }: Props) {
     if (nextSaved) markSaveCoachSeen();
     try {
       await setLessonFavorite(route.params.lessonId, nextSaved);
-      await Haptics.notificationAsync(nextSaved
+      Haptics.notification(nextSaved
         ? Haptics.NotificationFeedbackType.Success
         : Haptics.NotificationFeedbackType.Warning);
     } catch {
       setSaved(!nextSaved);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       saveLocked.current = false;
       setSaveBusy(false);

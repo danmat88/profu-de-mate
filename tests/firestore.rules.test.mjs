@@ -3,7 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { doc, getDoc, serverTimestamp, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 
-const projectId = 'profu-de-mate-danmat88';
+if (!/^(localhost|127\.0\.0\.1):\d+$/.test(process.env.FIRESTORE_EMULATOR_HOST ?? '')) throw new Error('Local Firestore emulator required.');
+const projectId = 'demo-profu-de-mate';
 let testEnvironment;
 
 before(async () => {
@@ -20,6 +21,20 @@ after(async () => {
 });
 
 describe('Firestore rules', () => {
+  test('blochează citirea și scrierea după începerea ștergerii sau transferului', async () => {
+    for (const state of ['deleting', 'deleted', 'merging']) {
+      const uid = `fenced-${state}`;
+      await testEnvironment.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), `_accountLifecycle/${uid}`), { state });
+        await setDoc(doc(context.firestore(), `users/${uid}/lessons/lesson`), { isFavorite: true });
+      });
+      const database = testEnvironment.authenticatedContext(uid).firestore();
+      await assertFails(getDoc(doc(database, `users/${uid}/lessons/lesson`)));
+      await assertFails(setDoc(doc(database, `users/${uid}`), { createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+      await assertFails(updateDoc(doc(database, `users/${uid}/lessons/lesson`), { isFavorite: false, expiresAt: Timestamp.fromMillis(Date.now() + 1000), updatedAt: serverTimestamp() }));
+      await assertFails(setDoc(doc(database, `_accountLifecycle/${uid}`), { state: 'active' }));
+    }
+  });
   test('refuză orice acces neautentificat', async () => {
     const database = testEnvironment.unauthenticatedContext().firestore();
     await assertFails(getDoc(doc(database, 'users/alice')));

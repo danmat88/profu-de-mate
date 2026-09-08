@@ -1,13 +1,15 @@
-import { GoogleGenAI } from '@google/genai';
+import { deleteQueryInBatches } from './cleanup.js';
+import { createMathProvider } from './aiProvider.js';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { FieldValue, getFirestore, type Query, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { mathAnalysisJsonSchema } from './analysisSchema.js';
+import { analysisRequestState, assertAnalysisLease, claimAnalysisRequest, failAnalysisRequest, REQUEST_CACHE_MS, type CachedResponse } from './analysisRequests.js';
+import { assertUserActive, beginAccountDeletion, finishAccountDeletion } from './userLifecycle.js';
 import { completeAccountMerge, createAccountMergeTicket } from './accountMerge.js';
 import {
   commercialPrincipalFromAuthToken,
@@ -18,6 +20,7 @@ import {
 } from './commercialIdentity.js';
 import {
   bindInstallationToAccount,
+  consumeProviderAttempt,
   getCommercialConfig,
   identityFromAuthToken,
   readCommercialAccess,
@@ -27,8 +30,7 @@ import {
   settleAnalysisQuota,
 } from './commercialAccess.js';
 import { assertFirestoreSafeAnalysis } from './documentSize.js';
-import { FEEDBACK_RETENTION_MS, feedbackSeverity, isFeedbackCategory } from './feedbackTriage.js';
-import { FEEDBACK_RATE_WINDOW_MS, nextFeedbackRateState } from './feedbackSubmission.js';
+import { initializeFeedbackRecord, submitFeedback } from './feedbackService.js';
 import { claimWelcomeDevice, welcomeClaimHash } from './deviceRecall.js';
 import {
   minimizeInstallationProfileForDeletion,
@@ -40,12 +42,12 @@ import { ENFORCE_APP_CHECK } from './releaseSecurity.js';
 import { runProviderPipeline } from './providerPipeline.js';
 import type { RenderedMathAnalysis } from './mathRenderer.js';
 import {
-  deleteRevenueCatCustomer,
   parseRevenueCatWebhook,
   secureSecretEquals,
   syncRevenueCatEntitlement,
   verifyRevenueCatSignature,
 } from './revenueCat.js';
+import { deferUnsafeRevenueCatDeletions, requestRevenueCatDeletionReview } from './revenueCatDeletion.js';
 import { getAIAnalysisConfig } from './runtimeConfig.js';
 import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './validation.js';
 
@@ -67,15 +69,8 @@ const revenueCatSecrets = revenueCatEnabled ? {
 const AI_RUNTIME_SERVICE_ACCOUNT = 'profu-ai-runtime@profu-de-mate-danmat88.iam.gserviceaccount.com';
 const DATA_RUNTIME_SERVICE_ACCOUNT = 'profu-data-runtime@profu-de-mate-danmat88.iam.gserviceaccount.com';
 const CLEANUP_RUNTIME_SERVICE_ACCOUNT = 'profu-cleanup-runtime@profu-de-mate-danmat88.iam.gserviceaccount.com';
-const REQUEST_LEASE_MS = 130_000;
-const REQUEST_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 const WEBHOOK_LEASE_MS = 2 * 60 * 1000;
 const providerCircuit = new ProviderCircuitBreaker();
-
-type CachedResponse = {
-  lessonId: string | null;
-  result: RenderedMathAnalysis;
-};
 
 function safeErrorDescriptor(error: unknown): { name: string; code?: string } {
   if (!error || typeof error !== 'object') return { name: typeof error };
@@ -132,67 +127,26 @@ async function removePendingMergeSourcesForDeletion(
   });
 
   await Promise.all([...sourceUserIds].map(async (sourceUserId) => {
+    await beginAccountDeletion(db, sourceUserId);
     await Promise.all([
       db.recursiveDelete(db.collection('users').doc(sourceUserId)),
-      deleteQueryInBatches(db.collection('feedback').where('userId', '==', sourceUserId)),
-      deleteQueryInBatches(db.collection('_aiUsage').where('userId', '==', sourceUserId)),
-      deleteQueryInBatches(db.collection('_analysisRequests').where('userId', '==', sourceUserId)),
-      deleteQueryInBatches(db.collection('_commercialReservations').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db, db.collection('feedback').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db, db.collection('_aiUsage').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db, db.collection('_analysisRequests').where('userId', '==', sourceUserId)),
+      deleteQueryInBatches(db, db.collection('_commercialReservations').where('userId', '==', sourceUserId)),
       db.collection('_feedbackRateLimits').doc(sourceUserId).delete(),
     ]);
     await getAuth().deleteUser(sourceUserId).catch((error: unknown) => {
       const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
       if (code !== 'auth/user-not-found') throw error;
     });
+    await finishAccountDeletion(db, sourceUserId);
   }));
 
   if (ownedTickets.length > 0) {
     const batch = db.batch();
     ownedTickets.forEach((ticket) => batch.delete(ticket.ref));
     await batch.commit();
-  }
-}
-
-async function claimAnalysisRequest(userId: string, requestId: string, mode: string): Promise<CachedResponse | null> {
-  const ref = db.collection('_analysisRequests').doc(`${userId}_${requestId}`);
-  const claim = await db.runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(ref);
-    const data = snapshot.data();
-    if (data?.state === 'completed' && data.response) {
-      return { kind: 'cached' as const, response: data.response as CachedResponse };
-    }
-
-    const updatedAt = data?.updatedAt instanceof Timestamp ? data.updatedAt.toMillis() : 0;
-    if (data?.state === 'processing' && Date.now() - updatedAt < REQUEST_LEASE_MS) {
-      return { kind: 'busy' as const };
-    }
-
-    const now = Date.now();
-    transaction.set(ref, {
-      userId,
-      mode,
-      state: 'processing',
-      updatedAt: Timestamp.fromMillis(now),
-      expiresAt: Timestamp.fromMillis(now + REQUEST_CACHE_MS),
-    }, { merge: true });
-    return { kind: 'claimed' as const };
-  });
-
-  if (claim.kind === 'busy') {
-    throw new HttpsError('aborted', 'Analiza fotografiei este deja în curs.');
-  }
-  return claim.kind === 'cached' ? claim.response : null;
-}
-
-async function deleteQueryInBatches(query: Query): Promise<number> {
-  let deleted = 0;
-  while (true) {
-    const snapshot = await query.limit(400).get();
-    if (snapshot.empty) return deleted;
-    const batch = db.batch();
-    snapshot.docs.forEach((document) => batch.delete(document.ref));
-    await batch.commit();
-    deleted += snapshot.size;
   }
 }
 
@@ -212,8 +166,8 @@ export const analyzeMathImage = onCall({
 
   const input = parseAnalyzeRequest(request.data);
   const requestRef = db.collection('_analysisRequests').doc(`${request.auth.uid}_${input.requestId}`);
-  const cached = await claimAnalysisRequest(request.auth.uid, input.requestId, input.mode);
-  if (cached) return cached;
+  const claim = await claimAnalysisRequest(db, request.auth.uid, input);
+  if (claim.response) return claim.response;
 
   try {
     const aiConfig = await getAIAnalysisConfig(db);
@@ -231,9 +185,8 @@ export const analyzeMathImage = onCall({
       input.requestId,
       commercialPrincipal,
       Date.now(),
-      aiConfig.maxDailyRequests,
     );
-    const client = new GoogleGenAI({ apiKey: geminiApiKey.value() });
+    const provider = createMathProvider(geminiApiKey.value());
     let result: RenderedMathAnalysis;
 
     try {
@@ -241,32 +194,11 @@ export const analyzeMathImage = onCall({
         mode: input.mode,
         imageBase64: input.imageBase64,
         mimeType: input.mimeType,
-        generate: async (providerRequest) => {
-          const interaction = await client.interactions.create({
-            model: 'gemini-3.7-flash',
-            // Stateless requests prevent the provider from retaining the uploaded
-            // photograph, candidate JSON and generated response as Interaction resources.
-            store: false,
-            input: providerRequest.kind === 'repair'
-              ? [
-                { type: 'text', text: providerRequest.prompt },
-                { type: 'text', text: `OBIECT JSON DE CORECTAT:\n${providerRequest.source}` },
-              ]
-              : [
-                { type: 'text', text: providerRequest.prompt },
-                { type: 'image', data: providerRequest.imageBase64, mime_type: providerRequest.mimeType },
-              ],
-            response_format: {
-              type: 'text',
-              mime_type: 'application/json',
-              schema: mathAnalysisJsonSchema,
-            },
-            generation_config: {
-              thinking_level: 'low',
-            },
-          });
-          return interaction.output_text;
+        beforeGenerate: async () => {
+          await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
+          logger.info('Provider attempt reserved', { mode: input.mode });
         },
+        generate: (providerRequest, context) => provider.generate(providerRequest, context),
         onRejected: (event, error) => {
           logger.warn('Structured math response rejected', {
             call: event.call,
@@ -280,7 +212,7 @@ export const analyzeMathImage = onCall({
       });
       providerCircuit.recordSuccess();
     } catch (error) {
-      providerCircuit.recordFailure();
+      if (!(error instanceof HttpsError)) providerCircuit.recordFailure();
       throw error;
     }
 
@@ -294,7 +226,7 @@ export const analyzeMathImage = onCall({
       if (lessonRef) {
         transaction.set(lessonRef, {
           ...result,
-          model: 'gemini-3.7-flash',
+          model: provider.model,
           isFavorite: false,
           expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
           createdAt: FieldValue.serverTimestamp(),
@@ -302,12 +234,13 @@ export const analyzeMathImage = onCall({
         });
       }
       transaction.set(requestRef, {
+        userId: request.auth!.uid,
         state: 'completed',
         response,
         updatedAt: FieldValue.serverTimestamp(),
         expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
       }, { merge: true });
-    });
+    }, undefined, (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId));
 
     logger.info('Math image analyzed', {
       status: result.status,
@@ -317,18 +250,14 @@ export const analyzeMathImage = onCall({
 
     return response;
   } catch (error) {
-    await Promise.all([
-      refundAnalysisQuota(
-        db,
-        requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken).principalId,
-        input.requestId,
-      ).catch(() => undefined),
-      requestRef.set({
-        state: 'failed',
-        updatedAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
-      }, { merge: true }).catch(() => undefined),
-    ]);
+    await refundAnalysisQuota(
+      db,
+      requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken).principalId,
+      input.requestId,
+      undefined,
+      (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId),
+    ).catch(() => undefined);
+    await failAnalysisRequest(db, request.auth.uid, input.requestId, claim.leaseId).catch(() => undefined);
     if (error instanceof HttpsError) throw error;
     logger.error('Math analysis failed', safeErrorDescriptor(error));
     throw new HttpsError('internal', 'Nu am putut analiza imaginea acum. Încearcă din nou.');
@@ -345,17 +274,16 @@ export const getAnalysisStatus = onCall({
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
   const { requestId } = parseAnalysisStatusRequest(request.data);
-  const snapshot = await db.collection('_analysisRequests')
-    .doc(`${request.auth.uid}_${requestId}`)
-    .get();
+  const snapshot = await db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, db, request.auth!.uid);
+    return transaction.get(db.collection('_analysisRequests').doc(`${request.auth!.uid}_${requestId}`));
+  });
   if (!snapshot.exists) return { state: 'missing' as const };
 
   const data = snapshot.data();
-  if (data?.state === 'completed' && data.response) {
-    return { state: 'completed' as const, response: data.response as CachedResponse };
-  }
-  if (data?.state === 'processing') return { state: 'processing' as const };
-  return { state: 'failed' as const };
+  const state = analysisRequestState(data);
+  if (state === 'completed') return { state, response: data!.response as CachedResponse };
+  return { state };
 });
 
 export const submitLessonFeedback = onCall({
@@ -367,53 +295,7 @@ export const submitLessonFeedback = onCall({
   enforceAppCheck: ENFORCE_APP_CHECK,
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
-  const uid = request.auth.uid;
-  const data = request.data && typeof request.data === 'object'
-    ? request.data as Record<string, unknown>
-    : {};
-  const lessonId = typeof data.lessonId === 'string' ? data.lessonId : '';
-  const category = data.category;
-  const appVersion = typeof data.appVersion === 'string' ? data.appVersion.trim() : '';
-  if (!/^analysis-[a-z0-9]{6,16}-[a-z0-9]{6,16}$/.test(lessonId)
-    || !isFeedbackCategory(category)
-    || appVersion.length < 1
-    || appVersion.length > 24) {
-    throw new HttpsError('invalid-argument', 'Raportarea nu este validă.');
-  }
-
-  const now = Date.now();
-  const lessonRef = db.collection('users').doc(uid).collection('lessons').doc(lessonId);
-  const rateRef = db.collection('_feedbackRateLimits').doc(uid);
-  const feedbackRef = db.collection('feedback').doc();
-  await db.runTransaction(async (transaction) => {
-    const [lesson, rate] = await Promise.all([
-      transaction.get(lessonRef),
-      transaction.get(rateRef),
-    ]);
-    if (!lesson.exists) throw new HttpsError('not-found', 'Lecția nu mai este disponibilă.');
-    const rateData = rate.data();
-    const next = nextFeedbackRateState({
-      windowStartedAt: rateData?.windowStartedAt instanceof Timestamp ? rateData.windowStartedAt.toMillis() : undefined,
-      submissions: rateData?.submissions,
-    }, now);
-    if (!next.allowed) {
-      throw new HttpsError('resource-exhausted', 'Ai trimis mai multe raportări într-un timp scurt. Încearcă din nou mai târziu.');
-    }
-    transaction.set(rateRef, {
-      userId: uid,
-      windowStartedAt: Timestamp.fromMillis(next.state.windowStartedAt),
-      submissions: next.state.submissions,
-      updatedAt: FieldValue.serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(next.state.windowStartedAt + FEEDBACK_RATE_WINDOW_MS + 24 * 60 * 60 * 1000),
-    });
-    transaction.create(feedbackRef, {
-      userId: uid,
-      lessonId,
-      category,
-      appVersion,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-  });
+  await submitFeedback(db, request.auth.uid, request.data);
   return { submitted: true };
 });
 
@@ -579,6 +461,7 @@ export const syncPremiumAccess = revenueCatSecrets ? onCall({
     secretApiKey: revenueCatSecrets.apiKey.value(),
     entitlementId: config.premiumEntitlementId,
     source: 'callable',
+    userId: request.auth.uid,
   });
   return readCommercialAccess(db, request.auth.uid, principal);
 }) : undefined;
@@ -694,21 +577,12 @@ export const deleteMyData = onCall({
   }
 
   try {
+    await beginAccountDeletion(db, userId);
     let revenueCatDeletionPending = false;
     if (revenueCatSecrets) {
-      try {
-        await deleteRevenueCatCustomer(principal.principalId, revenueCatSecrets.apiKey.value());
-      } catch (error) {
-        revenueCatDeletionPending = true;
-        await db.collection('_pendingRevenueCatDeletions').doc(principal.principalId).set({
-          appUserId: principal.principalId,
-          attempts: 0,
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-          nextAttemptAt: Timestamp.now(),
-        }, { merge: true });
-        logger.warn('RevenueCat deletion queued', safeErrorDescriptor(error));
-      }
+      await requestRevenueCatDeletionReview(db, principal.principalId, userId);
+      revenueCatDeletionPending = true;
+      logger.warn('RevenueCat deletion requires review');
     }
     if (principal.identity === 'google') {
       // Run this before updating the current installation profile so two
@@ -722,14 +596,14 @@ export const deleteMyData = onCall({
     );
     await Promise.all([
       db.recursiveDelete(db.collection('users').doc(userId)),
-      deleteQueryInBatches(db.collection('feedback').where('userId', '==', userId)),
-      deleteQueryInBatches(db.collection('_aiUsage').where('userId', '==', userId)),
-      deleteQueryInBatches(db.collection('_analysisRequests').where('userId', '==', userId)),
+      deleteQueryInBatches(db, db.collection('feedback').where('userId', '==', userId)),
+      deleteQueryInBatches(db, db.collection('_aiUsage').where('userId', '==', userId)),
+      deleteQueryInBatches(db, db.collection('_analysisRequests').where('userId', '==', userId)),
       removeOrRetainCommercialUsage(db, principal),
-      deleteQueryInBatches(db.collection('_commercialReservations').where('userId', '==', userId)),
+      deleteQueryInBatches(db, db.collection('_commercialReservations').where('userId', '==', userId)),
       db.collection('_feedbackRateLimits').doc(userId).delete(),
-      deleteQueryInBatches(db.collection('_accountMergeTickets').where('sourceUserId', '==', userId)),
-      deleteQueryInBatches(db.collection('_accountMergeTickets').where('targetUserId', '==', userId)),
+      deleteQueryInBatches(db, db.collection('_accountMergeTickets').where('sourceUserId', '==', userId)),
+      deleteQueryInBatches(db, db.collection('_accountMergeTickets').where('targetUserId', '==', userId)),
       principal.identity === 'google'
         ? db.collection('_commercialUsers').doc(principal.principalId).delete()
         : Promise.resolve(),
@@ -740,6 +614,7 @@ export const deleteMyData = onCall({
       const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
       if (code !== 'auth/user-not-found') throw error;
     });
+    await finishAccountDeletion(db, userId);
     logger.info('User data deleted');
     return { deleted: true, revenueCatDeletionPending };
   } catch (error) {
@@ -755,35 +630,9 @@ export const retryRevenueCatDeletions = revenueCatSecrets ? onSchedule({
   timeZone: 'Europe/Bucharest',
   memory: '256MiB',
   timeoutSeconds: 300,
-  secrets: [revenueCatSecrets.apiKey],
 }, async () => {
-  const snapshot = await db.collection('_pendingRevenueCatDeletions')
-    .where('nextAttemptAt', '<=', Timestamp.now())
-    .limit(100)
-    .get();
-  let completed = 0;
-  let deferred = 0;
-  for (const document of snapshot.docs) {
-    const appUserId = document.data().appUserId;
-    if (typeof appUserId !== 'string' || appUserId !== document.id || !/^[gi]_[a-f0-9]{64}$/.test(appUserId)) {
-      await document.ref.delete();
-      continue;
-    }
-    try {
-      await deleteRevenueCatCustomer(appUserId, revenueCatSecrets.apiKey.value());
-      await document.ref.delete();
-      completed += 1;
-    } catch {
-      const attempts = typeof document.data().attempts === 'number' ? document.data().attempts + 1 : 1;
-      await document.ref.set({
-        attempts,
-        updatedAt: FieldValue.serverTimestamp(),
-        nextAttemptAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000),
-      }, { merge: true });
-      deferred += 1;
-    }
-  }
-  logger.info('RevenueCat deletion retry completed', { inspected: snapshot.size, completed, deferred });
+  const summary = await deferUnsafeRevenueCatDeletions(db);
+  logger.info('RevenueCat deletion review queued', summary);
 }) : undefined;
 
 export const initializeFeedbackTriage = onDocumentCreated({
@@ -793,22 +642,7 @@ export const initializeFeedbackTriage = onDocumentCreated({
   memory: '256MiB',
   maxInstances: 2,
 }, async (event) => {
-  const snapshot = event.data;
-  if (!snapshot) return;
-  const category = snapshot.data()?.category;
-  if (!isFeedbackCategory(category)) {
-    logger.warn('Feedback triage skipped: invalid category');
-    return;
-  }
-
-  const now = Date.now();
-  await snapshot.ref.set({
-    status: 'new',
-    severity: feedbackSeverity(category),
-    updatedAt: FieldValue.serverTimestamp(),
-    expiresAt: Timestamp.fromMillis(now + FEEDBACK_RETENTION_MS),
-  }, { merge: true });
-  logger.info('Feedback queued for triage', { category, severity: feedbackSeverity(category) });
+  if (event.data) await initializeFeedbackRecord(db, event.data.ref);
 });
 
 export const cleanupExpiredData = onSchedule({
@@ -820,19 +654,20 @@ export const cleanupExpiredData = onSchedule({
   timeoutSeconds: 300,
 }, async () => {
   const now = Timestamp.now();
-  const [requests, legacyUsage, commercialProfiles, commercialUsage, commercialReservations, commercialEntitlements, commercialGlobal, commercialEvents, mergeTickets, lessons, feedback, feedbackRateLimits] = await Promise.all([
-    deleteQueryInBatches(db.collection('_analysisRequests').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_aiUsage').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_commercialUsers').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_commercialUsage').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_commercialReservations').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_commercialEntitlements').where('retentionExpiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_commercialGlobal').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_commercialEvents').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_accountMergeTickets').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collectionGroup('lessons').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('feedback').where('expiresAt', '<=', now)),
-    deleteQueryInBatches(db.collection('_feedbackRateLimits').where('expiresAt', '<=', now)),
+  const [requests, legacyUsage, commercialProfiles, commercialUsage, commercialReservations, commercialEntitlements, commercialGlobal, commercialEvents, mergeTickets, lessons, feedback, feedbackRateLimits, accountLifecycle] = await Promise.all([
+    deleteQueryInBatches(db, db.collection('_analysisRequests').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_aiUsage').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_commercialUsers').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_commercialUsage').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_commercialReservations').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_commercialEntitlements').where('retentionExpiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_commercialGlobal').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_commercialEvents').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_accountMergeTickets').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collectionGroup('lessons').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('feedback').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_feedbackRateLimits').where('expiresAt', '<=', now)),
+    deleteQueryInBatches(db, db.collection('_accountLifecycle').where('expiresAt', '<=', now)),
   ]);
   logger.info('Expired data cleaned', {
     requests,
@@ -847,5 +682,6 @@ export const cleanupExpiredData = onSchedule({
     lessons,
     feedback,
     feedbackRateLimits,
+    accountLifecycle,
   });
 });

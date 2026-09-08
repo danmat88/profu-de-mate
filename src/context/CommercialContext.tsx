@@ -1,19 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getApp } from '@react-native-firebase/app';
-import { getAuth } from '@react-native-firebase/auth';
+import { getAuth, onIdTokenChanged } from '@react-native-firebase/auth';
 import { AppState } from 'react-native';
 import type { CommercialAccess, CommercialStatus } from '../types';
 import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess, prepareCommercialServices } from '../services/commercial';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { deleteAllUserData, type DataDeletionResult } from '../services/dataManagement';
-import { firebaseUserSessionKey } from '../services/firebase';
-import { prewarmFavoriteLessonsCache } from '../services/lessons';
+import { firebaseUserSessionKey, resetFirebaseInitialization } from '../services/firebase';
+import { clearFavoriteLessonsCache, prewarmFavoriteLessonsCache } from '../services/lessons';
+import { discardPendingAnalysis } from '../services/pendingAnalysis';
+import { invalidateSessionOperations } from '../services/sessionGuard';
+import { resetPurchasesForSignedOutUser } from '../services/purchases';
 import {
   isCurrentCommercialRefreshGeneration,
   shouldAutomaticallyRefreshCommercialAccess,
 } from '../services/commercialRefreshPolicy';
 
 type CommercialContextValue = {
+  authSessionKey: string | null;
   access: CommercialAccess | null;
   startupReady: boolean;
   status: CommercialStatus;
@@ -37,6 +41,9 @@ type RefreshRequest = {
 };
 
 export function CommercialProvider({ children, initialAccess = null }: { children: ReactNode; initialAccess?: CommercialAccess | null }) {
+  const [authSessionKey, setAuthSessionKey] = useState(() => firebaseUserSessionKey(getAuth(getApp()).currentUser));
+  const observedSessionKey = useRef(authSessionKey);
+  const observedUserId = useRef(getAuth(getApp()).currentUser?.uid);
   const [access, setAccess] = useState<CommercialAccess | null>(initialAccess);
   // A cached snapshot paints the hidden Home immediately, but the first reveal
   // still waits for one authoritative refresh (or the bounded offline deadline).
@@ -110,6 +117,25 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
     return refresh();
   }, [refresh]);
 
+  useEffect(() => onIdTokenChanged(getAuth(getApp()), (user) => {
+    const nextSessionKey = firebaseUserSessionKey(user);
+    if (nextSessionKey === observedSessionKey.current) return;
+    const previousUserId = observedUserId.current;
+    observedSessionKey.current = nextSessionKey;
+    observedUserId.current = user?.uid;
+    invalidateSessionOperations();
+    identityGeneration.current += 1;
+    refreshInFlight.current = null;
+    setRefreshing(false);
+    clearFavoriteLessonsCache();
+    if (previousUserId !== user?.uid) discardPendingAnalysis();
+    void resetPurchasesForSignedOutUser().catch((error) => recordDiagnosticError('purchases_identity', error));
+    resetFirebaseInitialization();
+    clearAccessForIdentityChange();
+    setAuthSessionKey(nextSessionKey);
+    if (!identityTransitionActive.current) void refresh();
+  }), [clearAccessForIdentityChange, refresh]);
+
   useEffect(() => {
     let mounted = true;
     const startupDeadline = setTimeout(() => {
@@ -158,6 +184,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
     }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
+    invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
     setRefreshing(false);
@@ -193,6 +220,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
     }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
+    invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
     setRefreshing(false);
@@ -228,6 +256,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
     }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
+    invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
     setRefreshing(false);
@@ -238,6 +267,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
         // deleted identity immediately; a failed guest refresh is only an
         // offline/retry state and cannot turn deletion into a reported failure.
         clearAccessForIdentityChange();
+        if (result.localSignOutPending) setAuthSessionKey(null);
         void refresh();
         return result;
       })
@@ -261,6 +291,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
 
   const value = useMemo(
     () => ({
+      authSessionKey,
       access,
       startupReady,
       status,
@@ -273,7 +304,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
       disconnectGoogle,
       deleteAccount,
     }),
-    [access, applyServerAccess, connectGoogle, deleteAccount, disconnectGoogle, refresh, refreshIfStale, refreshing, startupReady, status],
+    [access, applyServerAccess, authSessionKey, connectGoogle, deleteAccount, disconnectGoogle, refresh, refreshIfStale, refreshing, startupReady, status],
   );
   return <CommercialContext.Provider value={value}>{children}</CommercialContext.Provider>;
 }

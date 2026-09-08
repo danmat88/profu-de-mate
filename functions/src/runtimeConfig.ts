@@ -25,7 +25,10 @@ export function normalizeAIRuntimeConfig(value: unknown): AIRuntimeConfig {
 /**
  * Private operational settings. `_runtimeConfig/ai` may contain:
  * - `enabled=false` to pause new analyses in at most 15 seconds;
- * - `maxDailyRequests` (1..1000) to cap aggregate daily provider calls.
+ * - `maxDailyRequests` (1..1000) to cap non-refundable daily provider attempts,
+ *   including retries and repairs, in the Europe/Bucharest quota day.
+ * Existing `_commercialGlobal` documents without providerBudgetVersion=2
+ * cannot attest their previous cost. They fail closed for that quota day.
  * Security Rules deny all client access to this document.
  */
 export async function getAIAnalysisConfig(db: Firestore, now = Date.now()): Promise<AIRuntimeConfig> {
@@ -37,8 +40,8 @@ export async function getAIAnalysisConfig(db: Firestore, now = Date.now()): Prom
     cached = { value, expiresAt: now + CONFIG_CACHE_MS };
     return value;
   } catch {
-    // Firestore is also required by request claiming and quota reservation.
-    // The conservative default cap still applies if this optional read fails.
-    return normalizeAIRuntimeConfig(undefined);
+    // A failed control-plane read cannot be interpreted as permission to
+    // bypass an operator's kill switch. Do not cache the failure.
+    return { ...normalizeAIRuntimeConfig(undefined), enabled: false };
   }
 }

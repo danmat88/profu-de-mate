@@ -5,6 +5,7 @@ import type { CapturedImage, FlowMode, MathAnalysis } from '../types';
 import { isMathAnalysis } from '../utils/mathContent';
 import { initializeVerifiedFirebaseServices } from './firebase';
 import { getInstallationToken } from './installationIdentity';
+import { assertSessionActive, captureSession, type ActiveSession } from './sessionGuard';
 
 export { friendlyAnalysisError } from '../utils/analysisErrors';
 
@@ -54,15 +55,20 @@ export function createAnalysisRequestId(): string {
   return `analysis-${timestamp}-${random}`;
 }
 
-export async function analyzeMathImage(mode: FlowMode, image: CapturedImage, requestId: string): Promise<AnalyzeMathResponse> {
+export async function analyzeMathImage(mode: FlowMode, image: CapturedImage, requestId: string, session: ActiveSession): Promise<AnalyzeMathResponse> {
+  assertSessionActive(session);
   await initializeVerifiedFirebaseServices();
+  assertSessionActive(session);
   const installationToken = await getInstallationToken();
+  assertSessionActive(session);
 
   const imageFile = new File(image.uri);
   const imageBase64 = await imageFile.base64();
+  assertSessionActive(session);
   const functions = getFunctions(getApp(), 'europe-west1');
   const analyze = httpsCallable<AnalyzeMathRequest, AnalyzeMathResponse>(functions, 'analyzeMathImage', { timeout: ANALYSIS_CLIENT_TIMEOUT_MS });
   const response = await analyze({ mode, imageBase64, mimeType: 'image/jpeg', requestId, installationToken });
+  assertSessionActive(session);
 
   if (!validAnalyzeMathResponse(response.data, mode)) {
     throw new Error('Răspunsul primit nu este valid.');
@@ -71,11 +77,14 @@ export async function analyzeMathImage(mode: FlowMode, image: CapturedImage, req
   return response.data;
 }
 
-async function getAnalysisStatus(requestId: string, mode: FlowMode): Promise<AnalysisStatusResponse> {
+async function getAnalysisStatus(requestId: string, mode: FlowMode, session: ActiveSession): Promise<AnalysisStatusResponse> {
+  assertSessionActive(session);
   await initializeVerifiedFirebaseServices();
+  assertSessionActive(session);
   const functions = getFunctions(getApp(), 'europe-west1');
   const lookup = httpsCallable<{ requestId: string }, AnalysisStatusResponse>(functions, 'getAnalysisStatus', { timeout: 20_000 });
   const response = await lookup({ requestId });
+  assertSessionActive(session);
   const status = response.data;
   if (!status || !['missing', 'processing', 'failed', 'completed'].includes(status.state)) {
     throw new Error('Starea analizei nu este validă.');
@@ -90,10 +99,11 @@ async function waitForExistingAnalysis(
   requestId: string,
   mode: FlowMode,
   shouldStop: () => boolean,
+  session: ActiveSession,
 ): Promise<AnalyzeMathResponse | null> {
   const deadline = Date.now() + ANALYSIS_CLIENT_TIMEOUT_MS;
   while (!shouldStop() && Date.now() < deadline) {
-    const status = await getAnalysisStatus(requestId, mode);
+    const status = await getAnalysisStatus(requestId, mode, session);
     if (status.state === 'completed') return status.response;
     if (status.state === 'missing' || status.state === 'failed') return null;
     await wait(ANALYSIS_POLL_INTERVAL_MS);
@@ -108,18 +118,24 @@ export async function analyzeOrResumeMathImage(
   requestId: string,
   resumeExisting: boolean,
   shouldStop: () => boolean,
+  userId: string,
 ): Promise<AnalyzeMathResponse> {
+  const session = captureSession(userId);
   if (resumeExisting) {
-    const existing = await waitForExistingAnalysis(requestId, mode, shouldStop);
+    const existing = await waitForExistingAnalysis(requestId, mode, shouldStop, session);
     if (existing) return existing;
   }
 
+  if (shouldStop()) throw new Error('Analiza a fost lăsată să continue în fundal.');
   try {
-    return await analyzeMathImage(mode, image, requestId);
+    return await analyzeMathImage(mode, image, requestId, session);
   } catch (error) {
+    assertSessionActive(session);
     if (!callableCode(error).endsWith('/aborted')) throw error;
-    const existing = await waitForExistingAnalysis(requestId, mode, shouldStop);
+    const existing = await waitForExistingAnalysis(requestId, mode, shouldStop, session);
     if (existing) return existing;
-    throw error;
+    if (shouldStop()) throw error;
+    // An expired server lease is retryable with the same idempotency key.
+    return analyzeMathImage(mode, image, requestId, session);
   }
 }

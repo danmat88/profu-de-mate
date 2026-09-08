@@ -51,7 +51,8 @@
     "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.2",
     "react-native-webview": "13.16.1",
-    "react-native-worklets": "0.10.1"
+    "react-native-worklets": "0.10.1",
+    "decode-uri-component": "file:vendor/decode-uri-component"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
@@ -83,12 +84,24 @@
     "test:mobile": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mts",
     "legal:check": "node scripts/validate-legal.mjs",
     "release:bundle-check": "node scripts/verify-production-bundle.mjs",
-    "test:rules": "npm --prefix functions run build && firebase emulators:exec --only firestore \"node --test tests/firestore.rules.test.mjs && node --test functions/integration/commercialAccess.test.mjs\""
+    "test:rules": "npm --prefix functions run build && node scripts/test-emulators.mjs",
+    "release:artifact-check": "node scripts/verify-release-artifact.mjs"
   },
   "overrides": {
     "metro": "0.84.5",
     "metro-config": "0.84.5",
-    "metro-transform-worker": "0.84.5"
+    "metro-transform-worker": "0.84.5",
+    "@xmldom/xmldom@^0.8.0": "0.8.15",
+    "@xmldom/xmldom@^0.9.0": "0.9.12",
+    "xcode": {
+      "uuid": "11.1.1"
+    },
+    "gaxios": {
+      "uuid": "11.1.1"
+    },
+    "fast-uri": "3.1.6",
+    "qs": "6.16.0",
+    "decode-uri-component": "$decode-uri-component"
   },
   "expo": {
     "doctor": {

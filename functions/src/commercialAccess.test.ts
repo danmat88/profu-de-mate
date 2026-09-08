@@ -59,7 +59,7 @@ test('builds guest, free and premium access from server-owned counters', () => {
     identity: 'anonymous', tier: 'guest', limit: 5, used: 3, remaining: 2, canAnalyze: true,
     reason: 'available', resetAt: null, purchaseUserId: guestPrincipal, premium: { active: false, productId: null, expiresAt: null },
     allowances: { welcome: 5, freeDaily: 5, premiumDaily: 30 },
-    deviceRecall: { shouldVerify: false, verified: false },
+    deviceRecall: { shouldVerify: true, verified: false },
   });
   assert.equal(buildCommercialAccess({ identity: 'google', principalId: googlePrincipal, daily: { requests: 5 }, ...common }).reason, 'daily_exhausted');
   const migratedGuest = buildCommercialAccess({

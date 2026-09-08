@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const MODES = new Set(['development', 'preview', 'production']);
+const MODES = new Set(['development', 'preview', 'production-apk', 'production']);
 const PACKAGE_NAME = 'ro.profudemate.app';
 
 function loadLocalEnvironment() {
@@ -68,7 +68,7 @@ function validateClientEnvironment(mode, options = {}) {
 
   const debugToken = process.env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim() ?? '';
   const provider = process.env.EXPO_PUBLIC_APP_CHECK_PROVIDER?.trim()
-    || (mode === 'production' ? 'playIntegrity' : 'debug');
+    || (mode === 'production' ? 'playIntegrity' : mode === 'production-apk' ? 'none' : 'debug');
   const expectedProvider = options.expectedAppCheckProvider;
   if (!['debug', 'none', 'playIntegrity'].includes(provider)) {
     issues.push(`Provider App Check necunoscut: ${provider}.`);
@@ -76,11 +76,22 @@ function validateClientEnvironment(mode, options = {}) {
   if (expectedProvider && provider !== expectedProvider) {
     issues.push(`Profilul cere App Check ${expectedProvider}, dar mediul configurează ${provider}.`);
   }
-  if (mode !== 'production' && !debugToken) {
+  if (mode !== 'production' && provider === 'debug' && !debugToken) {
     issues.push('Lipsește EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN pentru testarea internă.');
   }
-  if (mode === 'production' && (provider === 'debug' || debugToken)) {
-    issues.push('Production nu poate conține providerul sau tokenul App Check debug.');
+  if (mode === 'production' && (provider !== 'playIntegrity' || debugToken)) {
+    issues.push('Production cere Play Integrity și nu poate conține un token App Check debug.');
+  }
+  if (mode === 'production-apk' && (provider !== 'none' || debugToken)) {
+    issues.push('APK-ul pre-Play cere provider none și nu poate conține un token App Check debug.');
+  }
+  if (mode === 'production-apk' && process.env.PROFU_RELEASE_SECURITY_STAGE
+    && process.env.PROFU_RELEASE_SECURITY_STAGE !== 'pre-play-public') {
+    issues.push('APK-ul pre-Play necesită backendul în stadiul pre-play-public.');
+  }
+  if (mode === 'production' && process.env.PROFU_RELEASE_SECURITY_STAGE
+    && process.env.PROFU_RELEASE_SECURITY_STAGE !== 'play') {
+    issues.push('Production cere PROFU_RELEASE_SECURITY_STAGE=play când valoarea este declarată.');
   }
 
   validateGoogleServices(googleServicesPath(), webClientId, issues);

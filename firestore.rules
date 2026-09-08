@@ -7,7 +7,8 @@ service cloud.firestore {
     }
 
     function owns(userId) {
-      return signedIn() && request.auth.uid == userId;
+      return signedIn() && request.auth.uid == userId
+        && !exists(/databases/$(database)/documents/_accountLifecycle/$(userId));
     }
 
     function validProfile(data) {

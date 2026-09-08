@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -13,7 +13,8 @@ import { Text } from './Typography';
 
 type Props = {
   visible: boolean;
-  lessonId: string;
+  lessonId?: string;
+  requestId?: string;
   onClose: () => void;
 };
 
@@ -21,12 +22,12 @@ const options: { category: FeedbackCategory; label: string; description: string 
   { category: 'wrong_answer', label: 'Răspuns greșit', description: 'Un calcul sau rezultatul final nu este corect.' },
   { category: 'unclear', label: 'Explicație neclară', description: 'Pașii sunt greu de urmărit ori lipsesc detalii.' },
   { category: 'unsafe', label: 'Conținut nepotrivit', description: 'A apărut un text care nu ar trebui să fie aici.' },
-  { category: 'other', label: 'Altă problemă', description: 'Ai observat altceva în neregulă cu lecția.' },
+  { category: 'other', label: 'Altă problemă', description: 'Ai observat altceva în neregulă cu răspunsul.' },
 ];
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
+export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [present, setPresent] = useState(visible);
@@ -38,14 +39,17 @@ export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
   const mounted = useRef(visible);
   const transition = useRef<Animated.CompositeAnimation | null>(null);
   const submissionLocked = useRef(false);
+  const submissionRevision = useRef(0);
 
   useEffect(() => {
+    submissionRevision.current += 1;
     if (!visible) return;
     setSending(null);
     setSent(false);
     setError(false);
     submissionLocked.current = false;
-  }, [visible]);
+    return () => { submissionRevision.current += 1; };
+  }, [visible, lessonId, requestId]);
 
   useEffect(() => {
     transition.current?.stop();
@@ -92,19 +96,25 @@ export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
   const submit = async (category: FeedbackCategory) => {
     if (submissionLocked.current || sent) return;
     submissionLocked.current = true;
+    const revision = submissionRevision.current;
     setSending(category);
     setError(false);
     try {
-      await submitLessonFeedback(lessonId, category);
+      if (!lessonId && !requestId) throw new Error('Răspunsul nu mai este disponibil.');
+      await submitLessonFeedback(lessonId ? { lessonId } : { requestId: requestId! }, category);
+      if (revision !== submissionRevision.current) return;
       setSent(true);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
     } catch (submitError) {
+      if (revision !== submissionRevision.current) return;
       recordDiagnosticError('feedback_submission', submitError);
       setError(true);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
-      submissionLocked.current = false;
-      setSending(null);
+      if (revision === submissionRevision.current) {
+        submissionLocked.current = false;
+        setSending(null);
+      }
     }
   };
 
@@ -138,10 +148,10 @@ export function FeedbackSheet({ visible, lessonId, onClose }: Props) {
                 <View style={styles.sentCopy}>
                   <Text style={styles.sentEyebrow}>MESAJ TRIMIS</Text>
                   <Text style={styles.sentTitle}>Mulțumim că ne-ai spus!</Text>
-                  <Text style={styles.sentText}>Vom verifica lecția. Raportarea ta ne ajută să facem explicațiile mai clare și mai bune.</Text>
+                  <Text style={styles.sentText}>Vom verifica răspunsul. Raportarea ta ne ajută să facem explicațiile mai clare și mai bune.</Text>
                 </View>
                 <Pressable accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.doneButton, pressed && styles.doneButtonPressed]}>
-                  <Text style={styles.doneText}>Înapoi la lecție</Text>
+                  <Text style={styles.doneText}>{lessonId ? 'Înapoi la lecție' : 'Înapoi la răspuns'}</Text>
                   <MiniGlyph name="next" size={18} color={colors.ink} />
                 </Pressable>
               </View>

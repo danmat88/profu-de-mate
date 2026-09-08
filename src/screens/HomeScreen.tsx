@@ -1,6 +1,6 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -135,7 +135,7 @@ export function HomeScreen() {
 
   const chooseMode = (next: FlowMode) => {
     if (next === mode) return;
-    void Haptics.selectionAsync();
+    Haptics.selection();
     setGalleryError(null);
     setMode(next);
     if (reducedMotion) return;
@@ -163,7 +163,7 @@ export function HomeScreen() {
   const openCapture = () => {
     if (navigationLocked.current) return;
     navigationLocked.current = true;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     if (pendingAnalysis) {
       setPendingAnalysis(null);
       void leaveHome(() => navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' }));
@@ -176,13 +176,13 @@ export function HomeScreen() {
     if (galleryLocked.current) return;
     if (pendingAnalysis) {
       galleryLocked.current = true;
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
       setPendingAnalysis(null);
       await leaveHome(() => navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' }));
       return;
     }
     galleryLocked.current = true;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     setGalleryError(null);
     setGalleryBusy(true);
     try {
@@ -204,11 +204,11 @@ export function HomeScreen() {
         height: asset.height,
         source: 'gallery' as const,
       };
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
       navigation.navigate('Review', { mode, image });
     } catch {
       setGalleryError('Fotografia nu a putut fi deschisă. Alege altă imagine.');
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       galleryLocked.current = false;
       setGalleryBusy(false);

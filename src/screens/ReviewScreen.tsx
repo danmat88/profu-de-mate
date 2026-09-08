@@ -7,6 +7,7 @@ import { commercialGateFromError, preflightAnalysisAccess } from '../services/co
 import { recordDiagnosticError } from '../services/diagnostics';
 import { createAnalysisRequestId } from '../services/mathAnalysis';
 import { savePendingAnalysis } from '../services/pendingAnalysis';
+import { assertSessionActive, captureSession } from '../services/sessionGuard';
 import { deleteCapturedImageFiles } from '../services/temporaryImages';
 import { colors } from '../theme';
 import type { CapturedImage, RootStackParamList } from '../types';
@@ -34,18 +35,21 @@ export function ReviewScreen({ navigation, route }: Props) {
     const requestId = createAnalysisRequestId();
 
     try {
+      const session = captureSession();
       await preflightAnalysisAccess(requestId);
+      assertSessionActive(session);
       setCurrentImage((previous) => {
         if (previous.uri !== route.params.image.uri && previous.uri !== editedImage.uri) {
           deleteCapturedImageFiles([previous.uri]);
         }
         return editedImage;
       });
-      savePendingAnalysis(route.params.mode, editedImage, requestId);
+      savePendingAnalysis(route.params.mode, editedImage, requestId, session.userId);
       navigation.navigate('Processing', {
         mode: route.params.mode,
         image: editedImage,
         requestId,
+        userId: session.userId,
         origin: 'review',
       });
       return true;

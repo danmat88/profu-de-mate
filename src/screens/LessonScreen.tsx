@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
@@ -115,7 +115,7 @@ export function LessonScreen({ navigation, route }: Props) {
 
   const next = () => {
     if (!lockPaging()) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     if (step < lesson.steps.length - 1) {
       setStep((value) => value + 1);
       return;
@@ -135,7 +135,7 @@ export function LessonScreen({ navigation, route }: Props) {
 
   const back = () => {
     if (!lockPaging()) return;
-    Haptics.selectionAsync();
+    Haptics.selection();
     if (step > 0) {
       setStep((value) => value - 1);
       return;
@@ -155,7 +155,7 @@ export function LessonScreen({ navigation, route }: Props) {
   };
 
   const explainDifferently = () => {
-    Haptics.selectionAsync();
+    Haptics.selection();
     if (alternate) {
       closeAlternate();
       return;
@@ -176,7 +176,7 @@ export function LessonScreen({ navigation, route }: Props) {
   };
 
   const toggleProblem = () => {
-    Haptics.selectionAsync();
+    Haptics.selection();
     if (problemOpen) {
       closeProblem();
       return;

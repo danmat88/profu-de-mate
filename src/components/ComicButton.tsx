@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -66,7 +66,7 @@ export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone
           disabled={disabled}
           onPressIn={() => move(1)}
           onPressOut={() => move(0)}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onPress(); }}
+          onPress={() => { Haptics.impact(Haptics.ImpactFeedbackStyle.Medium); onPress(); }}
           style={[styles.face, condensed && styles.faceCompact, { backgroundColor: fills[tone] }]}
         >
           {tone !== 'paper' ? <Animated.View pointerEvents="none" style={[styles.shine, { transform: [

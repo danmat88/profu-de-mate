@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PurchasesPackage } from 'react-native-purchases';
@@ -25,6 +25,8 @@ import {
 } from '../services/purchases';
 import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
+import { createLatestTask, type TaskState } from '../utils/latestTask';
+import { assertSessionActive, captureSession } from '../services/sessionGuard';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Paywall'>;
 type BusyAction = 'google' | 'purchase' | 'restore' | 'manage' | null;
@@ -50,7 +52,8 @@ export function PaywallScreen({ navigation, route }: Props) {
   // Route data makes the first paint immediate, but it belongs to the identity
   // that opened this screen. Never reuse it after a Google identity operation.
   const access = contextAccess ?? (allowRouteAccessFallback ? route.params.access : null) ?? null;
-  const [offer, setOffer] = useState<PremiumOffer | null>(null);
+  const [offerState, setOfferState] = useState<TaskState<PremiumOffer> | null>(null);
+  const offer = offerState?.status === 'ready' ? offerState.value : null;
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual');
   const [busy, setBusy] = useState<BusyAction>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,16 +65,23 @@ export function PaywallScreen({ navigation, route }: Props) {
   const freeDailyLimit = access?.allowances.freeDaily ?? 5;
   const premiumDailyLimit = access?.allowances.premiumDaily ?? 30;
 
-  const loadOffer = useCallback(async () => {
-    if (!googleLinked || premium || !isPurchasesConfigured()) return;
-    try {
-      setOffer(await getPremiumOffer());
-    } catch (offerError) {
-      setError(friendlyPurchaseError(offerError));
-    }
-  }, [googleLinked, premium]);
+  const offerTask = useMemo(() => createLatestTask(
+    async () => {
+      const session = captureSession();
+      const result = await getPremiumOffer();
+      assertSessionActive(session);
+      return result;
+    },
+    setOfferState,
+    15_000,
+    'Google Play nu este disponibil momentan. Verifică internetul și încearcă din nou.',
+  ), []);
 
-  useEffect(() => { void loadOffer(); }, [loadOffer]);
+  useEffect(() => {
+    setOfferState(null);
+    if (googleLinked && !premium && isPurchasesConfigured()) void offerTask.run();
+    return () => offerTask.cancel();
+  }, [googleLinked, premium, access?.purchaseUserId, offerTask]);
 
   const connect = async () => {
     if (busy) return;
@@ -96,7 +106,9 @@ export function PaywallScreen({ navigation, route }: Props) {
     setError(null);
     const plan: PurchasesPackage = selected === 'annual' ? offer.annual : offer.monthly;
     try {
+      const session = captureSession();
       const next = await purchasePremium(plan);
+      assertSessionActive(session);
       setSuccessLimit(next.limit);
       applyServerAccess(next);
       setSuccess(true);
@@ -112,7 +124,9 @@ export function PaywallScreen({ navigation, route }: Props) {
     setBusy('restore');
     setError(null);
     try {
+      const session = captureSession();
       const next = await restorePremium();
+      assertSessionActive(session);
       applyServerAccess(next);
       if (next.premium.active) {
         setSuccessLimit(next.limit);
@@ -257,6 +271,11 @@ export function PaywallScreen({ navigation, route }: Props) {
                   <Text style={styles.planPrice}>{offer.monthly.product.priceString}<Text style={styles.planPeriod}> / lună</Text></Text>
                 </Pressable>
               </View>
+            ) : offerState?.status === 'error' ? (
+              <View style={styles.offerError}>
+                <Text accessibilityRole="alert" style={styles.offerLoadingText}>{friendlyPurchaseError(offerState.error)}</Text>
+                <ComicButton title="Reîncearcă încărcarea prețurilor" icon="trophy" tone="paper" disabled={Boolean(busy)} onPress={() => void offerTask.run()} />
+              </View>
             ) : (
               <View style={styles.offerLoading}>
                 {isPurchasesConfigured()
@@ -339,6 +358,7 @@ const styles = StyleSheet.create({
   planPrice: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, textAlign: 'right' },
   planPeriod: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 9.5 },
   offerLoading: { minHeight: 64, borderRadius: 18, backgroundColor: colors.violetSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 15 },
+  offerError: { gap: 12, borderRadius: 18, backgroundColor: colors.violetSoft, padding: 15 },
   offerLoadingText: { flex: 1, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12, lineHeight: 16, textAlign: 'center' },
   restore: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   restoreText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12.5 },

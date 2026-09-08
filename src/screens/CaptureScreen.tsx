@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -155,7 +155,7 @@ export function CaptureScreen({ navigation, route }: Props) {
     setWorking(true);
     setCaptureError(null);
     const image = { ...raw, source };
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    Haptics.notification(Haptics.NotificationFeedbackType.Success);
     navigation.navigate('Review', { mode: route.params.mode, image });
   }, [navigation, route.params.mode]);
 
@@ -182,7 +182,7 @@ export function CaptureScreen({ navigation, route }: Props) {
       capturing.current = true;
       setWorking(true);
       setCaptureError(null);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false, shutterSound: true });
       try {
         await cameraRef.current.pausePreview();
@@ -197,7 +197,7 @@ export function CaptureScreen({ navigation, route }: Props) {
       setWorking(false);
       resumePreviewAfterFailure();
       setCaptureError('Nu am putut face fotografia. Ține telefonul nemișcat și încearcă din nou.');
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -223,7 +223,7 @@ export function CaptureScreen({ navigation, route }: Props) {
       acceptImage(asset, 'gallery');
     } catch {
       setCaptureError('Galeria nu a putut fi deschisă. Încearcă din nou.');
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       galleryPickerLocked.current = false;
       if (!capturing.current) setWorking(false);
@@ -231,7 +231,7 @@ export function CaptureScreen({ navigation, route }: Props) {
   }, [acceptImage, working]);
 
   const toggleHelp = () => {
-    void Haptics.selectionAsync();
+    Haptics.selection();
     if (showHelp) {
       if (reducedMotion) {
         setShowHelp(false);
@@ -296,7 +296,7 @@ export function CaptureScreen({ navigation, route }: Props) {
           <View style={[styles.modeDot, isCheck && styles.modeDotCheck]} />
           <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modeChipText}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PROBLEMA'}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={flash ? 'Oprește blițul' : 'Pornește blițul'} accessibilityState={{ selected: flash }} disabled={working} onPress={() => { void Haptics.selectionAsync(); setFlash((value) => !value); }} style={({ pressed }) => [styles.roundButton, flash && styles.roundButtonActive, pressed && styles.controlPressed]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={flash ? 'Oprește blițul' : 'Pornește blițul'} accessibilityState={{ selected: flash }} disabled={working} onPress={() => { Haptics.selection(); setFlash((value) => !value); }} style={({ pressed }) => [styles.roundButton, flash && styles.roundButtonActive, pressed && styles.controlPressed]}>
           <AppIcon name="flash" size={31} />
         </Pressable>
       </Animated.View>

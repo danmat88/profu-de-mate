@@ -26,6 +26,7 @@ GoogleService-Info.plist
 
 # Local visual test captures
 previews/
+/artifacts/native-check-*/
 
 # debug
 npm-debug.*

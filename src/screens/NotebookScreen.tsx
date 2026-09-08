@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -361,7 +361,7 @@ export function NotebookScreen({ navigation }: Props) {
   const chooseFilter = useCallback((next: NotebookFilter) => {
     setFilter((current) => {
       if (current === next) return current;
-      void Haptics.selectionAsync();
+      Haptics.selection();
       animateListChange();
       return next;
     });
@@ -370,12 +370,12 @@ export function NotebookScreen({ navigation }: Props) {
   useEffect(() => { animateListChange(); }, [animateListChange, normalizedQuery]);
 
   const openNote = useCallback((lesson: StoredLesson) => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('Lesson', { lesson, lessonId: lesson.id, isFavorite: true, source: 'notebook' });
   }, [navigation]);
 
   const requestRemove = useCallback((lesson: StoredLesson) => {
-    void Haptics.selectionAsync();
+    Haptics.selection();
     setRemoveError(false);
     setPendingRemoval(lesson);
     removeProgress.setValue(reducedMotion ? 1 : 0);
@@ -408,14 +408,14 @@ export function NotebookScreen({ navigation }: Props) {
     try {
       await setLessonFavorite(lesson.id, false);
       setNotes((current) => current.filter((note) => note.id !== lesson.id));
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
       setRemoving(false);
       closeRemoval(true);
     } catch (error) {
       recordDiagnosticError('notebook_update', error);
       setRemoveError(true);
       setRemoving(false);
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
   }, [closeRemoval, pendingRemoval, removing]);
 

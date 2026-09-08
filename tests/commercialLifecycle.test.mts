@@ -3,26 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
-const firebaseSource = readFileSync(join(process.cwd(), 'src/services/firebase.ts'), 'utf8');
 const commercialSource = readFileSync(join(process.cwd(), 'src/services/commercial.ts'), 'utf8');
 const deletionSource = readFileSync(join(process.cwd(), 'src/services/dataManagement.ts'), 'utf8');
 const contextSource = readFileSync(join(process.cwd(), 'src/context/CommercialContext.tsx'), 'utf8');
 const backendSource = readFileSync(join(process.cwd(), 'functions/src/index.ts'), 'utf8');
 const identitySource = readFileSync(join(process.cwd(), 'functions/src/commercialIdentity.ts'), 'utf8');
 
-test('validates a restored Firebase session once and replaces only a terminal identity', () => {
-  assert.match(firebaseSource, /const current = auth\.currentUser;/);
-  assert.match(firebaseSource, /if \(current\) return current;/);
-  assert.match(firebaseSource, /verifyServerAuthSession\(initializedUser\)/);
-  assert.match(firebaseSource, /getIdToken\(user, true\)/);
-  assert.match(firebaseSource, /isTerminalAuthSessionError\(error\)/);
-  assert.match(firebaseSource, /authVerification\?\.sessionKey === sessionKey\) authVerification = null/);
-  assert.match(firebaseSource, /replaceTerminalFirebaseSession\(sessionKey\)/);
-  assert.match(firebaseSource, /signInAnonymously\(auth\)/);
-  assert.match(firebaseSource, /await getIdToken\(active, true\);\s*return active;/);
-  assert.match(commercialSource, /recoverFirebaseSessionAfterCallableFailure\(error, requestedSessionKey\)/);
-  assert.match(commercialSource, /if \(replacement\) return requestCommercialAccess\(false\)/);
-});
+// Firebase lifecycle is exercised through the real service in serviceLifecycle.test.mts.
 
 test('logout rotates only Firebase auth while commercial guest identity stays installation-bound', () => {
   const disconnect = commercialSource.match(/export async function disconnectGoogleAccount[\s\S]*?\n}/)?.[0] ?? '';

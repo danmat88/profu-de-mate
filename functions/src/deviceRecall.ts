@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { FieldValue, type Firestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { assertUserActive } from './userLifecycle.js';
 import { GoogleAuth } from 'google-auth-library';
 import { COMMERCIAL_PROFILE_RETENTION_MS } from './commercialAccess.js';
 
@@ -149,7 +150,9 @@ export async function claimWelcomeDevice(args: {
       return { verified: false };
     }
   }
-  await profileRef.set({
+  await args.db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, args.db, args.userId);
+    transaction.set(profileRef, {
     userId: args.userId,
     principalId: args.principalId,
     deviceRecallClaimed: true,
@@ -157,5 +160,6 @@ export async function claimWelcomeDevice(args: {
     updatedAt: FieldValue.serverTimestamp(),
     expiresAt: Timestamp.fromMillis((args.now ?? Date.now()) + COMMERCIAL_PROFILE_RETENTION_MS),
   }, { merge: true });
+  });
   return { verified: true };
 }

@@ -9,9 +9,53 @@ import Purchases, {
 import type { CommercialAccess } from '../types';
 import { writeCachedCommercialAccess } from './commercialAccessCache';
 import { initializeVerifiedFirebaseServices } from './firebase';
+import { assertSessionActive, captureSession, type ActiveSession } from './sessionGuard';
+import { withDeadline } from '../utils/latestTask';
 
 let configuredUserId: string | null = null;
 let purchasesSdkConfigured = false;
+let configuredSessionKey: string | null = null;
+let sdkQueue: Promise<unknown> = Promise.resolve();
+let billingOperationActive = false;
+
+// Identity changes and transactions share a queue: a login cannot switch the
+// native customer underneath a purchase already presented by Google Play.
+function withSdk<T>(operation: () => Promise<T>, options: {
+  timeoutMs?: number;
+  timeoutMessage?: string;
+  finishCleanup?: boolean;
+  onSettled?: () => void;
+} = {}): Promise<T> {
+  let expired = false;
+  const timeout = Object.assign(new Error(options.timeoutMessage
+    ?? 'Google Play nu a răspuns la timp. Încearcă din nou peste câteva momente.'), { code: 'purchases/timeout' });
+  const result = sdkQueue.then(() => {
+    // A button action which timed out while queued must never start later.
+    // Logout cleanup is the exception: it still detaches the old customer.
+    if (expired && !options.finishCleanup) throw timeout;
+    return operation();
+  }).finally(options.onSettled);
+  // A timeout does not cancel a native SDK mutation. Keep its lock until the
+  // real operation settles; otherwise a late logIn/logOut can change the
+  // customer underneath a newer purchase.
+  sdkQueue = result.catch(() => undefined);
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      expired = true;
+      reject(timeout);
+    }, options.timeoutMs ?? 20_000);
+    result.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
+function beginBillingOperation(): void {
+  if (billingOperationActive) {
+    throw Object.assign(new Error('Google Play finalizează deja o acțiune. Așteaptă confirmarea înainte să încerci din nou.'), {
+      code: 'purchases/operation-in-progress',
+    });
+  }
+  billingOperationActive = true;
+}
 
 export type PremiumOffer = {
   monthly: PurchasesPackage;
@@ -27,24 +71,28 @@ export function isPurchasesConfigured(): boolean {
   return Boolean(publicApiKey());
 }
 
-export async function initializePurchases(userId: string): Promise<boolean> {
+export async function initializePurchases(userId: string, session = captureSession()): Promise<boolean> {
   const apiKey = publicApiKey();
   if (!apiKey) return false;
   // Premium belongs to an account that can be recovered across devices. Guest
   // allowance IDs must never become RevenueCat customer aliases.
   if (!/^g_[a-f0-9]{64}$/.test(userId)) throw new Error('Contul comercial pentru Google Play nu este valid.');
-  if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-  if (!purchasesSdkConfigured) {
-    Purchases.configure({ apiKey, appUserID: userId });
-    purchasesSdkConfigured = true;
+  return withSdk(async () => {
+    assertSessionActive(session);
+    if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    if (!purchasesSdkConfigured) {
+      Purchases.configure({ apiKey, appUserID: userId });
+      purchasesSdkConfigured = true;
+    } else if (configuredUserId !== userId || configuredSessionKey !== session.sessionKey) {
+      configuredUserId = null;
+      configuredSessionKey = null;
+      await Purchases.logIn(userId);
+      assertSessionActive(session);
+    }
     configuredUserId = userId;
+    configuredSessionKey = session.sessionKey;
     return true;
-  }
-  if (configuredUserId !== userId) {
-    await Purchases.logIn(userId);
-    configuredUserId = userId;
-  }
-  return true;
+  });
 }
 
 /**
@@ -53,62 +101,97 @@ export async function initializePurchases(userId: string): Promise<boolean> {
  * identity for quota, notebook ownership or server entitlements.
  */
 export async function resetPurchasesForSignedOutUser(): Promise<void> {
-  if (!purchasesSdkConfigured || !configuredUserId) return;
   configuredUserId = null;
-  await Purchases.logOut();
+  configuredSessionKey = null;
+  await withSdk(async () => {
+    if (purchasesSdkConfigured && !await Purchases.isAnonymous()) await Purchases.logOut();
+  }, { finishCleanup: true });
 }
 
-async function requirePurchases(): Promise<void> {
-  await initializeVerifiedFirebaseServices();
+async function requirePurchases(session: ActiveSession): Promise<void> {
+  assertSessionActive(session);
+  await withDeadline(initializeVerifiedFirebaseServices(), 12_000, 'Verificarea contului durează prea mult. Încearcă din nou.');
+  assertSessionActive(session);
   if (!publicApiKey()) throw new Error('Abonamentele nu sunt configurate în acest build.');
-  if (!purchasesSdkConfigured || !configuredUserId) {
+  if (!purchasesSdkConfigured || !configuredUserId || configuredSessionKey !== session.sessionKey) {
     throw new Error('Contul comercial nu este încă verificat. Redeschide ecranul Premium.');
   }
 }
 
 export async function getPremiumOffer(): Promise<PremiumOffer> {
-  await requirePurchases();
-  const offerings = await Purchases.getOfferings();
-  const current = offerings.current;
-  const monthly = current?.monthly
-    ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.MONTHLY)
-    ?? null;
-  const annual = current?.annual
-    ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.ANNUAL)
-    ?? null;
-  if (!monthly || !annual) throw new Error('Oferta Premium nu este disponibilă momentan.');
-  return { monthly, annual };
+  const session = captureSession();
+  return withSdk(async () => {
+    await requirePurchases(session);
+    const offerings = await withDeadline(Purchases.getOfferings(), 12_000, 'Oferta nu a sosit. Încearcă din nou.');
+    assertSessionActive(session);
+    const current = offerings.current;
+    const monthly = current?.monthly
+      ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.MONTHLY)
+      ?? null;
+    const annual = current?.annual
+      ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.ANNUAL)
+      ?? null;
+    if (!monthly || !annual) throw new Error('Oferta Premium nu este disponibilă momentan.');
+    return { monthly, annual };
+  });
 }
 
-async function syncServerPremium(): Promise<CommercialAccess> {
+async function syncServerPremium(session: ActiveSession): Promise<CommercialAccess> {
+  assertSessionActive(session);
   const functions = getFunctions(getApp(), 'europe-west1');
   const sync = httpsCallable<Record<string, never>, CommercialAccess>(functions, 'syncPremiumAccess', { timeout: 30_000 });
   const access = (await sync({})).data;
-  await writeCachedCommercialAccess(access);
+  assertSessionActive(session);
+  await writeCachedCommercialAccess(access, session.sessionKey);
+  assertSessionActive(session);
   return access;
 }
 
 export async function purchasePremium(plan: PurchasesPackage): Promise<CommercialAccess> {
-  await requirePurchases();
-  await Purchases.purchasePackage(plan);
-  try {
-    const access = await syncServerPremium();
-    if (access.premium.active) return access;
-  } catch {
-    throw new Error('Google Play a înregistrat plata, dar confirmarea Premium nu a ajuns încă. Folosește „Restaurează achizițiile” peste câteva momente.');
-  }
-  throw new Error('Plata a fost înregistrată, dar accesul Premium nu este încă activ. Folosește „Restaurează achizițiile”.');
+  const session = captureSession();
+  beginBillingOperation();
+  return withSdk(async () => {
+    await requirePurchases(session);
+    await Purchases.purchasePackage(plan);
+    assertSessionActive(session);
+    try {
+      const access = await syncServerPremium(session);
+      if (access.premium.active) return access;
+    } catch {
+      assertSessionActive(session);
+      throw new Error('Google Play a înregistrat plata, dar confirmarea Premium nu a ajuns încă. Folosește „Restaurează achizițiile” peste câteva momente.');
+    }
+    throw new Error('Plata a fost înregistrată, dar accesul Premium nu este încă activ. Folosește „Restaurează achizițiile”.');
+  }, {
+    timeoutMs: 120_000,
+    timeoutMessage: 'Confirmarea Google Play întârzie. Plata poate continua; nu cumpăra din nou. Verifică abonamentul în Google Play și apoi folosește „Restaurează achizițiile”.',
+    onSettled: () => { billingOperationActive = false; },
+  });
 }
 
 export async function restorePremium(): Promise<CommercialAccess> {
-  await requirePurchases();
-  await Purchases.restorePurchases();
-  return syncServerPremium();
+  const session = captureSession();
+  beginBillingOperation();
+  return withSdk(async () => {
+    await requirePurchases(session);
+    await Purchases.restorePurchases();
+    assertSessionActive(session);
+    return syncServerPremium(session);
+  }, {
+    timeoutMs: 60_000,
+    timeoutMessage: 'Restaurarea Google Play întârzie. Verifică abonamentul în Google Play și încearcă din nou peste câteva momente.',
+    onSettled: () => { billingOperationActive = false; },
+  });
 }
 
 export async function getSubscriptionManagementUrl(): Promise<string | null> {
-  await requirePurchases();
-  return (await Purchases.getCustomerInfo()).managementURL;
+  const session = captureSession();
+  return withSdk(async () => {
+    await requirePurchases(session);
+    const customerInfo = await withDeadline(Purchases.getCustomerInfo(), 12_000, 'Google Play nu răspunde. Încearcă din nou.');
+    assertSessionActive(session);
+    return customerInfo.managementURL;
+  });
 }
 
 export function isPurchaseCancellation(error: unknown): boolean {

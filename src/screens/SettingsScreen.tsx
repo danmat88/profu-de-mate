@@ -1,7 +1,7 @@
 import { getApp } from '@react-native-firebase/app';
 import { getCrashlytics, setCrashlyticsCollectionEnabled } from '@react-native-firebase/crashlytics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -92,7 +92,7 @@ export function SettingsScreen({ navigation }: Props) {
     diagnosticsLocked.current = true;
     const next = !diagnostics;
     setDiagnostics(next);
-    await Haptics.selectionAsync();
+    Haptics.selection();
     try {
       await setCrashlyticsCollectionEnabled(crashlytics, next);
     } catch {
@@ -110,14 +110,14 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       const result = await deleteAccount();
       setExternalDeletionPending(result.externalBillingProfilePending);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
       setDeleteComplete(true);
     } catch (deletionError) {
       if (deletionError instanceof DataDeletionCancelledError) return;
       recordDiagnosticError('data_deletion', deletionError);
       setDeleteError(true);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       deletionLocked.current = false;
       setDeleting(false);
@@ -131,12 +131,12 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       await disconnectGoogle();
       setConfirmLogout(false);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       recordDiagnosticError('google_disconnect', error);
       setAccountError('Nu am putut închide sesiunea. Încearcă din nou.');
       setConfirmLogout(false);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       setDisconnectingGoogle(false);
     }
@@ -300,7 +300,7 @@ export function SettingsScreen({ navigation }: Props) {
               <Text style={styles.successEyebrow}>ȘTERGERE ÎNCHEIATĂ</Text>
               <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
               <Text style={styles.confirmText}>{externalDeletionPending
-                ? 'Datele aplicației au fost șterse. Ștergerea profilului tehnic de plăți a fost înregistrată și va fi reîncercată automat.'
+                ? 'Datele aplicației au fost șterse. Cererea de ștergere a profilului tehnic de plăți a fost înregistrată și necesită verificarea echipei de suport.'
                 : 'Contul sau profilul anterior și datele asociate au fost șterse. Aplicația pornește acum cu un spațiu temporar nou, fără legătură cu identitatea ștearsă.'}</Text>
               <Pressable accessibilityRole="button" onPress={() => { setDeleteComplete(false); navigation.popToTop(); }} style={styles.successButton}>
                 <Text style={styles.successButtonText}>Înapoi la început</Text>

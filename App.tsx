@@ -30,7 +30,7 @@ import { SummaryScreen } from './src/screens/SummaryScreen';
 import { initializeFirebaseServices, initializeVerifiedFirebaseServices } from './src/services/firebase';
 import { recordDiagnosticError } from './src/services/diagnostics';
 import { readCachedCommercialAccess } from './src/services/commercialAccessCache';
-import { preparePendingAnalysisOnStartup, type PendingAnalysis } from './src/services/pendingAnalysis';
+import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from './src/services/pendingAnalysis';
 import { preloadCriticalAppAssets } from './src/services/startupAssets';
 import { settleStartupTask, type StartupTaskResult } from './src/services/startupBootstrap';
 import { colors } from './src/theme';
@@ -62,7 +62,8 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [navigationReady, setNavigationReady] = useState(false);
   const reducedMotion = useReducedMotion();
-  const { startupReady: commercialStartupReady } = useCommercial();
+  const { startupReady: commercialStartupReady, authSessionKey } = useCommercial();
+  const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
   const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
 
@@ -75,6 +76,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
         importantForAccessibility={showLaunchSplash ? 'no-hide-descendants' : 'auto'}
       >
         <NavigationContainer
+            key={authSessionKey ?? 'signed-out'}
             theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
             onReady={() => setNavigationReady(true)}
             onStateChange={(state) => {
@@ -83,7 +85,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
             }}
           >
             <StatusBar style="dark" />
-            <Stack.Navigator initialRouteName={pendingAnalysis ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+            <Stack.Navigator initialRouteName={activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
               <Stack.Screen name="Notebook" component={NotebookScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
@@ -91,7 +93,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
               <Stack.Screen name="Paywall" component={PaywallScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
               <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: 'none', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={pendingAnalysis ?? undefined} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false }} />
               <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_right' }} />
             </Stack.Navigator>

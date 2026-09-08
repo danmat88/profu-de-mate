@@ -7,6 +7,8 @@ import {
   type Transaction,
 } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { assertUserActive } from './userLifecycle.js';
+import { defaultDeviceRecallForStage, RELEASE_SECURITY_STAGE } from './releaseSecurity.js';
 import {
   isCommercialPrincipalId,
   type CommercialIdentity,
@@ -66,11 +68,13 @@ export const DEFAULT_COMMERCIAL_CONFIG: CommercialConfig = {
   freeDailyLimit: 5,
   premiumDailyLimit: 30,
   premiumEntitlementId: 'premium',
-  deviceRecallMode: 'off',
+  deviceRecallMode: defaultDeviceRecallForStage(RELEASE_SECURITY_STAGE),
 };
 
 type ReservationScope = 'welcome' | 'daily';
 type ReservationData = {
+  userId?: unknown;
+  budgetVersion?: unknown;
   state?: unknown;
   scope?: unknown;
   day?: unknown;
@@ -94,9 +98,9 @@ export function normalizeCommercialConfig(value: unknown): CommercialConfig {
     premiumEntitlementId: typeof data.premiumEntitlementId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(data.premiumEntitlementId)
       ? data.premiumEntitlementId
       : DEFAULT_COMMERCIAL_CONFIG.premiumEntitlementId,
-    deviceRecallMode: data.deviceRecallMode === 'monitor' || data.deviceRecallMode === 'enforce'
+    deviceRecallMode: data.deviceRecallMode === 'off' || data.deviceRecallMode === 'monitor' || data.deviceRecallMode === 'enforce'
       ? data.deviceRecallMode
-      : 'off',
+      : DEFAULT_COMMERCIAL_CONFIG.deviceRecallMode,
   };
 }
 
@@ -108,7 +112,7 @@ export async function getCommercialConfig(db: Firestore, now = Date.now()): Prom
     cachedConfig = { value, expiresAt: now + CONFIG_CACHE_MS };
     return value;
   } catch {
-    return DEFAULT_COMMERCIAL_CONFIG;
+    throw new HttpsError('unavailable', 'Accesul nu poate fi verificat acum. Încearcă din nou.');
   }
 }
 
@@ -130,11 +134,13 @@ export async function bindInstallationToAccount(
     throw new HttpsError('failed-precondition', 'Identitatea comercială nu este validă.');
   }
   const profileRef = db.collection('_commercialUsers').doc(installationPrincipalId);
-  const current = await profileRef.get();
-  if (current.data()?.linkedAccountPrincipalId === accountPrincipalId
-    && current.data()?.linkedAccountUserId === accountUserId
-    && current.data()?.welcomeLocked === undefined) return;
-  await profileRef.set({
+  await db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, db, accountUserId);
+    const current = await transaction.get(profileRef);
+    if (current.data()?.linkedAccountPrincipalId === accountPrincipalId
+      && current.data()?.linkedAccountUserId === accountUserId
+      && current.data()?.welcomeLocked === undefined) return;
+    transaction.set(profileRef, {
     principalId: installationPrincipalId,
     // Remove the obsolete lock written by older releases. The consumed counter
     // already prevents Firebase UID rotation from granting another allowance.
@@ -144,7 +150,8 @@ export async function bindInstallationToAccount(
     linkedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
     expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
-  }, { merge: true });
+    }, { merge: true });
+  });
 }
 
 type ZonedParts = {
@@ -274,8 +281,55 @@ function refsFor(db: Firestore, _userId: string, principalId: string, requestId:
     daily: db.collection('_commercialUsage').doc(`${principalId}_${day}`),
     entitlement: db.collection('_commercialEntitlements').doc(principalId),
     reservation: db.collection('_commercialReservations').doc(`${principalId}_${requestId}`),
-    global: db.collection('_commercialGlobal').doc(day),
   };
+}
+
+/**
+ * Commit one irreversible provider attempt before making a network call.
+ * User allowance refunds never mutate this counter. The old `requests`
+ * field counted refundable analyses, so its history cannot seed this budget.
+ * A legacy day's document deliberately fails closed; the next quota day is
+ * initialized normally. Deploy with traffic paused until old workers drain.
+ */
+export async function consumeProviderAttempt(
+  db: Firestore,
+  globalDailyLimit: number,
+  now = Date.now(),
+  userId?: string,
+): Promise<void> {
+  if (!Number.isInteger(globalDailyLimit) || globalDailyLimit < 1 || globalDailyLimit > 1000) {
+    throw new HttpsError('failed-precondition', 'Limita serviciului nu este configurată corect.');
+  }
+  const { day } = bucharestQuotaWindow(now);
+  const ref = db.collection('_commercialGlobal').doc(day);
+  await db.runTransaction(async (transaction) => {
+    if (userId !== undefined) await assertUserActive(transaction, db, userId);
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.data();
+    if (snapshot.exists && (data?.providerBudgetVersion !== 2
+      || !Number.isSafeInteger(data.providerAttempts) || data.providerAttempts < 0)) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Serviciul este într-o pauză de siguranță până la următoarea zi. Încearcă din nou mâine.',
+        { commercialReason: 'service_capacity', budgetReason: 'legacy_or_invalid_counter' },
+      );
+    }
+    const attempts = snapshot.exists ? data!.providerAttempts as number : 0;
+    if (attempts >= globalDailyLimit) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Profu’ a ajuns la limita totală de lucru pentru astăzi. Încearcă din nou mâine.',
+        { commercialReason: 'service_capacity' },
+      );
+    }
+    transaction.set(ref, {
+      day,
+      providerBudgetVersion: 2,
+      providerAttempts: attempts + 1,
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + COUNTER_RETENTION_MS),
+    }, { merge: true });
+  });
 }
 
 export async function readCommercialAccess(
@@ -327,7 +381,6 @@ export async function reserveAnalysisQuota(
   requestId: string,
   principal: CommercialPrincipal,
   now = Date.now(),
-  globalDailyLimit = 300,
 ): Promise<CommercialAccess> {
   const config = await getCommercialConfig(db, now);
   const window = bucharestQuotaWindow(now);
@@ -337,17 +390,20 @@ export async function reserveAnalysisQuota(
   const refs = refsFor(db, userId, principal.principalId, requestId, window.day);
 
   return db.runTransaction(async (transaction) => {
-    const [profileSnapshot, dailySnapshot, entitlementSnapshot, reservationSnapshot, globalSnapshot] = await Promise.all([
+    await assertUserActive(transaction, db, userId);
+    const [profileSnapshot, dailySnapshot, entitlementSnapshot, reservationSnapshot] = await Promise.all([
       transaction.get(refs.profile),
       transaction.get(refs.daily),
       transaction.get(refs.entitlement),
       transaction.get(refs.reservation),
-      transaction.get(refs.global),
     ]);
     const profile = profileSnapshot.data();
     const daily = dailySnapshot.data();
     const entitlement = entitlementSnapshot.data();
     const reservation = reservationSnapshot.data() as ReservationData | undefined;
+    if (reservation && reservation.userId !== userId) {
+      throw new HttpsError('permission-denied', 'Cererea aparține altei sesiuni. Trimite o analiză nouă.');
+    }
     const access = buildCommercialAccess({
       identity: principal.identity,
       principalId: principal.principalId,
@@ -369,7 +425,9 @@ export async function reserveAnalysisQuota(
       });
       return access;
     }
-    if (reservation?.state === 'consumed') return access;
+    if (reservation?.state === 'consumed') {
+      throw new HttpsError('failed-precondition', 'Această analiză a fost deja finalizată. Trimite o analiză nouă.');
+    }
 
     const windowStartedAt = timestampMillis(profile?.burstWindowStartedAt) ?? 0;
     const inCurrentBurstWindow = now - windowStartedAt < BURST_WINDOW_MS;
@@ -387,15 +445,6 @@ export async function reserveAnalysisQuota(
         'failed-precondition',
         'Verificarea sigură a problemelor de bun-venit nu este gata. Încearcă din nou sau conectează-te cu Google.',
         { commercialReason: 'device_verification_required', access },
-      );
-    }
-
-    const globalRequests = numeric(globalSnapshot.data(), 'requests');
-    if (globalRequests >= globalDailyLimit) {
-      throw new HttpsError(
-        'resource-exhausted',
-        'Profu’ a ajuns la limita totală de lucru pentru astăzi. Încearcă din nou mâine.',
-        { commercialReason: 'service_capacity' },
       );
     }
 
@@ -437,12 +486,6 @@ export async function reserveAnalysisQuota(
     }
 
     transaction.set(refs.profile, profileWrite, { merge: true });
-    transaction.set(refs.global, {
-      day: window.day,
-      requests: globalRequests + 1,
-      updatedAt: FieldValue.serverTimestamp(),
-      expiresAt,
-    }, { merge: true });
     transaction.set(refs.reservation, {
       userId,
       requestId,
@@ -450,6 +493,7 @@ export async function reserveAnalysisQuota(
       day: window.day,
       scope,
       tier: access.tier,
+      budgetVersion: 2,
       state: 'reserved',
       reservedAt: Timestamp.fromMillis(now),
       updatedAt: FieldValue.serverTimestamp(),
@@ -517,6 +561,7 @@ export async function settleAnalysisQuota(
   charge: boolean,
   addResultWrites: (transaction: Transaction) => void,
   onlyIfReservedBefore?: number,
+  beforeSettle?: (transaction: Transaction) => Promise<void>,
 ): Promise<boolean> {
   const reservationRef = db.collection('_commercialReservations').doc(`${principalId}_${requestId}`);
   return db.runTransaction(async (transaction) => {
@@ -525,6 +570,11 @@ export async function settleAnalysisQuota(
     if (!reservationSnapshot.exists || !reservation) {
       throw new HttpsError('failed-precondition', 'Rezervarea pentru această analiză lipsește. Încearcă din nou.');
     }
+    if (typeof reservation.userId !== 'string') {
+      throw new HttpsError('failed-precondition', 'Identitatea rezervării pentru analiză lipsește.');
+    }
+    await assertUserActive(transaction, db, reservation.userId);
+    await beforeSettle?.(transaction);
 
     if (charge) {
       if (reservation.state === 'refunded') {
@@ -557,10 +607,10 @@ export async function settleAnalysisQuota(
       const globalRef = db.collection('_commercialGlobal').doc(reservation.day);
       const [counterSnapshot, globalSnapshot] = await Promise.all([
         transaction.get(counter.ref),
-        transaction.get(globalRef),
+        reservation.budgetVersion === 2 ? Promise.resolve(null) : transaction.get(globalRef),
       ]);
       const refunded = applyCounterRefund(transaction, counter, counterSnapshot.data(), requestId, reservation);
-      if (refunded && globalSnapshot.exists) {
+      if (refunded && globalSnapshot?.exists) {
         transaction.update(globalRef, {
           requests: Math.max(0, numeric(globalSnapshot.data(), 'requests') - 1),
           updatedAt: FieldValue.serverTimestamp(),
@@ -583,8 +633,9 @@ export async function refundAnalysisQuota(
   principalId: string,
   requestId: string,
   onlyIfReservedBefore?: number,
+  beforeSettle?: (transaction: Transaction) => Promise<void>,
 ): Promise<boolean> {
-  return settleAnalysisQuota(db, principalId, requestId, false, () => undefined, onlyIfReservedBefore);
+  return settleAnalysisQuota(db, principalId, requestId, false, () => undefined, onlyIfReservedBefore, beforeSettle);
 }
 
 /**

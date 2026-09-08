@@ -150,19 +150,22 @@ export function LegalScreen({ navigation }: Props) {
 
             <Section number="04" title="Cât timp le păstrăm">
               <Bullet>Fotografia nu este stocată de aplicație în Cloud Storage sau Caiet.</Bullet>
-              <Bullet>Lecția nesalvată și rezultatul tehnic temporar: maximum 7 zile.</Bullet>
-              <Bullet>Contoarele zilnice și rezervările anti-abuz: maximum 35 de zile.</Bullet>
+              <Bullet>Lecția nesalvată și rezultatul tehnic temporar: expirare după 7 zile.</Bullet>
+              <Bullet>Contoarele zilnice și rezervările anti-abuz: expirare după 35 de zile.</Bullet>
               <Bullet>După ștergerea unui cont Google, codul HMAC, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul folosit în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>
               <Bullet>Markerul HMAC al instalării și numărul problemelor de bun-venit folosite pot rămâne maximum 400 de zile de la ultima activitate, inclusiv după ștergere, exclusiv pentru a împiedica refolosirea artificială a ofertei. Nu conțin e-mailul sau UID-ul Firebase.</Bullet>
               <Bullet>Dacă Device Recall este aprobat și activat, Google poate păstra bitul anti-abuz până la 3 ani de la ultima citire sau scriere, conform documentației Play Integrity. Aplicația îl folosește numai pentru oferta de bun-venit.</Bullet>
               <Bullet>Evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există.</Bullet>
               <Bullet>Metadatele standard din Cloud Logging: în mod normal 30 de zile.</Bullet>
               <Bullet>Lecțiile salvate: până le ștergi sau după aproximativ 13 luni fără folosirea Caietului.</Bullet>
-              <Bullet>Rapoartele tale: până ștergi toate datele din aplicație.</Bullet>
+              <Paragraph>Termenele indică expirarea programată. Curățarea rulează zilnic: eliminarea fizică are loc de regulă în următoarele 24 de ore după expirare; incidentele tehnice pot întârzia execuția.</Paragraph>
+              <Bullet>Pentru a opri răspunsurile întârziate să refacă date șterse, păstrăm un marker tehnic cu UID-ul timp de 35 de zile după finalizarea ștergerii. O ștergere incompletă păstrează blocajul până la finalizare.</Bullet>
+              <Bullet>Un transfer de lecții început la conectarea cu Google păstrează identificatorii tehnici necesari reluării până la finalizare sau rezolvarea incidentului.</Bullet>
+              <Bullet>Rapoartele tale și răspunsul generat raportat: 180 de zile sau până ștergi toate datele din aplicație, dacă alegi ștergerea mai devreme.</Bullet>
             </Section>
 
             <Section number="05" title="Drepturile tale">
-              <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime și logurile strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
+              <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Cererea pentru profilul tehnic RevenueCat necesită verificarea echipei de suport; identificatorii necesari urmăririi cererii rămân până la soluționare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime și logurile strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
               {legalDocument.contactEmail ? <Paragraph>Pentru întrebări sau exercitarea drepturilor: {legalDocument.contactEmail}</Paragraph> : null}
             </Section>
 

@@ -52,6 +52,19 @@ jobs:
       - name: Test pure mobile logic
         run: npm run test:mobile
 
+      # This compiles the production JS path with non-secret fixtures. It is
+      # not a signed native release and does not attest cloud configuration.
+      - name: Compile Android production JavaScript and reject debug-token leakage
+        env:
+          GOOGLE_SERVICES_JSON: ${{ runner.temp }}/profu-google-services-ci.json
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: 123456789-ci.apps.googleusercontent.com
+          EXPO_PUBLIC_PLAY_INTEGRITY_PROJECT_NUMBER: '123456789'
+          EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN: ci-debug-token-must-never-reach-production
+          EXPO_NO_DOTENV: '1'
+        run: |
+          node -e 'require("node:fs").writeFileSync(process.env.GOOGLE_SERVICES_JSON, JSON.stringify({project_info:{project_number:"123456789",project_id:"profu-ci-fixture",storage_bucket:"profu-ci-fixture.invalid"},client:[{client_info:{mobilesdk_app_id:"1:123456789:android:abcdef",android_client_info:{package_name:"ro.profudemate.app"}},oauth_client:[{client_type:3,client_id:process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID}],api_key:[{current_key:"ci-fixture-not-a-real-key"}]}],configuration_version:"1"}))'
+          npm run release:bundle-check
+
       - name: Test Firestore rules and commercial transactions
         run: npm run test:rules
 
@@ -63,3 +76,41 @@ jobs:
 
       - name: Enforce legal release readiness
         run: npm run legal:check
+
+  android:
+    name: Compile native Android with a synthetic Firebase project
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use Java 17 for Android
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install locked app dependencies
+        run: npm ci
+
+      - name: Install the declared Android SDK
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
+
+      - name: Generate an isolated native project
+        id: native
+        run: node scripts/prepare-native-validation.mjs
+
+      # This diagnostic APK uses a fake Firebase project and a debug certificate.
+      # It proves compilation for both ABIs; Play release signing is separate.
+      - name: Compile ARM64 and emulator ABIs
+        working-directory: ${{ steps.native.outputs.native_directory }}
+        env:
+          EXPO_NO_DOTENV: '1'
+        run: ./gradlew :app:assembleDebug --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64

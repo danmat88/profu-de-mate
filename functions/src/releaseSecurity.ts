@@ -1,12 +1,9 @@
 export type ReleaseSecurityStage = 'pre-play-public' | 'play';
 
-// The public APK predates Play Console. During this stage Firebase Auth,
-// transactional commercial quotas, burst limits, a global provider cap and
-// the runtime kill switch remain mandatory, while no reusable App Check debug
-// credential is shipped. Production Play deployments must explicitly set
-// PROFU_RELEASE_SECURITY_STAGE=play together with Play Integrity rollout.
+// Missing deployment configuration must retain attestation. The legacy
+// pre-Play exception is explicit and must never be inferred from an unset env.
 export function releaseSecurityStageFromEnvironment(value: string | undefined): ReleaseSecurityStage {
-  if (!value) return 'pre-play-public';
+  if (!value) return 'play';
   if (value === 'pre-play-public' || value === 'play') return value;
   throw new Error(`Stadiu de securitate necunoscut: ${value}`);
 }
@@ -17,6 +14,10 @@ export const RELEASE_SECURITY_STAGE = releaseSecurityStageFromEnvironment(
 
 export function enforceAppCheckForStage(stage: ReleaseSecurityStage): boolean {
   return stage === 'play';
+}
+
+export function defaultDeviceRecallForStage(stage: ReleaseSecurityStage): 'off' | 'enforce' {
+  return stage === 'play' ? 'enforce' : 'off';
 }
 
 export const ENFORCE_APP_CHECK = enforceAppCheckForStage(RELEASE_SECURITY_STAGE);

@@ -5,10 +5,13 @@ import {
   FieldValue,
   type Firestore,
   type Query,
+  type Transaction,
   Timestamp,
 } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { bucharestQuotaWindow, COMMERCIAL_PROFILE_RETENTION_MS, getCommercialConfig } from './commercialAccess.js';
+import { assertUserActive, finishAccountDeletion } from './userLifecycle.js';
+import { analysisRequestState } from './analysisRequests.js';
 import { isCommercialPrincipalId } from './commercialIdentity.js';
 
 // Account selection can outlive a short callable timeout or an app restart.
@@ -99,6 +102,7 @@ export async function createAccountMergeTicket(
   const newTicket = randomUUID();
   const profileRef = db.collection('_commercialUsers').doc(sourcePrincipalId);
   return db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, db, sourceUserId);
     const profile = await transaction.get(profileRef);
     const activeTicket = typeof profile.data()?.activeMergeTicket === 'string'
       ? profile.data()?.activeMergeTicket as string
@@ -136,44 +140,51 @@ export async function createAccountMergeTicket(
   });
 }
 
-async function copyLessons(db: Firestore, sourceUserId: string, targetUserId: string): Promise<number> {
+async function assertMergeSource(transaction: Transaction, db: Firestore, uid: string, ticket: string): Promise<void> {
+  const marker = await transaction.get(db.collection('_accountLifecycle').doc(uid));
+  if (marker.data()?.state !== 'merging' || marker.data()?.ticket !== ticket) {
+    throw new HttpsError('aborted', 'Transferul datelor nu mai este activ.');
+  }
+}
+
+async function copyLessons(db: Firestore, sourceUserId: string, targetUserId: string, ticket: string): Promise<number> {
   const source = db.collection('users').doc(sourceUserId).collection('lessons');
   const target = db.collection('users').doc(targetUserId).collection('lessons');
   let copied = 0;
   let lastId: string | null = null;
-
   while (true) {
-    let query = source.orderBy(FieldPath.documentId()).limit(200);
-    if (lastId) query = query.startAfter(lastId);
-    const snapshot = await query.get();
-    if (snapshot.empty) return copied;
-    const targetRefs = snapshot.docs.map((document) => target.doc(document.id));
-    const targetSnapshots = await db.getAll(...targetRefs);
-    const batch = db.batch();
-    snapshot.docs.forEach((document, index) => {
-      if (!targetSnapshots[index].exists) {
-        batch.set(targetRefs[index], document.data());
-        copied += 1;
-      }
+    const page = await db.runTransaction(async (transaction) => {
+      await assertUserActive(transaction, db, targetUserId);
+      await assertMergeSource(transaction, db, sourceUserId, ticket);
+      let query = source.orderBy(FieldPath.documentId()).limit(4);
+      if (lastId) query = query.startAfter(lastId);
+      const snapshot = await transaction.get(query);
+      const refs = snapshot.docs.map((document) => target.doc(document.id));
+      const existing = await Promise.all(refs.map((ref) => transaction.get(ref)));
+      let count = 0;
+      snapshot.docs.forEach((document, index) => {
+        if (!existing[index].exists) { transaction.create(refs[index], document.data()); count += 1; }
+      });
+      return { count, size: snapshot.size, lastId: snapshot.docs.at(-1)?.id ?? null };
     });
-    await batch.commit();
-    lastId = snapshot.docs.at(-1)?.id ?? null;
-    if (snapshot.size < 200) return copied;
+    copied += page.count;
+    lastId = page.lastId;
+    if (page.size < 4) return copied;
   }
 }
 
-async function reassignFeedback(db: Firestore, sourceUserId: string, targetUserId: string): Promise<number> {
-  let updated = 0;
+async function reassignFeedback(db: Firestore, sourceUserId: string, targetUserId: string, ticket: string): Promise<void> {
   while (true) {
-    const snapshot = await db.collection('feedback').where('userId', '==', sourceUserId).limit(400).get();
-    if (snapshot.empty) return updated;
-    const batch = db.batch();
-    snapshot.docs.forEach((document) => batch.update(document.ref, { userId: targetUserId }));
-    await batch.commit();
-    updated += snapshot.size;
+    const count = await db.runTransaction(async (transaction) => {
+      await assertUserActive(transaction, db, targetUserId);
+      await assertMergeSource(transaction, db, sourceUserId, ticket);
+      const snapshot = await transaction.get(db.collection('feedback').where('userId', '==', sourceUserId).limit(4));
+      snapshot.docs.forEach((document) => transaction.update(document.ref, { userId: targetUserId }));
+      return snapshot.size;
+    });
+    if (count < 4) return;
   }
 }
-
 async function deleteQueryInBatches(db: Firestore, query: Query): Promise<void> {
   while (true) {
     const snapshot = await query.limit(400).get();
@@ -196,6 +207,7 @@ export async function cleanupMergedSource(db: Firestore, sourceUserId: string): 
     const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
     if (code !== 'auth/user-not-found') throw error;
   });
+  await finishAccountDeletion(db, sourceUserId);
 }
 
 export async function completeAccountMerge(args: {
@@ -230,27 +242,47 @@ export async function completeAccountMerge(args: {
     throw new HttpsError('permission-denied', 'Această legătură a fost deja folosită.');
   }
 
-  await args.db.runTransaction(async (transaction) => {
+  const alreadyCompleted = await args.db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, args.db, args.targetUserId);
     const current = await transaction.get(ticketRef);
     const data = current.data();
     if (data?.sourceUserId !== sourceUserId || data?.sourcePrincipalId !== args.expectedSourcePrincipalId) {
       throw new HttpsError('failed-precondition', 'Legătura dintre conturi nu este validă.');
     }
-    if (data?.state === 'completed') return;
+    if (data?.state === 'completed') {
+      if (data.targetUserId !== args.targetUserId) throw new HttpsError('permission-denied', 'Legătura a fost deja folosită.');
+      return true;
+    }
+    if (data?.state !== 'issued' && data?.state !== 'merging') throw new HttpsError('failed-precondition', 'Legătura nu este activă.');
+    if (data.state === 'issued' && (!(data.expiresAt instanceof Timestamp) || data.expiresAt.toMillis() < now)) throw new HttpsError('deadline-exceeded', 'Conectarea a expirat.');
     if (data?.state === 'merging' && data?.targetUserId !== args.targetUserId) {
       throw new HttpsError('aborted', 'Conturile sunt deja în curs de conectare.');
+    }
+    const analyses = await transaction.get(args.db.collection('_analysisRequests').where('userId', '==', sourceUserId).where('state', '==', 'processing'));
+    if (analyses.docs.some((doc) => analysisRequestState(doc.data(), now) === 'processing')) throw new HttpsError('aborted', 'Așteaptă finalizarea analizei înainte să conectezi contul.');
+    if (!keepsSameUser) {
+      const markerRef = args.db.collection('_accountLifecycle').doc(sourceUserId);
+      const marker = await transaction.get(markerRef);
+      if (marker.exists && (marker.data()?.state !== 'merging' || marker.data()?.ticket !== args.ticket)) throw new HttpsError('aborted', 'Datele sursă nu mai pot fi transferate.');
+      transaction.set(markerRef, { state: 'merging', ticket: args.ticket, updatedAt: FieldValue.serverTimestamp() });
     }
     transaction.update(ticketRef, {
       state: 'merging',
       targetUserId: args.targetUserId,
       targetPrincipalId: args.targetPrincipalId,
       updatedAt: FieldValue.serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(now + MERGE_TICKET_LIFETIME_MS),
+      // A frozen source requires this ticket for recovery. TTL must not remove
+      // it while a partial transfer is waiting for a retry or operator action.
+      expiresAt: FieldValue.delete(),
     });
   });
 
-  const copiedLessons = keepsSameUser ? 0 : await copyLessons(args.db, sourceUserId, args.targetUserId);
-  if (!keepsSameUser) await reassignFeedback(args.db, sourceUserId, args.targetUserId);
+  if (alreadyCompleted) {
+    if (!keepsSameUser) await cleanupMergedSource(args.db, sourceUserId);
+    return { merged: true, copiedLessons: 0 };
+  }
+  const copiedLessons = keepsSameUser ? 0 : await copyLessons(args.db, sourceUserId, args.targetUserId, args.ticket);
+  if (!keepsSameUser) await reassignFeedback(args.db, sourceUserId, args.targetUserId, args.ticket);
 
   const commercialConfig = await getCommercialConfig(args.db, now);
   const window = bucharestQuotaWindow(now);
@@ -260,6 +292,8 @@ export async function completeAccountMerge(args: {
   const targetEntitlementRef = args.db.collection('_commercialEntitlements').doc(args.targetPrincipalId);
 
   await args.db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, args.db, args.targetUserId);
+    if (!keepsSameUser) await assertMergeSource(transaction, args.db, sourceUserId, args.ticket);
     const [currentTicket, sourceProfile, targetDaily, targetEntitlement] = await Promise.all([
       transaction.get(ticketRef),
       transaction.get(sourceProfileRef),

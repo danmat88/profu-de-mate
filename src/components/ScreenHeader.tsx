@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import type { ReactNode } from 'react';
 import { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
@@ -27,7 +27,7 @@ function HeaderButton({ label, onPress, dark, active, children }: { label: strin
         hitSlop={6}
         onPressIn={() => move(1)}
         onPressOut={() => move(0)}
-        onPress={() => { Haptics.selectionAsync(); onPress?.(); }}
+        onPress={() => { Haptics.selection(); onPress?.(); }}
         style={[styles.button, dark && styles.buttonDark, active && styles.buttonActive]}
       >
         {children}

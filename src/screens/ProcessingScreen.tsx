@@ -9,6 +9,7 @@ import { ComicBackdrop } from '../components/ComicBackdrop';
 import { ComicButton } from '../components/ComicButton';
 import { AppIcon } from '../components/AppIcon';
 import { MiniGlyph } from '../components/MiniGlyph';
+import { FeedbackSheet } from '../components/FeedbackSheet';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useCommercial } from '../context/CommercialContext';
@@ -16,6 +17,7 @@ import { commercialGateFromError } from '../services/commercial';
 import { analyzeOrResumeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
 import { recordDiagnosticError } from '../services/diagnostics';
 import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
+import { assertSessionActive, captureSession, type ActiveSession } from '../services/sessionGuard';
 import { beginLessonPresentation, waitForLessonPresentation } from '../services/lessonPresentation';
 import { deleteTemporaryCapturedImages } from '../services/temporaryImages';
 import { colors, fonts } from '../theme';
@@ -57,6 +59,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const [active, setActive] = useState(0);
   const [requestKey, setRequestKey] = useState(0);
   const [takingLong, setTakingLong] = useState(false);
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [screenState, setScreenState] = useState<ScreenState>({ kind: 'analyzing' });
   const [sceneReady, setSceneReady] = useState(reducedMotion);
   const headerEntrance = useRef(new Animated.Value(1)).current;
@@ -201,7 +204,19 @@ export function ProcessingScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!sceneReady) return undefined;
     let mounted = true;
-    savePendingAnalysis(route.params.mode, route.params.image, route.params.requestId);
+    let session: ActiveSession;
+    try {
+      session = captureSession(route.params.userId);
+    } catch {
+      clearPendingAnalysis(route.params.requestId);
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      return undefined;
+    }
+    const isActive = () => {
+      if (!mounted) return false;
+      try { assertSessionActive(session); return true; } catch { return false; }
+    };
+    savePendingAnalysis(route.params.mode, route.params.image, route.params.requestId, route.params.userId);
     setScreenState({ kind: 'analyzing' });
     setTakingLong(false);
     setActive(0);
@@ -240,11 +255,12 @@ export function ProcessingScreen({ navigation, route }: Props) {
       route.params.mode,
       route.params.image,
       route.params.requestId,
-      route.params.origin === 'home',
-      () => !mounted,
+      route.params.origin === 'home' || requestKey > 0,
+      () => !isActive(),
+      route.params.userId,
     )
       .then(async ({ lessonId, result }) => {
-        if (!mounted) return;
+        if (!isActive()) return;
         progress.stopAnimation();
         let lessonParams: RootStackParamList['Lesson'] | undefined;
         let lessonPresentation: Promise<boolean> | undefined;
@@ -267,17 +283,17 @@ export function ProcessingScreen({ navigation, route }: Props) {
           lessonPresentation = waitForLessonPresentation(lessonId);
         }
         const finish = async () => {
-          if (!mounted) return;
+          if (!isActive()) return;
           if (result.status === 'ready' && lessonId && lessonParams && lessonPresentation) {
             await lessonPresentation;
-            if (!mounted) return;
-            clearPendingAnalysis();
+            if (!isActive()) return;
+            clearPendingAnalysis(route.params.requestId);
             navigation.replace('Lesson', lessonParams);
           } else if (result.status !== 'ready') {
-            clearPendingAnalysis();
+            clearPendingAnalysis(route.params.requestId);
             setScreenState({ kind: 'rejected', result });
           } else {
-            clearPendingAnalysis();
+            clearPendingAnalysis(route.params.requestId);
             setScreenState({ kind: 'error', message: 'Nu am putut salva lecția. Încearcă din nou.' });
           }
         };
@@ -292,9 +308,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
         }
       })
       .catch((error) => {
-        if (!mounted) return;
+        if (!isActive()) return;
         recordDiagnosticError('analysis_request', error);
-        clearPendingAnalysis();
+        // Preserve the request id after transport failures so retry first
+        // looks up the server result instead of charging for a second request.
         progress.stopAnimation();
         const commercial = commercialGateFromError(error);
         setScreenState(commercial
@@ -310,7 +327,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
       progress.stopAnimation();
       scanVisibility.stopAnimation();
     };
-  }, [copyEntrance, headerEntrance, jobsEntrance, navigation, orbit, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, scanVisibility, sceneReady, stageEntrance]);
+  }, [copyEntrance, headerEntrance, jobsEntrance, navigation, orbit, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, route.params.userId, scanVisibility, sceneReady, stageEntrance]);
 
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
@@ -373,11 +390,15 @@ export function ProcessingScreen({ navigation, route }: Props) {
             navigation.navigate('Paywall', { source: 'quota', ...(screenState.access ? { access: screenState.access } : {}) });
           }} /> : null}
           {!rejected && !commercialBlocked ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
+          {rejected ? <Pressable accessibilityRole="button" onPress={() => setFeedbackVisible(true)} style={styles.backLink}>
+            <Text style={styles.backLinkText}>Raportează răspunsul</Text>
+          </Pressable> : null}
           {!commercialBlocked ? <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={retakePhoto} /> : null}
           <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
             <Text style={styles.backLinkText}>{canReturnToPhoto ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
           </Pressable>
         </Animated.View>
+        <FeedbackSheet visible={feedbackVisible} requestId={route.params.requestId} onClose={() => setFeedbackVisible(false)} />
       </SafeAreaView>
     );
   }

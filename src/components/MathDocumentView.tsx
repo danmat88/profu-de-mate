@@ -4,7 +4,7 @@ import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
 import { Asset } from 'expo-asset';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewHandle } from 'react-native-webview';
 import { colors, fonts } from '../theme';
@@ -16,6 +16,8 @@ import {
 } from '../utils/mathDocument';
 import { PlayfulLoader } from './PlayfulLoader';
 import { Text } from './Typography';
+import { withDeadline } from '../utils/latestTask';
+import { mathDocumentFallbackText } from '../utils/mathDocumentFallback';
 
 type Props = {
   definition: MathDocumentDefinition;
@@ -34,11 +36,15 @@ async function resolvedAssetUri(moduleId: number) {
 }
 
 function loadDocumentFonts() {
-  documentFontsPromise ??= Promise.all([
+  documentFontsPromise ??= withDeadline(Promise.all([
     resolvedAssetUri(FiraSans_400Regular),
     resolvedAssetUri(FiraSans_600SemiBold),
     resolvedAssetUri(BalsamiqSans_700Bold),
-  ]).then(([bodyRegular, bodySemibold, display]) => ({ bodyRegular, bodySemibold, display }));
+  ]).then(([bodyRegular, bodySemibold, display]) => ({ bodyRegular, bodySemibold, display })),
+  3_000, 'Document fonts timed out.').catch((error: unknown) => {
+    documentFontsPromise = undefined;
+    throw error;
+  });
   return documentFontsPromise;
 }
 
@@ -55,6 +61,17 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
   const [webViewKey, setWebViewKey] = useState(0);
 
   latestDefinition.current = definition;
+
+  useEffect(() => {
+    if (!fontsReady || documentReady || failed) return;
+    const timeout = setTimeout(() => setFailed(true), 12_000);
+    return () => clearTimeout(timeout);
+  }, [fontsReady, documentReady, failed, webViewKey]);
+
+  useEffect(() => {
+    // The native fallback is readable even if WebView never sends its bridge event.
+    if (failed) onReady?.();
+  }, [failed, onReady]);
 
   useEffect(() => {
     let active = true;
@@ -74,7 +91,7 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
   // The first document becomes the immutable WebView shell. Later definitions
   // are injected into the existing DOM so the native view never remounts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [fontsReady, markup, webViewKey]);
+  [fontsReady, webViewKey]);
 
   useEffect(() => {
     if (!loaded.current || !fontsReady || failed) return;
@@ -100,13 +117,14 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
 
   if (failed) {
     return (
-      <View accessibilityRole="alert" style={[styles.frame, styles.error, style]}>
-        <Text style={styles.errorTitle}>Documentul nu s-a afișat.</Text>
-        <Text style={styles.errorText}>Reîncarcă această pagină; lecția rămâne salvată.</Text>
+      <ScrollView style={[styles.frame, style]} contentContainerStyle={styles.error} testID={testID}>
+        <Text accessibilityRole="alert" style={styles.errorTitle}>Afișare simplificată</Text>
+        <Text style={styles.errorText}>Poți citi explicațiile și formulele mai jos. Pentru aspectul complet și desene, reîncarcă pagina.</Text>
         <Pressable accessibilityRole="button" onPress={retry} style={styles.retryButton}>
           <Text style={styles.retryText}>Reîncarcă</Text>
         </Pressable>
-      </View>
+        <Text selectable style={styles.fallbackText}>{mathDocumentFallbackText(definition)}</Text>
+      </ScrollView>
     );
   }
 
@@ -181,6 +199,7 @@ const styles = StyleSheet.create({
   error: { alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19, textAlign: 'center' },
   errorText: { marginTop: 4, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  fallbackText: { alignSelf: 'stretch', marginTop: 20, fontFamily: fonts.body, fontSize: 15, lineHeight: 23, color: colors.ink },
   retryButton: { minHeight: 48, marginTop: 14, borderRadius: 14, backgroundColor: colors.violet, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   retryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13 },
 });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { after, before, test } from 'node:test';
+import { after, test } from 'node:test';
 import { deleteApp, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { completeAccountMerge, createAccountMergeTicket } from '../lib/accountMerge.js';
@@ -11,13 +11,16 @@ import {
 import {
   bindInstallationToAccount,
   bucharestQuotaWindow,
+  consumeProviderAttempt,
   readCommercialAccess,
   reconcileStaleAnalysisReservations,
   reserveAnalysisQuota,
   settleAnalysisQuota,
 } from '../lib/commercialAccess.js';
 
-const projectId = 'profu-de-mate-danmat88';
+assert.match(process.env.FIRESTORE_EMULATOR_HOST ?? '', /^(?:localhost|127\.0\.0\.1):\d{1,5}$/,
+  'Integration tests require an explicit local Firestore emulator.');
+const projectId = 'demo-profu-de-mate';
 const app = initializeApp({ projectId }, `commercial-integration-${Date.now()}`);
 const db = getFirestore(app);
 const now = Date.parse('2040-03-15T10:00:00.000Z');
@@ -40,10 +43,6 @@ const staleReservationPrincipal = { identity: 'anonymous', principalId: `i_${'a'
 async function deleteIfPresent(reference) {
   await reference.delete().catch(() => undefined);
 }
-
-before(() => {
-  assert.ok(process.env.FIRESTORE_EMULATOR_HOST, 'Testul trebuie rulat prin emulatorul Firestore.');
-});
 
 after(async () => {
   const reservations = await db.collection('_commercialReservations')
@@ -89,8 +88,8 @@ test('un cont temporar primește un singur bilet de fuziune activ', async () => 
 test('rezervarea concurentă a aceleiași cereri consumă o singură problemă', async () => {
   const requestId = 'analysis-concurrent-0001';
   await Promise.all([
-    reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now, 300),
-    reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now, 300),
+    reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now),
+    reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now),
   ]);
 
   const [profile, global, reservation] = await Promise.all([
@@ -100,12 +99,13 @@ test('rezervarea concurentă a aceleiași cereri consumă o singură problemă',
   ]);
   assert.equal(profile.data()?.welcomeRequests, 1);
   assert.ok(profile.data()?.expiresAt?.toMillis() >= now + 399 * 24 * 60 * 60 * 1000);
-  assert.equal(global.data()?.requests, 1);
+  assert.equal(global.exists, false, 'Reserving user allowance makes no provider request.');
   assert.equal(reservation.data()?.state, 'reserved');
 });
 
-test('un rezultat nefinalizat restituie atomic problema și plafonul global', async () => {
+test('un rezultat nefinalizat restituie problema fără a restitui încercarea furnizorului', async () => {
   const requestId = 'analysis-concurrent-0001';
+  await consumeProviderAttempt(db, 300, now, userId);
   const resultRef = db.collection('_integrationResults').doc(userId);
   await settleAnalysisQuota(db, guestPrincipal.principalId, requestId, false, (transaction) => {
     transaction.set(resultRef, { status: 'not_math' });
@@ -118,14 +118,15 @@ test('un rezultat nefinalizat restituie atomic problema și plafonul global', as
     resultRef.get(),
   ]);
   assert.equal(profile.data()?.welcomeRequests, 0);
-  assert.equal(global.data()?.requests, 0);
+  assert.equal(global.data()?.providerAttempts, 1);
   assert.equal(reservation.data()?.state, 'refunded');
   assert.equal(result.data()?.status, 'not_math');
 });
 
 test('o rezervare abandonată restituie automat problema fără dublu refund', async () => {
   const requestId = 'analysis-stale-000001';
-  await reserveAnalysisQuota(db, staleReservationUserId, requestId, staleReservationPrincipal, now, 300);
+  await reserveAnalysisQuota(db, staleReservationUserId, requestId, staleReservationPrincipal, now);
+  await consumeProviderAttempt(db, 300, now, staleReservationUserId);
   assert.equal(
     await reconcileStaleAnalysisReservations(db, staleReservationPrincipal.principalId, now + 6 * 60_000),
     1,
@@ -142,11 +143,13 @@ test('o rezervare abandonată restituie automat problema fără dublu refund', a
   );
   assert.equal(access.used, 0);
   assert.equal(access.remaining, 5);
+  assert.equal((await db.collection('_commercialGlobal').doc(day).get()).data()?.providerAttempts, 2);
 });
 
 test('aceeași cerere poate fi reluată după refund și este taxată o singură dată la succes', async () => {
   const requestId = 'analysis-concurrent-0001';
-  await reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now + 1_000, 300);
+  await reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now + 1_000);
+  await consumeProviderAttempt(db, 300, now + 1_000, userId);
   await settleAnalysisQuota(db, guestPrincipal.principalId, requestId, true, (transaction) => {
     transaction.set(db.collection('_integrationResults').doc(userId), { status: 'ready' });
   });
@@ -158,19 +161,19 @@ test('aceeași cerere poate fi reluată după refund și este taxată o singură
     db.collection('_commercialReservations').doc(`${guestPrincipal.principalId}_${requestId}`).get(),
   ]);
   assert.equal(profile.data()?.welcomeRequests, 1);
-  assert.equal(global.data()?.requests, 1);
+  assert.equal(global.data()?.providerAttempts, 3);
   assert.equal(reservation.data()?.state, 'consumed');
 });
 
 test('a șasea problemă de bun-venit este refuzată de tranzacția serverului', async () => {
   for (let index = 2; index <= 5; index += 1) {
     const requestId = `analysis-limit-000${index}`;
-    await reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now + index * 61_000, 300);
+    await reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now + index * 61_000);
     await settleAnalysisQuota(db, guestPrincipal.principalId, requestId, true, () => undefined);
   }
 
   await assert.rejects(
-    reserveAnalysisQuota(db, userId, 'analysis-limit-0006', guestPrincipal, now + 6 * 61_000, 300),
+    reserveAnalysisQuota(db, userId, 'analysis-limit-0006', guestPrincipal, now + 6 * 61_000),
     (error) => error?.details?.commercialReason === 'welcome_exhausted',
   );
   const profile = await db.collection('_commercialUsers').doc(guestPrincipal.principalId).get();
@@ -256,7 +259,7 @@ test('o sesiune Google curăță lock-ul vechi fără să consume problemele ins
 
 test('ștergerea și recrearea aceluiași Google nu resetează cota zilei', async () => {
   const requestId = 'analysis-google-delete-0001';
-  await reserveAnalysisQuota(db, deletedGoogleUserId, requestId, deletedGooglePrincipal, now + 10 * 61_000, 300);
+  await reserveAnalysisQuota(db, deletedGoogleUserId, requestId, deletedGooglePrincipal, now + 10 * 61_000);
   await settleAnalysisQuota(db, deletedGooglePrincipal.principalId, requestId, true, () => undefined);
   const retainedRef = db.collection('_commercialUsage').doc(`${deletedGooglePrincipal.principalId}_${day}`);
   await retainedRef.set({ userId: deletedGoogleUserId, accidentalMetadata: 'must-not-survive' }, { merge: true });
@@ -426,4 +429,87 @@ test('ștergerea elimină profilul anonim gol creat numai pentru legarea contulu
 
   assert.equal(await minimizeInstallationProfileForDeletion(db, emptyInstallationPrincipal, now), 'deleted');
   assert.equal((await reference.get()).exists, false);
+});
+
+test('provider capacity is irreversible across refunded analyses and retries', async () => {
+  const budgetNow = Date.parse('2041-04-15T10:00:00.000Z');
+  const budgetUser = 'provider-refund-test';
+  const principal = { identity: 'anonymous', principalId: `i_${'b'.repeat(64)}` };
+  const globalRef = db.collection('_commercialGlobal').doc(bucharestQuotaWindow(budgetNow).day);
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const requestId = `provider-refund-${attempt}`;
+      await reserveAnalysisQuota(db, budgetUser, requestId, principal, budgetNow + attempt * 61_000);
+      await consumeProviderAttempt(db, 2, budgetNow + attempt * 61_000, budgetUser);
+      await settleAnalysisQuota(db, principal.principalId, requestId, false, () => undefined);
+    }
+    assert.equal((await readCommercialAccess(db, budgetUser, principal, budgetNow)).used, 0);
+    await assert.rejects(consumeProviderAttempt(db, 2, budgetNow, budgetUser),
+      (error) => error?.details?.commercialReason === 'service_capacity');
+    assert.equal((await globalRef.get()).data()?.providerAttempts, 2);
+  } finally {
+    await Promise.all([
+      globalRef.delete(),
+      db.collection('_commercialUsers').doc(principal.principalId).delete(),
+      ...[0, 1].map((attempt) => db.collection('_commercialReservations').doc(`${principal.principalId}_provider-refund-${attempt}`).delete()),
+    ]);
+  }
+});
+
+test('concurrent provider attempts cannot exceed the shared cap', async () => {
+  const budgetNow = Date.parse('2041-04-16T10:00:00.000Z');
+  const globalRef = db.collection('_commercialGlobal').doc(bucharestQuotaWindow(budgetNow).day);
+  try {
+    const outcomes = await Promise.allSettled(Array.from({ length: 20 },
+      () => consumeProviderAttempt(db, 4, budgetNow, userId)));
+    assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length, 4);
+    for (const outcome of outcomes) {
+      if (outcome.status === 'rejected') assert.equal(outcome.reason?.details?.commercialReason, 'service_capacity');
+    }
+    assert.equal((await globalRef.get()).data()?.providerAttempts, 4);
+  } finally {
+    await globalRef.delete();
+  }
+});
+
+test('legacy daily counters fail closed without pretending prior refunds were free', async () => {
+  const budgetNow = Date.parse('2041-04-17T10:00:00.000Z');
+  const legacyRef = db.collection('_commercialGlobal').doc(bucharestQuotaWindow(budgetNow).day);
+  const tomorrow = budgetNow + 24 * 60 * 60 * 1000;
+  const nextRef = db.collection('_commercialGlobal').doc(bucharestQuotaWindow(tomorrow).day);
+  try {
+    await legacyRef.set({ requests: 0 });
+    await assert.rejects(consumeProviderAttempt(db, 300, budgetNow, userId),
+      (error) => error?.details?.budgetReason === 'legacy_or_invalid_counter');
+    assert.deepEqual((await legacyRef.get()).data(), { requests: 0 });
+    await consumeProviderAttempt(db, 300, tomorrow, userId);
+    assert.equal((await nextRef.get()).data()?.providerAttempts, 1);
+  } finally {
+    await Promise.all([legacyRef.delete(), nextRef.delete()]);
+  }
+});
+
+test('an account marked for deletion cannot reserve provider capacity or resurrect refunded usage', async () => {
+  const budgetNow = Date.parse('2041-04-19T10:00:00.000Z');
+  const budgetUser = 'provider-deletion-test';
+  const requestId = 'provider-deletion-request';
+  const principal = { identity: 'anonymous', principalId: `i_${'c'.repeat(64)}` };
+  const lifecycleRef = db.collection('_accountLifecycle').doc(budgetUser);
+  const globalRef = db.collection('_commercialGlobal').doc(bucharestQuotaWindow(budgetNow).day);
+  const profileRef = db.collection('_commercialUsers').doc(principal.principalId);
+  const reservationRef = db.collection('_commercialReservations').doc(`${principal.principalId}_${requestId}`);
+  let resultWrites = 0;
+  try {
+    await reserveAnalysisQuota(db, budgetUser, requestId, principal, budgetNow);
+    await lifecycleRef.set({ state: 'deleting' });
+    await profileRef.delete();
+    await assert.rejects(consumeProviderAttempt(db, 300, budgetNow, budgetUser), (error) => error?.code === 'failed-precondition');
+    await assert.rejects(settleAnalysisQuota(db, principal.principalId, requestId, false, () => { resultWrites += 1; }),
+      (error) => error?.code === 'failed-precondition');
+    assert.equal(resultWrites, 0);
+    assert.equal((await globalRef.get()).exists, false);
+    assert.equal((await profileRef.get()).exists, false);
+  } finally {
+    await Promise.all([lifecycleRef.delete(), globalRef.delete(), profileRef.delete(), reservationRef.delete()]);
+  }
 });

@@ -37,7 +37,10 @@ function removeOwnedTemporaryDirectory(directory) {
 }
 
 const localEnvironment = loadLocalEnvironment();
-const debugToken = localEnvironment.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim() ?? '';
+const debugTokens = [...new Set([
+  localEnvironment.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim(),
+  process.env.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN?.trim(),
+].filter(Boolean))];
 // Metro normally shares its caches through the OS temporary directory. A
 // production export running beside Metro can otherwise read or overwrite the
 // development server's cache. Keep every release check inside its own owned
@@ -46,8 +49,8 @@ const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), temporaryPrefix
 const outputDirectory = path.join(temporaryDirectory, 'export');
 fs.mkdirSync(outputDirectory);
 const buildEnvironment = {
-  ...process.env,
   ...localEnvironment,
+  ...process.env,
   EAS_BUILD_PROFILE: 'production',
   EXPO_NO_DOTENV: '1',
   TEMP: temporaryDirectory,
@@ -56,7 +59,7 @@ const buildEnvironment = {
 };
 
 delete buildEnvironment.EXPO_PUBLIC_APP_CHECK_DEBUG_TOKEN;
-delete buildEnvironment.EXPO_PUBLIC_APP_CHECK_PROVIDER;
+buildEnvironment.EXPO_PUBLIC_APP_CHECK_PROVIDER = 'playIntegrity';
 
 try {
   const expoCli = path.join(projectDirectory, 'node_modules', 'expo', 'bin', 'cli');
@@ -75,19 +78,22 @@ try {
   );
 
   if (result.error) throw result.error;
-  if (result.status !== 0) process.exit(result.status ?? 1);
+  if (result.status !== 0) throw new Error(`Exportul production a eșuat: ${result.status ?? 1}.`);
 
   const files = listFiles(outputDirectory);
   const totalBytes = files.reduce((sum, file) => sum + fs.statSync(file).size, 0);
 
-  if (debugToken) {
-    const leakedIn = files.find((file) => fs.readFileSync(file).includes(Buffer.from(debugToken)));
+  if (debugTokens.length) {
+    const leakedIn = files.find((file) => {
+      const bytes = fs.readFileSync(file);
+      return debugTokens.some((token) => bytes.includes(Buffer.from(token)));
+    });
     if (leakedIn) {
       throw new Error(`Tokenul App Check debug a ajuns în exportul production: ${path.basename(leakedIn)}`);
     }
   }
 
-  console.log(`Export production verificat: ${files.length} fișiere, ${totalBytes} bytes, fără token App Check debug.`);
+  console.log(`Export JavaScript production verificat: ${files.length} fișiere, ${totalBytes} bytes, fără tokenurile App Check debug cunoscute. Semnătura și manifestul APK/AAB necesită verificarea separată a artefactului.`);
 } finally {
   removeOwnedTemporaryDirectory(temporaryDirectory);
 }

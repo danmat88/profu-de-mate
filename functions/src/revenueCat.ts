@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { FieldValue, type Firestore, Timestamp } from 'firebase-admin/firestore';
+import { assertUserActive } from './userLifecycle.js';
 
 const REVENUECAT_API_BASE = 'https://api.revenuecat.com/v1';
 const REVENUECAT_TIMEOUT_MS = 12_000;
@@ -83,23 +84,50 @@ export async function syncRevenueCatEntitlement(args: {
   secretApiKey: string;
   entitlementId: string;
   source: 'callable' | 'webhook';
+  userId?: string;
   now?: number;
 }): Promise<RevenueCatEntitlementSnapshot> {
   const now = args.now ?? Date.now();
+  const inactive: RevenueCatEntitlementSnapshot = { active: false, productId: null, expiresAtMs: null };
+  const profileRef = args.db.collection('_commercialUsers').doc(args.appUserId);
+  const deletionRef = args.db.collection('_pendingRevenueCatDeletions').doc(args.appUserId);
+  // Bind the fetch to the account that owned this stable commercial identity
+  // when it began. A deleted/recreated Google account has a different UID.
+  const expectedUid = await args.db.runTransaction(async (transaction) => {
+    const [profile, deletion] = await Promise.all([
+      transaction.get(profileRef), transaction.get(deletionRef),
+    ]);
+    if (deletion.exists) return null;
+    const profileUid = profile.data()?.userId;
+    const uid = args.userId ?? profileUid;
+    if (typeof uid !== 'string' || (typeof profileUid === 'string' && profileUid !== uid)) return null;
+    await assertUserActive(transaction, args.db, uid);
+    return uid;
+  });
+  if (expectedUid === null) return inactive;
   const customerInfo = await fetchRevenueCatCustomer(args.appUserId, args.secretApiKey);
   const entitlement = parseRevenueCatEntitlement(customerInfo, args.entitlementId, now);
-  await args.db.collection('_commercialEntitlements').doc(args.appUserId).set({
-    principalId: args.appUserId,
-    entitlementId: args.entitlementId,
-    active: entitlement.active,
-    productId: entitlement.productId,
-    expiresAt: entitlement.expiresAtMs === null ? null : Timestamp.fromMillis(entitlement.expiresAtMs),
-    source: args.source,
-    syncedAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    retentionExpiresAt: Timestamp.fromMillis(now + ENTITLEMENT_RETENTION_MS),
-  }, { merge: true });
-  return entitlement;
+  return args.db.runTransaction(async (transaction) => {
+    const [profile, deletion] = await Promise.all([
+      transaction.get(profileRef), transaction.get(deletionRef),
+    ]);
+    const profileUid = profile.data()?.userId;
+    if (deletion.exists || (typeof profileUid === 'string' && profileUid !== expectedUid)
+      || (args.source === 'webhook' && profileUid !== expectedUid)) return inactive;
+    await assertUserActive(transaction, args.db, expectedUid);
+    transaction.set(args.db.collection('_commercialEntitlements').doc(args.appUserId), {
+      principalId: args.appUserId,
+      entitlementId: args.entitlementId,
+      active: entitlement.active,
+      productId: entitlement.productId,
+      expiresAt: entitlement.expiresAtMs === null ? null : Timestamp.fromMillis(entitlement.expiresAtMs),
+      source: args.source,
+      syncedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      retentionExpiresAt: Timestamp.fromMillis(now + ENTITLEMENT_RETENTION_MS),
+    }, { merge: true });
+    return entitlement;
+  });
 }
 
 export function verifyRevenueCatSignature(

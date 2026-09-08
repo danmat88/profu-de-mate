@@ -5,6 +5,9 @@ const globals = require('globals');
 module.exports = defineConfig([
   globalIgnores([
     'artifacts/**',
+    'android/**',
+    'ios/**',
+    '.expo/**',
     'dist/**',
     'functions/lib/**',
     'hosting/public/**',

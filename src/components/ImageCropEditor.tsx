@@ -1,4 +1,4 @@
-import * as Haptics from 'expo-haptics';
+import * as Haptics from '../services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -132,7 +132,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   }, []);
 
   const hapticTick = useCallback(() => {
-    void Haptics.selectionAsync();
+    Haptics.selection();
   }, []);
 
   useEffect(() => {
@@ -312,7 +312,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
         x: clamp(start.x + dx, 0, imageRect.width - start.width),
         y: clamp(start.y + dy, 0, imageRect.height - start.height),
       }, true);
-      void Haptics.selectionAsync();
+      Haptics.selection();
       return;
     }
 
@@ -323,14 +323,14 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
     if (kind === 'topLeft' || kind === 'topRight') top = clamp(start.y + dy, 0, bottom - minimumHeight);
     if (kind === 'bottomLeft' || kind === 'bottomRight') bottom = clamp(start.y + start.height + dy, top + minimumHeight, imageRect.height);
     setCropFromJS({ x: left, y: top, width: right - left, height: bottom - top }, true);
-    void Haptics.selectionAsync();
+    Haptics.selection();
   };
 
   const resetCrop = () => {
     if (!imageRect.width || !imageRect.height) return;
     setCropFromJS(getInitialCrop(imageRect), true);
     setError(null);
-    void Haptics.selectionAsync();
+    Haptics.selection();
   };
 
   const cancelEditing = () => {
@@ -353,7 +353,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
       initializedCropFor.current = null;
       setWorkingImage(rotated);
       deleteCapturedImageFiles([previousUri], [image.uri, rotated.uri]);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     } catch {
       setError('Nu am putut roti fotografia. Încearcă din nou.');
     } finally {
@@ -406,7 +406,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
 
       const accepted = await onApply(edited);
       if (accepted === false) return;
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
     } catch {
       setError('Nu am putut pregăti fotografia. Imaginea originală este în siguranță.');
     } finally {
