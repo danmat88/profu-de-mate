@@ -153,6 +153,8 @@ export type StoredLesson = MathAnalysis & {
   createdAt?: { toDate(): Date } | null;
 };
 
+export type WrittenMathProblem = { problemLatex: string; solutionLatex?: string };
+
 export type RootStackParamList = {
   Home: undefined;
   Notebook: undefined;
@@ -160,6 +162,8 @@ export type RootStackParamList = {
   Legal: undefined;
   Paywall: { source: 'quota' | 'settings' | 'home'; access?: CommercialAccess };
   Capture: { mode: FlowMode };
+  MathInput: { mode: FlowMode };
+  MathProcessing: { mode: FlowMode; math: WrittenMathProblem; requestId: string; userId: string; origin?: 'editor' | 'home' };
   Review: { mode: FlowMode; image: CapturedImage };
   Processing: { mode: FlowMode; image: CapturedImage; requestId: string; userId: string; origin?: 'review' | 'home' };
   Lesson: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean; source?: 'flow' | 'notebook'; sourceImage?: CapturedImage };

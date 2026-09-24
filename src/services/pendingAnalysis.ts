@@ -1,7 +1,7 @@
 import { File, Paths } from 'expo-file-system';
 import { getApp } from '@react-native-firebase/app';
 import { getAuth } from '@react-native-firebase/auth';
-import type { CapturedImage, FlowMode } from '../types';
+import type { CapturedImage, FlowMode, WrittenMathProblem } from '../types';
 import { clearTemporaryCapturedImagesOnStartup, deleteTemporaryCapturedImages, isManagedTemporaryImage } from './temporaryImages';
 
 const PENDING_ANALYSIS_FILE = 'profu-pending-analysis-v1.json';
@@ -9,14 +9,16 @@ const PENDING_ANALYSIS_MAX_AGE_MS = 30 * 60 * 1000;
 let preparedSnapshot: PendingAnalysis | null | undefined;
 let revision = 0;
 
-export type PendingAnalysis = {
-  schemaVersion: 2;
+type PendingBase = {
   userId: string;
   mode: FlowMode;
-  image: CapturedImage;
   requestId: string;
   createdAt: number;
 };
+export type PendingAnalysis = PendingBase & (
+  | { schemaVersion: 2; image: CapturedImage }
+  | { schemaVersion: 3; math: WrittenMathProblem }
+);
 
 function getPendingFile(): File {
   return new File(Paths.cache, PENDING_ANALYSIS_FILE);
@@ -24,9 +26,9 @@ function getPendingFile(): File {
 
 function isPendingAnalysis(value: unknown): value is PendingAnalysis {
   if (!value || typeof value !== 'object') return false;
-  const pending = value as Partial<PendingAnalysis>;
-  const image = pending.image as Partial<CapturedImage> | undefined;
-  return pending.schemaVersion === 2
+  const pending = value as Partial<PendingBase> & { schemaVersion?: unknown; image?: Partial<CapturedImage>; math?: Partial<WrittenMathProblem> };
+  const image = pending.image;
+  const validBase = (pending.schemaVersion === 2 || pending.schemaVersion === 3)
     && typeof pending.userId === 'string'
     && pending.userId.length > 0
     && pending.userId === getAuth(getApp()).currentUser?.uid
@@ -36,8 +38,17 @@ function isPendingAnalysis(value: unknown): value is PendingAnalysis {
     && typeof pending.createdAt === 'number'
     && Number.isFinite(pending.createdAt)
     && Date.now() - pending.createdAt >= 0
-    && Date.now() - pending.createdAt <= PENDING_ANALYSIS_MAX_AGE_MS
-    && Boolean(image)
+    && Date.now() - pending.createdAt <= PENDING_ANALYSIS_MAX_AGE_MS;
+  if (!validBase) return false;
+  if (pending.schemaVersion === 3) {
+    const math = pending.math;
+    return Boolean(math)
+      && typeof math?.problemLatex === 'string' && math.problemLatex.trim().length > 0 && math.problemLatex.length <= 1600
+      && (pending.mode === 'check'
+        ? typeof math.solutionLatex === 'string' && math.solutionLatex.trim().length > 0 && math.solutionLatex.length <= 1600
+        : math.solutionLatex === undefined);
+  }
+  return Boolean(image)
     && typeof image?.uri === 'string'
     && isManagedTemporaryImage(image.uri)
     && typeof image.width === 'number'
@@ -47,6 +58,18 @@ function isPendingAnalysis(value: unknown): value is PendingAnalysis {
     && Number.isFinite(image.height)
     && image.height > 0
     && (image.source === 'camera' || image.source === 'gallery');
+}
+
+export function savePendingWrittenMath(mode: FlowMode, math: WrittenMathProblem, requestId: string, userId: string): boolean {
+  if (getAuth(getApp()).currentUser?.uid !== userId) return false;
+  const pending: PendingAnalysis = { schemaVersion: 3, userId, mode, math, requestId, createdAt: Date.now() };
+  if (!isPendingAnalysis(pending)) return false;
+  try {
+    getPendingFile().write(JSON.stringify(pending));
+    revision += 1;
+    preparedSnapshot = pending;
+    return true;
+  } catch { return false; }
 }
 
 export function savePendingAnalysis(mode: FlowMode, image: CapturedImage, requestId: string, userId: string): boolean {
@@ -83,7 +106,7 @@ export function clearPendingAnalysis(expectedRequestId?: string): void {
 
 /** Removes only the temporary pending photograph, never saved notebook data. */
 export function discardPendingAnalysis(): void {
-  const imageUri = preparedSnapshot?.image.uri;
+  const imageUri = preparedSnapshot?.schemaVersion === 2 ? preparedSnapshot.image.uri : undefined;
   clearPendingAnalysis();
   if (imageUri) deleteTemporaryCapturedImages([imageUri]);
 }
@@ -113,10 +136,13 @@ export async function preparePendingAnalysisOnStartup(): Promise<PendingAnalysis
     if (startedRevision !== revision) return getPreparedPendingAnalysis() ?? null;
     if (!isPendingAnalysis(value)) throw new Error('Invalid pending analysis marker.');
 
-    const imageFile = new File(value.image.uri);
-    if (!imageFile.exists) throw new Error('Pending analysis image is missing.');
-
-    clearTemporaryCapturedImagesOnStartup([value.image.uri]);
+    if (value.schemaVersion === 2) {
+      const imageFile = new File(value.image.uri);
+      if (!imageFile.exists) throw new Error('Pending analysis image is missing.');
+      clearTemporaryCapturedImagesOnStartup([value.image.uri]);
+    } else {
+      clearTemporaryCapturedImagesOnStartup();
+    }
     preparedSnapshot = value;
     return value;
   } catch {

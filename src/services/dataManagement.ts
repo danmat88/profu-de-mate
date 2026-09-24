@@ -9,6 +9,7 @@ import { initializeVerifiedFirebaseServices, markFirebaseUserDeleted, resetFireb
 import { recordDiagnosticError } from './diagnostics';
 import { clearLocalPreferences } from './localPreferences';
 import { clearPendingAnalysis } from './pendingAnalysis';
+import { clearMathDrafts } from './mathDraft';
 import { clearTemporaryCapturedImages } from './temporaryImages';
 import { getInstallationToken } from './installationIdentity';
 import { resetPurchasesForSignedOutUser } from './purchases';
@@ -51,6 +52,7 @@ export async function deleteAllUserData(): Promise<DataDeletionResult> {
 
   clearTemporaryCapturedImages();
   clearPendingAnalysis();
+  clearMathDrafts();
   clearLocalPreferences();
   clearFavoriteLessonsCache();
   let localSignOutPending = false;

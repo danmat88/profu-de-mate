@@ -24,6 +24,7 @@ import { clearFavoriteLessonsCache } from './lessons';
 import { initializePurchases, resetPurchasesForSignedOutUser } from './purchases';
 import { recordDiagnosticError } from './diagnostics';
 import { discardPendingAnalysis } from './pendingAnalysis';
+import { clearMathDrafts } from './mathDraft';
 import { assertSessionActive, captureSession, invalidateSessionOperations } from './sessionGuard';
 
 type PrepareMergeResponse = { ticket: string };
@@ -393,7 +394,10 @@ export async function connectWithGoogle(): Promise<User | null> {
 
   resetFirebaseInitialization();
   clearFavoriteLessonsCache();
-  if (sourceUser.uid !== targetUser.uid) discardPendingAnalysis();
+  if (sourceUser.uid !== targetUser.uid) {
+    discardPendingAnalysis();
+    clearMathDrafts();
+  }
   const targetSession = captureSession(targetUser.uid);
   await writePendingMerges((await readPendingMerges()).map((merge) => (
     merge.ticket === pending.ticket ? { ...merge, targetUserId: targetUser.uid } : merge
@@ -440,6 +444,7 @@ export async function disconnectGoogleAccount(): Promise<User | null> {
   invalidateSessionOperations();
   clearFavoriteLessonsCache();
   discardPendingAnalysis();
+  clearMathDrafts();
   resetFirebaseInitialization();
   void clearCachedCommercialAccess();
   // Firebase sign-out is the authoritative local boundary. It must not depend

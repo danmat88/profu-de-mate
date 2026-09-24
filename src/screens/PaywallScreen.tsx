@@ -27,6 +27,7 @@ import { colors, fonts } from '../theme';
 import type { RootStackParamList } from '../types';
 import { createLatestTask, type TaskState } from '../utils/latestTask';
 import { assertSessionActive, captureSession } from '../services/sessionGuard';
+import { isCommercialAccessExpired } from '../services/commercialRefreshPolicy';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Paywall'>;
 type BusyAction = 'google' | 'purchase' | 'restore' | 'manage' | null;
@@ -47,11 +48,16 @@ function friendlyPurchaseError(error: unknown): string {
 export function PaywallScreen({ navigation, route }: Props) {
   const { gutter } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const { access: contextAccess, loading: accessLoading, connectGoogle, applyServerAccess } = useCommercial();
+  const { access: contextAccess, loading: accessLoading, refresh, connectGoogle, applyServerAccess } = useCommercial();
   const [allowRouteAccessFallback, setAllowRouteAccessFallback] = useState(true);
   // Route data makes the first paint immediate, but it belongs to the identity
   // that opened this screen. Never reuse it after a Google identity operation.
-  const access = contextAccess ?? (allowRouteAccessFallback ? route.params.access : null) ?? null;
+  const candidateAccess = contextAccess ?? (allowRouteAccessFallback ? route.params.access : null) ?? null;
+  // The provider triggers expiry renders. Read the clock here as a conservative
+  // display guard: deferring this check to an effect would flash yesterday's quota.
+  // eslint-disable-next-line react-hooks/purity
+  const access = isCommercialAccessExpired(candidateAccess, Date.now()) ? null : candidateAccess;
+  const canContinue = route.params.source === 'quota' && access === contextAccess && access?.canAnalyze === true;
   const [offerState, setOfferState] = useState<TaskState<PremiumOffer> | null>(null);
   const offer = offerState?.status === 'ready' ? offerState.value : null;
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual');
@@ -59,7 +65,6 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [successLimit, setSuccessLimit] = useState(30);
-  const [freeUnlocked, setFreeUnlocked] = useState(false);
   const googleLinked = access?.identity === 'google';
   const premium = access?.premium.active === true;
   const freeDailyLimit = access?.allowances.freeDaily ?? 5;
@@ -89,10 +94,7 @@ export function PaywallScreen({ navigation, route }: Props) {
     setBusy('google');
     setError(null);
     try {
-      const next = await connectGoogle();
-      if (next) {
-        setFreeUnlocked(Boolean(next?.canAnalyze && route.params.source === 'quota'));
-      }
+      await connectGoogle();
     } catch (connectError) {
       setError(friendlyPurchaseError(connectError));
     } finally {
@@ -195,10 +197,22 @@ export function PaywallScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {accessLoading && !access ? (
+        {canContinue ? (
+          <View style={styles.freeUnlocked}>
+            <View style={styles.freeCheck}><MiniGlyph name="check" size={20} color={colors.ink} /></View>
+            <View style={styles.freeCopy}><Text style={styles.freeTitle}>Ai probleme disponibile.</Text><Text style={styles.freeText}>Poți reveni la problema ta.</Text></View>
+            <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={() => navigation.goBack()} style={styles.freeButton}><Text style={styles.freeButtonText}>Continuă</Text></Pressable>
+          </View>
+        ) : null}
+
+        {!access ? (
           <View style={styles.accessLoading}>
             <View style={styles.accessLoadingIcon}><AppIcon name="profile" size={48} /></View>
-            <PlayfulLoader label="Verific accesul tău" note="Caietul rămâne pe loc cât verificăm contul și limita de azi." />
+            {accessLoading ? (
+              <PlayfulLoader label="Verific accesul tău" note="Caietul rămâne pe loc cât verificăm contul și limita de azi." />
+            ) : (
+              <ComicButton title="Reîncearcă verificarea" subtitle="Nu am putut confirma limita de azi. Verifică internetul." icon="streak" tone="paper" disabled={Boolean(busy)} onPress={() => void refresh()} />
+            )}
           </View>
         ) : premium ? (
           <>
@@ -236,14 +250,6 @@ export function PaywallScreen({ navigation, route }: Props) {
           </View>
         ) : (
           <>
-            {freeUnlocked ? (
-              <View style={styles.freeUnlocked}>
-                <View style={styles.freeCheck}><MiniGlyph name="check" size={20} color={colors.ink} /></View>
-                <View style={styles.freeCopy}><Text style={styles.freeTitle}>Ai deblocat problemele gratuite de azi.</Text><Text style={styles.freeText}>Poți continua acum fără să cumperi Premium.</Text></View>
-                <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.freeButton}><Text style={styles.freeButtonText}>Continuă</Text></Pressable>
-              </View>
-            ) : null}
-
             <View style={styles.benefits}>
               {[
                 [`Până la ${premiumDailyLimit} probleme pe zi`, 'O limită mare și cinstită, protejată împotriva folosirii automate.'],

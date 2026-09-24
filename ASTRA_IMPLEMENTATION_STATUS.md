@@ -1,4 +1,171 @@
-# Profu’ de mate — starea implementării și livrarea buildului 20
+# Profu’ de mate — starea implementării
+
+Actualizat la **23 septembrie 2026, Europe/Bucharest**. Acesta este jurnalul implementării și al probelor, nu un nou audit independent. [Dashboardul](ASTRA_INDEPENDENT_DASHBOARD.html) arată implicit iterația curentă; registrul A01–A30 din 7 septembrie este disponibil separat ca arhivă.
+
+**Home a revenit la identitatea originală, editorul are acțiunea fixată jos, iar resetarea zilnică are regresii pentru miezul nopții și concurență. Noul APK development Expo/EAS este în curs de livrare. Acceptarea pe Android și publicarea Play nu sunt declarate finalizate.** Buildurile 20 și 21 sunt istorice și nu reprezintă interfața candidatului curent. Încercarea locală denumită 22 nu a creat un job EAS.
+
+Furnizorul AI și oferta Premium rămân deciziile amânate explicit de Daniel. Limitele comerciale nu au fost schimbate. Conturile înregistrate și Premium au resetarea la miezul nopții în **Europe/Bucharest**; accesul guest rămâne un bonus unic de bun venit. Serverul acordă cota; clientul nu inventează un sold nou offline.
+
+## Probe ale iterației curente
+
+| Verificare | Rezultat | Dovadă |
+|---|---|---|
+| npm run check | TypeScript, compatibilitate Expo și lint trecute; Expo Doctor **21/21** | [log](firebase-debug.comic-final-check2.log) |
+| npm run test:mobile | **160/160**, zero eșecuri/skip/anulări | [log](firebase-debug.comic-final-mobile2.log) |
+| npm run functions:test | **91/91**, zero eșecuri/skip/anulări | [log](firebase-debug.daily-reset-functions.log) |
+| npm run test:rules | **41/41**, Auth/Firestore în proiect demo | [log](firebase-debug.daily-reset-rules.log) |
+| npm run release:bundle-check | **47 fișiere / 13.104.523 bytes**, fără tokenurile App Check debug cunoscute | [log](firebase-debug.comic-final-bundle.log) |
+| Layout RN Web | **21** capturi la 320/390/768 px; **12** scenarii editor cu safe area și text mărit | [capturi și verificări](firebase-debug.comic-visual-capture.log), [script editor](previews/math-ui/editor-layout-capture.cjs) |
+| Firebase, 20 septembrie | analyzeMathImage ACTIVE, revizia analyzemathimage-00030-zek, pre-play-public; Hosting publicat | [stare funcție](firebase-debug.math-deployed-state.log), [deploy Hosting](firebase-debug.math-hosting-deploy.log) |
+
+Cele **292 de teste** verifică domenii delimitate, cu adaptoare native simulate și integrare într-un proiect demo. Nu sunt 292 de fluxuri executate pe Android. RN Web nu acceptă animațiile native, camera sau App Check. Exportul JavaScript nu verifică semnătura și manifestul APK. Logurile și previzualizările sunt dovezi locale ignorate de Git; nu sunt garantate într-un checkout fără artefactele locale.
+
+## Registrul iterației curente — N01–N08
+
+Legenda este aceeași ca în dashboard: ✅ verificat și acceptat pentru criteriul explicit; 🟡 implementat parțial sau insuficient demonstrat; ❌ defect confirmat; ⚪ absent și necesar; ⛔ blocat extern; ❓ nu poate fi verificat încă. Cele 8 puncte au **3 ✅, 4 🟡, 1 ❓**. Numărul nu reprezintă procent de pregătire sau probabilitate de aprobare Google Play.
+
+### N01 · 🟡 · P1 — Home și identitatea vizuală originală
+
+**Stadiu:** Implementat; acceptarea vizuală pe Android rămâne deschisă.
+
+**Dovadă:** Home folosește din nou bufnița originală, chenarele de cerneală, violetul, lime și peach. Scrie problema este integrată în aceeași compoziție. Assets nu au fost înlocuite. Capturile RN Web au fost verificate la 320, 390 și 768 px.
+
+**Surse:** [src/screens/HomeScreen.tsx](src/screens/HomeScreen.tsx); [assets/brand/splash-mark-v2.png](assets/brand/splash-mark-v2.png); [firebase-debug.comic-visual-capture.log](firebase-debug.comic-visual-capture.log).
+
+**Risc / limită:** Browserul nu dovedește densitatea, fonturile și animațiile pe telefon.
+
+**Următoarea acțiune:** Verifică Home pe APK-ul development final, inclusiv telefon mic, text mărit și întoarcerea din cameră.
+
+**Criteriu de acceptanță:** Logo și identitate păstrate; Camera, modurile de lucru și Scrie problema sunt lizibile și utilizabile pe Android, fără suprapuneri.
+
+**Responsabili:** agent · Daniel. **Dependențe:** N07: APK development final; N08: dispozitiv de test.
+
+### N02 · 🟡 · P1 — Editor matematic cu acțiunea fixată jos
+
+**Stadiu:** Implementat și testat local; utilizarea nativă rămâne de confirmat.
+
+**Dovadă:** Editor propriu pentru fracții, puteri, radicali și relații, fără TextInput. Butonul de trimitere este în afara ScrollView. Ciornele și cererile în curs sunt separate pe sesiune. Au trecut 12 combinații de layout, safe area și text mărit, în simulări RN Web.
+
+**Surse:** [MathInputScreen.tsx:120 — submitDock](src/screens/MathInputScreen.tsx); [src/components/MathEditor.tsx](src/components/MathEditor.tsx); [src/utils/mathEditor.ts](src/utils/mathEditor.ts); [tests/mathEditor.test.mts](tests/mathEditor.test.mts); [tests/writtenMathLifecycle.test.mts](tests/writtenMathLifecycle.test.mts); [previews/math-ui/editor-layout-capture.cjs](previews/math-ui/editor-layout-capture.cjs).
+
+**Risc / limită:** Accesibilitatea nativă și tastările rapide nu sunt acceptate numai prin fixture-uri.
+
+**Următoarea acțiune:** Rulează solve/check pe Android, cu formule imbricate, undo/redo, schimbare cont, reluare și eroare la salvarea locală.
+
+**Criteriu de acceptanță:** Butonul poate fi apăsat fără derularea paginii; formula afișată corespunde celei trimise; niciun draft sau rezultat nu traversează conturile.
+
+**Responsabili:** agent · Daniel. **Dependențe:** N07 și cont de test; backend pentru analiza reală.
+
+### N03 · 🟡 · P1 — Splash, tranziții și procesare
+
+**Stadiu:** Cod și capturi verificate; fluiditatea Android încă neobservată.
+
+**Dovadă:** Splash nativ și React au fundal crem și aceeași imagine originală la 180 px. Ieșirea depinde de readiness, cu fade de 240 ms și reduced motion. Procesarea foto și scrisă folosește indicator nedeterminat; Pregătesc lecția apare după rezultatul real, nu după un cronometru fictiv.
+
+**Surse:** [app.config.js:53–54 — splash original, 180 px](app.config.js); [src/components/LaunchSplash.tsx](src/components/LaunchSplash.tsx); [App.tsx](App.tsx); [src/components/AnalysisActivity.tsx](src/components/AnalysisActivity.tsx); [tests/startupExperience.test.mts](tests/startupExperience.test.mts); [firebase-debug.comic-visual-capture.log](firebase-debug.comic-visual-capture.log).
+
+**Risc / limită:** Un screenshot nu măsoară frame drops, flashuri de sistem sau comportamentul cold start.
+
+**Următoarea acțiune:** Probează pornirea rece/caldă, navigarea repetată și reduced motion pe APK-ul EAS.
+
+**Criteriu de acceptanță:** Fără flash de fundal diferit, tranziții duble sau blocare în splash; mesajele de procesare corespund stării reale.
+
+**Responsabili:** agent · Daniel. **Dependențe:** N07 și Android fizic; capturile nu substituie traseele native.
+
+### N04 · ✅ · P1 — Resetarea zilnică: contract și regresii
+
+**Stadiu:** Acceptat pentru logica și cazurile-limită testate.
+
+**Dovadă:** Cotele zilnice pentru conturile înregistrate și Premium folosesc miezul nopții Europe/Bucharest. Clientul invalidează afișajul expirat, reîncarcă de pe server și reîncearcă limitat offline. Paywall nu reutilizează cota expirată din rută. Testele acoperă schimbarea zilei, DST 23/25 h, retry/refund pe ziua inițială și concurența pentru ultimul loc.
+
+**Surse:** [commercialAccess.ts:199 — fereastra București](functions/src/commercialAccess.ts); [src/services/commercialRefreshPolicy.ts](src/services/commercialRefreshPolicy.ts); [src/context/CommercialContext.tsx](src/context/CommercialContext.tsx); [src/screens/PaywallScreen.tsx](src/screens/PaywallScreen.tsx); [tests/commercialReset.test.mts](tests/commercialReset.test.mts); [functions/src/commercialAccess.test.ts](functions/src/commercialAccess.test.ts); [commercialAccess.test.mjs:517, 557, 578](functions/integration/commercialAccess.test.mjs); [firebase-debug.comic-final-mobile2.log](firebase-debug.comic-final-mobile2.log); [firebase-debug.daily-reset-rules.log](firebase-debug.daily-reset-rules.log).
+
+**Risc / limită:** Acceptarea privește contractul și testele. Lifecycle-ul unui telefon real rămâne de probat. Accesul guest este un bonus unic de bun venit, nu o cotă zilnică.
+
+**Următoarea acțiune:** Păstrează regresiile și confirmă pe Android revenirea după miezul nopții, inclusiv offline și din Paywall.
+
+**Criteriu de acceptanță:** Serverul este singura autoritate care acordă cota; resetarea respectă ziua Bucureștiului; retry/refund nu modifică ziua greșită; bonusul guest nu reapare.
+
+**Responsabili:** agent. **Dependențe:** Nu necesită cron de ștergere sau resetarea datelor cloud. Acceptarea UI pe dispozitiv este N08.
+
+### N05 · ✅ · P1 — Contractul pentru probleme scrise și deployul aferent
+
+**Stadiu:** Acceptat pentru validare, integrarea contractului și publicare.
+
+**Dovadă:** analyzeMathImage acceptă separat fotografia și intrarea matematică structurată, cu validare strictă și limite. Funcția publicată pe 20 septembrie este ACTIVE, revizia analyzemathimage-00030-zek, pre-play-public, cu tot traficul pe ultima revizie. Hosting pentru informarea despre probleme scrise a fost publicat.
+
+**Surse:** [functions/src/mathInput.ts](functions/src/mathInput.ts); [functions/src/validation.ts](functions/src/validation.ts); [functions/src/analysisRequests.ts](functions/src/analysisRequests.ts); [functions/src/providerPipeline.ts](functions/src/providerPipeline.ts); [firebase-debug.math-function-deploy.log](firebase-debug.math-function-deploy.log); [firebase-debug.math-deployed-state.log](firebase-debug.math-deployed-state.log); [firebase-debug.math-hosting-deploy.log](firebase-debug.math-hosting-deploy.log).
+
+**Risc / limită:** Publicarea și testele nu demonstrează calitatea AI sau o analiză autentificată completă pe APK. Furnizorul și oferta Premium nu au fost schimbate.
+
+**Următoarea acțiune:** Execută pe APK solve/check pentru fotografie și formulă; reconciliază lecția, reluarea și consumul cotei.
+
+**Criteriu de acceptanță:** Contractele foto și scris rămân separate, intrările invalide sunt respinse, deduplicarea se păstrează și funcția publicată corespunde implementării testate.
+
+**Responsabili:** agent. **Dependențe:** N08 pentru proba completă; furnizorul AI final rămâne decizia lui Daniel.
+
+### N06 · ✅ · P2 — Verificările locale ale candidatului curent
+
+**Stadiu:** 160 mobile + 91 backend + 41 emulatoare; check și export trecute.
+
+**Dovadă:** Cele 292 teste au trecut, zero fail/skip/cancel. npm run check trece TypeScript, compatibilitate Expo, lint și expo-doctor 21/21. Exportul JavaScript production are 47 fișiere / 13.104.523 bytes, fără tokenurile App Check debug cunoscute. 21 capturi de layout și 12 scenarii ale editorului au trecut verificările RN Web.
+
+**Surse:** [firebase-debug.comic-final-check2.log](firebase-debug.comic-final-check2.log); [firebase-debug.comic-final-mobile2.log](firebase-debug.comic-final-mobile2.log); [firebase-debug.daily-reset-functions.log](firebase-debug.daily-reset-functions.log); [firebase-debug.daily-reset-rules.log](firebase-debug.daily-reset-rules.log); [firebase-debug.comic-final-bundle.log](firebase-debug.comic-final-bundle.log); [firebase-debug.comic-visual-capture.log](firebase-debug.comic-visual-capture.log); [Manifestul sursei — denumirea locală nu identifică un build livrat](previews/math-ui/development22-source.json).
+
+**Risc / limită:** Adaptoarele simulate și emulatorul demo nu sunt 292 fluxuri Android. Exportul JavaScript nu verifică semnătura sau manifestul APK.
+
+**Următoarea acțiune:** Păstrează rezultatele asociate sursei candidatului și execută verificările native din N08.
+
+**Criteriu de acceptanță:** Comenzile enumerate termină cu succes pe candidat, fără teste ignorate; limitele simulărilor sunt explicite.
+
+**Responsabili:** agent. **Dependențe:** N07 pentru artefact; N08 pentru comportamentul nativ. AI/Premium rămân decizii separate.
+
+### N07 · 🟡 · P1 — APK development în Expo/EAS
+
+**Stadiu:** Buildul acestei iterații este în curs de livrare.
+
+**Dovadă:** Profilul development produce un APK intern cu developmentClient=true. Buildurile istorice 20 și 21 nu reprezintă interfața curentă. Încercarea locală denumită 22 nu a încărcat sursa și nu a creat un job EAS; noul build este în curs de pregătire/livrare.
+
+**Surse:** [eas.json](eas.json); [package.json](package.json); [firebase-debug.comic-build-status23.log](firebase-debug.comic-build-status23.log); [firebase-debug.comic-eas-build23.log](firebase-debug.comic-eas-build23.log).
+
+**Risc / limită:** Fără artefactul final nu poate începe acceptarea pe telefon a acestei versiuni.
+
+**Următoarea acțiune:** Finalizează buildul cloud, confirmă FINISHED și adaugă linkul EAS și identitatea APK-ului.
+
+**Criteriu de acceptanță:** EAS FINISHED pentru sursa curentă; APK descărcabil identificat fără ambiguitate, profil development verificat.
+
+**Responsabili:** agent · serviciu extern. **Dependențe:** Serviciul EAS. După instalare, clientul development folosește Metro, pornit prin npm start.
+
+### N08 · ❓ · P1 — Acceptarea pe Android și limitele release-ului
+
+**Stadiu:** Nicio acceptare E2E nouă pe telefon nu este declarată.
+
+**Dovadă:** Verificările curente sunt locale, RN Web și pe emulatoare Firebase. Nu există o sesiune Android fizică probată pentru interfața și fluxul scris noi; la verificarea din 23 septembrie nu este conectat un dispozitiv ADB.
+
+**Surse:** [firebase-debug.comic-final-mobile2.log](firebase-debug.comic-final-mobile2.log); [firebase-debug.comic-visual-capture.log](firebase-debug.comic-visual-capture.log); [eas.json](eas.json).
+
+**Risc / limită:** Camera, permisiunile, App Check, formulele, tranzițiile native și întreruperea procesului pot avea comportamente neacoperite de aceste probe.
+
+**Următoarea acțiune:** Daniel instalează APK-ul N07; agentul și Daniel parcurg pornire, foto/import, editor solve/check, lecții/Caiet, erori/retry, cont și resetarea zilnică.
+
+**Criteriu de acceptanță:** Scenariile critice trec pe artefactul identificat, inclusiv text mărit și reluare, cu rezultate păstrate. Beta și producția au criterii suplimentare AI/Premium/Play.
+
+**Responsabili:** Daniel · agent. **Dependențe:** N07 și dispozitiv Android disponibil. Furnizorul eligibil și oferta Premium rămân deciziile lui Daniel.
+
+## Verdictul curent și ordinea următoare
+
+1. **Dezvoltare:** verificările locale enumerate au trecut; se finalizează APK-ul cloud EAS development (N07).
+2. **Testare reală:** urmează pe artefactul identificat, cu Metro pornit prin npm start; pornire, Home, cameră/import, editor solve/check, lecții/Caiet, reluare, cont, erori și resetare (N08).
+3. **Beta închisă:** neacceptată încă; necesită proba pe dispozitiv și integrarea deciziilor Daniel despre AI/Premium, inclusiv eligibilitatea serviciilor pentru publicul 13+.
+4. **Producție Google Play:** neacceptată; necesită AAB production, verificări prin Play, plăți și operare demonstrate și reevaluarea punctelor istorice relevante.
+
+## Separarea istoricului
+
+Tot ce urmează este **arhiva din 7 septembrie 2026**. Constatările A01–A30, APK 20, numerele testelor, stările cloud și afirmațiile „actual” au data arhivei. Registrul nu a fost reaudiat integral și nu substituie dovezile N01–N08. [Auditul independent din 5 septembrie](ASTRA_INDEPENDENT_AUDIT.md) rămâne neschimbat.
+
+---
+
+## Arhivă: livrarea buildului 20 și registrul din 7 septembrie 2026
 
 Actualizat la 7 septembrie 2026, după deployul Firebase și reactivarea analizelor la 17:00:09, Europe/Bucharest. Acesta este jurnalul remedierilor și al livrării, nu un nou audit independent. [Auditul din 5 septembrie](ASTRA_INDEPENDENT_AUDIT.md) rămâne o fotografie istorică; liniile sale de cod și statuturile nu descriu automat sursa modificată ulterior.
 
@@ -35,7 +202,7 @@ Testele mobile includ simulări ale modulelor native. Cele 246 de teste din cele
 
 Sursa livrată conține modificările necomise. `firebase-debug.build20-source-manifest.log` păstrează hashuri pentru 191 intrări de sursă la lansarea buildului, pornind de la HEAD `db85cd666132008044196d193d3359d0f1b4a68a`. Manifestul nu este un substitut pentru arhiva EAS și nu include toate fișierele ignorate. Nu am făcut commit sau push.
 
-## Registrul actual al celor 30 de puncte
+## Registrul istoric al celor 30 de puncte — 7 septembrie 2026
 
 ✅ înseamnă verificat și acceptat pentru criteriul explicit al punctului. 🟡 înseamnă implementare parțială sau probă insuficientă. ❌ defect confirmat; ⚪ absent și necesar; ⛔ blocat extern; ❓ încă neverificabil. Nu se convertește un test de serviciu într-o acceptare a ecranului nativ.
 
@@ -598,7 +765,7 @@ Registrul are **30 de puncte: 6 ✅, 20 🟡, 1 ❌, 0 ⚪, 2 ⛔, 1 ❓**. Aces
 **Dependențe / blocaje:** Dispozitiv și furnizor AI final; constatarea istorică accepta numai traseul de date din cod.
 
 
-## Verdict și ordine rămasă
+## Verdictul și ordinea consemnate la 7 septembrie
 
 - **Dezvoltare:** poate continua pe APK-ul EAS 20 și backendul actualizat; verificările locale enumerate sunt trecute.
 - **Testare reală:** artefactul este disponibil; acceptarea fluxurilor pe dispozitiv este încă de făcut.
@@ -607,8 +774,8 @@ Registrul are **30 de puncte: 6 ✅, 20 🟡, 1 ❌, 0 ⚪, 2 ⛔, 1 ❓**. Aces
 
 Ordinea următoare: implementările independente din A07/A10/A11/A12/A13/A15/A20/A22 pot avansa în paralel cu proba APK-ului 20 pe dispozitiv; apoi integrarea deciziilor Daniel despre AI/Premium, evaluarea matematică/comercială și operarea probate; în final AAB EAS `production`, testarea prin Play și publicarea. Nu există un procent de pregătire sau o probabilitate estimată de aprobare.
 
-## Verificarea actualizării dashboardului
+## Verificarea dashboardului din 7 septembrie
 
 Registrul A01–A30 din acest raport și cel din HTML folosesc aceleași 30 de înregistrări. Verificarea a confirmat zero erori parse5, ID-uri unice și ținte locale existente. În Microsoft Edge headless au trecut **672 combinații de filtre**, filtrul rapid cu cele 8 puncte de implementare pentru agent, căutarea fără diacritice, starea fără rezultate, resetarea, deschiderea/închiderea detaliilor și navigarea prin hash la un punct ascuns de filtre. Pagina nu depășește orizontal viewporturile 320/390/768/1440 px; capturile desktop și mobile au fost inspectate. Dovadă: [jurnal verificare dashboard](firebase-debug.dashboard-current-validation.log).
 
-În această actualizare s-au modificat documentele de stare și s-au completat probele statice ELF ale APK-ului 20. Sursele aplicației și configurația cloud nu au fost modificate; nu a fost lansat alt build sau deploy.
+În actualizarea din 7 septembrie s-au modificat documentele de stare și s-au completat probele statice ELF ale APK-ului 20. Sursele aplicației și configurația cloud nu au fost modificate; nu a fost lansat alt build sau deploy.

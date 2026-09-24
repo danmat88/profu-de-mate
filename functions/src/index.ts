@@ -191,9 +191,7 @@ export const analyzeMathImage = onCall({
 
     try {
       result = await runProviderPipeline({
-        mode: input.mode,
-        imageBase64: input.imageBase64,
-        mimeType: input.mimeType,
+        ...input,
         beforeGenerate: async () => {
           await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
           logger.info('Provider attempt reserved', { mode: input.mode });
@@ -242,7 +240,8 @@ export const analyzeMathImage = onCall({
       }, { merge: true });
     }, undefined, (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId));
 
-    logger.info('Math image analyzed', {
+    logger.info('Math problem analyzed', {
+      inputKind: input.kind ?? 'image',
       status: result.status,
       mode: result.mode,
       stored: Boolean(lessonRef),
@@ -260,7 +259,7 @@ export const analyzeMathImage = onCall({
     await failAnalysisRequest(db, request.auth.uid, input.requestId, claim.leaseId).catch(() => undefined);
     if (error instanceof HttpsError) throw error;
     logger.error('Math analysis failed', safeErrorDescriptor(error));
-    throw new HttpsError('internal', 'Nu am putut analiza imaginea acum. Încearcă din nou.');
+    throw new HttpsError('internal', 'Nu am putut analiza problema acum. Încearcă din nou.');
   }
 });
 

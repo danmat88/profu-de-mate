@@ -19,6 +19,8 @@ import { CommercialProvider, useCommercial } from './src/context/CommercialConte
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CaptureScreen } from './src/screens/CaptureScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { MathInputScreen } from './src/screens/MathInputScreen';
+import { MathProcessingScreen } from './src/screens/MathProcessingScreen';
 import { LessonScreen } from './src/screens/LessonScreen';
 import { LegalScreen } from './src/screens/LegalScreen';
 import { NotebookScreen } from './src/screens/NotebookScreen';
@@ -46,8 +48,8 @@ type StartupSnapshot = {
   initialAccess: CommercialAccess | null;
 };
 
-const LOCAL_STARTUP_DEADLINE_MS = 4_000;
-const FONT_STARTUP_DEADLINE_MS = 5_000;
+const LOCAL_STARTUP_DEADLINE_MS = 2_200;
+const FONT_STARTUP_DEADLINE_MS = 3_000;
 
 function reportStartupTask<T>(result: StartupTaskResult<T>) {
   if (result.outcome === 'ready') return;
@@ -58,13 +60,13 @@ function reportStartupTask<T>(result: StartupTaskResult<T>) {
 }
 
 function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis | null }) {
-  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(pendingAnalysis ? 'Processing' : 'Home');
+  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home');
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [navigationReady, setNavigationReady] = useState(false);
   const reducedMotion = useReducedMotion();
-  const { startupReady: commercialStartupReady, authSessionKey } = useCommercial();
+  const { authSessionKey } = useCommercial();
   const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
-  const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing';
+  const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing' || activeRoute === 'MathProcessing';
   const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
 
   return (
@@ -85,21 +87,23 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
             }}
           >
             <StatusBar style="dark" />
-            <Stack.Navigator initialRouteName={activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
+              <Stack.Screen name="MathInput" component={MathInputScreen} />
+              <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade', contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Notebook" component={NotebookScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Legal" component={LegalScreen} />
               <Stack.Screen name="Paywall" component={PaywallScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
               <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: 'none', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_right', gestureEnabled: false }} />
-              <Stack.Screen name="Summary" component={SummaryScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_right' }} />
+              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending?.schemaVersion === 2 ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+              <Stack.Screen name="Summary" component={SummaryScreen} />
             </Stack.Navigator>
         </NavigationContainer>
       </View>
-      {showLaunchSplash ? <LaunchSplash ready={navigationReady && commercialStartupReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
+      {showLaunchSplash ? <LaunchSplash ready={navigationReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
     </View>
   );
 }

@@ -47,6 +47,22 @@ test('detects Google as a linked identity from the verified Firebase token', () 
   assert.equal(identityFromAuthToken(undefined), 'anonymous');
 });
 
+test('Bucharest resets follow 23/25-hour DST days and calendar rollover, not a fixed 24-hour timer', () => {
+  const cases = [
+    ['2026-03-28T22:00:00.000Z', '2026-03-29', '2026-03-29T21:00:00.000Z', 23],
+    ['2026-10-24T21:00:00.000Z', '2026-10-25', '2026-10-25T22:00:00.000Z', 25],
+    ['2026-12-31T22:00:00.000Z', '2027-01-01', '2027-01-01T22:00:00.000Z', 24],
+    ['2028-02-28T22:00:00.000Z', '2028-02-29', '2028-02-29T22:00:00.000Z', 24],
+  ] as const;
+  for (const [start, day, resetAt, hours] of cases) {
+    const window = bucharestQuotaWindow(Date.parse(start));
+    assert.deepEqual(window, { day, resetAt });
+    assert.equal(Date.parse(window.resetAt) - Date.parse(start), hours * 60 * 60 * 1000);
+    assert.equal(bucharestQuotaWindow(Date.parse(resetAt) - 1).day, day);
+    assert.notEqual(bucharestQuotaWindow(Date.parse(resetAt)).day, day);
+  }
+});
+
 test('builds guest, free and premium access from server-owned counters', () => {
   const guestPrincipal = `i_${'a'.repeat(64)}`;
   const googlePrincipal = `g_${'b'.repeat(64)}`;

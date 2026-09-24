@@ -1,82 +1,114 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import * as Haptics from '../services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text } from '../components/Typography';
 import { AppIcon, type AppIconName } from '../components/AppIcon';
 import { ComicBackdrop } from '../components/ComicBackdrop';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { PlayfulLoader } from '../components/PlayfulLoader';
+import { Text } from '../components/Typography';
 import { useCommercial } from '../context/CommercialContext';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
+import * as Haptics from '../services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../services/pendingAnalysis';
+import { assertSessionActive, captureSession } from '../services/sessionGuard';
 import { colors, fonts } from '../theme';
 import type { FlowMode, RootStackParamList } from '../types';
 import { allowancePresentation } from '../utils/commercialPresentation';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
-type ModeOptionProps = {
+function HomeViewport({ allowScroll, children }: { allowScroll: boolean; children: ReactNode }) {
+  if (allowScroll) {
+    return <ScrollView bounces={false} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollViewport}>{children}</ScrollView>;
+  }
+  return <View style={styles.viewport}>{children}</View>;
+}
+
+function ModeOption({ active, compact, icon, label, note, tone, disabled, onPress }: {
   active: boolean;
   compact: boolean;
-  largeText: boolean;
   icon: AppIconName;
   label: string;
   note: string;
   tone: 'violet' | 'peach';
+  disabled: boolean;
   onPress: () => void;
-};
-
-function ModeOption({ active, compact, largeText, icon, label, note, tone, onPress }: ModeOptionProps) {
-  const checkTone = tone === 'peach';
+}) {
+  const peach = tone === 'peach';
   return (
     <Pressable
       accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
+      accessibilityState={{ selected: active, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
-        styles.modeCardShadow,
-        largeText && styles.modeCardShadowLargeText,
-        active && (checkTone ? styles.modeCardShadowPeach : styles.modeCardShadowViolet),
+        styles.modeShadow,
+        active && (peach ? styles.modeShadowPeach : styles.modeShadowViolet),
         pressed && styles.pressed,
+        disabled && styles.disabled,
       ]}
     >
       <View style={[
         styles.modeCard,
         compact && styles.modeCardCompact,
-        largeText && styles.modeCardLargeText,
-        active && (checkTone ? styles.modeCardCheckActive : styles.modeCardSolveActive),
+        active && (peach ? styles.modeCardCheck : styles.modeCardSolve),
       ]}>
-        <View style={[styles.modeIcon, active && styles.modeIconActive]}>
-          <AppIcon name={icon} size={compact ? 34 : 39} />
-        </View>
+        <View style={[styles.modeIcon, active && styles.modeIconActive]}><AppIcon name={icon} size={compact ? 31 : 36} /></View>
         <View style={styles.modeCopy}>
-          <View style={styles.modeTitleRow}>
-            <Text numberOfLines={largeText ? 2 : 1} style={[styles.modeTitle, active && !checkTone && styles.modeTitleOnDark]}>{label}</Text>
-            {active ? (
-              <View style={[styles.selectedDot, largeText && styles.selectedDotLargeText, !checkTone && styles.selectedDotOnDark]}>
-                <Text style={[styles.selectedCheck, !checkTone && styles.selectedCheckOnDark]}>✓</Text>
-              </View>
-            ) : null}
-          </View>
-          {!compact ? <Text numberOfLines={largeText ? 2 : 1} style={[styles.modeNote, active && !checkTone && styles.modeNoteOnDark]}>{note}</Text> : null}
+          <Text numberOfLines={1} style={[styles.modeTitle, active && !peach && styles.modeTitleOnDark]}>{label}</Text>
+          {!compact ? <Text numberOfLines={1} style={[styles.modeNote, active && !peach && styles.modeNoteOnDark]}>{note}</Text> : null}
         </View>
+        {active ? (
+          <View style={[styles.selectedDot, !peach && styles.selectedDotOnDark]}>
+            <MiniGlyph name="check" size={11} color={colors.ink} />
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
 }
 
+function SmallSourceButton({ icon, label, onPress, disabled, busy = false }: {
+  icon: AppIconName;
+  label: string;
+  onPress: () => void;
+  disabled: boolean;
+  busy?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled, busy }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.smallSource, pressed && styles.actionPressed, disabled && styles.disabled]}
+    >
+      {busy ? <PlayfulLoader micro /> : <AppIcon name={icon} size={28} />}
+      <Text numberOfLines={1} style={styles.smallSourceText}>{busy ? 'Deschid…' : label}</Text>
+    </Pressable>
+  );
+}
+
+function ProcessStep({ icon, label, tone }: { icon: AppIconName; label: string; tone: 'lime' | 'peach' | 'cyan' }) {
+  return (
+    <View style={styles.processStep}>
+      <View style={[styles.processIcon, tone === 'lime' ? styles.processIconLime : tone === 'peach' ? styles.processIconPeach : styles.processIconCyan]}>
+        <AppIcon name={icon} size={24} />
+      </View>
+      <Text numberOfLines={1} style={styles.processLabel}>{label}</Text>
+    </View>
+  );
+}
+
 export function HomeScreen() {
   const navigation = useNavigation<Navigation>();
-  const { contentWidth, gutter, isNarrow, isVeryNarrow, isVeryShort, isShort, isLargeText, isVeryLargeText } = useResponsiveLayout();
+  const { contentWidth, isNarrow, isVeryNarrow, isVeryShort, isShort, isLargeText, isVeryLargeText } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
   const {
     access,
     status: commercialStatus,
@@ -87,105 +119,70 @@ export function HomeScreen() {
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
-  const entrance = useRef(new Animated.Value(0)).current;
-  const float = useRef(new Animated.Value(0)).current;
-  const beam = useRef(new Animated.Value(0)).current;
-  const modePop = useRef(new Animated.Value(1)).current;
-  const secondaryExit = useRef(new Animated.Value(0)).current;
-  const modeExit = useRef(new Animated.Value(0)).current;
-  const heroExit = useRef(new Animated.Value(0)).current;
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
+  const alive = useRef(true);
 
   useFocusEffect(useCallback(() => {
     let active = true;
+    alive.current = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
-    secondaryExit.setValue(0);
-    modeExit.setValue(0);
-    heroExit.setValue(0);
     void preparePendingAnalysisOnStartup().then((pending) => {
       if (active) setPendingAnalysis(pending);
     });
     void refreshCommercialAccessIfStale();
-    return () => { active = false; };
-  }, [heroExit, modeExit, refreshCommercialAccessIfStale, secondaryExit]));
-
-  useEffect(() => {
-    if (reducedMotion) {
-      entrance.setValue(1);
-      float.setValue(0.45);
-      beam.setValue(0.5);
-      return;
-    }
-    Animated.spring(entrance, { toValue: 1, useNativeDriver: true, speed: 8, bounciness: 6 }).start();
-    const floating = Animated.loop(Animated.sequence([
-      Animated.timing(float, { toValue: 1, duration: 1550, useNativeDriver: true }),
-      Animated.timing(float, { toValue: 0, duration: 1550, useNativeDriver: true }),
-    ]));
-    const scanning = Animated.loop(Animated.sequence([
-      Animated.timing(beam, { toValue: 1, duration: 1750, useNativeDriver: true }),
-      Animated.delay(350),
-      Animated.timing(beam, { toValue: 0, duration: 0, useNativeDriver: true }),
-    ]));
-    floating.start();
-    scanning.start();
-    return () => { floating.stop(); scanning.stop(); };
-  }, [beam, entrance, float, reducedMotion]);
+    return () => { active = false; alive.current = false; };
+  }, [refreshCommercialAccessIfStale]));
 
   const chooseMode = (next: FlowMode) => {
-    if (next === mode) return;
+    if (next === mode || pendingAnalysis) return;
     Haptics.selection();
     setGalleryError(null);
     setMode(next);
-    if (reducedMotion) return;
-    modePop.setValue(0.94);
-    Animated.spring(modePop, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 11 }).start();
   };
 
-  const leaveHome = useCallback((next: () => void) => new Promise<void>((resolve) => {
-    if (reducedMotion) {
-      next();
-      resolve();
-      return;
+  const resume = useCallback(() => {
+    const pending = getPreparedPendingAnalysis();
+    if (!pending) {
+      setPendingAnalysis(null);
+      return false;
     }
-    const easing = Easing.out(Easing.cubic);
-    Animated.sequence([
-      Animated.timing(secondaryExit, { toValue: 1, duration: 120, easing, useNativeDriver: true }),
-      Animated.timing(modeExit, { toValue: 1, duration: 110, easing, useNativeDriver: true }),
-      Animated.timing(heroExit, { toValue: 1, duration: 170, easing, useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (finished) next();
-      resolve();
-    });
-  }), [heroExit, modeExit, reducedMotion, secondaryExit]);
+    if (pending.schemaVersion === 3) navigation.navigate('MathProcessing', { ...pending, origin: 'home' });
+    else navigation.navigate('Processing', { ...pending, origin: 'home' });
+    return true;
+  }, [navigation]);
 
   const openCapture = () => {
-    if (navigationLocked.current) return;
+    if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-    if (pendingAnalysis) {
-      setPendingAnalysis(null);
-      void leaveHome(() => navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' }));
-      return;
-    }
-    navigation.navigate('Capture', { mode });
+    if (!resume()) navigation.navigate('Capture', { mode });
+  };
+
+  const openMath = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    if (!resume()) navigation.navigate('MathInput', { mode });
+  };
+
+  const openNotebook = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    Haptics.selection();
+    navigation.navigate('Notebook');
   };
 
   const openGallery = useCallback(async () => {
-    if (galleryLocked.current) return;
-    if (pendingAnalysis) {
-      galleryLocked.current = true;
-      Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-      setPendingAnalysis(null);
-      await leaveHome(() => navigation.navigate('Processing', { ...pendingAnalysis, origin: 'home' }));
-      return;
-    }
+    if (galleryLocked.current || navigationLocked.current) return;
+    if (resume()) return;
     galleryLocked.current = true;
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     setGalleryError(null);
     setGalleryBusy(true);
     try {
+      const session = captureSession();
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
@@ -193,373 +190,288 @@ export function HomeScreen() {
         quality: 1,
         exif: false,
       });
-      if (result.canceled) return;
+      assertSessionActive(session);
+      if (!alive.current || result.canceled) return;
       const asset = result.assets?.[0];
-      if (!asset?.uri || asset.width <= 0 || asset.height <= 0) {
-        throw new Error('invalid-image');
-      }
-      const image = {
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-        source: 'gallery' as const,
-      };
+      if (!asset?.uri || asset.width <= 0 || asset.height <= 0) throw new Error('invalid-image');
+      const image = { uri: asset.uri, width: asset.width, height: asset.height, source: 'gallery' as const };
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
       navigation.navigate('Review', { mode, image });
     } catch {
-      setGalleryError('Fotografia nu a putut fi deschisă. Alege altă imagine.');
+      if (alive.current) setGalleryError('Fotografia nu s-a deschis. Încearcă alta.');
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       galleryLocked.current = false;
-      setGalleryBusy(false);
+      if (alive.current) setGalleryBusy(false);
     }
-  }, [leaveHome, mode, navigation, pendingAnalysis]);
+  }, [mode, navigation, resume]);
 
   const activeMode = pendingAnalysis?.mode ?? mode;
   const isSolve = activeMode === 'solve';
   const hasPendingAnalysis = Boolean(pendingAnalysis);
-  const baseStageHeight = isVeryShort ? 226 : isShort ? 252 : 278;
-  const stageHeight = baseStageHeight + (isVeryLargeText ? 360 : isLargeText ? 72 : 0);
-  const mascotWidth = isVeryNarrow ? 128 : 148;
   const allowance = allowancePresentation(access, commercialStatus);
   const openAllowance = () => {
-    if (allowance.canOpenAccess && access) {
-      navigation.navigate('Paywall', { source: 'home', access });
-      return;
-    }
-    if (allowance.canRetry) void refreshCommercialAccess();
+    if (allowance.canOpenAccess && access) navigation.navigate('Paywall', { source: 'home', access });
+    else if (allowance.canRetry) void refreshCommercialAccess();
   };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
-      <View style={styles.homeScene}>
-        <ComicBackdrop />
-        <ScrollView
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 10) + 10 }}
-        >
-        <View style={[styles.page, { width: contentWidth }]}>
-          <Animated.View style={[styles.header, {
-            opacity: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-            transform: [{ translateY: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) }],
-          }]}>
+      <ComicBackdrop />
+      <HomeViewport allowScroll={isLargeText}>
+        <View style={[styles.page, { width: contentWidth, paddingBottom: Math.max(insets.bottom, 8) }]}>
+          <View style={[styles.header, isVeryShort && styles.headerCompact]}>
             <View style={styles.brandRow}>
               <View style={styles.logoShadow} />
               <View style={styles.logo}>
                 <Image accessible={false} source={require('../../assets/brand/profu-mark-v2.png')} resizeMode="contain" style={styles.logoImage} />
               </View>
               <View style={styles.brandCopy}>
-                <Text style={[styles.brand, isVeryNarrow && styles.brandNarrow]}>Profu’ de mate</Text>
-                <Text style={styles.brandNote}>EXPLICAȚII PAS CU PAS</Text>
+                <Text numberOfLines={1} style={[styles.brand, isVeryNarrow && styles.brandNarrow]}>Profu’ de mate</Text>
+                <Text numberOfLines={1} style={styles.brandNote}>EXPLICAȚII PAS CU PAS</Text>
               </View>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={allowance.accessibilityLabel}
+
+            <Pressable accessibilityRole="button" accessibilityLabel={allowance.accessibilityLabel}
               accessibilityState={{ disabled: !allowance.canOpenAccess && !allowance.canRetry }}
-              disabled={!allowance.canOpenAccess && !allowance.canRetry}
-              onPress={openAllowance}
-              style={({ pressed }) => [styles.allowanceShadow, pressed && styles.pressed]}
-            >
+              disabled={!allowance.canOpenAccess && !allowance.canRetry} onPress={openAllowance}
+              style={({ pressed }) => [styles.allowanceShadow, pressed && styles.pressed]}>
               <View style={[styles.allowancePill, access?.premium.active && styles.allowancePillPremium]}>
-                <MiniGlyph name={access?.premium.active ? 'spark' : 'dot'} size={13} color={colors.ink} />
-                <View style={styles.allowanceCopy}><Text numberOfLines={1} style={styles.allowanceText}>{allowance.label}</Text><Text style={styles.allowanceNote}>{allowance.note}</Text></View>
+                {!access && commercialStatus === 'resolving' ? <PlayfulLoader micro /> : <>
+                  <MiniGlyph name={access?.premium.active ? 'spark' : 'dot'} size={13} color={colors.ink} />
+                  <View style={styles.allowanceCopy}>
+                    <Text numberOfLines={1} style={styles.allowanceText}>{allowance.label}</Text>
+                    <Text numberOfLines={1} style={styles.allowanceNote}>{allowance.note}</Text>
+                  </View>
+                </>}
               </View>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Deschide setările"
-              hitSlop={5}
-              onPress={() => navigation.navigate('Settings')}
-              style={({ pressed }) => [styles.settingsShadow, pressed && styles.pressed]}
-            >
-              <View style={styles.settingsButton}><AppIcon name="settings" size={36} /></View>
-            </Pressable>
-          </Animated.View>
 
-          <Animated.View style={[styles.intro, {
-            opacity: Animated.multiply(entrance, secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })),
-            transform: [
-              { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
-              { translateY: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) },
-            ],
-          }]}>
-            <View style={styles.kickerRow}>
-              <View style={styles.kickerMark}><Text style={styles.kickerMarkText}>✦</Text></View>
-              <Text style={styles.kicker}>PROFU’ E PREGĂTIT</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Deschide setările" hitSlop={5}
+              onPress={() => navigation.navigate('Settings')} style={({ pressed }) => [styles.settingsShadow, pressed && styles.pressed]}>
+              <View style={styles.settingsButton}><AppIcon name="settings" size={34} /></View>
+            </Pressable>
+          </View>
+
+          <View style={[styles.composition, isVeryShort && styles.compositionCompact, isLargeText && styles.compositionLarge]}>
+            <View style={[styles.intro, isVeryShort && styles.introCompact]}>
+              <View style={styles.kickerRow}>
+                <View style={styles.kickerMark}><Text style={styles.kickerMarkText}>✦</Text></View>
+                <Text style={styles.kicker}>{hasPendingAnalysis ? 'ANALIZA TA TE AȘTEAPTĂ' : 'PROFU’ E PREGĂTIT'}</Text>
+              </View>
+              <Text numberOfLines={isLargeText ? 3 : 2} style={[styles.title, isNarrow && !isLargeText && styles.titleNarrow]}>
+                {hasPendingAnalysis ? 'Continuăm de unde ai rămas?' : <>Cu ce vrei să <Text style={styles.titleAccent}>începem?</Text></>}
+              </Text>
             </View>
-            <Text numberOfLines={isLargeText ? 3 : 2} style={[styles.title, isNarrow && !isLargeText && styles.titleNarrow]}>Cu ce vrei să <Text style={styles.titleAccent}>începem?</Text></Text>
-          </Animated.View>
 
-          <Animated.View
-            accessibilityRole="tablist"
-            style={[styles.modeRow, isLargeText && styles.modeRowLargeText, {
-              opacity: Animated.multiply(entrance, modeExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })),
-              transform: [
-                { translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
-                { translateY: modeExit.interpolate({ inputRange: [0, 1], outputRange: [0, -8] }) },
-              ],
-            }]}
-          >
-            <ModeOption active={isSolve} compact={isVeryNarrow && !isLargeText} largeText={isLargeText} icon="camera" label="Rezolvă" note="o problemă" tone="violet" onPress={() => chooseMode('solve')} />
-            <ModeOption active={!isSolve} compact={isVeryNarrow && !isLargeText} largeText={isLargeText} icon="verify" label="Verifică" note="o rezolvare" tone="peach" onPress={() => chooseMode('check')} />
-          </Animated.View>
+            <View accessibilityRole="tablist" style={[styles.modeRow, isVeryShort && styles.modeRowCompact, isLargeText && styles.modeRowLarge]}>
+              <ModeOption active={isSolve} compact={isVeryShort || isVeryNarrow} icon="camera" label="Rezolvă" note="o problemă" tone="violet" disabled={hasPendingAnalysis || galleryBusy} onPress={() => chooseMode('solve')} />
+              <ModeOption active={!isSolve} compact={isVeryShort || isVeryNarrow} icon="verify" label="Verifică" note="o rezolvare" tone="peach" disabled={hasPendingAnalysis || galleryBusy} onPress={() => chooseMode('check')} />
+            </View>
 
-          <Animated.View
-            style={[
-              styles.cameraStageShadow,
-              {
-                height: stageHeight,
-                opacity: entrance,
-                transform: [
-                  { scale: entrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
-                  { scale: heroExit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.018] }) },
-                ],
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={isSolve ? ['#8450FF', '#5C27D8'] : ['#7750EE', '#5429C6']}
-              start={{ x: 0.04, y: 0 }}
-              end={{ x: 0.96, y: 1 }}
-              style={[styles.cameraStage, !isSolve && styles.cameraStageCheck]}
-            >
-              <View pointerEvents="none" style={styles.stageGlow} />
-              <View style={[styles.stageSticker, !isSolve && styles.stageStickerCheck]}>
-                <Text style={styles.stageStickerText}>{hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
-              </View>
-
-              <View style={[styles.stageContent, isLargeText && styles.stageContentLargeText, isVeryLargeText && styles.stageContentVeryLargeText]}>
-                <Animated.View style={[styles.focusFrame, isVeryLargeText && styles.focusFrameVeryLargeText, { transform: [{ scale: modePop }] }]}>
-                  <View style={[styles.focusCorner, styles.focusCornerTL]} />
-                  <View style={[styles.focusCorner, styles.focusCornerTR]} />
-                  <View style={[styles.focusCorner, styles.focusCornerBL]} />
-                  <View style={[styles.focusCorner, styles.focusCornerBR]} />
-                  <AppIcon name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'} size={isVeryNarrow ? 58 : 68} />
-                  <Animated.View style={[styles.scanBeam, {
-                    opacity: beam.interpolate({ inputRange: [0, 0.12, 0.88, 1], outputRange: [0, 0.8, 0.8, 0] }),
-                    transform: [{ translateY: beam.interpolate({ inputRange: [0, 1], outputRange: [-46, 47] }) }],
-                  }]} />
-                </Animated.View>
-                <View style={[styles.stageCopy, isVeryLargeText && styles.stageCopyVeryLargeText]}>
-                  <Text numberOfLines={isLargeText ? 2 : 1} style={styles.stageEyebrow}>{hasPendingAnalysis ? 'REZULTATUL TĂU SE PREGĂTEȘTE' : isSolve ? 'REZOLVĂ O PROBLEMĂ' : 'VERIFICĂ O REZOLVARE'}</Text>
-                  <Text numberOfLines={isVeryLargeText ? 4 : isLargeText ? 3 : 2} style={[styles.stageTitle, isVeryNarrow && !isLargeText && styles.stageTitleNarrow, isLargeText && styles.stageTitleLargeText]}>{hasPendingAnalysis ? 'Revino la analiză.' : isSolve ? 'Fotografiază problema.' : 'Fotografiază rezolvarea.'}</Text>
-                  <Text numberOfLines={isVeryLargeText ? 5 : isLargeText ? 4 : 2} style={[styles.stageNote, isLargeText && styles.stageNoteLargeText, galleryError && styles.stageNoteError]}>{hasPendingAnalysis ? 'Fotografia și progresul sunt păstrate în siguranță.' : galleryError ?? (isSolve ? 'Îți explic rezolvarea pas cu pas.' : 'Îți arăt ce ai făcut bine și ce corectezi.')}</Text>
+            <View style={[styles.cameraStageShadow, isShort && styles.cameraStageShort, isVeryShort && styles.cameraStageCompact, isLargeText && styles.cameraStageLarge, isVeryLargeText && styles.cameraStageVeryLarge]}>
+              <LinearGradient colors={isSolve ? ['#8450FF', '#5C27D8'] : ['#7750EE', '#5429C6']}
+                start={{ x: 0.04, y: 0 }} end={{ x: 0.96, y: 1 }} style={styles.cameraStage}>
+                <View pointerEvents="none" style={styles.stageGlow} />
+                <View style={[styles.stageSticker, !isSolve && styles.stageStickerCheck]}>
+                  <Text style={styles.stageStickerText}>{hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}</Text>
                 </View>
-              </View>
 
-              <View style={[styles.stageActions, isLargeText && styles.stageActionsLargeText, isVeryLargeText && styles.stageActionsVeryLargeText]}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={hasPendingAnalysis ? 'Revino la analiza în curs' : isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
-                  onPress={openCapture}
-                  style={({ pressed }) => [styles.captureRibbon, isVeryLargeText && styles.captureRibbonVeryLargeText, !isSolve && styles.captureRibbonCheck, pressed && styles.actionPressed]}
-                >
-                  <View style={styles.captureRibbonIcon}><AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={32} /></View>
-                  <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.82} style={styles.captureRibbonText}>
-                    {hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
-                  </Text>
-                  <MiniGlyph name="next" size={22} color={colors.ink} />
-                </Pressable>
-                {!hasPendingAnalysis ? <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Alege o fotografie din galerie"
-                  disabled={galleryBusy}
-                  onPress={() => void openGallery()}
-                  style={({ pressed }) => [styles.galleryButton, isVeryLargeText && styles.galleryButtonVeryLargeText, galleryBusy && styles.galleryButtonBusy, pressed && styles.actionPressed]}
-                >
-                  {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={30} />}
-                  <Text style={styles.galleryButtonText}>{galleryBusy ? 'Deschid…' : 'Galerie'}</Text>
-                </Pressable> : null}
-              </View>
+                <View style={[styles.stageContent, isVeryShort && styles.stageContentCompact, isLargeText && styles.stageContentLarge, isVeryLargeText && styles.stageContentVeryLarge]}>
+                  <View style={styles.focusFrame}>
+                    <View style={[styles.focusCorner, styles.focusCornerTL]} />
+                    <View style={[styles.focusCorner, styles.focusCornerTR]} />
+                    <View style={[styles.focusCorner, styles.focusCornerBL]} />
+                    <View style={[styles.focusCorner, styles.focusCornerBR]} />
+                    <AppIcon name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'} size={isVeryNarrow ? 55 : 64} />
+                    <View style={styles.scanBeam} />
+                  </View>
+                  <View style={styles.stageCopy}>
+                    <Text numberOfLines={1} style={styles.stageEyebrow}>{hasPendingAnalysis ? 'REZULTATUL TĂU SE PREGĂTEȘTE' : isSolve ? 'REZOLVĂ O PROBLEMĂ' : 'VERIFICĂ O REZOLVARE'}</Text>
+                    <Text numberOfLines={isLargeText ? 3 : 2} style={[styles.stageTitle, isVeryNarrow && styles.stageTitleNarrow]}>
+                      {hasPendingAnalysis ? 'Revino la analiză.' : isSolve ? 'Fotografiază problema.' : 'Fotografiază rezolvarea.'}
+                    </Text>
+                    {!isVeryShort || galleryError ? <Text numberOfLines={isLargeText ? 4 : 2} style={[styles.stageNote, galleryError && styles.stageNoteError]}>
+                      {hasPendingAnalysis ? 'Fotografia și progresul sunt păstrate.' : galleryError ?? (isSolve ? 'Îți explic fiecare pas.' : 'Vezi ce corectezi și de ce.')}
+                    </Text> : null}
+                  </View>
+                </View>
 
-              <Animated.View pointerEvents="none" style={[styles.mascotWrap, {
-                width: mascotWidth,
-                height: mascotWidth * 1.08,
-                transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [3, -5] }) }, { rotate: '3deg' }],
-              }]}>
-                <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
-              </Animated.View>
-            </LinearGradient>
-          </Animated.View>
+                <View style={[styles.stageActions, isLargeText && styles.stageActionsLarge]}>
+                  <Pressable accessibilityRole="button"
+                    accessibilityLabel={hasPendingAnalysis ? 'Revino la analiza în curs' : isSolve ? 'Fotografiază o problemă de rezolvat' : 'Fotografiază o rezolvare de verificat'}
+                    disabled={galleryBusy} onPress={openCapture}
+                    style={({ pressed }) => [styles.captureRibbon, !isSolve && styles.captureRibbonCheck, pressed && styles.actionPressed, galleryBusy && styles.disabled]}>
+                    <View style={styles.captureRibbonIcon}><AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={30} /></View>
+                    <Text numberOfLines={1} style={styles.captureRibbonText}>{hasPendingAnalysis ? 'Continuă' : 'Cameră'}</Text>
+                    <MiniGlyph name="next" size={20} color={colors.ink} />
+                  </Pressable>
+                  {!hasPendingAnalysis ? <>
+                    <SmallSourceButton icon="gallery" label="Galerie" onPress={() => void openGallery()} disabled={galleryBusy} busy={galleryBusy} />
+                    <SmallSourceButton icon="practice" label="Scrie" onPress={openMath} disabled={galleryBusy} />
+                  </> : null}
+                </View>
 
-          <Animated.View style={{
-            opacity: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-            transform: [{ translateY: secondaryExit.interpolate({ inputRange: [0, 1], outputRange: [0, 12] }) }],
-          }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Deschide caietul cu lecții salvate"
-            onPress={() => navigation.navigate('Notebook')}
-            style={({ pressed }) => [styles.notebookShadow, isLargeText && styles.notebookShadowLargeText, pressed && styles.pressed]}
-          >
-            <View style={[styles.notebookShelf, isLargeText && styles.notebookShelfLargeText]}>
-              <View style={styles.notebookSpine} />
-              <View style={styles.notebookIcon}><AppIcon name="notebook" size={46} /></View>
-              <View style={styles.notebookCopy}>
-                <Text style={styles.notebookKicker}>LECȚII SALVATE</Text>
-                <Text style={styles.notebookTitle}>Revezi ce ai lucrat</Text>
-              </View>
-              <View style={styles.notebookArrow}><MiniGlyph name="next" size={20} color={colors.paper} /></View>
+                <View pointerEvents="none" style={styles.mascotWrap}>
+                  <Image accessible={false} source={require('../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
+                </View>
+              </LinearGradient>
             </View>
-          </Pressable>
 
-          <View accessible accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția" style={[styles.processRail, isLargeText && styles.processRailLargeText, isVeryLargeText && styles.processRailVeryLargeText]}>
-            <Text style={styles.processKicker}>CUM FUNCȚIONEAZĂ</Text>
-            <View style={[styles.processRow, isVeryLargeText && styles.processRowVeryLargeText]}>
-              <View style={[styles.processStep, isVeryLargeText && styles.processStepVeryLargeText]}>
-                <View style={[styles.processIcon, styles.processIconLime]}><AppIcon name="camera" size={25} /></View>
-                <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.82} style={styles.processLabel}>Fotografiezi</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Deschide caietul cu lecții salvate" onPress={openNotebook}
+              style={({ pressed }) => [styles.notebookShadow, isVeryShort && styles.notebookShadowCompact, isLargeText && styles.notebookShadowLarge, pressed && styles.pressed]}>
+              <View style={styles.notebookShelf}>
+                <View style={styles.notebookSpine} />
+                <View style={styles.notebookIcon}><AppIcon name="notebook" size={42} /></View>
+                <View style={styles.notebookCopy}>
+                  <Text style={styles.notebookKicker}>LECȚII SALVATE</Text>
+                  <Text numberOfLines={1} style={styles.notebookTitle}>Revezi ce ai lucrat</Text>
+                </View>
+                <View style={styles.notebookArrow}><MiniGlyph name="next" size={18} color={colors.paper} /></View>
               </View>
-              <View style={isVeryLargeText && styles.processArrowVeryLargeText}><MiniGlyph name="next" size={16} color={colors.violetDeep} /></View>
-              <View style={[styles.processStep, isVeryLargeText && styles.processStepVeryLargeText]}>
-                <View style={[styles.processIcon, styles.processIconPeach]}><AppIcon name="explain" size={25} /></View>
-                <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.82} style={styles.processLabel}>Înțelegi</Text>
-              </View>
-              <View style={isVeryLargeText && styles.processArrowVeryLargeText}><MiniGlyph name="next" size={16} color={colors.violetDeep} /></View>
-              <View style={[styles.processStep, isVeryLargeText && styles.processStepVeryLargeText]}>
-                <View style={[styles.processIcon, styles.processIconCyan]}><AppIcon name="notebook" size={25} /></View>
-                <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.82} style={styles.processLabel}>Salvezi</Text>
+            </Pressable>
+
+            <View accessible accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
+              style={[styles.processRail, isVeryShort && styles.processRailCompact, isLargeText && styles.processRailLarge]}>
+              <Text style={styles.processKicker}>CUM FUNCȚIONEAZĂ</Text>
+              <View style={[styles.processRow, isLargeText && styles.processRowLarge]}>
+                <ProcessStep icon="camera" label="Fotografiezi" tone="lime" />
+                <MiniGlyph name="next" size={15} color={colors.violetDeep} />
+                <ProcessStep icon="explain" label="Înțelegi" tone="peach" />
+                <MiniGlyph name="next" size={15} color={colors.violetDeep} />
+                <ProcessStep icon="notebook" label="Salvezi" tone="cyan" />
               </View>
             </View>
-          </View>
 
-          <View style={[styles.promise, isLargeText && styles.promiseLargeText]}>
-            <Text style={styles.promiseSpark}>✦</Text>
-            <Text numberOfLines={isLargeText ? 3 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.8} style={styles.promiseText}>Îți explic de ce, nu îți dau doar răspunsul.</Text>
+            <View style={styles.promise}>
+              <Text style={styles.promiseSpark}>✦</Text>
+              <Text numberOfLines={isLargeText ? 3 : 1} style={styles.promiseText}>Îți explic de ce, nu îți dau doar răspunsul.</Text>
+            </View>
           </View>
-          </Animated.View>
         </View>
-        </ScrollView>
-      </View>
+      </HomeViewport>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.canvas },
-  homeScene: { flex: 1, overflow: 'hidden' },
+  safe: { flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' },
+  viewport: { flex: 1, alignItems: 'center' },
+  scrollViewport: { flexGrow: 1, alignItems: 'center', paddingVertical: 4 },
   page: { flex: 1, maxWidth: 560, alignSelf: 'center' },
-  pressed: { transform: [{ translateY: 2 }], opacity: 0.94 },
-  header: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, position: 'relative' },
+  header: { flexShrink: 0, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerCompact: { height: 52 },
+  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9, position: 'relative' },
   brandCopy: { flex: 1, minWidth: 0 },
-  logoShadow: { position: 'absolute', left: 3, top: 5, width: 46, height: 46, borderRadius: 15, backgroundColor: colors.ink },
-  logo: { width: 46, height: 46, borderRadius: 15, backgroundColor: colors.lime, borderWidth: 2.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', transform: [{ rotate: '-3deg' }] },
-  logoImage: { width: 43, height: 43 },
-  brand: { fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 24 },
-  brandNarrow: { fontSize: 18 },
-  brandNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 0.9, marginTop: -1 },
-  settingsShadow: { width: 48, height: 51, borderRadius: 15, backgroundColor: colors.ink, marginLeft: 9 },
-  settingsButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
-  allowanceShadow: { height: 44, borderRadius: 14, backgroundColor: colors.ink, marginLeft: 7, paddingBottom: 3 },
-  allowancePill: { width: 88, height: 41, borderRadius: 13, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 6 },
+  logoShadow: { position: 'absolute', left: 3, top: 7, width: 43, height: 43, borderRadius: 14, backgroundColor: colors.ink },
+  logo: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.lime, borderWidth: 2, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', transform: [{ rotate: '-3deg' }] },
+  logoImage: { width: 40, height: 40 },
+  brand: { fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 23 },
+  brandNarrow: { fontSize: 17 },
+  brandNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 0.8, marginTop: -1 },
+  allowanceShadow: { flexShrink: 0, height: 42, width: 84, marginLeft: 6, paddingBottom: 3, borderRadius: 14, backgroundColor: colors.ink },
+  allowancePill: { flex: 1, borderRadius: 13, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.limeSoft, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 6 },
   allowancePillPremium: { backgroundColor: colors.lime },
-  allowanceCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
-  allowanceText: { width: '100%', fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 11 },
-  allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6.5, letterSpacing: 0.65, lineHeight: 8 },
-  intro: { marginTop: 8 },
+  allowanceCopy: { flex: 1, minWidth: 0 },
+  allowanceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9, lineHeight: 11 },
+  allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6, letterSpacing: 0.5, lineHeight: 8 },
+  settingsShadow: { flexShrink: 0, width: 44, height: 47, marginLeft: 7, borderRadius: 15, backgroundColor: colors.ink },
+  settingsButton: { width: 44, height: 44, borderRadius: 14, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.86, transform: [{ translateY: 2 }] },
+  disabled: { opacity: 0.48 },
+  composition: { flex: 1, justifyContent: 'center', gap: 9 },
+  compositionCompact: { gap: 6 },
+  compositionLarge: { flex: 0, justifyContent: 'flex-start', gap: 12 },
+  intro: { flexShrink: 0, height: 60, justifyContent: 'center' },
+  introCompact: { height: 44 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  kickerMark: { width: 24, height: 24, borderRadius: 8, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-7deg' }] },
+  kickerMark: { width: 23, height: 23, borderRadius: 8, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-7deg' }] },
   kickerMarkText: { fontFamily: fonts.display, color: colors.ink, fontSize: 14, lineHeight: 18 },
-  kicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9.5, letterSpacing: 1.45 },
-  title: { minHeight: 40, maxWidth: 470, marginTop: 5, fontFamily: fonts.display, color: colors.ink, fontSize: 31, lineHeight: 34, letterSpacing: -0.4 },
-  titleNarrow: { fontSize: 28, lineHeight: 31 },
+  kicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8.5, letterSpacing: 1.2 },
+  title: { marginTop: 3, fontFamily: fonts.display, color: colors.ink, fontSize: 29, lineHeight: 32, letterSpacing: -0.35 },
+  titleNarrow: { fontSize: 26, lineHeight: 29 },
   titleAccent: { color: colors.violet },
-  modeRow: { flexDirection: 'row', gap: 10, marginTop: 14, marginBottom: 14 },
-  modeRowLargeText: { flexDirection: 'column' },
-  modeCardShadow: { flex: 1, minWidth: 0, height: 82, borderRadius: 20, backgroundColor: colors.ink },
-  modeCardShadowLargeText: { flex: 0, width: '100%', height: 106 },
-  modeCardShadowViolet: { backgroundColor: '#32126E' },
-  modeCardShadowPeach: { backgroundColor: '#9B3D29' },
-  modeCard: { height: 77, borderRadius: 19, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 6 },
-  modeCardLargeText: { height: 101, paddingHorizontal: 13, gap: 10 },
-  modeCardCompact: { paddingHorizontal: 6, gap: 3 },
-  modeCardSolveActive: { backgroundColor: colors.violet },
-  modeCardCheckActive: { backgroundColor: colors.peach },
-  modeIcon: { width: 45, height: 45, borderRadius: 14, backgroundColor: colors.canvasDeep, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  modeRow: { flexShrink: 0, height: 74, flexDirection: 'row', gap: 9 },
+  modeRowCompact: { height: 60 },
+  modeRowLarge: { height: 172, flexDirection: 'column' },
+  modeShadow: { flex: 1, minWidth: 0, paddingBottom: 5, borderRadius: 20, backgroundColor: colors.ink },
+  modeShadowViolet: { backgroundColor: '#32126E' },
+  modeShadowPeach: { backgroundColor: '#9B3D29' },
+  modeCard: { flex: 1, borderRadius: 19, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, gap: 7 },
+  modeCardCompact: { paddingHorizontal: 6, gap: 4 },
+  modeCardSolve: { backgroundColor: colors.violet },
+  modeCardCheck: { backgroundColor: colors.peach },
+  modeIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.canvasDeep, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
   modeIconActive: { backgroundColor: colors.paper },
   modeCopy: { flex: 1, minWidth: 0 },
-  modeTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  modeTitle: { flexShrink: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 21 },
+  modeTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16, lineHeight: 19 },
   modeTitleOnDark: { color: colors.paper },
-  modeNote: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 16, marginTop: 1 },
+  modeNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 10, lineHeight: 12 },
   modeNoteOnDark: { color: '#EEE7FF' },
-  selectedDot: { width: 17, height: 17, borderRadius: 7, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  selectedDotLargeText: { width: 30, height: 30, borderRadius: 12, flexShrink: 0 },
+  selectedDot: { position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: 7, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   selectedDotOnDark: { backgroundColor: colors.lime },
-  selectedCheck: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10, lineHeight: 13 },
-  selectedCheckOnDark: { color: colors.ink },
-  cameraStageShadow: { width: '100%', borderRadius: 28, backgroundColor: colors.ink, paddingBottom: 7 },
-  cameraStage: { flex: 1, overflow: 'hidden', borderWidth: 3, borderColor: colors.ink, borderRadius: 27, backgroundColor: '#6F37E8' },
-  cameraStageCheck: { backgroundColor: '#6332CE' },
-  stageGlow: { position: 'absolute', zIndex: 0, width: 220, height: 220, borderRadius: 110, top: -112, right: -64, backgroundColor: 'rgba(255,255,255,0.1)' },
-  stageSticker: { position: 'absolute', left: 15, top: 13, zIndex: 3, borderWidth: 2, borderColor: colors.ink, borderRadius: 9, backgroundColor: colors.lime, paddingHorizontal: 9, paddingVertical: 4, transform: [{ rotate: '-2deg' }] },
+  cameraStageShadow: { flexShrink: 0, height: 258, paddingBottom: 7, borderRadius: 28, backgroundColor: colors.ink },
+  cameraStageShort: { height: 232 },
+  cameraStageCompact: { height: 194 },
+  cameraStageLarge: { height: 460 },
+  cameraStageVeryLarge: { height: 610 },
+  cameraStage: { flex: 1, overflow: 'hidden', borderWidth: 2.5, borderColor: colors.ink, borderRadius: 27 },
+  stageGlow: { position: 'absolute', width: 220, height: 220, borderRadius: 110, top: -112, right: -64, backgroundColor: 'rgba(255,255,255,0.1)' },
+  stageSticker: { position: 'absolute', left: 14, top: 12, zIndex: 3, borderWidth: 2, borderColor: colors.ink, borderRadius: 9, backgroundColor: colors.lime, paddingHorizontal: 8, paddingVertical: 4, transform: [{ rotate: '-2deg' }] },
   stageStickerCheck: { backgroundColor: colors.peach },
-  stageStickerText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 7.5, letterSpacing: 0.9 },
-  stageContent: { position: 'relative', zIndex: 2, flex: 1, flexDirection: 'row', alignItems: 'center', paddingTop: 35, paddingBottom: 73, paddingHorizontal: 17, gap: 14 },
-  stageContentLargeText: { alignItems: 'flex-start', paddingTop: 45, paddingBottom: 92, paddingHorizontal: 12, gap: 8 },
-  stageContentVeryLargeText: { flexDirection: 'column', alignItems: 'stretch', paddingTop: 49, paddingBottom: 188, paddingHorizontal: 16, gap: 12 },
-  focusFrame: { width: 104, height: 102, alignItems: 'center', justifyContent: 'center' },
-  focusFrameVeryLargeText: { width: 92, height: 88, alignSelf: 'center' },
+  stageStickerText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 7.5, letterSpacing: 0.85 },
+  stageContent: { flex: 1, zIndex: 2, flexDirection: 'row', alignItems: 'center', paddingTop: 34, paddingBottom: 68, paddingHorizontal: 15, gap: 13 },
+  stageContentCompact: { paddingTop: 31, paddingBottom: 61, paddingHorizontal: 11, gap: 9 },
+  stageContentLarge: { paddingTop: 46, paddingBottom: 82, paddingHorizontal: 18 },
+  stageContentVeryLarge: { flexDirection: 'column', justifyContent: 'center', paddingBottom: 88 },
+  focusFrame: { flexShrink: 0, width: 96, height: 92, alignItems: 'center', justifyContent: 'center' },
   focusCorner: { position: 'absolute', width: 23, height: 23, borderColor: colors.lime },
   focusCornerTL: { left: 0, top: 0, borderLeftWidth: 4, borderTopWidth: 4, borderTopLeftRadius: 7 },
   focusCornerTR: { right: 0, top: 0, borderRightWidth: 4, borderTopWidth: 4, borderTopRightRadius: 7 },
   focusCornerBL: { left: 0, bottom: 0, borderLeftWidth: 4, borderBottomWidth: 4, borderBottomLeftRadius: 7 },
   focusCornerBR: { right: 0, bottom: 0, borderRightWidth: 4, borderBottomWidth: 4, borderBottomRightRadius: 7 },
-  scanBeam: { position: 'absolute', left: 11, right: 11, height: 3, borderRadius: 2, backgroundColor: colors.lime },
-  stageCopy: { flex: 1, minWidth: 0, paddingRight: 2 },
-  stageCopyVeryLargeText: { flex: 0, width: '100%', paddingRight: 0 },
-  stageEyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1.05 },
-  stageTitle: { height: 49, maxWidth: 250, marginTop: 4, fontFamily: fonts.display, color: colors.paper, fontSize: 21, lineHeight: 24 },
-  stageTitleLargeText: { height: 'auto', minHeight: 64 },
+  scanBeam: { position: 'absolute', left: 10, right: 10, height: 3, borderRadius: 2, backgroundColor: colors.lime, opacity: 0.65 },
+  stageCopy: { flex: 1, minWidth: 0, zIndex: 2 },
+  stageEyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 7.5, letterSpacing: 0.95 },
+  stageTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.paper, fontSize: 21, lineHeight: 24 },
   stageTitleNarrow: { fontSize: 18, lineHeight: 21 },
-  stageNote: { height: 34, maxWidth: 230, marginTop: 2, fontFamily: fonts.body, color: '#E7E0FA', fontSize: 12, lineHeight: 16 },
-  stageNoteLargeText: { height: 'auto', minHeight: 58 },
+  stageNote: { maxWidth: 225, marginTop: 3, fontFamily: fonts.body, color: '#E7E0FA', fontSize: 11, lineHeight: 14 },
   stageNoteError: { color: '#FFF0A9', fontFamily: fonts.bodyBold },
-  stageActions: { position: 'absolute', zIndex: 3, left: 10, right: 10, bottom: 10, height: 54, flexDirection: 'row', gap: 8 },
-  stageActionsLargeText: { height: 72 },
-  stageActionsVeryLargeText: { height: 166, flexDirection: 'column' },
-  captureRibbon: { flex: 1, minWidth: 0, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 16, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 6 },
-  captureRibbonVeryLargeText: { flex: 1, width: '100%', paddingHorizontal: 13, gap: 10 },
+  stageActions: { position: 'absolute', zIndex: 4, left: 9, right: 9, bottom: 9, height: 54, flexDirection: 'row', gap: 6 },
+  stageActionsLarge: { height: 70 },
+  captureRibbon: { flex: 1.3, minWidth: 0, paddingHorizontal: 8, borderWidth: 2, borderColor: colors.ink, borderRadius: 16, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', gap: 6 },
   captureRibbonCheck: { backgroundColor: colors.peach },
-  captureRibbonIcon: { width: 35, height: 35, borderRadius: 11, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
-  captureRibbonText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 16 },
-  galleryButton: { width: 76, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 16, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', gap: 0 },
-  galleryButtonVeryLargeText: { flex: 1, width: '100%', flexDirection: 'row', paddingHorizontal: 13, gap: 10 },
-  galleryButtonBusy: { opacity: 0.72 },
-  galleryButtonText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12, lineHeight: 15 },
-  actionPressed: { transform: [{ translateY: 2 }], opacity: 0.92 },
-  mascotWrap: { position: 'absolute', zIndex: 0, right: -13, bottom: 45, opacity: 0.16 },
+  captureRibbonIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  captureRibbonText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 14 },
+  smallSource: { flex: 0.82, minWidth: 0, borderWidth: 2, borderColor: colors.ink, borderRadius: 16, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  smallSourceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 12 },
+  actionPressed: { opacity: 0.9, transform: [{ translateY: 2 }] },
+  mascotWrap: { position: 'absolute', zIndex: 0, width: 122, height: 132, right: -17, bottom: 48, opacity: 0.13, transform: [{ rotate: '3deg' }] },
   mascot: { width: '100%', height: '100%' },
-  notebookShadow: { height: 73, marginTop: 13, borderRadius: 20, backgroundColor: colors.ink },
-  notebookShadowLargeText: { height: 104 },
-  notebookShelf: { height: 68, overflow: 'hidden', borderRadius: 19, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', paddingRight: 10 },
-  notebookShelfLargeText: { height: 99 },
-  notebookSpine: { alignSelf: 'stretch', width: 8, backgroundColor: colors.cyan, borderRightWidth: 2, borderRightColor: colors.ink },
-  notebookIcon: { width: 58, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  notebookShadow: { flexShrink: 0, height: 62, paddingBottom: 5, borderRadius: 20, backgroundColor: colors.ink },
+  notebookShadowCompact: { height: 53 },
+  notebookShadowLarge: { height: 94 },
+  notebookShelf: { flex: 1, overflow: 'hidden', borderRadius: 19, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', paddingRight: 9 },
+  notebookSpine: { alignSelf: 'stretch', width: 7, backgroundColor: colors.cyan, borderRightWidth: 2, borderRightColor: colors.ink },
+  notebookIcon: { width: 53, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
   notebookCopy: { flex: 1, minWidth: 0 },
-  notebookKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 1.05 },
-  notebookTitle: { marginTop: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18 },
-  notebookArrow: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.violet, alignItems: 'center', justifyContent: 'center' },
-  processRail: { minHeight: 78, marginTop: 11, borderTopWidth: 2, borderBottomWidth: 2, borderColor: '#DCCEF5', paddingVertical: 7, paddingHorizontal: 4 },
-  processRailLargeText: { minHeight: 108, paddingVertical: 10 },
-  processRailVeryLargeText: { minHeight: 0, paddingVertical: 14, paddingHorizontal: 8 },
-  processKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7.5, letterSpacing: 1.15, textAlign: 'center', marginBottom: 4 },
-  processRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
-  processRowVeryLargeText: { flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start', gap: 5 },
+  notebookKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 0.95 },
+  notebookTitle: { marginTop: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 14, lineHeight: 17 },
+  notebookArrow: { width: 32, height: 32, borderRadius: 11, backgroundColor: colors.violet, alignItems: 'center', justifyContent: 'center' },
+  processRail: { flexShrink: 0, height: 62, borderTopWidth: 1.5, borderBottomWidth: 1.5, borderColor: '#DCCEF5', paddingVertical: 5, paddingHorizontal: 3 },
+  processRailCompact: { height: 52, paddingVertical: 3 },
+  processRailLarge: { height: 112, paddingVertical: 9 },
+  processKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 1.05, textAlign: 'center', marginBottom: 3 },
+  processRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  processRowLarge: { minHeight: 70 },
   processStep: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  processStepVeryLargeText: { flex: 0, width: '100%', minHeight: 55, justifyContent: 'flex-start', paddingHorizontal: 14, gap: 12 },
-  processArrowVeryLargeText: { alignSelf: 'center', transform: [{ rotate: '90deg' }] },
-  processIcon: { width: 34, height: 34, borderRadius: 11, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-2deg' }] },
+  processIcon: { width: 31, height: 31, borderRadius: 10, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-2deg' }] },
   processIconLime: { backgroundColor: colors.limeSoft },
   processIconPeach: { backgroundColor: '#FFE0D6' },
   processIconCyan: { backgroundColor: '#CFF7FA' },
-  processLabel: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
-  promise: { minHeight: 37, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  promiseLargeText: { minHeight: 64, paddingVertical: 8 },
-  promiseSpark: { fontFamily: fonts.display, color: colors.violet, fontSize: 15 },
-  promiseText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
+  processLabel: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10.5 },
+  promise: { flexShrink: 0, height: 27, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  promiseSpark: { fontFamily: fonts.display, color: colors.violet, fontSize: 14 },
+  promiseText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 10.5 },
 });

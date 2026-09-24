@@ -73,8 +73,9 @@ test('leaving Processing for Home preserves and resumes the same pending analysi
   assert.match(processingSource, /analyzeOrResumeMathImage\([\s\S]*route\.params\.origin === 'home'/);
   assert.match(mathAnalysisSource, /getAnalysisStatus/);
   assert.match(mathAnalysisSource, /waitForExistingAnalysis/);
-  assert.match(homeSource, /navigation\.navigate\('Processing', \{ \.\.\.pendingAnalysis, origin: 'home' \}\)/);
-  assert.match(homeSource, /Fotografia și progresul sunt păstrate în siguranță\./);
+  assert.match(homeSource, /navigation\.navigate\('Processing', \{ \.\.\.pending, origin: 'home' \}\)/);
+  assert.match(homeSource, /navigation\.navigate\('MathProcessing', \{ \.\.\.pending, origin: 'home' \}\)/);
+  assert.match(homeSource, /Fotografia și progresul sunt păstrate\./);
   assert.match(homeSource, /useState<PendingAnalysis \| null>\(\(\) => getPreparedPendingAnalysis\(\) \?\? null\)/);
   assert.doesNotMatch(homeSource, /pendingStatusLoading|pendingAnalysis === undefined/);
   assert.match(pendingAnalysisSource, /preparedSnapshot = pending/);
@@ -128,7 +129,7 @@ test('heavy photo routes paint first without stacking duplicate transitions', ()
   assert.match(appSource, /name="Review"[^>]*options=\{\{[^}]*animation: 'none'/);
   assert.match(appSource, /name="Capture"[^>]*animation: reducedMotion \? 'none' : 'slide_from_bottom'/);
   for (const routeName of ['Processing', 'Lesson']) {
-    assert.match(appSource, new RegExp(`name="${routeName}"[^>]*animation: reducedMotion \\? 'none' : 'slide_from_right'`));
+    assert.match(appSource, new RegExp(`name="${routeName}"[^>]*animation: reducedMotion \\? 'none' : 'fade'`));
   }
   assert.doesNotMatch(cropSource, /accessibilityViewIsModal style=\{\[styles\.screen, \{\s*opacity:/);
   assert.match(cropSource, /<View accessibilityViewIsModal style=\{styles\.screen\}>/);
@@ -136,7 +137,7 @@ test('heavy photo routes paint first without stacking duplicate transitions', ()
   assert.doesNotMatch(captureSource, /capturePortal|capturePortalCore/);
   assert.doesNotMatch(reviewSource, /transitionCover|scanWipe|scanEdge/);
   assert.doesNotMatch(processingSource, /entryScan|resultSheet/);
-  assert.match(homeSource, /Animated\.sequence\(\[[\s\S]*secondaryExit[\s\S]*modeExit[\s\S]*heroExit/);
+  assert.doesNotMatch(homeSource, /leaveHome|secondaryExit|modeExit|heroExit/);
   assert.match(captureSource, /onCameraReady=\{revealCamera\}/);
   assert.match(captureSource, /addListener\('transitionEnd'[\s\S]*setTransitionSettled\(true\)/);
   assert.match(captureSource, /permission\?\.granted && isFocused && transitionSettled/);
@@ -146,7 +147,6 @@ test('heavy photo routes paint first without stacking duplicate transitions', ()
   assert.match(processingSource, /addListener\('transitionEnd'[\s\S]*markReady\(\)/);
   assert.doesNotMatch(processingSource, /headerEntrance\.setValue\(0\)|stageEntrance\.setValue\(0\)|copyEntrance\.setValue\(0\)|jobsEntrance\.setValue\(0\)/);
   assert.doesNotMatch(reviewSource, /remainingTransitionTime/);
-  assert.doesNotMatch(appSource, /animation: reducedMotion \? 'none' : 'fade'/);
 });
 
 test('the completed analysis preloads its math document before the native lesson transition', () => {
@@ -172,12 +172,12 @@ test('the processing scan follows the real photo bounds without a native shadow'
   assert.doesNotMatch(scanCoreStyle, /shadow|elevation/);
 });
 
-test('processing progress advances from the same four stages shown to the user', () => {
-  assert.match(processingSource, /const nextValue = step \/ 3/);
-  assert.match(processingSource, /setActive\(1\);\s*moveProgressToStep\(1\)/);
-  assert.match(processingSource, /setActive\(2\);\s*moveProgressToStep\(2\)/);
-  assert.doesNotMatch(processingSource, /toValue: 0\.9/);
-  assert.match(processingSource, /statusArea: \{ flex: 1, minHeight: 0, justifyContent: 'space-evenly' \}/);
+test('processing shows unknown progress until a real result arrives', () => {
+  assert.doesNotMatch(processingSource, /moveProgressToStep|setActive|secondStage|thirdStage|timelineNodeDone/);
+  assert.match(processingSource, /<AnalysisActivity preparing=\{preparingLesson\} check=\{isCheck\}/);
+  assert.match(processingSource, /if \(result\.status === 'ready' && lessonId\) \{\s*setPreparingLesson\(true\)/);
+  assert.match(processingSource, /setPreparingLesson\(false\)/);
+  assert.doesNotMatch(processingSource, /accessibilityValue|Pasul \$\{/);
 });
 
 test('camera navigation stays native and readiness-gated without a custom transition layer', () => {

@@ -12,7 +12,7 @@ test('a bound pending notebook transfer survives eight offline days and stays sc
   const load = serviceLoader({
     '@react-native-firebase/app': { getApp() {} }, '@react-native-firebase/auth': { getAuth: () => state },
     '@react-native-firebase/functions': {}, './firebase': {}, './commercialAccessCache': {},
-    './deviceIntegrity': {}, './installationIdentity': {}, './diagnostics': {}, './lessons': {}, './pendingAnalysis': {}, './purchases': {},
+    './deviceIntegrity': {}, './installationIdentity': {}, './diagnostics': {}, './lessons': {}, './pendingAnalysis': {}, './purchases': {}, './mathDraft': { clearMathDrafts() {} },
     'expo-secure-store': { getItemAsync: async (key: string) => disk.get(key) ?? null,
       setItemAsync: async (key: string, value: string) => { disk.set(key, value); }, deleteItemAsync: async (key: string) => { disk.delete(key); } },
   });
@@ -48,7 +48,7 @@ test('a confirmed deletion survives local sign-out failure and marks its identit
     './diagnostics': { recordDiagnosticError: () => { diagnostics++; } },
     './lessons': { clearFavoriteLessonsCache() {} }, './commercialAccessCache': { clearCachedCommercialAccess: async () => {} },
     './commercial': { confirmGoogleIdentityForDeletion: async () => true, pendingGoogleMergeTickets: async () => [], removePendingGoogleMergesForUser: async () => {} },
-    './localPreferences': { clearLocalPreferences() {} }, './pendingAnalysis': { clearPendingAnalysis() {} },
+    './localPreferences': { clearLocalPreferences() {} }, './pendingAnalysis': { clearPendingAnalysis() {} }, './mathDraft': { clearMathDrafts() {} },
     './temporaryImages': { clearTemporaryCapturedImages() {} }, './installationIdentity': { getInstallationToken: async () => 'installation' },
     './purchases': { resetPurchasesForSignedOutUser: async () => {} },
     'react-native-nitro-google-signin': { GoogleOneTapSignIn: { signOut: async () => {} } },
@@ -161,6 +161,7 @@ test('actual logout completes locally even if Firebase verification and billing 
     './deviceIntegrity': {}, './installationIdentity': {}, './diagnostics': {},
     './lessons': { clearFavoriteLessonsCache: () => { cleared++; } },
     './pendingAnalysis': { discardPendingAnalysis: () => { cleared++; } },
+    './mathDraft': { clearMathDrafts() {} },
     './purchases': { resetPurchasesForSignedOutUser: never },
     'react-native-nitro-google-signin': { GoogleOneTapSignIn: { signOut: never } },
   });

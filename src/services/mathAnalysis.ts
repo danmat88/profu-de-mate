@@ -1,7 +1,7 @@
 import { getApp } from '@react-native-firebase/app';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 import { File } from 'expo-file-system';
-import type { CapturedImage, FlowMode, MathAnalysis } from '../types';
+import type { CapturedImage, FlowMode, MathAnalysis, WrittenMathProblem } from '../types';
 import { isMathAnalysis } from '../utils/mathContent';
 import { initializeVerifiedFirebaseServices } from './firebase';
 import { getInstallationToken } from './installationIdentity';
@@ -120,6 +120,43 @@ export async function analyzeOrResumeMathImage(
   shouldStop: () => boolean,
   userId: string,
 ): Promise<AnalyzeMathResponse> {
+  return analyzeOrResume(mode, requestId, resumeExisting, shouldStop, userId,
+    (session) => analyzeMathImage(mode, image, requestId, session));
+}
+
+export async function analyzeOrResumeWrittenMath(
+  mode: FlowMode,
+  math: WrittenMathProblem,
+  requestId: string,
+  resumeExisting: boolean,
+  shouldStop: () => boolean,
+  userId: string,
+): Promise<AnalyzeMathResponse> {
+  return analyzeOrResume(mode, requestId, resumeExisting, shouldStop, userId, async (session) => {
+    assertSessionActive(session);
+    await initializeVerifiedFirebaseServices();
+    assertSessionActive(session);
+    const installationToken = await getInstallationToken();
+    assertSessionActive(session);
+    const functions = getFunctions(getApp(), 'europe-west1');
+    const analyze = httpsCallable<WrittenMathProblem & {
+      kind: 'math'; mode: FlowMode; requestId: string; installationToken: string;
+    }, AnalyzeMathResponse>(functions, 'analyzeMathImage', { timeout: ANALYSIS_CLIENT_TIMEOUT_MS });
+    const response = await analyze({ ...math, kind: 'math', mode, requestId, installationToken });
+    assertSessionActive(session);
+    if (!validAnalyzeMathResponse(response.data, mode)) throw new Error('Răspunsul primit nu este valid.');
+    return response.data;
+  });
+}
+
+async function analyzeOrResume(
+  mode: FlowMode,
+  requestId: string,
+  resumeExisting: boolean,
+  shouldStop: () => boolean,
+  userId: string,
+  send: (session: ActiveSession) => Promise<AnalyzeMathResponse>,
+): Promise<AnalyzeMathResponse> {
   const session = captureSession(userId);
   if (resumeExisting) {
     const existing = await waitForExistingAnalysis(requestId, mode, shouldStop, session);
@@ -128,7 +165,7 @@ export async function analyzeOrResumeMathImage(
 
   if (shouldStop()) throw new Error('Analiza a fost lăsată să continue în fundal.');
   try {
-    return await analyzeMathImage(mode, image, requestId, session);
+    return await send(session);
   } catch (error) {
     assertSessionActive(session);
     if (!callableCode(error).endsWith('/aborted')) throw error;
@@ -136,6 +173,6 @@ export async function analyzeOrResumeMathImage(
     if (existing) return existing;
     if (shouldStop()) throw error;
     // An expired server lease is retryable with the same idempotency key.
-    return analyzeMathImage(mode, image, requestId, session);
+    return send(session);
   }
 }

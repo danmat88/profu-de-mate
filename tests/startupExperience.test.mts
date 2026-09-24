@@ -20,14 +20,14 @@ const deletionSource = await readFile(new URL('../src/services/dataManagement.ts
 const homeSource = await readFile(new URL('../src/screens/HomeScreen.tsx', import.meta.url), 'utf8');
 const paywallSource = await readFile(new URL('../src/screens/PaywallScreen.tsx', import.meta.url), 'utf8');
 
-test('startup prepares commercial identity before revealing the first Home frame', () => {
+test('startup prepares local identity but does not hold Home behind commercial network refresh', () => {
   assert.match(appSource, /const firebaseSession = initializeFirebaseServices\(\)/);
   assert.match(appSource, /const cachedAccessForSession = firebaseSession\.then\(\(\) => readCachedCommercialAccess\(\)\)/);
   assert.match(appSource, /Promise\.all\(\[[\s\S]*settleStartupTask\(preloadCriticalAppAssets\(\)[\s\S]*settleStartupTask\(preparePendingAnalysisOnStartup\(\)[\s\S]*settleStartupTask\(cachedAccessForSession/);
   assert.match(appSource, /<CommercialProvider initialAccess=\{startup\.initialAccess\}>/);
   assert.match(appSource, /onReady=\{\(\) => setNavigationReady\(true\)\}/);
-  assert.match(appSource, /startupReady: commercialStartupReady/);
-  assert.match(appSource, /<LaunchSplash ready=\{navigationReady && commercialStartupReady\}/);
+  assert.doesNotMatch(appSource, /startupReady: commercialStartupReady/);
+  assert.match(appSource, /<LaunchSplash ready=\{navigationReady\}/);
   assert.match(appSource, /if \(!fontsReady \|\| !startup\)[\s\S]*styles\.preloadSurface/);
   assert.match(appSource, /preloadSurface: \{ flex: 1, backgroundColor: colors\.ink \}/);
   assert.doesNotMatch(appSource, /if \(!fontsReady \|\| !startup\) return null/);
@@ -51,31 +51,39 @@ test('critical artwork is bundled and preloaded without eagerly decoding every r
   for (const asset of ['splash-mark-v2', 'profu-mark-v2', 'profu-mascot-v2']) {
     assert.match(assetsSource, new RegExp(asset));
   }
-  for (const icon of ['camera', 'gallery', 'notebook', 'scan', 'settings', 'verify']) {
+  for (const icon of ['camera', 'gallery', 'notebook', 'practice', 'scan', 'settings', 'verify']) {
     assert.match(assetsSource, new RegExp(`iconAssets\\.${icon}`));
   }
   assert.match(assetsSource, /Asset\.loadAsync\(criticalAssetModules\)/);
   assert.match(assetsSource, /Other[\s\S]*assets lazy/);
 });
 
-test('React splash starts its entrance after readiness but can never trap an offline user', () => {
-  assert.match(splashSource, /readyRef\.current = ready/);
-  assert.match(splashSource, /requestEntryRef\.current/);
-  assert.match(splashSource, /const beginEntry = \(force = false\)/);
-  assert.match(splashSource, /if \(!force && !readyRef\.current\) return/);
-  assert.match(splashSource, /readinessWatchdog = setTimeout[\s\S]*4_800 : 6_500/);
-  assert.match(splashSource, /hardWatchdog = setTimeout\(finishOnce, reducedMotion \? 6_000 : 9_500\)/);
-  assert.ok(splashSource.indexOf('const beginEntry') < splashSource.indexOf('entryAnimation.start'));
-  assert.doesNotMatch(splashSource, /timer = setTimeout\(finishOnce, 520\)/);
+test('React splash restores the branded scene but keeps its handoff bounded and lightweight', () => {
+  assert.match(splashSource, /setTimeout\(\(\) => setImageReady\(true\), 1_200\)/);
+  assert.match(splashSource, /if \(!sceneReady \|\| !imageReady\) return/);
+  assert.match(splashSource, /if \(!ready \|\| !introComplete\) return/);
+  assert.match(splashSource, /const hardDeadline = setTimeout\(finishOnce, 2_500\)/);
+  assert.match(splashSource, /duration: 220/);
+  assert.match(splashSource, /assets\/brand\/splash-mark-v2\.png/);
+  assert.match(splashSource, /GATA DE MATEMATICĂ/);
+  assert.doesNotMatch(splashSource, /homeWipe|progressReveal|wipeSize|Animated\.delay|Animated\.loop/);
 });
 
-test('native splash hands off only to a painted scene without a decorative-only flash', () => {
+test('native splash hands off only after the branded scene and image are painted', () => {
   assert.match(appSource, /SplashScreen\.setOptions\(\{ duration: 0, fade: false \}\)/);
   assert.match(splashSource, /const \[sceneReady, setSceneReady\] = useState\(false\)/);
   assert.match(splashSource, /onLayout=\{handleSceneLayout\}/);
-  assert.match(splashSource, /if \(!sceneReady\) return undefined/);
-  assert.match(splashSource, /Animated\.parallel\(\[[\s\S]*Animated\.spring\(heroReveal[\s\S]*Animated\.timing\(orbsReveal[\s\S]*Animated\.timing\(symbolsReveal/);
-  assert.doesNotMatch(splashSource, /Animated\.sequence\(\[\s*Animated\.timing\(orbsReveal/);
+  assert.match(splashSource, /if \(!sceneReady \|\| !imageReady\) return/);
+  assert.match(splashSource, /SplashScreen\.hideAsync\(\)/);
+  assert.match(splashSource, /Animated\.timing\(opacity/);
+  assert.doesNotMatch(splashSource, /homeWipe|Animated\.delay|Animated\.loop|progressReveal/);
+});
+
+test('Home is a fixed viewport on phones and enables overflow only for accessibility text', () => {
+  assert.match(homeSource, /<HomeViewport allowScroll=\{isLargeText\}/);
+  assert.match(homeSource, /if \(allowScroll\)[\s\S]*<ScrollView/);
+  assert.match(homeSource, /viewport: \{ flex: 1/);
+  assert.match(homeSource, /cameraStageShadow: \{ flexShrink: 0, height:/);
 });
 
 test('cached access is uid-bound, expiring and display-only', () => {
@@ -120,7 +128,7 @@ test('commercial refresh has one owner, a staleness policy and identity-race pro
   assert.match(homeSource, /refreshIfStale: refreshCommercialAccessIfStale/);
   assert.match(homeSource, /refresh: refreshCommercialAccess/);
   assert.doesNotMatch(homeSource, /getCommercialAccess\(/);
-  assert.match(paywallSource, /const next = await connectGoogle\(\)/);
+  assert.match(paywallSource, /await connectGoogle\(\)/);
   assert.doesNotMatch(paywallSource, /connectGoogle\(\)[\s\S]{0,180}await refresh\(\)/);
   assert.doesNotMatch(paywallSource, /purchasePremium\(plan\)[\s\S]{0,180}await refresh\(\)/);
   assert.doesNotMatch(paywallSource, /restorePremium\(\)[\s\S]{0,180}await refresh\(\)/);
@@ -130,7 +138,6 @@ test('Home reserves a stable allowance slot and never exposes an internal verifi
   assert.doesNotMatch(homeSource, /commercialLoading \? 'Verific/);
   assert.doesNotMatch(homeSource, />Verific…</);
   assert.match(homeSource, /allowancePresentation\(access, commercialStatus\)/);
-  assert.match(homeSource, /allowancePill: \{ width: 88/);
   assert.match(homeSource, /if \(allowance\.canRetry\) void refreshCommercialAccess\(\)/);
 });
 

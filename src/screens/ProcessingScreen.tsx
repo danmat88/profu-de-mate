@@ -10,6 +10,7 @@ import { ComicButton } from '../components/ComicButton';
 import { AppIcon } from '../components/AppIcon';
 import { MiniGlyph } from '../components/MiniGlyph';
 import { FeedbackSheet } from '../components/FeedbackSheet';
+import { AnalysisActivity } from '../components/AnalysisActivity';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useCommercial } from '../context/CommercialContext';
@@ -52,11 +53,11 @@ function containedImageRect(frameWidth: number, frameHeight: number, image: Capt
 }
 
 export function ProcessingScreen({ navigation, route }: Props) {
-  const { height, gutter, contentWidth, isNarrow, isVeryShort, isShort } = useResponsiveLayout();
+  const { height, gutter, contentWidth, isNarrow, isVeryShort } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { access: commercialAccess } = useCommercial();
-  const [active, setActive] = useState(0);
+  const [preparingLesson, setPreparingLesson] = useState(false);
   const [requestKey, setRequestKey] = useState(0);
   const [takingLong, setTakingLong] = useState(false);
   const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -65,7 +66,6 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const headerEntrance = useRef(new Animated.Value(1)).current;
   const stageEntrance = useRef(new Animated.Value(1)).current;
   const copyEntrance = useRef(new Animated.Value(1)).current;
-  const jobsEntrance = useRef(new Animated.Value(1)).current;
   const messageHeaderEntrance = useRef(new Animated.Value(0)).current;
   const messageVisualEntrance = useRef(new Animated.Value(0)).current;
   const messageCardEntrance = useRef(new Animated.Value(0)).current;
@@ -73,16 +73,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const orbit = useRef(new Animated.Value(0)).current;
   const scanVisibility = useRef(new Animated.Value(1)).current;
   const bob = useRef(new Animated.Value(0)).current;
-  const progress = useRef(new Animated.Value(0)).current;
   const resumeAfterPaywall = useRef(false);
   const isCheck = route.params.mode === 'check';
-  const jobs = isCheck
-    ? ['Citesc rezolvarea', 'Verific fiecare pas', 'Pregătesc explicațiile', 'Așez verificarea']
-    : ['Citesc enunțul', 'Aleg metoda', 'Scriu explicația', 'Așez rezolvarea'];
-  const jobLabels = isCheck
-    ? ['Citesc', 'Verific', 'Explic', 'Așez']
-    : ['Citesc', 'Aleg', 'Explic', 'Așez'];
-  const stageHeight = Math.max(isVeryShort ? 220 : 270, Math.min(330, height * (isVeryShort ? 0.34 : 0.39)));
+  const stageHeight = Math.max(isVeryShort ? 184 : 240, Math.min(330, height * (isVeryShort ? 0.32 : 0.39)));
   const analysisFrameHeight = Math.max(isVeryShort ? 166 : 198, Math.min(236, stageHeight - 54));
   const analysisFrameWidth = Math.min(440, Math.max(220, contentWidth - 8));
   const analysisImageRect = containedImageRect(analysisFrameWidth, analysisFrameHeight, route.params.image);
@@ -183,11 +176,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
       return undefined;
     }
     const easing = Easing.out(Easing.cubic);
-    const entrance = Animated.sequence([
-      Animated.timing(messageHeaderEntrance, { toValue: 1, duration: 130, easing, useNativeDriver: true }),
+    const entrance = Animated.parallel([
+      Animated.timing(messageHeaderEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
       Animated.timing(messageVisualEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
-      Animated.timing(messageCardEntrance, { toValue: 1, duration: 200, easing, useNativeDriver: true }),
-      Animated.timing(messageActionsEntrance, { toValue: 1, duration: 170, easing, useNativeDriver: true }),
+      Animated.timing(messageCardEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
+      Animated.timing(messageActionsEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
     ]);
     entrance.start();
     return () => entrance.stop();
@@ -219,34 +212,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
     savePendingAnalysis(route.params.mode, route.params.image, route.params.requestId, route.params.userId);
     setScreenState({ kind: 'analyzing' });
     setTakingLong(false);
-    setActive(0);
-    progress.stopAnimation();
-    progress.setValue(0);
+    setPreparingLesson(false);
     scanVisibility.stopAnimation();
     scanVisibility.setValue(1);
 
-    const moveProgressToStep = (step: number) => {
-      const nextValue = step / 3;
-      progress.stopAnimation();
-      if (reducedMotion) progress.setValue(nextValue);
-      else Animated.timing(progress, {
-        toValue: nextValue,
-        duration: 320,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }).start();
-    };
-
-    const secondStage = setTimeout(() => {
-      if (!mounted) return;
-      setActive(1);
-      moveProgressToStep(1);
-    }, 1_400);
-    const thirdStage = setTimeout(() => {
-      if (!mounted) return;
-      setActive(2);
-      moveProgressToStep(2);
-    }, 3_800);
     const slowStage = setTimeout(() => {
       if (mounted) setTakingLong(true);
     }, 20_000);
@@ -261,11 +230,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
     )
       .then(async ({ lessonId, result }) => {
         if (!isActive()) return;
-        progress.stopAnimation();
         let lessonParams: RootStackParamList['Lesson'] | undefined;
         let lessonPresentation: Promise<boolean> | undefined;
         if (result.status === 'ready' && lessonId) {
-          setActive(3);
+          setPreparingLesson(true);
           orbit.stopAnimation();
           Animated.timing(scanVisibility, {
             toValue: 0,
@@ -297,22 +265,13 @@ export function ProcessingScreen({ navigation, route }: Props) {
             setScreenState({ kind: 'error', message: 'Nu am putut salva lecția. Încearcă din nou.' });
           }
         };
-        if (reducedMotion) {
-          progress.setValue(1);
-          await finish();
-        } else {
-          await new Promise<void>((resolve) => {
-            Animated.timing(progress, { toValue: 1, duration: 180, useNativeDriver: false }).start(() => resolve());
-          });
-          await finish();
-        }
+        await finish();
       })
       .catch((error) => {
         if (!isActive()) return;
         recordDiagnosticError('analysis_request', error);
         // Preserve the request id after transport failures so retry first
         // looks up the server result instead of charging for a second request.
-        progress.stopAnimation();
         const commercial = commercialGateFromError(error);
         setScreenState(commercial
           ? { kind: 'commercial', message: commercial.message, reason: commercial.reason, access: commercial.access }
@@ -321,13 +280,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
     return () => {
       mounted = false;
-      clearTimeout(secondStage);
-      clearTimeout(thirdStage);
       clearTimeout(slowStage);
-      progress.stopAnimation();
       scanVisibility.stopAnimation();
     };
-  }, [copyEntrance, headerEntrance, jobsEntrance, navigation, orbit, progress, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, route.params.userId, scanVisibility, sceneReady, stageEntrance]);
+  }, [navigation, orbit, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, route.params.userId, scanVisibility, sceneReady]);
 
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
@@ -418,6 +374,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             <Text style={styles.stopText}>ACASĂ</Text>
           </Pressable>
         </Animated.View>
+        <ScrollView style={styles.analysisScroll} contentContainerStyle={styles.analysisContent} bounces={false} showsVerticalScrollIndicator={false}>
         <Animated.View style={[styles.stage, { height: stageHeight, opacity: stageEntrance, transform: [
           { translateY: stageEntrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
           { scale: stageEntrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
@@ -455,65 +412,19 @@ export function ProcessingScreen({ navigation, route }: Props) {
               {takingLong ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.' : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
             </Text>
           </Animated.View>
-          <Animated.View
-            accessible
-            accessibilityLabel={`Analiză în curs. ${jobs[active]}. Pasul ${active + 1} din ${jobs.length}.`}
-            accessibilityLiveRegion="polite"
-            style={[styles.jobs, isShort && styles.jobsCompact, {
-              opacity: jobsEntrance,
-              transform: [{ translateY: jobsEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-            }]}
-          >
-            <View style={styles.currentJob}>
-              <View style={[styles.currentJobIcon, isCheck && styles.currentJobIconCheck]}>
-                <MiniGlyph name="spark" size={16} color={colors.ink} />
-              </View>
-              <View style={styles.currentJobCopy}>
-                <Text style={[styles.currentJobEyebrow, isCheck && styles.currentJobEyebrowCheck]}>ACUM</Text>
-                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.currentJobText}>{jobs[active]}</Text>
-              </View>
-              <Text style={styles.currentJobCount}>{active + 1}/{jobs.length}</Text>
-            </View>
-            <View style={styles.timeline}>
-              <View style={styles.timelineTrack}>
-                <Animated.View style={[styles.timelineFill, isCheck && styles.timelineFillCheck, {
-                  width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                }]} />
-              </View>
-              <View style={styles.timelineSteps}>
-                {jobs.map((job, index) => {
-                  const done = index < active;
-                  const current = index === active;
-                  return (
-                    <View key={job} style={styles.timelineStep}>
-                      <View style={[
-                        styles.timelineNode,
-                        done && styles.timelineNodeDone,
-                        current && styles.timelineNodeCurrent,
-                        current && isCheck && styles.timelineNodeCurrentCheck,
-                      ]}>
-                        <MiniGlyph
-                          name={done ? 'check' : current ? 'spark' : 'dot'}
-                          size={done ? 14 : current ? 12 : 13}
-                          color={done || current ? colors.ink : '#81799C'}
-                        />
-                      </View>
-                      <Text style={[styles.timelineLabel, (done || current) && styles.timelineLabelActive]}>{jobLabels[index]}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          </Animated.View>
+          <AnalysisActivity preparing={preparingLesson} check={isCheck} />
         </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.ink },
+  safe: { flex: 1, backgroundColor: colors.ink, overflow: 'hidden' },
   sceneContent: { flex: 1 },
+  analysisScroll: { flex: 1 },
+  analysisContent: { flexGrow: 1 },
   top: { height: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18 },
   closeButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2, borderColor: '#6557A1', backgroundColor: '#2C2457', alignItems: 'center', justifyContent: 'center' },
@@ -543,28 +454,6 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.display, color: colors.paper, fontSize: 31, lineHeight: 34, textAlign: 'center' },
   titleNarrow: { fontSize: 27, lineHeight: 30 },
   subtitle: { minHeight: 36, paddingHorizontal: 8, fontFamily: fonts.body, color: '#B9B0D2', fontSize: 13, lineHeight: 17, textAlign: 'center', marginTop: 3 },
-  jobs: { marginTop: 18, marginHorizontal: 10, paddingHorizontal: 4 },
-  jobsCompact: { marginTop: 12 },
-  currentJob: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  currentJobIcon: { width: 34, height: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
-  currentJobIconCheck: { backgroundColor: colors.peach },
-  currentJobCopy: { flex: 1, minWidth: 0 },
-  currentJobEyebrow: { fontFamily: fonts.bodyBold, color: colors.lime, fontSize: 8, letterSpacing: 1.15 },
-  currentJobEyebrowCheck: { color: colors.peach },
-  currentJobText: { marginTop: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 14, lineHeight: 18 },
-  currentJobCount: { minWidth: 42, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10, borderWidth: 1, borderColor: '#50466F', backgroundColor: '#251E4B', fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10.5, letterSpacing: 0.5, textAlign: 'center', overflow: 'hidden' },
-  timeline: { height: 54, marginTop: 5, justifyContent: 'flex-start' },
-  timelineTrack: { position: 'absolute', left: '12.5%', right: '12.5%', top: 12, height: 3, borderRadius: 3, backgroundColor: '#3D345F', overflow: 'hidden' },
-  timelineFill: { height: '100%', borderRadius: 3, backgroundColor: colors.lime },
-  timelineFillCheck: { backgroundColor: colors.peach },
-  timelineSteps: { flexDirection: 'row' },
-  timelineStep: { flex: 1, alignItems: 'center' },
-  timelineNode: { width: 27, height: 27, borderRadius: 10, borderWidth: 2, borderColor: '#544B70', backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  timelineNodeDone: { borderColor: colors.ink, backgroundColor: colors.mint },
-  timelineNodeCurrent: { borderColor: colors.ink, backgroundColor: colors.lime, transform: [{ rotate: '-4deg' }] },
-  timelineNodeCurrentCheck: { backgroundColor: colors.peach },
-  timelineLabel: { marginTop: 5, fontFamily: fonts.bodyBold, color: '#81799C', fontSize: 9.5 },
-  timelineLabelActive: { color: colors.paper },
   messageScroll: { flex: 1 },
   messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 10 },
   messageAreaShort: { paddingTop: 8 },

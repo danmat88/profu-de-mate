@@ -18,7 +18,7 @@
         <p class="eyebrow">Politica de confidențialitate</p>
         <h1>Date puține, scop clar.</h1>
         <p class="lead">Această politică explică modul în care Daniel Matei operează aplicația Profu’ de mate și prelucrează datele utilizatorilor.</p>
-        <p class="meta">Versiune actualizată la 7 septembrie 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
+        <p class="meta">Versiune actualizată la 20 septembrie 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
 
         <div class="notice"><strong>Pe scurt:</strong> fotografia este folosită pentru analiza cerută, nu este pusă în Firebase Storage sau în Caiet, nu avem reclame și poți șterge datele aplicației din Setări.</div>
 
@@ -28,7 +28,7 @@
         <h2>2. Ce date folosim</h2>
         <ul>
           <li>un identificator Firebase anonim; dacă alegi conectarea Google, identificatorul, adresa de e-mail, numele și fotografia de profil furnizate de Google către Firebase Authentication; pentru cota zilnică, identificatorul Google este transformat server-side într-un cod HMAC opac;</li>
-          <li>fotografia problemei sau rezolvării pe care alegi să o trimiți;</li>
+          <li>fotografia sau formula problemei și rezolvarea pe care alegi să le trimiți pentru analiză;</li>
           <li>enunțul extras, explicația structurată, formulele, verdictul și starea de salvare;</li>
           <li>metadate tehnice minime pentru limitarea abuzului și evitarea procesării duble;</li>
           <li>metadate standard de conexiune înregistrate automat de infrastructură, precum adresa IP, mărimea cererii, latența și codul răspunsului;</li>
@@ -38,8 +38,9 @@
           <li>date tehnice de blocare numai dacă activezi voluntar Diagnosticarea din Setări.</li>
         </ul>
 
-        <h2>3. Cum folosim fotografia</h2>
+        <h2>3. Cum folosim fotografia sau formula</h2>
         <p>Imaginea este orientată, decupată și comprimată pe telefon, apoi este transmisă printr-o funcție Firebase securizată către Gemini Developer API pentru analiza matematică solicitată. Aplicația nu scrie fotografia în Firebase Storage și nu o include în Caiet.</p>
+        <p>Dacă folosești editorul matematic, formula problemei și, în modul verificare, rezolvarea introdusă sunt trimise prin aceeași funcție către același furnizor numai când pornești analiza. Ciornele editorului se păstrează pe telefon; enunțul și explicația generate urmează retenția lecțiilor de mai jos.</p>
         <p>Într-un proiect Gemini cu facturare activă, Google declară că prompturile și răspunsurile nu sunt folosite pentru îmbunătățirea produselor sale, dar poate păstra loguri limitate pentru detectarea încălcărilor și a abuzului, conform termenilor serviciului aplicabili la momentul folosirii.</p>
 
         <h2>4. Scopurile prelucrării</h2>
@@ -57,6 +58,8 @@
 
         <h2>6. Retenție</h2>
         <ul>
+          <li>ciornele editorului: pe telefon, separat pentru rezolvare și verificare; expiră după 7 zile fără editare și sunt eliminate la următoarea deschidere a editorului, precum și la deconectare, schimbarea contului sau ștergerea datelor;</li>
+          <li>datele locale pentru reluarea unei analize, inclusiv formula trimisă: expiră după 30 de minute și sunt curățate la următoarea verificare;</li>
           <li>lecțiile nesalvate și cache-ul unei cereri: expirare după 7 zile;</li>
           <li>contoarele zilnice și rezervările de siguranță: expirare după 35 de zile;</li>
           <li>după ștergerea unui cont Google, codul HMAC, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi;</li>

@@ -513,3 +513,92 @@ test('an account marked for deletion cannot reserve provider capacity or resurre
     await Promise.all([lifecycleRef.delete(), globalRef.delete(), profileRef.delete(), reservationRef.delete()]);
   }
 });
+
+test('daily quota resets at Bucharest midnight without a scheduled deletion and retries/refunds stay on their original day', async () => {
+  const principal = { identity: 'google', principalId: `g_${'d'.repeat(64)}` };
+  const quotaUser = 'daily-midnight-test';
+  const before = Date.parse('2043-01-15T21:59:30.000Z');
+  const after = Date.parse('2043-01-15T22:00:01.000Z');
+  const previousDay = db.collection('_commercialUsage').doc(`${principal.principalId}_2043-01-15`);
+  const nextDay = db.collection('_commercialUsage').doc(`${principal.principalId}_2043-01-16`);
+  const oldRequest = 'daily-before-midnight';
+  const newRequest = 'daily-after-midnight';
+  try {
+    await previousDay.set({ requests: 4, requestIds: ['earlier-1', 'earlier-2', 'earlier-3', 'earlier-4'] });
+    const last = await reserveAnalysisQuota(db, quotaUser, oldRequest, principal, before);
+    assert.equal(last.remaining, 0);
+    assert.equal(last.resetAt, '2043-01-15T22:00:00.000Z');
+    assert.equal((await readCommercialAccess(db, quotaUser, principal, after)).remaining, 5);
+    assert.equal((await previousDay.get()).data()?.requests, 5, 'Reset does not rely on Firestore TTL deletion.');
+
+    await Promise.all([
+      reserveAnalysisQuota(db, quotaUser, oldRequest, principal, after),
+      reserveAnalysisQuota(db, quotaUser, oldRequest, principal, after),
+    ]);
+    assert.equal((await nextDay.get()).exists, false, 'Retrying yesterday’s reservation does not spend today twice.');
+    await reserveAnalysisQuota(db, quotaUser, newRequest, principal, after);
+    await Promise.all([
+      settleAnalysisQuota(db, principal.principalId, oldRequest, false, () => undefined),
+      settleAnalysisQuota(db, principal.principalId, oldRequest, false, () => undefined),
+    ]);
+    assert.equal((await previousDay.get()).data()?.requests, 4);
+    assert.equal((await nextDay.get()).data()?.requests, 1, 'A refund after midnight returns only yesterday’s slot.');
+    await settleAnalysisQuota(db, principal.principalId, newRequest, true, () => undefined);
+    assert.equal((await readCommercialAccess(db, quotaUser, principal, after)).remaining, 4);
+  } finally {
+    await Promise.all([
+      previousDay.delete(), nextDay.delete(),
+      db.collection('_commercialUsers').doc(principal.principalId).delete(),
+      ...[oldRequest, newRequest].map((request) => db.collection('_commercialReservations').doc(`${principal.principalId}_${request}`).delete()),
+    ]);
+  }
+});
+
+test('concurrent requests on separate devices cannot both consume the final daily slot', async () => {
+  const principal = { identity: 'google', principalId: `g_${'e'.repeat(64)}` };
+  const quotaUser = 'daily-concurrent-test';
+  const at = Date.parse('2043-01-17T10:00:00.000Z');
+  const daily = db.collection('_commercialUsage').doc(`${principal.principalId}_2043-01-17`);
+  const requests = ['daily-last-slot-device-a', 'daily-last-slot-device-b'];
+  try {
+    await daily.set({ requests: 4, requestIds: ['earlier-1', 'earlier-2', 'earlier-3', 'earlier-4'] });
+    const outcomes = await Promise.allSettled(requests.map((request) => reserveAnalysisQuota(db, quotaUser, request, principal, at)));
+    assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length, 1);
+    const rejected = outcomes.find((outcome) => outcome.status === 'rejected');
+    assert.equal(rejected?.reason?.details?.commercialReason, 'daily_exhausted');
+    assert.equal((await daily.get()).data()?.requests, 5);
+  } finally {
+    await Promise.all([
+      daily.delete(), db.collection('_commercialUsers').doc(principal.principalId).delete(),
+      ...requests.map((request) => db.collection('_commercialReservations').doc(`${principal.principalId}_${request}`).delete()),
+    ]);
+  }
+});
+
+test('guest welcome remains one-time over midnight while Premium receives a fresh daily counter', async () => {
+  const guest = { identity: 'anonymous', principalId: `i_${'d'.repeat(64)}` };
+  const premium = { identity: 'google', principalId: `g_${'f'.repeat(64)}` };
+  const quotaUser = 'daily-tier-test';
+  const before = Date.parse('2043-07-15T20:59:59.000Z');
+  const after = Date.parse('2043-07-15T21:00:00.000Z');
+  const guestProfile = db.collection('_commercialUsers').doc(guest.principalId);
+  const premiumEntitlement = db.collection('_commercialEntitlements').doc(premium.principalId);
+  const previousDaily = db.collection('_commercialUsage').doc(`${premium.principalId}_2043-07-15`);
+  try {
+    await Promise.all([
+      guestProfile.set({ welcomeRequests: 5 }),
+      premiumEntitlement.set({ active: true, productId: 'test-premium' }),
+      previousDaily.set({ requests: 30 }),
+    ]);
+    assert.equal((await readCommercialAccess(db, quotaUser, premium, before)).remaining, 0);
+    const newPremium = await readCommercialAccess(db, quotaUser, premium, after);
+    assert.equal(newPremium.tier, 'premium');
+    assert.equal(newPremium.remaining, 30);
+    const sameGuest = await readCommercialAccess(db, quotaUser, guest, after);
+    assert.equal(sameGuest.remaining, 0);
+    assert.equal(sameGuest.resetAt, null);
+    assert.equal(sameGuest.reason, 'welcome_exhausted');
+  } finally {
+    await Promise.all([guestProfile.delete(), premiumEntitlement.delete(), previousDaily.delete()]);
+  }
+});

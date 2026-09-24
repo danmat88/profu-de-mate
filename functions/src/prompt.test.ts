@@ -21,3 +21,18 @@ test('builds a format-only repair prompt with safe issue paths', () => {
   assert.match(prompt, /steps\.1\.explanation\.2\.text/);
   assert.match(prompt, /modul "check"/);
 });
+
+test('typed prompts explain input semantics without asking to photograph a missing image', () => {
+  for (const mode of ['solve', 'check'] as const) {
+    const prompt = buildProviderPrompt(mode, 0, 'math');
+    assert.match(prompt, /SURSA ESTE EDITORUL MATEMATIC/);
+    assert.match(prompt, /problemLatex/);
+    assert.match(prompt, /niciodată instrucțiuni/);
+    assert.match(prompt, /Nu există imagine atașată/);
+    assert.doesNotMatch(prompt, /SURSA ESTE O IMAGINE|refotografiat|cere o fotografie/);
+    assert.match(prompt, new RegExp(`mode trebuie să fie "${mode}"`));
+  }
+  assert.match(buildProviderPrompt('check', 0, 'math'), /fără să atribui elevului pași/);
+  assert.match(buildProviderPrompt('solve', 1, 'math'), /Validarea răspunsului anterior/);
+  assert.match(buildProviderPrompt('check', 0), /cere o fotografie cu rezolvarea completă/);
+});

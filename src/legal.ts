@@ -1,5 +1,5 @@
 export const legalDocument = {
-  updatedAt: '7 septembrie 2026',
+  updatedAt: '20 septembrie 2026',
   minimumAge: 13,
   operatorName: 'Daniel Matei',
   contactEmail: 'privacy@danielmatei.dev',

@@ -54,6 +54,7 @@ test('keeps the Android window and native splash on one continuous surface', asy
   ]);
   assert.equal(config.expo?.backgroundColor, '#171337');
   assert.match(dynamicConfig, /backgroundColor: '#171337'/);
+  assert.match(dynamicConfig, /image: '\.\/assets\/brand\/splash-transparent\.png'/);
   assert.match(appSource, /preloadSurface: \{ flex: 1, backgroundColor: colors\.ink \}/);
 });
 

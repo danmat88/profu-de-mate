@@ -18,6 +18,8 @@ export function createMathProvider(apiKey: string, client = new GoogleGenAI({ ap
         store: false,
         input: request.kind === 'repair'
           ? [{ type: 'text', text: request.prompt }, { type: 'text', text: `OBIECT JSON DE CORECTAT:\n${request.source}` }]
+          : request.kind === 'math'
+            ? [{ type: 'text', text: request.prompt }, { type: 'text', text: `DATE MATEMATICE DIN EDITOR (JSON):\n${JSON.stringify({ problemLatex: request.problemLatex, ...(request.solutionLatex === undefined ? {} : { solutionLatex: request.solutionLatex }) })}` }]
           : [{ type: 'text', text: request.prompt }, { type: 'image', data: request.imageBase64, mime_type: request.mimeType }],
         response_format: { type: 'text', mime_type: 'application/json', schema: mathAnalysisJsonSchema },
         generation_config: { thinking_level: 'low', max_output_tokens: context.maxOutputTokens },

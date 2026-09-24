@@ -9,9 +9,12 @@ import { deleteAllUserData, type DataDeletionResult } from '../services/dataMana
 import { firebaseUserSessionKey, resetFirebaseInitialization } from '../services/firebase';
 import { clearFavoriteLessonsCache, prewarmFavoriteLessonsCache } from '../services/lessons';
 import { discardPendingAnalysis } from '../services/pendingAnalysis';
+import { clearMathDrafts } from '../services/mathDraft';
 import { invalidateSessionOperations } from '../services/sessionGuard';
 import { resetPurchasesForSignedOutUser } from '../services/purchases';
 import {
+  createCommercialExpiryMonitor,
+  isCommercialAccessExpired,
   isCurrentCommercialRefreshGeneration,
   shouldAutomaticallyRefreshCommercialAccess,
 } from '../services/commercialRefreshPolicy';
@@ -45,8 +48,8 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   const observedSessionKey = useRef(authSessionKey);
   const observedUserId = useRef(getAuth(getApp()).currentUser?.uid);
   const [access, setAccess] = useState<CommercialAccess | null>(initialAccess);
-  // A cached snapshot paints the hidden Home immediately, but the first reveal
-  // still waits for one authoritative refresh (or the bounded offline deadline).
+  // Access resolves independently of the visual launch. Home can display the
+  // cached allowance while this bounded initial server refresh runs.
   const [startupReady, setStartupReady] = useState(false);
   const [status, setStatus] = useState<CommercialStatus>(initialAccess ? 'ready' : 'resolving');
   const [refreshing, setRefreshing] = useState(false);
@@ -57,18 +60,25 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   const identityTransitionInFlight = useRef<Promise<CommercialAccess | null> | null>(null);
   const accountDeletionInFlight = useRef<Promise<DataDeletionResult> | null>(null);
   const identityTransitionActive = useRef(false);
+  const expiryMonitor = useRef<ReturnType<typeof createCommercialExpiryMonitor> | null>(null);
 
   const markStartupReady = useCallback(() => setStartupReady(true), []);
 
   const applyServerAccess = useCallback((next: CommercialAccess) => {
+    // A request started just before midnight may arrive after its window ends.
+    // Keep that exhausted snapshot out of the UI; the monitor asks the server
+    // for the current day instead of inventing a fresh allowance locally.
+    const expired = isCommercialAccessExpired(next, Date.now());
     accessRef.current = next;
     lastSuccessfulRefreshAt.current = Date.now();
-    setAccess(next);
-    setStatus('ready');
+    setAccess(expired ? null : next);
+    setStatus(expired ? 'resolving' : 'ready');
+    expiryMonitor.current?.reschedule();
     markStartupReady();
   }, [markStartupReady]);
 
   const clearAccessForIdentityChange = useCallback(() => {
+    expiryMonitor.current?.reset();
     accessRef.current = null;
     lastSuccessfulRefreshAt.current = 0;
     setAccess(null);
@@ -111,10 +121,31 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
       now: Date.now(),
       lastSuccessfulRefreshAt: lastSuccessfulRefreshAt.current,
       identityTransitionActive: identityTransitionActive.current,
+      access: accessRef.current,
     })) {
       return Promise.resolve(accessRef.current);
     }
     return refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const monitor = createCommercialExpiryMonitor({
+      getAccess: () => accessRef.current,
+      canRefresh: () => !identityTransitionActive.current && AppState.currentState === 'active',
+      invalidateExpiredAccess: () => {
+        accessRef.current = null;
+        lastSuccessfulRefreshAt.current = 0;
+        setAccess(null);
+        setStatus('resolving');
+      },
+      refresh,
+    });
+    expiryMonitor.current = monitor;
+    monitor.check();
+    return () => {
+      monitor.dispose();
+      if (expiryMonitor.current === monitor) expiryMonitor.current = null;
+    };
   }, [refresh]);
 
   useEffect(() => onIdTokenChanged(getAuth(getApp()), (user) => {
@@ -128,7 +159,10 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
     refreshInFlight.current = null;
     setRefreshing(false);
     clearFavoriteLessonsCache();
-    if (previousUserId !== user?.uid) discardPendingAnalysis();
+    if (previousUserId !== user?.uid) {
+      discardPendingAnalysis();
+      clearMathDrafts();
+    }
     void resetPurchasesForSignedOutUser().catch((error) => recordDiagnosticError('purchases_identity', error));
     resetFirebaseInitialization();
     clearAccessForIdentityChange();
@@ -172,7 +206,10 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
       // Credential Manager temporarily backgrounds Android while its Activity
       // is visible. The identity operation performs one authoritative refresh
       // itself, so an automatic refresh here would race the old account.
-      if (returningToForeground && !identityTransitionActive.current) void refreshIfStale();
+      if (returningToForeground && !identityTransitionActive.current) {
+        expiryMonitor.current?.check();
+        void refreshIfStale();
+      }
     });
     return () => subscription.remove();
   }, [refreshIfStale]);

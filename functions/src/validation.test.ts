@@ -32,3 +32,39 @@ test('status lookup accepts only the scoped analysis request identifier', () => 
   assert.throws(() => parseAnalysisStatusRequest({ requestId: '../another-user' }));
   assert.throws(() => parseAnalysisStatusRequest(null));
 });
+
+const validMathRequest = {
+  kind: 'math', mode: 'solve', problemLatex: '2x+1=5',
+  requestId: validRequest.requestId, installationToken: validRequest.installationToken,
+};
+
+test('accepts typed problems without an image and requires the same request credentials', () => {
+  assert.deepEqual(parseAnalyzeRequest(validMathRequest), validMathRequest);
+  assert.deepEqual(parseAnalyzeRequest({ ...validMathRequest, mode: 'check', solutionLatex: 'x=2' }),
+    { ...validMathRequest, mode: 'check', solutionLatex: 'x=2' });
+  assert.throws(() => parseAnalyzeRequest({ ...validMathRequest, requestId: '../request' }));
+  assert.throws(() => parseAnalyzeRequest({ ...validMathRequest, installationToken: '' }));
+  assert.throws(() => parseAnalyzeRequest({ ...validMathRequest, mode: 'anything' }));
+});
+
+test('typed verification requires an attempted solution and solve mode refuses one', () => {
+  for (const solutionLatex of [undefined, null, '', 'x=']) {
+    assert.throws(() => parseAnalyzeRequest({ ...validMathRequest, mode: 'check', solutionLatex }));
+  }
+  for (const solutionLatex of [null, '', 'x=2']) {
+    assert.throws(() => parseAnalyzeRequest({ ...validMathRequest, solutionLatex }));
+  }
+});
+
+test('does not accept mixed input, an unknown kind, or a malformed math expression', () => {
+  for (const request of [
+    { ...validRequest, kind: 'text' }, { ...validRequest, kind: null },
+    { ...validRequest, problemLatex: 'x' }, { ...validRequest, solutionLatex: 'x' },
+    { ...validMathRequest, mimeType: 'image/jpeg' },
+    { ...validMathRequest, imageBase64: 'AQ==' },
+    { ...validMathRequest, kind: undefined },
+    { ...validMathRequest, problemLatex: String.raw`\text{hello}` },
+    [],
+  ]) assert.throws(() => parseAnalyzeRequest(request));
+  assert.deepEqual(parseAnalyzeRequest({ ...validRequest, kind: 'image' }), validRequest);
+});

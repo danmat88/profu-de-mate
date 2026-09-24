@@ -95,7 +95,7 @@ export function LegalScreen({ navigation }: Props) {
               <View style={styles.heroIcon}><AppIcon name="privacy" size={64} /></View>
               <Text style={styles.heroEyebrow}>PE SCURT</Text>
               <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
-              <Text style={styles.heroText}>Folosim fotografia doar ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
+              <Text style={styles.heroText}>Folosim fotografia sau formula trimisă de tine ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
               <View style={styles.chips}>
                 <View style={styles.chip}><Text style={styles.chipText}>13+</Text></View>
                 <View style={[styles.chip, styles.chipLime]}><Text style={styles.chipText}>Fără reclame</Text></View>
@@ -107,6 +107,7 @@ export function LegalScreen({ navigation }: Props) {
               <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
               <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză.</Bullet>
               <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
+              <Bullet>Dacă scrii problema, trimitem formula și, la verificare, rezolvarea introdusă de tine către același serviciu. Ciorna rămâne pe telefon până alegi să pornești analiza.</Bullet>
               <Bullet>Google poate păstra temporar cererea și răspunsul numai pentru siguranță și prevenirea abuzului, conform termenilor serviciului plătit.</Bullet>
             </Section>
 
@@ -132,7 +133,7 @@ export function LegalScreen({ navigation }: Props) {
 
             <Section number="01" title="Ce date folosim">
               <Bullet>Un identificator Firebase pentru spațiul aplicației; dacă alegi Google, adresa de e-mail, numele și identificatorul contului furnizate de Google. Pentru cota zilnică, backendul transformă identificatorul Google într-un cod HMAC opac, care nu conține e-mailul.</Bullet>
-              <Bullet>Fotografia aleasă de tine și cererea de rezolvare sau verificare.</Bullet>
+              <Bullet>Fotografia sau formula aleasă de tine, rezolvarea introdusă pentru verificare și cererea de analiză.</Bullet>
               <Bullet>Soluția, verdictul, materia și starea de salvare a lecției.</Bullet>
               <Bullet>Categoria unui raport trimis de tine și, doar dacă activezi opțiunea, date tehnice de blocare.</Bullet>
               <Bullet>Starea abonamentului și produsul cumpărat, fără numărul cardului sau datele de plată.</Bullet>
@@ -150,6 +151,7 @@ export function LegalScreen({ navigation }: Props) {
 
             <Section number="04" title="Cât timp le păstrăm">
               <Bullet>Fotografia nu este stocată de aplicație în Cloud Storage sau Caiet.</Bullet>
+              <Bullet>Ciornele editorului rămân pe telefon, separat pentru rezolvare și verificare. Expiră după 7 zile fără editare și sunt eliminate la următoarea deschidere a editorului; sunt șterse și la deconectare, schimbarea contului sau ștergerea datelor. Datele locale pentru reluarea unei analize expiră după 30 de minute și sunt curățate la următoarea verificare.</Bullet>
               <Bullet>Lecția nesalvată și rezultatul tehnic temporar: expirare după 7 zile.</Bullet>
               <Bullet>Contoarele zilnice și rezervările anti-abuz: expirare după 35 de zile.</Bullet>
               <Bullet>După ștergerea unui cont Google, codul HMAC, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul folosit în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>

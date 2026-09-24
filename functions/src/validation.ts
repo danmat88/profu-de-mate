@@ -1,5 +1,6 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { flowModeSchema, type FlowMode } from './analysisSchema.js';
+import { parseMathInput } from './mathInput.js';
 
 const MAX_BASE64_LENGTH = 7_000_000;
 const MAX_IMAGE_BYTES = 5_000_000;
@@ -7,13 +8,15 @@ const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
 const REQUEST_ID_PATTERN = /^analysis-[a-z0-9]{6,16}-[a-z0-9]{6,16}$/;
 const INSTALLATION_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 
-export type AnalyzeRequest = {
+type AnalyzeRequestIdentity = {
   mode: FlowMode;
-  imageBase64: string;
-  mimeType: 'image/jpeg' | 'image/png';
   requestId: string;
   installationToken: string;
 };
+
+export type ImageAnalysisInput = { kind?: 'image'; imageBase64: string; mimeType: 'image/jpeg' | 'image/png' };
+export type MathAnalysisInput = { kind: 'math'; problemLatex: string; solutionLatex?: string };
+export type AnalyzeRequest = AnalyzeRequestIdentity & (ImageAnalysisInput | MathAnalysisInput);
 
 export type AnalysisStatusRequest = {
   requestId: string;
@@ -34,8 +37,8 @@ export function parseAnalysisStatusRequest(value: unknown): AnalysisStatusReques
 }
 
 export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
-  if (!value || typeof value !== 'object') {
-    throw new HttpsError('invalid-argument', 'Cererea nu conține o imagine validă.');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new HttpsError('invalid-argument', 'Cererea nu conține o problemă validă.');
   }
 
   const data = value as Record<string, unknown>;
@@ -44,14 +47,35 @@ export function parseAnalyzeRequest(value: unknown): AnalyzeRequest {
     throw new HttpsError('invalid-argument', 'Modul de analiză nu este valid.');
   }
 
-  if (data.mimeType !== 'image/jpeg' && data.mimeType !== 'image/png') {
-    throw new HttpsError('invalid-argument', 'Formatul imaginii nu este acceptat.');
-  }
-
   const requestId = parseRequestId(data.requestId);
 
   if (typeof data.installationToken !== 'string' || !INSTALLATION_TOKEN_PATTERN.test(data.installationToken)) {
     throw new HttpsError('invalid-argument', 'Identitatea instalării nu este validă.');
+  }
+
+  if (data.kind === 'math') {
+    if (data.imageBase64 !== undefined || data.mimeType !== undefined) {
+      throw new HttpsError('invalid-argument', 'Trimite fie o fotografie, fie problema scrisă.');
+    }
+    const problemLatex = parseMathInput(data.problemLatex, 'problemLatex');
+    if (parsedMode.data === 'solve' && data.solutionLatex !== undefined) {
+      throw new HttpsError('invalid-argument', 'Rezolvarea elevului poate fi trimisă numai pentru verificare.');
+    }
+    const solutionLatex = parsedMode.data === 'check' ? parseMathInput(data.solutionLatex, 'solutionLatex') : undefined;
+    return {
+      kind: 'math', mode: parsedMode.data, problemLatex,
+      ...(solutionLatex === undefined ? {} : { solutionLatex }),
+      requestId, installationToken: data.installationToken,
+    };
+  }
+  if (data.kind !== undefined && data.kind !== 'image') {
+    throw new HttpsError('invalid-argument', 'Tipul problemei nu este acceptat.');
+  }
+  if (data.problemLatex !== undefined || data.solutionLatex !== undefined) {
+    throw new HttpsError('invalid-argument', 'Trimite fie o fotografie, fie problema scrisă.');
+  }
+  if (data.mimeType !== 'image/jpeg' && data.mimeType !== 'image/png') {
+    throw new HttpsError('invalid-argument', 'Formatul imaginii nu este acceptat.');
   }
 
   if (typeof data.imageBase64 !== 'string' || data.imageBase64.length === 0 || data.imageBase64.length > MAX_BASE64_LENGTH) {

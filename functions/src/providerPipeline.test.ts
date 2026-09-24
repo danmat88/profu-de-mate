@@ -215,3 +215,49 @@ for (const mode of ['solve', 'check'] as const) {
     assert.ok(rejected.includes('mode'));
   });
 }
+
+for (const mode of ['solve', 'check'] as const) {
+  test(`typed ${mode} analysis preserves math data through repair and a bounded retry`, async () => {
+    const requests: ProviderGenerationRequest[] = [];
+    const events: string[] = [];
+    const problemLatex = String.raw`\frac{x}{2}=1`;
+    const solutionLatex = mode === 'check' ? 'x=2' : undefined;
+    const result = await runProviderPipeline({
+      kind: 'math', mode, problemLatex, solutionLatex,
+      beforeGenerate: async (request) => { events.push(`reserve:${request.kind}`); },
+      generate: async (request) => {
+        events.push(`generate:${request.kind}`);
+        requests.push(request);
+        if (requests.length === 1) return serialize(providerLesson({ summary: [text('x = 2')] }));
+        if (request.kind === 'repair') throw new Error('temporary repair failure');
+        return serialize(providerLesson({ mode, verdict: mode === 'check' ? 'correct' : 'not_applicable' }));
+      },
+    });
+    assert.equal(result.status, 'ready');
+    assert.equal(result.mode, mode);
+    assert.deepEqual(requests.map(request => request.kind), ['math', 'repair', 'math']);
+    assert.deepEqual(events, ['reserve:math', 'generate:math', 'reserve:repair', 'generate:repair', 'reserve:math', 'generate:math']);
+    for (const request of [requests[0], requests[2]]) {
+      assert.equal(request.kind, 'math');
+      if (request.kind !== 'math') throw new Error('Expected math request');
+      assert.equal(request.problemLatex, problemLatex);
+      assert.equal(request.solutionLatex, solutionLatex);
+      assert.equal('imageBase64' in request, false);
+      assert.equal('mimeType' in request, false);
+      assert.match(request.prompt, /SURSA ESTE EDITORUL MATEMATIC/);
+    }
+    assert.match(requests[2].prompt, /Validarea răspunsului anterior/);
+    assert.ok(result.finalAnswer.some(block => block.type === 'math' && block.rendered?.svg));
+  });
+}
+
+test('typed requests stop before provider I/O when the existing attempt budget rejects', async () => {
+  const exhausted = new Error('capacity exhausted');
+  let calls = 0;
+  await assert.rejects(() => runProviderPipeline({
+    kind: 'math', mode: 'solve', problemLatex: '2+2',
+    beforeGenerate: async () => { throw exhausted; },
+    generate: async () => { calls++; return serialize(providerLesson()); },
+  }), error => error === exhausted);
+  assert.equal(calls, 0);
+});
