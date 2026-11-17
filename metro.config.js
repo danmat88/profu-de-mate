@@ -3,12 +3,16 @@ const { getDefaultConfig } = require('expo/metro-config');
 const exclusionList = require('metro-config/private/defaults/exclusionList').default;
 
 const config = getDefaultConfig(__dirname);
-const functionsDirectory = path.resolve(__dirname, 'functions');
-const escapedFunctionsDirectory = functionsDirectory.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const separatorPattern = path.sep === '\\' ? '\\\\' : '/';
 
 config.resolver.blockList = exclusionList([
-  new RegExp(`^${escapedFunctionsDirectory}${separatorPattern}.*`),
+  // Native validation copies contain their own dependencies and emulator disk
+  // images. None of these generated files belong in the app's module graph.
+  ...['functions', 'artifacts', 'previews'].map((directory) => {
+    const absolute = path.resolve(__dirname, directory);
+    const escaped = absolute.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`^${escaped}${separatorPattern}.*`);
+  }),
 ]);
 
 module.exports = config;

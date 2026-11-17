@@ -18,6 +18,7 @@ const commercialContextSource = await readFile(new URL('../src/context/Commercia
 const lessonsSource = await readFile(new URL('../src/services/lessons.ts', import.meta.url), 'utf8');
 const deletionSource = await readFile(new URL('../src/services/dataManagement.ts', import.meta.url), 'utf8');
 const homeSource = await readFile(new URL('../src/screens/HomeScreen.tsx', import.meta.url), 'utf8');
+const homeSurfaceSource = await readFile(new URL('../src/components/home/HomeSurface.tsx', import.meta.url), 'utf8');
 const paywallSource = await readFile(new URL('../src/screens/PaywallScreen.tsx', import.meta.url), 'utf8');
 
 test('startup prepares local identity but does not hold Home behind commercial network refresh', () => {
@@ -79,11 +80,12 @@ test('native splash hands off only after the branded scene and image are painted
   assert.doesNotMatch(splashSource, /homeWipe|Animated\.delay|Animated\.loop|progressReveal/);
 });
 
-test('Home is a fixed viewport on phones and enables overflow only for accessibility text', () => {
-  assert.match(homeSource, /<HomeViewport allowScroll=\{isLargeText\}/);
-  assert.match(homeSource, /if \(allowScroll\)[\s\S]*<ScrollView/);
-  assert.match(homeSource, /viewport: \{ flex: 1/);
-  assert.match(homeSource, /cameraStageShadow: \{ flexShrink: 0, height:/);
+test('Home fills the safe-area viewport without a scrolling container', () => {
+  assert.doesNotMatch(homeSurfaceSource, /ScrollView/);
+  assert.match(homeSurfaceSource, /page: \{ flex: 1, minHeight: 0/);
+  assert.match(homeSurfaceSource, /cameraStageShadow: \{ flex: 1, minHeight: 0/);
+  assert.match(homeSurfaceSource, /paddingBottom: Math\.max\(insets\.bottom, 8\)/);
+  assert.match(homeSurfaceSource, /<ComicBackdrop \/>[\s\S]*<View style=\{styles\.homeScene\}>/);
 });
 
 test('cached access is uid-bound, expiring and display-only', () => {

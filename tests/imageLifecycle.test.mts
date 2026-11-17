@@ -18,6 +18,7 @@ const homeSource = await readFile(
   new URL('../src/screens/HomeScreen.tsx', import.meta.url),
   'utf8',
 );
+const homeSurfaceSource = await readFile(new URL('../src/components/home/HomeSurface.tsx', import.meta.url), 'utf8');
 const processingSource = await readFile(
   new URL('../src/screens/ProcessingScreen.tsx', import.meta.url),
   'utf8',
@@ -75,7 +76,7 @@ test('leaving Processing for Home preserves and resumes the same pending analysi
   assert.match(mathAnalysisSource, /waitForExistingAnalysis/);
   assert.match(homeSource, /navigation\.navigate\('Processing', \{ \.\.\.pending, origin: 'home' \}\)/);
   assert.match(homeSource, /navigation\.navigate\('MathProcessing', \{ \.\.\.pending, origin: 'home' \}\)/);
-  assert.match(homeSource, /Fotografia și progresul sunt păstrate\./);
+  assert.match(homeSurfaceSource, /Fotografia și progresul sunt păstrate\./);
   assert.match(homeSource, /useState<PendingAnalysis \| null>\(\(\) => getPreparedPendingAnalysis\(\) \?\? null\)/);
   assert.doesNotMatch(homeSource, /pendingStatusLoading|pendingAnalysis === undefined/);
   assert.match(pendingAnalysisSource, /preparedSnapshot = pending/);

@@ -15,6 +15,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './src/components/AppErrorBoundary';
 import { LaunchSplash } from './src/components/LaunchSplash';
+import { HomeMotionReadyContext } from './src/components/home/HomePrimitives';
 import { CommercialProvider, useCommercial } from './src/context/CommercialContext';
 import { useReducedMotion } from './src/hooks/useReducedMotion';
 import { CaptureScreen } from './src/screens/CaptureScreen';
@@ -77,6 +78,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
         pointerEvents={showLaunchSplash ? 'none' : 'auto'}
         importantForAccessibility={showLaunchSplash ? 'no-hide-descendants' : 'auto'}
       >
+        <HomeMotionReadyContext.Provider value={!showLaunchSplash}>
         <NavigationContainer
             key={authSessionKey ?? 'signed-out'}
             theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
@@ -86,7 +88,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
               if (route) setActiveRoute(route.name as keyof RootStackParamList);
             }}
           >
-            <StatusBar style="dark" />
+            <StatusBar style={darkSystemBars ? 'light' : 'dark'} />
             <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
               <Stack.Screen name="MathInput" component={MathInputScreen} />
@@ -102,6 +104,7 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
               <Stack.Screen name="Summary" component={SummaryScreen} />
             </Stack.Navigator>
         </NavigationContainer>
+        </HomeMotionReadyContext.Provider>
       </View>
       {showLaunchSplash ? <LaunchSplash ready={navigationReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
     </View>
