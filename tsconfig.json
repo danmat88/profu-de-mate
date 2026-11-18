@@ -4,6 +4,6 @@
     "allowImportingTsExtensions": true,
     "strict": true
   },
-  "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["functions", "tests", "artifacts", "node_modules"]
+  "include": ["index.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["functions", "tests", ".local", "node_modules"]
 }

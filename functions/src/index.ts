@@ -1,5 +1,5 @@
-import { deleteQueryInBatches } from './cleanup.js';
-import { createMathProvider } from './aiProvider.js';
+import { deleteQueryInBatches } from './infrastructure/cleanup.js';
+import { createMathProvider } from './analysis/aiProvider.js';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore';
@@ -8,16 +8,16 @@ import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { analysisRequestState, assertAnalysisLease, claimAnalysisRequest, failAnalysisRequest, REQUEST_CACHE_MS, type CachedResponse } from './analysisRequests.js';
-import { assertUserActive, beginAccountDeletion, finishAccountDeletion } from './userLifecycle.js';
-import { completeAccountMerge, createAccountMergeTicket } from './accountMerge.js';
+import { analysisRequestState, assertAnalysisLease, claimAnalysisRequest, failAnalysisRequest, REQUEST_CACHE_MS, type CachedResponse } from './analysis/analysisRequests.js';
+import { assertUserActive, beginAccountDeletion, finishAccountDeletion } from './accounts/userLifecycle.js';
+import { completeAccountMerge, createAccountMergeTicket } from './accounts/accountMerge.js';
 import {
   commercialPrincipalFromAuthToken,
   hasRecentGoogleAuthentication,
   installationPrincipalId,
   validInstallationToken,
   type CommercialPrincipal,
-} from './commercialIdentity.js';
+} from './access/commercialIdentity.js';
 import {
   bindInstallationToAccount,
   consumeProviderAttempt,
@@ -28,28 +28,28 @@ import {
   refundAnalysisQuota,
   reserveAnalysisQuota,
   settleAnalysisQuota,
-} from './commercialAccess.js';
-import { assertFirestoreSafeAnalysis } from './documentSize.js';
-import { initializeFeedbackRecord, submitFeedback } from './feedbackService.js';
-import { claimWelcomeDevice, welcomeClaimHash } from './deviceRecall.js';
+} from './access/commercialAccess.js';
+import { assertFirestoreSafeAnalysis } from './analysis/documentSize.js';
+import { initializeFeedbackRecord, submitFeedback } from './feedback/feedbackService.js';
+import { claimWelcomeDevice, welcomeClaimHash } from './access/deviceRecall.js';
 import {
   minimizeInstallationProfileForDeletion,
   removeOrRetainCommercialUsage,
   unlinkCommercialInstallations,
-} from './dataDeletion.js';
-import { ProviderCircuitBreaker } from './providerCircuitBreaker.js';
-import { ENFORCE_APP_CHECK } from './releaseSecurity.js';
-import { runProviderPipeline } from './providerPipeline.js';
-import type { RenderedMathAnalysis } from './mathRenderer.js';
+} from './accounts/dataDeletion.js';
+import { ProviderCircuitBreaker } from './analysis/providerCircuitBreaker.js';
+import { ENFORCE_APP_CHECK } from './infrastructure/releaseSecurity.js';
+import { runProviderPipeline } from './analysis/providerPipeline.js';
+import type { RenderedMathAnalysis } from './analysis/mathRenderer.js';
 import {
   parseRevenueCatWebhook,
   secureSecretEquals,
   syncRevenueCatEntitlement,
   verifyRevenueCatSignature,
-} from './revenueCat.js';
-import { deferUnsafeRevenueCatDeletions, requestRevenueCatDeletionReview } from './revenueCatDeletion.js';
-import { getAIAnalysisConfig } from './runtimeConfig.js';
-import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './validation.js';
+} from './billing/revenueCat.js';
+import { deferUnsafeRevenueCatDeletions, requestRevenueCatDeletionReview } from './billing/revenueCatDeletion.js';
+import { getAIAnalysisConfig } from './infrastructure/runtimeConfig.js';
+import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './analysis/validation.js';
 
 if (getApps().length === 0) initializeApp();
 

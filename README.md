@@ -1,36 +1,114 @@
 # Profu’ de mate
 
-Aplicație Android în limba română pentru rezolvarea și verificarea, pas cu pas, a unei probleme de matematică fotografiate. Proiectul este într-o etapă beta tehnică și **nu este încă pregătit pentru publicare în Google Play**.
+Romanian Android app for solving and checking photographed or typed mathematics problems, with explanations and a saved lesson notebook.
 
-## Începe de aici
+Built with Expo SDK 57, React Native, TypeScript, and Firebase. The publication backlog is maintained in [Google Play release checklist](docs/PLAY_STORE_RELEASE.md).
 
-[Deschide dashboardul complet de audit și lansare](./RELEASE_DASHBOARD.html)
+## Project structure
 
+```text
+src/
+  app/                       App composition, navigation, and startup
+  features/
+    home/                    Home screen and its animated surface
+    capture/                 Camera, image review, and temporary images
+    analysis/                Request processing and recovery
+    math/                    Written editor and math rendering
+    lessons/                 Lesson screens and saved notebook
+    account/                 Settings, sign-in UI, and account deletion
+    access/                  Allowances, Premium, and purchases
+    feedback/                In-app lesson reporting
+  shared/                    Reusable UI, hooks, platform services, and types
+functions/
+  src/
+    index.ts                 Firebase handler entry point
+    analysis/                AI pipeline, validation, and math rendering
+    accounts/                Account merging and deletion
+    access/                  Server allowances and device identity
+    billing/                 RevenueCat integration
+    feedback/                Report submission and triage
+    infrastructure/          Runtime configuration, cleanup, and security
+    types/                   External module declarations
+  tests/integration/         Emulator-backed backend tests
+  scripts/                   Backend provider diagnostics
+tests/
+  mobile/                    App logic, lifecycle, and UI checks
+  config/                    Build, dependency, and release checks
+  firestore/                 Firestore security rules
+  helpers/                   Test adapters
+scripts/
+  env/                       Client environment validation
+  firebase/                  Deployment and emulator commands
+  release/                   Bundle, artifact, and legal checks
+  qa/                        Math previews and isolated native validation
+  lib/                       Shared script helpers
+assets/                      Current branding, illustrations, and UI icons
+hosting/public/              Public legal, support, and deletion pages
+docs/PLAY_STORE_RELEASE.md   Publication checklist
+vendor/                      Compatibility code and its license
+.github/                     CI and dependency updates
+```
 
-## Pornire rapidă după configurarea laptopului
+The Expo entry point and Expo/Firebase configuration remain at the repository root, where the tools expect them. Generated validation output belongs in `.local/`, which is ignored by Git. Expo manages its own ignored `.expo/` cache; native `android/` and `ios/` directories are generated from the Expo configuration when needed.
+
+`index.ts` registers `src/app/App.tsx` with Expo. App composition lives in `app/`; feature screens, components, services, and utilities live together under their feature. Add subfolders only as needed. Keep `shared/` independent of features and reserve it for code used across the app. ESLint enforces that shared code cannot depend on features or app composition, and features cannot depend on app composition. Backend unit tests sit beside the modules they exercise; emulator integration tests live separately.
+
+## Local development
+
+Use Node.js 22 and npm 10 or 11, as declared in `package.json`. For a fresh checkout, install the locked dependencies:
 
 ```powershell
 npm ci
 npm --prefix functions ci
-npx --yes eas-cli@22.2.0 login
-npx firebase-tools login
+```
+
+Restore the private Firebase configuration (`google-services.json`) and authenticate the existing Expo and Firebase tools. Keep signing material in the ignored `credentials/` directory; `credentials.json` describes its local location. `.env.example` lists the client environment variables.
+
+With dependencies and private configuration already present:
+
+```powershell
 npm start
 ```
 
-`npm start` descarcă mediul EAS `development` în `.env.local`, îl validează și pornește Expo Dev Client în LAN. Este necesar și `google-services.json`, restaurat privat conform documentului de handoff.
+This pulls the EAS `development` environment into `.env.local`, validates it, and starts Metro on the local network. Open the installed development build on a phone connected to that network or providing the laptop’s hotspot.
 
-## Verificări înainte de commit
+To reuse an already configured local environment without pulling it again:
+
+```powershell
+npm run dev:phone:local
+```
+
+## Validation
 
 ```powershell
 npm run check
-npm run functions:test
 npm run test:mobile
+npm run functions:test
 npm run test:rules
 npm run legal:check
+npm run release:bundle-check
 ```
 
-Toate comenzile trebuie să se încheie fără eroare înainte de commit sau build. Pentru publicarea infrastructurii Firebase se folosește `npm run deploy:firebase`; comanda publică numai Functions, regulile/indexurile Firestore și Hosting, deoarece aplicația nu folosește Firebase Storage.
+`test:rules` runs against a local demo Firebase project. It does not deploy infrastructure. Firebase logs from the test and deployment wrappers are collected under `.local/logs/`.
 
-## Fișiere care nu intră în Git
+For optional visual or native diagnostics:
 
-Nu se publică `.env`, `.env.local`, `functions/.env*`, `google-services.json`, chei de semnare, tokenuri App Check, APK/AAB sau foldere native generate (`android/`, `ios/`). Exemplele din `.env.example` conțin numai numele variabilelor.
+```powershell
+node --experimental-strip-types scripts/qa/generate-math-goldens.mjs
+node scripts/qa/prepare-native-validation.mjs
+```
+
+The math renderer needs `npm run functions:build` first. Generated math previews and isolated native workspaces stay under `.local/`.
+
+## Release and operations
+
+The EAS `development` profile creates a development APK. The `production` profile creates the Android App Bundle used for Google Play. Follow the [release checklist](docs/PLAY_STORE_RELEASE.md) for signing, Play Integrity, store declarations, testing, and rollout.
+
+```powershell
+node scripts/firebase/deploy-firebase.mjs --preflight-only
+npm run deploy:firebase
+```
+
+The preflight command checks local deployment configuration. The deployment command publishes Functions, Firestore rules/indexes, and Hosting to the configured Firebase project. Backend environment files live under `functions/` and remain private.
+
+Runtime diagnostic collection in the app is part of production support. Generated debug logs, screenshots, APKs, and historical implementation reports are not source files and do not belong in Git.

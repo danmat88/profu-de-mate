@@ -4,14 +4,13 @@ const globals = require('globals');
 
 module.exports = defineConfig([
   globalIgnores([
-    'artifacts/**',
+    '.local/**',
     'android/**',
     'ios/**',
     '.expo/**',
     'dist/**',
     'functions/lib/**',
     'hosting/public/**',
-    'previews/**',
   ]),
   expoConfig,
   {
@@ -31,6 +30,28 @@ module.exports = defineConfig([
     files: ['**/*.{js,cjs,mjs}'],
     languageOptions: {
       globals: globals.node,
+    },
+  },
+  {
+    files: ['src/shared/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/features/**', '**/app/**'],
+          message: 'Shared foundations must stay independent of app composition and features.',
+        }],
+      }],
+    },
+  },
+  {
+    files: ['src/features/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [{
+          group: ['**/app/**'],
+          message: 'App composition imports features; features must not depend on app composition.',
+        }],
+      }],
     },
   },
 ]);

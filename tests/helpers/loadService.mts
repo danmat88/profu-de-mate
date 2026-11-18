@@ -1,5 +1,5 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { resolve, dirname, relative, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
@@ -23,7 +23,11 @@ export function serviceLoader(mocks: Record<string, unknown>, globals: Record<st
         if (specifier in mocks) return mocks[specifier];
         if (specifier.startsWith('.')) {
           const base = resolve(dirname(fullPath), specifier);
-          const target = existsSync(base) ? base : base + '.ts';
+          const target = [base, base + '.ts', base + '.tsx', resolve(base, 'index.ts'), base.replace(/\.js$/, '.ts')]
+            .find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+          if (!target) throw new Error('Unresolved local dependency: ' + specifier);
+          const mockKey = relative(process.cwd(), target).split(sep).join('/');
+          if (mockKey in mocks) return mocks[mockKey];
           return load(target);
         }
         if (specifier.startsWith('node:')) return nativeRequire(specifier);

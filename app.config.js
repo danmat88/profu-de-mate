@@ -1,4 +1,4 @@
-const { validateClientEnvironment } = require('./scripts/validate-client-env.cjs');
+const { validateClientEnvironment } = require('./scripts/env/validate-client-env.cjs');
 
 const PROFILE_ENVIRONMENT = {
   development: 'development',

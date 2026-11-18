@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { GoogleGenAI } from '@google/genai';
-import { mathAnalysisJsonSchema } from '../lib/analysisSchema.js';
-import { runProviderPipeline } from '../lib/providerPipeline.js';
+import { mathAnalysisJsonSchema } from '../lib/analysis/analysisSchema.js';
+import { runProviderPipeline } from '../lib/analysis/providerPipeline.js';
 
 const imagePath = process.argv[2] ? resolve(process.argv[2]) : '';
 const mode = process.argv[3] === 'check' ? 'check' : 'solve';

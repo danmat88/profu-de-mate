@@ -1,0 +1,370 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { getAuth } from 'firebase-admin/auth';
+import {
+  FieldPath,
+  FieldValue,
+  type Firestore,
+  type Query,
+  type Transaction,
+  Timestamp,
+} from 'firebase-admin/firestore';
+import { HttpsError } from 'firebase-functions/v2/https';
+import { bucharestQuotaWindow, COMMERCIAL_PROFILE_RETENTION_MS, getCommercialConfig } from '../access/commercialAccess.js';
+import { assertUserActive, finishAccountDeletion } from './userLifecycle.js';
+import { analysisRequestState } from '../analysis/analysisRequests.js';
+import { isCommercialPrincipalId } from '../access/commercialIdentity.js';
+
+// Account selection can outlive a short callable timeout or an app restart.
+// Keep the signed, installation-bound handoff recoverable without forcing the
+// user to lose the anonymous notebook after Google authentication succeeds.
+const MERGE_TICKET_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+const COMPLETED_TICKET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+function numeric(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function transferHash(requestId: string): string {
+  return createHash('sha256').update(`quota-transfer:${requestId}`, 'utf8').digest('hex');
+}
+
+function transferHashes(value: unknown): string[] {
+  return stringArray(value).filter((item) => /^[a-f0-9]{64}$/.test(item));
+}
+
+function legacyTransferHashes(sourcePrincipalId: string, count: number): string[] {
+  if (!isCommercialPrincipalId(sourcePrincipalId) || !sourcePrincipalId.startsWith('i_')) return [];
+  return Array.from({ length: count }, (_, index) => (
+    createHash('sha256')
+      .update(`quota-transfer:legacy:${sourcePrincipalId}:${index}`, 'utf8')
+      .digest('hex')
+  ));
+}
+
+export function mergeConsumedUsage(
+  targetUsed: unknown,
+  targetRequestIds: unknown,
+  targetTransferHashes: unknown,
+  sourceTodayRequestIds: unknown,
+  sourceTodayRetainedRequests: unknown,
+  sourceTodayTransferHashes: unknown,
+  sourcePrincipalId: string,
+  limit: number,
+): { used: number; requestIds: string[]; transferHashes: string[] } {
+  const targetIds = stringArray(targetRequestIds);
+  const sourceIds = stringArray(sourceTodayRequestIds);
+  const targetHashes = new Set([
+    ...transferHashes(targetTransferHashes),
+    ...targetIds.map(transferHash),
+  ]);
+  const sourceRetainedHashes = [...new Set(transferHashes(sourceTodayTransferHashes))];
+  const legacyRetainedCount = Math.max(
+    0,
+    numeric(sourceTodayRetainedRequests) - sourceRetainedHashes.length,
+  );
+  // Profiles minimized by the immediately previous schema retained only a
+  // count. Derive stable, one-way placeholders from the already opaque
+  // installation principal so reconnecting the same profile stays idempotent.
+  const legacyHashes = legacyTransferHashes(sourcePrincipalId, legacyRetainedCount);
+  const sourceHashes = [...new Set([
+    ...sourceIds.map(transferHash),
+    ...sourceRetainedHashes,
+    ...legacyHashes,
+  ])];
+  const uniqueSourceAdds = sourceHashes.filter((hash) => !targetHashes.has(hash)).length;
+  const requestIds = [...new Set([...targetIds, ...sourceIds])].slice(-limit);
+  return {
+    used: Math.min(
+      limit,
+      Math.max(numeric(targetUsed), targetIds.length) + uniqueSourceAdds,
+    ),
+    requestIds,
+    transferHashes: [...new Set([
+      ...transferHashes(targetTransferHashes),
+      ...sourceHashes,
+    ])].slice(-limit),
+  };
+}
+
+export async function createAccountMergeTicket(
+  db: Firestore,
+  sourceUserId: string,
+  sourcePrincipalId: string,
+  now = Date.now(),
+): Promise<string> {
+  if (!isCommercialPrincipalId(sourcePrincipalId) || !sourcePrincipalId.startsWith('i_')) {
+    throw new HttpsError('failed-precondition', 'Identitatea instalării nu este validă.');
+  }
+  const newTicket = randomUUID();
+  const profileRef = db.collection('_commercialUsers').doc(sourcePrincipalId);
+  return db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, db, sourceUserId);
+    const profile = await transaction.get(profileRef);
+    const activeTicket = typeof profile.data()?.activeMergeTicket === 'string'
+      ? profile.data()?.activeMergeTicket as string
+      : null;
+    const activeExpiry = profile.data()?.activeMergeExpiresAt instanceof Timestamp
+      ? profile.data()?.activeMergeExpiresAt.toMillis()
+      : 0;
+    if (activeTicket && activeExpiry > now && /^[a-f0-9-]{36}$/i.test(activeTicket)) {
+      const activeSnapshot = await transaction.get(db.collection('_accountMergeTickets').doc(activeTicket));
+      if (activeSnapshot.data()?.sourceUserId === sourceUserId
+        && activeSnapshot.data()?.sourcePrincipalId === sourcePrincipalId
+        && activeSnapshot.data()?.state === 'issued') {
+        return activeTicket;
+      }
+    }
+
+    const expiresAt = Timestamp.fromMillis(now + MERGE_TICKET_LIFETIME_MS);
+    transaction.create(db.collection('_accountMergeTickets').doc(newTicket), {
+      sourceUserId,
+      sourcePrincipalId,
+      state: 'issued',
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt,
+    });
+    transaction.set(profileRef, {
+      userId: sourceUserId,
+      principalId: sourcePrincipalId,
+      activeMergeTicket: newTicket,
+      activeMergeExpiresAt: expiresAt,
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
+    }, { merge: true });
+    return newTicket;
+  });
+}
+
+async function assertMergeSource(transaction: Transaction, db: Firestore, uid: string, ticket: string): Promise<void> {
+  const marker = await transaction.get(db.collection('_accountLifecycle').doc(uid));
+  if (marker.data()?.state !== 'merging' || marker.data()?.ticket !== ticket) {
+    throw new HttpsError('aborted', 'Transferul datelor nu mai este activ.');
+  }
+}
+
+async function copyLessons(db: Firestore, sourceUserId: string, targetUserId: string, ticket: string): Promise<number> {
+  const source = db.collection('users').doc(sourceUserId).collection('lessons');
+  const target = db.collection('users').doc(targetUserId).collection('lessons');
+  let copied = 0;
+  let lastId: string | null = null;
+  while (true) {
+    const page = await db.runTransaction(async (transaction) => {
+      await assertUserActive(transaction, db, targetUserId);
+      await assertMergeSource(transaction, db, sourceUserId, ticket);
+      let query = source.orderBy(FieldPath.documentId()).limit(4);
+      if (lastId) query = query.startAfter(lastId);
+      const snapshot = await transaction.get(query);
+      const refs = snapshot.docs.map((document) => target.doc(document.id));
+      const existing = await Promise.all(refs.map((ref) => transaction.get(ref)));
+      let count = 0;
+      snapshot.docs.forEach((document, index) => {
+        if (!existing[index].exists) { transaction.create(refs[index], document.data()); count += 1; }
+      });
+      return { count, size: snapshot.size, lastId: snapshot.docs.at(-1)?.id ?? null };
+    });
+    copied += page.count;
+    lastId = page.lastId;
+    if (page.size < 4) return copied;
+  }
+}
+
+async function reassignFeedback(db: Firestore, sourceUserId: string, targetUserId: string, ticket: string): Promise<void> {
+  while (true) {
+    const count = await db.runTransaction(async (transaction) => {
+      await assertUserActive(transaction, db, targetUserId);
+      await assertMergeSource(transaction, db, sourceUserId, ticket);
+      const snapshot = await transaction.get(db.collection('feedback').where('userId', '==', sourceUserId).limit(4));
+      snapshot.docs.forEach((document) => transaction.update(document.ref, { userId: targetUserId }));
+      return snapshot.size;
+    });
+    if (count < 4) return;
+  }
+}
+async function deleteQueryInBatches(db: Firestore, query: Query): Promise<void> {
+  while (true) {
+    const snapshot = await query.limit(400).get();
+    if (snapshot.empty) return;
+    const batch = db.batch();
+    snapshot.docs.forEach((document) => batch.delete(document.ref));
+    await batch.commit();
+  }
+}
+
+export async function cleanupMergedSource(db: Firestore, sourceUserId: string): Promise<void> {
+  await Promise.all([
+    db.recursiveDelete(db.collection('users').doc(sourceUserId)),
+    deleteQueryInBatches(db, db.collection('_aiUsage').where('userId', '==', sourceUserId)),
+    deleteQueryInBatches(db, db.collection('_analysisRequests').where('userId', '==', sourceUserId)),
+    deleteQueryInBatches(db, db.collection('_commercialReservations').where('userId', '==', sourceUserId)),
+    db.collection('_feedbackRateLimits').doc(sourceUserId).delete(),
+  ]);
+  await getAuth().deleteUser(sourceUserId).catch((error: unknown) => {
+    const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+    if (code !== 'auth/user-not-found') throw error;
+  });
+  await finishAccountDeletion(db, sourceUserId);
+}
+
+export async function completeAccountMerge(args: {
+  db: Firestore;
+  ticket: string;
+  targetUserId: string;
+  targetPrincipalId: string;
+  expectedSourcePrincipalId: string;
+  now?: number;
+}): Promise<{ merged: true; copiedLessons: number }> {
+  const now = args.now ?? Date.now();
+  if (!isCommercialPrincipalId(args.targetPrincipalId) || !args.targetPrincipalId.startsWith('g_')) {
+    throw new HttpsError('failed-precondition', 'Identitatea Google nu este validă.');
+  }
+  if (!isCommercialPrincipalId(args.expectedSourcePrincipalId) || !args.expectedSourcePrincipalId.startsWith('i_')) {
+    throw new HttpsError('failed-precondition', 'Identitatea instalării nu este validă.');
+  }
+  const ticketRef = args.db.collection('_accountMergeTickets').doc(args.ticket);
+  const ticketSnapshot = await ticketRef.get();
+  const ticket = ticketSnapshot.data();
+  const sourceUserId = typeof ticket?.sourceUserId === 'string' ? ticket.sourceUserId : null;
+  const sourcePrincipalId = typeof ticket?.sourcePrincipalId === 'string' ? ticket.sourcePrincipalId : null;
+  if (!sourceUserId || sourcePrincipalId !== args.expectedSourcePrincipalId) {
+    throw new HttpsError('failed-precondition', 'Legătura dintre conturi nu este validă.');
+  }
+  const keepsSameUser = sourceUserId === args.targetUserId;
+  const expiresAt = ticket?.expiresAt instanceof Timestamp ? ticket.expiresAt.toMillis() : 0;
+  if (ticket?.state === 'issued' && expiresAt < now) {
+    throw new HttpsError('deadline-exceeded', 'Conectarea a expirat. Încearcă din nou.');
+  }
+  if (ticket?.state === 'completed' && ticket?.targetUserId !== args.targetUserId) {
+    throw new HttpsError('permission-denied', 'Această legătură a fost deja folosită.');
+  }
+
+  const alreadyCompleted = await args.db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, args.db, args.targetUserId);
+    const current = await transaction.get(ticketRef);
+    const data = current.data();
+    if (data?.sourceUserId !== sourceUserId || data?.sourcePrincipalId !== args.expectedSourcePrincipalId) {
+      throw new HttpsError('failed-precondition', 'Legătura dintre conturi nu este validă.');
+    }
+    if (data?.state === 'completed') {
+      if (data.targetUserId !== args.targetUserId) throw new HttpsError('permission-denied', 'Legătura a fost deja folosită.');
+      return true;
+    }
+    if (data?.state !== 'issued' && data?.state !== 'merging') throw new HttpsError('failed-precondition', 'Legătura nu este activă.');
+    if (data.state === 'issued' && (!(data.expiresAt instanceof Timestamp) || data.expiresAt.toMillis() < now)) throw new HttpsError('deadline-exceeded', 'Conectarea a expirat.');
+    if (data?.state === 'merging' && data?.targetUserId !== args.targetUserId) {
+      throw new HttpsError('aborted', 'Conturile sunt deja în curs de conectare.');
+    }
+    const analyses = await transaction.get(args.db.collection('_analysisRequests').where('userId', '==', sourceUserId).where('state', '==', 'processing'));
+    if (analyses.docs.some((doc) => analysisRequestState(doc.data(), now) === 'processing')) throw new HttpsError('aborted', 'Așteaptă finalizarea analizei înainte să conectezi contul.');
+    if (!keepsSameUser) {
+      const markerRef = args.db.collection('_accountLifecycle').doc(sourceUserId);
+      const marker = await transaction.get(markerRef);
+      if (marker.exists && (marker.data()?.state !== 'merging' || marker.data()?.ticket !== args.ticket)) throw new HttpsError('aborted', 'Datele sursă nu mai pot fi transferate.');
+      transaction.set(markerRef, { state: 'merging', ticket: args.ticket, updatedAt: FieldValue.serverTimestamp() });
+    }
+    transaction.update(ticketRef, {
+      state: 'merging',
+      targetUserId: args.targetUserId,
+      targetPrincipalId: args.targetPrincipalId,
+      updatedAt: FieldValue.serverTimestamp(),
+      // A frozen source requires this ticket for recovery. TTL must not remove
+      // it while a partial transfer is waiting for a retry or operator action.
+      expiresAt: FieldValue.delete(),
+    });
+  });
+
+  if (alreadyCompleted) {
+    if (!keepsSameUser) await cleanupMergedSource(args.db, sourceUserId);
+    return { merged: true, copiedLessons: 0 };
+  }
+  const copiedLessons = keepsSameUser ? 0 : await copyLessons(args.db, sourceUserId, args.targetUserId, args.ticket);
+  if (!keepsSameUser) await reassignFeedback(args.db, sourceUserId, args.targetUserId, args.ticket);
+
+  const commercialConfig = await getCommercialConfig(args.db, now);
+  const window = bucharestQuotaWindow(now);
+  const sourceProfileRef = args.db.collection('_commercialUsers').doc(sourcePrincipalId);
+  const targetProfileRef = args.db.collection('_commercialUsers').doc(args.targetPrincipalId);
+  const targetDailyRef = args.db.collection('_commercialUsage').doc(`${args.targetPrincipalId}_${window.day}`);
+  const targetEntitlementRef = args.db.collection('_commercialEntitlements').doc(args.targetPrincipalId);
+
+  await args.db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, args.db, args.targetUserId);
+    if (!keepsSameUser) await assertMergeSource(transaction, args.db, sourceUserId, args.ticket);
+    const [currentTicket, sourceProfile, targetDaily, targetEntitlement] = await Promise.all([
+      transaction.get(ticketRef),
+      transaction.get(sourceProfileRef),
+      transaction.get(targetDailyRef),
+      transaction.get(targetEntitlementRef),
+    ]);
+    const data = currentTicket.data();
+    if (data?.targetUserId !== args.targetUserId || !['merging', 'completed'].includes(data?.state)) {
+      throw new HttpsError('aborted', 'Legătura dintre conturi nu mai este validă.');
+    }
+    if (data.state === 'completed') return;
+
+    const entitlementData = targetEntitlement.data();
+    const entitlementExpiry = entitlementData?.expiresAt instanceof Timestamp ? entitlementData.expiresAt.toMillis() : null;
+    const premiumActive = entitlementData?.active === true && (entitlementExpiry === null || entitlementExpiry > now);
+    const dailyLimit = premiumActive ? commercialConfig.premiumDailyLimit : commercialConfig.freeDailyLimit;
+    const targetUsed = numeric(targetDaily.data()?.requests);
+    const sourceTodayRequestIds = sourceProfile.data()?.welcomeTodayDay === window.day
+      ? stringArray(sourceProfile.data()?.welcomeTodayRequestIds)
+      : [];
+    const sourceTodayRetainedRequests = sourceProfile.data()?.welcomeTodayDay === window.day
+      ? numeric(sourceProfile.data()?.welcomeTodayRetainedRequests)
+      : 0;
+    const sourceTodayTransferHashes = sourceProfile.data()?.welcomeTodayDay === window.day
+      ? transferHashes(sourceProfile.data()?.welcomeTodayTransferHashes)
+      : [];
+    const merged = mergeConsumedUsage(
+      targetUsed,
+      targetDaily.data()?.requestIds,
+      targetDaily.data()?.transferHashes,
+      sourceTodayRequestIds,
+      sourceTodayRetainedRequests,
+      sourceTodayTransferHashes,
+      sourcePrincipalId,
+      dailyLimit,
+    );
+
+    transaction.set(targetDailyRef, {
+      principalId: args.targetPrincipalId,
+      day: window.day,
+      requests: merged.used,
+      requestIds: merged.requestIds,
+      transferHashes: merged.transferHashes,
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + 35 * 24 * 60 * 60 * 1000),
+    }, { merge: true });
+    transaction.set(targetProfileRef, {
+      userId: args.targetUserId,
+      principalId: args.targetPrincipalId,
+      mergedAnonymousAccountAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
+    }, { merge: true });
+    transaction.set(sourceProfileRef, {
+      userId: sourceUserId,
+      principalId: sourcePrincipalId,
+      welcomeLocked: FieldValue.delete(),
+      linkedAccountPrincipalId: args.targetPrincipalId,
+      activeMergeTicket: FieldValue.delete(),
+      activeMergeExpiresAt: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
+    }, { merge: true });
+    transaction.update(ticketRef, {
+      state: 'completed',
+      completedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + COMPLETED_TICKET_RETENTION_MS),
+    });
+  });
+
+  if (!keepsSameUser) await cleanupMergedSource(args.db, sourceUserId);
+  return { merged: true, copiedLessons };
+}

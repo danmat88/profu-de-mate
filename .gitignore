@@ -1,59 +1,45 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
-
-# dependencies
+# Installed dependencies and compiled backend
 node_modules/
+functions/lib/
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Native
+# Generated development, validation, and release output
+/.local/
+/.expo/
+/.firebase/
+/android/
+/ios/
+/dist/
+/web-build/
+/coverage/
 .kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-credentials.json
-google-services.json
-GoogleService-Info.plist
-
-# Metro
 .metro-health-check*
+expo-env.d.ts
+*.log
+*.tsbuildinfo
+*.apk
+*.aab
+*.apks
+*.hprof
+*.orig.*
 
-# Local visual test captures
-previews/
-/artifacts/native-check-*/
-
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# macOS
-.DS_Store
-*.pem
-
-# local env files
+# Private configuration and signing material
 .env
 .env.*
 !.env.example
-.env*.local
 .secret.local
+/credentials/
+credentials.json
+google-services.json
+GoogleService-Info.plist
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
 
-# Firebase CLI diagnostics
-.firebase/
-firebase-debug.log
-firebase-debug.*.log
-firestore-debug.log
-ui-debug.log
-
-# typescript
-*.tsbuildinfo
-
-# generated native folders
-/ios
-/android
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini

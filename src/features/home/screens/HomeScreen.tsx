@@ -1,0 +1,139 @@
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import * as ImagePicker from 'expo-image-picker';
+import { useCallback, useRef, useState } from 'react';
+import { HomeSurface } from '../components/HomeSurface';
+import { useCommercial } from '../../access/context/CommercialContext';
+import * as Haptics from '../../../shared/services/haptics';
+import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
+import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
+import type { FlowMode, RootStackParamList } from '../../../shared/types';
+import { allowancePresentation } from '../../access/utils/commercialPresentation';
+
+type Navigation = NativeStackNavigationProp<RootStackParamList>;
+
+export function HomeScreen() {
+  const navigation = useNavigation<Navigation>();
+  const {
+    access,
+    status: commercialStatus,
+    refresh: refreshCommercialAccess,
+    refreshIfStale: refreshCommercialAccessIfStale,
+  } = useCommercial();
+  const [mode, setMode] = useState<FlowMode>('solve');
+  const [galleryBusy, setGalleryBusy] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
+  const navigationLocked = useRef(false);
+  const galleryLocked = useRef(false);
+  const alive = useRef(true);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    alive.current = true;
+    navigationLocked.current = false;
+    galleryLocked.current = false;
+    void preparePendingAnalysisOnStartup().then((pending) => {
+      if (active) setPendingAnalysis(pending);
+    });
+    void refreshCommercialAccessIfStale();
+    return () => { active = false; alive.current = false; };
+  }, [refreshCommercialAccessIfStale]));
+
+  const chooseMode = (next: FlowMode) => {
+    if (next === mode || pendingAnalysis) return;
+    Haptics.selection();
+    setGalleryError(null);
+    setMode(next);
+  };
+
+  const resume = useCallback(() => {
+    const pending = getPreparedPendingAnalysis();
+    if (!pending) {
+      setPendingAnalysis(null);
+      return false;
+    }
+    if (pending.schemaVersion === 3) navigation.navigate('MathProcessing', { ...pending, origin: 'home' });
+    else navigation.navigate('Processing', { ...pending, origin: 'home' });
+    return true;
+  }, [navigation]);
+
+  const openCapture = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    if (!resume()) navigation.navigate('Capture', { mode });
+  };
+
+  const openMath = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    if (!resume()) navigation.navigate('MathInput', { mode });
+  };
+
+  const openNotebook = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    Haptics.selection();
+    navigation.navigate('Notebook');
+  };
+
+  const openGallery = useCallback(async () => {
+    if (galleryLocked.current || navigationLocked.current) return;
+    if (resume()) return;
+    galleryLocked.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    setGalleryError(null);
+    setGalleryBusy(true);
+    try {
+      const session = captureSession();
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        allowsMultipleSelection: false,
+        quality: 1,
+        exif: false,
+      });
+      assertSessionActive(session);
+      if (!alive.current || result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri || asset.width <= 0 || asset.height <= 0) throw new Error('invalid-image');
+      const image = { uri: asset.uri, width: asset.width, height: asset.height, source: 'gallery' as const };
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
+      navigation.navigate('Review', { mode, image });
+    } catch {
+      if (alive.current) setGalleryError('Fotografia nu s-a deschis. Încearcă alta.');
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      galleryLocked.current = false;
+      if (alive.current) setGalleryBusy(false);
+    }
+  }, [mode, navigation, resume]);
+
+  const activeMode = pendingAnalysis?.mode ?? mode;
+  const allowance = allowancePresentation(access, commercialStatus);
+  const openAllowance = () => {
+    if (allowance.canOpenAccess && access) navigation.navigate('Paywall', { source: 'home', access });
+    else if (allowance.canRetry) void refreshCommercialAccess();
+  };
+
+  return (
+    <HomeSurface
+      mode={activeMode}
+      pending={Boolean(pendingAnalysis)}
+      galleryBusy={galleryBusy}
+      galleryError={galleryError}
+      allowance={allowance}
+      allowanceLoading={!access && commercialStatus === 'resolving'}
+      premiumActive={Boolean(access?.premium.active)}
+      onMode={chooseMode}
+      onCapture={openCapture}
+      onGallery={() => void openGallery()}
+      onMath={openMath}
+      onNotebook={openNotebook}
+      onSettings={() => navigation.navigate('Settings')}
+      onAllowance={openAllowance}
+    />
+  );
+}
