@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-import { colors, fonts } from '../theme';
+import { colors, fonts, motion } from '../theme';
 import { AppIcon, AppIconName } from './AppIcon';
 import { MiniGlyph } from './MiniGlyph';
 import { Text } from './Typography';
@@ -16,10 +16,10 @@ function HeaderButton({ label, onPress, dark, active, children }: { label: strin
   const reducedMotion = useReducedMotion();
   const move = (value: number) => {
     if (reducedMotion) return;
-    Animated.spring(press, { toValue: value, useNativeDriver: true, speed: 32, bounciness: 3 }).start();
+    Animated.timing(press, { toValue: value, duration: motion.press, useNativeDriver: true }).start();
   };
   return (
-    <Animated.View style={{ opacity: onPress ? 1 : 0.66, transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 3] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.94] }) }] }}>
+    <Animated.View style={{ opacity: onPress ? 1 : 0.66, transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) }] }}>
       <Pressable
         accessibilityLabel={label}
         accessibilityRole="button"

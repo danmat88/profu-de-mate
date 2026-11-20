@@ -1,3 +1,4 @@
+import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -137,7 +138,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
           <Animated.View pointerEvents="none" style={[styles.mascotWrap, !working && styles.messageMascotWrap, {
             transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
           }]}>
-            <Image accessible={false} source={require('../../../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isVeryShort && styles.mascotCompact]} />
+            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={[styles.mascot, isVeryShort && styles.mascotCompact]} />
             {working ? <View style={[styles.bubble, mode === 'check' && styles.bubbleCheck]}><Text style={styles.bubbleText}>Hai să vedem!</Text></View> : null}
           </Animated.View>
         </View>

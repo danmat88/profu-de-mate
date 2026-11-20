@@ -14,7 +14,7 @@ export function serviceLoader(mocks: Record<string, unknown>, globals: Record<st
     const module = { exports: {} as any };
     cache.set(fullPath, module);
     const code = ts.transpileModule(readFileSync(fullPath, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX },
     }).outputText;
     runInNewContext(code, {
       module, exports: module.exports, console, Promise, Date, setTimeout, clearTimeout,

@@ -6,7 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { submitLessonFeedback, type FeedbackCategory } from '../services/feedback';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { colors, fonts } from '../../../shared/theme';
+import { colors, fonts, motion } from '../../../shared/theme';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
@@ -65,9 +65,9 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
         return;
       }
       const frame = requestAnimationFrame(() => {
-        transition.current = Animated.sequence([
+        transition.current = Animated.parallel([
           Animated.timing(backdropReveal, { toValue: 1, duration: 140, useNativeDriver: true }),
-          Animated.spring(sheetReveal, { toValue: 1, speed: 18, bounciness: 4, useNativeDriver: true }),
+          Animated.timing(sheetReveal, { toValue: 1, duration: motion.sheet, useNativeDriver: true }),
         ]);
         transition.current.start();
       });

@@ -1,11 +1,5 @@
-import { BalsamiqSans_400Regular } from '@expo-google-fonts/balsamiq-sans/400Regular';
-import { BalsamiqSans_700Bold } from '@expo-google-fonts/balsamiq-sans/700Bold';
-import { FiraSans_400Regular } from '@expo-google-fonts/fira-sans/400Regular';
-import { FiraSans_500Medium } from '@expo-google-fonts/fira-sans/500Medium';
-import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
 import { DarkTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { useFonts } from 'expo-font';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -30,74 +24,65 @@ import { ProcessingScreen } from '../features/analysis/screens/ProcessingScreen'
 import { ReviewScreen } from '../features/capture/screens/ReviewScreen';
 import { SettingsScreen } from '../features/account/screens/SettingsScreen';
 import { SummaryScreen } from '../features/lessons/screens/SummaryScreen';
-import { initializeFirebaseServices, initializeVerifiedFirebaseServices } from '../shared/services/firebase';
 import { recordDiagnosticError } from '../shared/services/diagnostics';
-import { readCachedCommercialAccess } from '../features/access/services/commercialAccessCache';
-import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../features/analysis/services/pendingAnalysis';
+import { getPreparedPendingAnalysis } from '../features/analysis/services/pendingAnalysis';
 import { preloadCriticalAppAssets } from './services/startupAssets';
-import { settleStartupTask, type StartupTaskResult } from './services/startupBootstrap';
+import { StartupError, type StartupSnapshot } from './services/startupBootstrap';
+import { currentStartupSession, prepareApplication } from './services/applicationStartup';
+import { navigationAfterIdentityChange } from './navigation/sessionNavigation';
+import { ReadinessScreen } from '../shared/ui/ReadinessScreen';
 import { colors } from '../shared/theme';
-import type { CommercialAccess, RootStackParamList } from '../shared/types';
+import type { RootStackParamList } from '../shared/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 SplashScreen.setOptions({ duration: 0, fade: false });
 void SplashScreen.preventAutoHideAsync();
 
-type StartupSnapshot = {
-  pendingAnalysis: PendingAnalysis | null;
-  initialAccess: CommercialAccess | null;
+type AppStartup = (StartupSnapshot & { offline: false }) | {
+  offline: true; initialAccess: null; pendingAnalysis: null; verifiedAt: 0; sessionKey: string;
 };
 
-const LOCAL_STARTUP_DEADLINE_MS = 2_200;
-const FONT_STARTUP_DEADLINE_MS = 3_000;
-
-function reportStartupTask<T>(result: StartupTaskResult<T>) {
-  if (result.outcome === 'ready') return;
-  recordDiagnosticError(
-    'startup_bootstrap',
-    result.error ?? { code: `startup/${result.outcome}` },
-  );
-}
-
-function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis | null }) {
-  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home');
-  const [showLaunchSplash, setShowLaunchSplash] = useState(true);
-  const [navigationReady, setNavigationReady] = useState(false);
+function AppExperience({ startup, interactive, onReady }: { startup: AppStartup; interactive: boolean; onReady: () => void }) {
+  const { pendingAnalysis } = startup;
+  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home');
   const reducedMotion = useReducedMotion();
   const { authSessionKey } = useCommercial();
   const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing' || activeRoute === 'MathProcessing';
-  const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
+  const offlineEntry = startup.offline && authSessionKey === startup.sessionKey
+    ? { index: 1, routes: [{ name: 'Home' }, { name: 'Notebook' }] }
+    : undefined;
 
   return (
     <View style={styles.app}>
       <NavigationBar hidden style={darkSystemBars ? 'dark' : 'light'} />
       <View
         style={styles.navigator}
-        pointerEvents={showLaunchSplash ? 'none' : 'auto'}
-        importantForAccessibility={showLaunchSplash ? 'no-hide-descendants' : 'auto'}
+        pointerEvents={interactive ? 'auto' : 'none'}
+        importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
       >
-        <HomeMotionReadyContext.Provider value={!showLaunchSplash}>
+        <HomeMotionReadyContext.Provider value={interactive}>
         <NavigationContainer
             key={authSessionKey ?? 'signed-out'}
+            initialState={offlineEntry ?? (activePending ? undefined : navigationAfterIdentityChange(activeRoute))}
             theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
-            onReady={() => setNavigationReady(true)}
+            onReady={() => requestAnimationFrame(() => requestAnimationFrame(onReady))}
             onStateChange={(state) => {
               const route = state?.routes[state.index];
               if (route) setActiveRoute(route.name as keyof RootStackParamList);
             }}
           >
             <StatusBar style={darkSystemBars ? 'light' : 'dark'} />
-            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'fade' }}>
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
               <Stack.Screen name="MathInput" component={MathInputScreen} />
               <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade', contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Notebook" component={NotebookScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Legal" component={LegalScreen} />
-              <Stack.Screen name="Paywall" component={PaywallScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
-              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Paywall" component={PaywallScreen} initialParams={{ source: 'settings' }} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom', presentation: 'modal' }} />
+              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: 'none', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending?.schemaVersion === 2 ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
@@ -106,87 +91,88 @@ function AppExperience({ pendingAnalysis }: { pendingAnalysis: PendingAnalysis |
         </NavigationContainer>
         </HomeMotionReadyContext.Provider>
       </View>
-      {showLaunchSplash ? <LaunchSplash ready={navigationReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
     </View>
   );
 }
 
 function AppRoot() {
-  const [fontsLoaded, fontError] = useFonts({
-    BalsamiqSans_400Regular,
-    BalsamiqSans_700Bold,
-    FiraSans_400Regular,
-    FiraSans_500Medium,
-    FiraSans_600SemiBold,
-  });
-  const [startup, setStartup] = useState<StartupSnapshot>();
-  const [fontDeadlineReached, setFontDeadlineReached] = useState(false);
-  const fontsReady = fontsLoaded || Boolean(fontError) || fontDeadlineReached;
+  const [startup, setStartup] = useState<AppStartup>();
+  const [visualsReady, setVisualsReady] = useState(false);
+  const [navigationReady, setNavigationReady] = useState(false);
+  const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [failure, setFailure] = useState<unknown>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [openingNotebook, setOpeningNotebook] = useState(false);
+  const reducedMotion = useReducedMotion();
+  const markNavigationReady = useCallback(() => setNavigationReady(true), []);
+  const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) return;
-    const deadline = setTimeout(() => {
-      setFontDeadlineReached(true);
-      recordDiagnosticError('startup_bootstrap', { code: 'startup/font-timeout' });
-    }, FONT_STARTUP_DEADLINE_MS);
-    return () => clearTimeout(deadline);
-  }, [fontError, fontsLoaded]);
-
-  useEffect(() => {
-    if (fontError) recordDiagnosticError('startup_bootstrap', fontError);
-  }, [fontError]);
-
-  useEffect(() => {
-    let mounted = true;
-    const firebaseSession = initializeFirebaseServices();
-    void firebaseSession.then(() => initializeVerifiedFirebaseServices()).catch((error) => {
-      recordDiagnosticError('firebase_initialization', error);
-      // Ecranele de rețea păstrează propriul retry; startup-ul nu rămâne blocat.
+    let active = true;
+    setFailure(null);
+    setStartup(undefined);
+    setNavigationReady(false);
+    setShowLaunchSplash(true);
+    void preloadCriticalAppAssets().then(() => {
+      if (active) setVisualsReady(true);
+    }).catch(() => undefined);
+    void prepareApplication().then((snapshot) => {
+      if (!active) return;
+      if (__DEV__) console.info('[startup:ready]', snapshot.timings);
+      setStartup({ ...snapshot, offline: false });
+    }).catch((error: unknown) => {
+      recordDiagnosticError('startup_bootstrap', error);
+      if (active) setFailure(error);
     });
+    return () => { active = false; };
+  }, [attempt]);
 
-    const cachedAccessForSession = firebaseSession.then(() => readCachedCommercialAccess());
+  useEffect(() => {
+    if (failure) void SplashScreen.hideAsync().catch(() => undefined);
+  }, [failure]);
 
-    Promise.all([
-      settleStartupTask(preloadCriticalAppAssets(), undefined, LOCAL_STARTUP_DEADLINE_MS),
-      settleStartupTask(preparePendingAnalysisOnStartup(), null, LOCAL_STARTUP_DEADLINE_MS),
-      settleStartupTask(cachedAccessForSession, null, LOCAL_STARTUP_DEADLINE_MS),
-    ]).then(([assets, pending, access]) => {
-      reportStartupTask(assets);
-      reportStartupTask(pending);
-      reportStartupTask(access);
-      if (assets.outcome === 'failed' && assets.error) {
-        recordDiagnosticError('startup_assets', assets.error);
-      }
-      if (mounted) {
-        setStartup({
-          pendingAnalysis: pending.value,
-          initialAccess: access.value,
-        });
-      }
-    });
+  const openNotebookOffline = async () => {
+    if (openingNotebook) return;
+    setOpeningNotebook(true);
+    try {
+      await preloadCriticalAppAssets();
+      const session = currentStartupSession();
+      if (!session) return;
+      setVisualsReady(true);
+      setNavigationReady(false);
+      setShowLaunchSplash(true);
+      setStartup({ offline: true, initialAccess: null, pendingAnalysis: null, verifiedAt: 0, sessionKey: session.key });
+      setFailure(null);
+    } catch (error) {
+      recordDiagnosticError('startup_assets', error);
+      setFailure(new StartupError('visuals', error));
+    } finally { setOpeningNotebook(false); }
+  };
 
-    return () => { mounted = false; };
-  }, []);
-
-  if (!fontsReady || !startup) {
-    return (
-      <View style={styles.preloadSurface}>
-        <StatusBar style="light" />
-      </View>
-    );
+  if (failure && !startup) {
+    const resourceFailure = failure instanceof StartupError && failure.stage === 'visuals';
+    return <ReadinessScreen
+      busy={openingNotebook}
+      title={resourceFailure ? 'Aplicația nu este încă pregătită' : 'Nu putem verifica accesul'}
+      message={resourceFailure ? 'Unele resurse nu s-au putut încărca. Verifică legătura și reîncearcă.' : 'Verifică conexiunea și reîncearcă. Vom deschide Home după confirmarea contului și a limitei de azi.'}
+      onRetry={() => setAttempt(value => value + 1)}
+      onNotebook={currentStartupSession() ? () => void openNotebookOffline() : undefined}
+    />;
   }
 
   return (
-    <CommercialProvider initialAccess={startup.initialAccess}>
-      <AppExperience pendingAnalysis={startup.pendingAnalysis} />
-    </CommercialProvider>
+    <View style={styles.app}>
+      {startup ? <CommercialProvider initialAccess={startup.initialAccess} initialVerifiedAt={startup.verifiedAt} initiallyOffline={startup.offline}>
+        <AppExperience startup={startup} interactive={!showLaunchSplash} onReady={markNavigationReady} />
+      </CommercialProvider> : null}
+      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   gestureRoot: { flex: 1 },
   app: { flex: 1, backgroundColor: colors.canvas },
-  preloadSurface: { flex: 1, backgroundColor: colors.ink },
   navigator: { flex: 1 },
 });
 

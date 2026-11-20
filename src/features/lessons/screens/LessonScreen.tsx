@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from '../../../shared/services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
@@ -18,7 +18,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { setLessonFavorite } from '../services/lessons';
 import { forgetLessonPresentation, markLessonPresentationReady } from '../services/lessonPresentation';
 import { deleteTemporaryCapturedImages } from '../../capture/services/temporaryImages';
-import { colors, fonts } from '../../../shared/theme';
+import { colors, fonts, motion } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import type { MathDocumentDefinition, MathDocumentTone } from '../../math/utils/mathDocument';
@@ -163,7 +163,7 @@ export function LessonScreen({ navigation, route }: Props) {
     setAlternate(true);
     alternateReveal.setValue(0);
     if (reducedMotion) alternateReveal.setValue(1);
-    else Animated.spring(alternateReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 7 }).start();
+    else Animated.timing(alternateReveal, { toValue: 1, duration: motion.sheet, useNativeDriver: true }).start();
   };
 
   const closeProblem = () => {
@@ -185,7 +185,7 @@ export function LessonScreen({ navigation, route }: Props) {
     setProblemOpen(true);
     problemReveal.setValue(0);
     if (reducedMotion) problemReveal.setValue(1);
-    else Animated.spring(problemReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 7 }).start();
+    else Animated.timing(problemReveal, { toValue: 1, duration: motion.sheet, useNativeDriver: true }).start();
   };
 
   const toggleSaved = async () => {
@@ -199,7 +199,7 @@ export function LessonScreen({ navigation, route }: Props) {
       setShowSavedToast(true);
       savedReveal.setValue(0);
       if (reducedMotion) savedReveal.setValue(1);
-      else Animated.spring(savedReveal, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 9 }).start();
+      else Animated.timing(savedReveal, { toValue: 1, duration: motion.fast, useNativeDriver: true }).start();
       savedTimer.current = setTimeout(() => setShowSavedToast(false), 1700);
     }
     try {
@@ -297,6 +297,7 @@ export function LessonScreen({ navigation, route }: Props) {
       </View>
 
       {alternate ? (
+        <Modal visible transparent animationType="none" onRequestClose={closeAlternate}>
         <View style={styles.modalLayer}>
           <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: alternateReveal }]} />
           <Pressable accessible={false} onPress={closeAlternate} style={StyleSheet.absoluteFill} />
@@ -315,9 +316,11 @@ export function LessonScreen({ navigation, route }: Props) {
             <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={closeAlternate} />
           </Animated.View>
         </View>
+        </Modal>
       ) : null}
 
       {problemOpen ? (
+        <Modal visible transparent animationType="none" onRequestClose={closeProblem}>
         <View style={styles.modalLayer}>
           <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: problemReveal }]} />
           <Pressable accessible={false} onPress={closeProblem} style={StyleSheet.absoluteFill} />
@@ -349,6 +352,7 @@ export function LessonScreen({ navigation, route }: Props) {
             </View>
           </Animated.View>
         </View>
+        </Modal>
       ) : null}
       <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
     </SafeAreaView>

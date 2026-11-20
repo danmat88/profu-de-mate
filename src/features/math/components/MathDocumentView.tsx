@@ -1,7 +1,3 @@
-import { BalsamiqSans_700Bold } from '@expo-google-fonts/balsamiq-sans/700Bold';
-import { FiraSans_400Regular } from '@expo-google-fonts/fira-sans/400Regular';
-import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
-import { Asset } from 'expo-asset';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -16,7 +12,8 @@ import {
 } from '../utils/mathDocument';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
-import { withDeadline } from '../../../shared/utils/latestTask';
+import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
+import { getCachedDocumentFonts, preloadDocumentFonts } from '../services/documentFonts';
 import { mathDocumentFallbackText } from '../utils/mathDocumentFallback';
 
 type Props = {
@@ -27,27 +24,6 @@ type Props = {
   onReady?: () => void;
 };
 
-let documentFontsPromise: Promise<MathDocumentFonts> | undefined;
-
-async function resolvedAssetUri(moduleId: number) {
-  const asset = Asset.fromModule(moduleId);
-  await asset.downloadAsync();
-  return asset.localUri ?? asset.uri;
-}
-
-function loadDocumentFonts() {
-  documentFontsPromise ??= withDeadline(Promise.all([
-    resolvedAssetUri(FiraSans_400Regular),
-    resolvedAssetUri(FiraSans_600SemiBold),
-    resolvedAssetUri(BalsamiqSans_700Bold),
-  ]).then(([bodyRegular, bodySemibold, display]) => ({ bodyRegular, bodySemibold, display })),
-  3_000, 'Document fonts timed out.').catch((error: unknown) => {
-    documentFontsPromise = undefined;
-    throw error;
-  });
-  return documentFontsPromise;
-}
-
 export function MathDocumentView({ definition, style, scrollEnabled = true, testID, onReady }: Props) {
   const { fontScale } = useWindowDimensions();
   const webViewRef = useRef<WebViewHandle>(null);
@@ -55,10 +31,11 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
   const loaded = useRef(false);
   const initialMarkup = useRef<string | undefined>(undefined);
   const revision = useRef(0);
-  const [fontsReady, setFontsReady] = useState<MathDocumentFonts>();
+  const [fontsReady, setFontsReady] = useState<MathDocumentFonts | undefined>(getCachedDocumentFonts);
   const [documentReady, setDocumentReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [webViewKey, setWebViewKey] = useState(0);
+  const showProgress = useDelayedBusy(!documentReady && !failed);
 
   latestDefinition.current = definition;
 
@@ -75,7 +52,7 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
 
   useEffect(() => {
     let active = true;
-    loadDocumentFonts()
+    preloadDocumentFonts()
       .then((resolved) => { if (active) setFontsReady(resolved); })
       .catch(() => { if (active) setFontsReady({}); });
     return () => { active = false; };
@@ -110,7 +87,7 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
   if (!fontsReady || !source) {
     return (
       <View style={[styles.frame, styles.loading, style]}>
-        <PlayfulLoader compact label="Așez matematica în pagină" />
+        {showProgress ? <PlayfulLoader compact label="Deschid explicația" /> : null}
       </View>
     );
   }
@@ -180,9 +157,9 @@ export function MathDocumentView({ definition, style, scrollEnabled = true, test
         style={[styles.webView, !documentReady && styles.webViewLoading]}
         containerStyle={styles.webViewContainer}
       />
-      {!documentReady ? (
+      {showProgress ? (
         <View pointerEvents="none" style={styles.loadingOverlay}>
-          <PlayfulLoader compact label="Așez matematica în pagină" />
+          <PlayfulLoader compact label="Deschid explicația" />
         </View>
       ) : null}
     </View>

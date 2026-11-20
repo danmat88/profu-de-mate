@@ -3,7 +3,8 @@ import { getApp } from '@react-native-firebase/app';
 import { getAuth, onIdTokenChanged } from '@react-native-firebase/auth';
 import { AppState } from 'react-native';
 import type { CommercialAccess, CommercialStatus } from '../../../shared/types';
-import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess, prepareCommercialServices } from '../services/commercial';
+import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess } from '../services/commercial';
+import { preparePlayIntegrity } from '../../../shared/services/deviceIntegrity';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { deleteAllUserData, type DataDeletionResult } from '../../account/services/dataManagement';
 import { firebaseUserSessionKey, resetFirebaseInitialization } from '../../../shared/services/firebase';
@@ -21,6 +22,7 @@ import {
 
 type CommercialContextValue = {
   authSessionKey: string | null;
+  identity: CommercialAccess['identity'] | null;
   access: CommercialAccess | null;
   startupReady: boolean;
   status: CommercialStatus;
@@ -36,26 +38,31 @@ type CommercialContextValue = {
 
 const CommercialContext = createContext<CommercialContextValue | null>(null);
 
-const INITIAL_ACCESS_DEADLINE_MS = 4_500;
-
 type RefreshRequest = {
   generation: number;
   promise: Promise<CommercialAccess | null>;
 };
 
-export function CommercialProvider({ children, initialAccess = null }: { children: ReactNode; initialAccess?: CommercialAccess | null }) {
+export function CommercialProvider({ children, initialAccess = null, initialVerifiedAt = 0, initiallyOffline = false }: {
+  children: ReactNode;
+  initialAccess?: CommercialAccess | null;
+  initialVerifiedAt?: number;
+  initiallyOffline?: boolean;
+}) {
   const [authSessionKey, setAuthSessionKey] = useState(() => firebaseUserSessionKey(getAuth(getApp()).currentUser));
+  const [identity, setIdentity] = useState<CommercialAccess['identity'] | null>(() => {
+    const user = getAuth(getApp()).currentUser;
+    return user ? (!user.isAnonymous && user.providerData.some((provider) => provider.providerId === 'google.com') ? 'google' : 'anonymous') : null;
+  });
   const observedSessionKey = useRef(authSessionKey);
   const observedUserId = useRef(getAuth(getApp()).currentUser?.uid);
   const [access, setAccess] = useState<CommercialAccess | null>(initialAccess);
-  // Access resolves independently of the visual launch. Home can display the
-  // cached allowance while this bounded initial server refresh runs.
-  const [startupReady, setStartupReady] = useState(false);
-  const [status, setStatus] = useState<CommercialStatus>(initialAccess ? 'ready' : 'resolving');
+  const [startupReady, setStartupReady] = useState(Boolean(initialAccess));
+  const [status, setStatus] = useState<CommercialStatus>(initialAccess ? 'ready' : initiallyOffline ? 'unavailable' : 'resolving');
   const [refreshing, setRefreshing] = useState(false);
   const accessRef = useRef<CommercialAccess | null>(initialAccess);
   const refreshInFlight = useRef<RefreshRequest | null>(null);
-  const lastSuccessfulRefreshAt = useRef(0);
+  const lastSuccessfulRefreshAt = useRef(initialAccess ? initialVerifiedAt : 0);
   const identityGeneration = useRef(0);
   const identityTransitionInFlight = useRef<Promise<CommercialAccess | null> | null>(null);
   const accountDeletionInFlight = useRef<Promise<DataDeletionResult> | null>(null);
@@ -117,6 +124,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   }, [applyServerAccess, markStartupReady]);
 
   const refreshIfStale = useCallback((): Promise<CommercialAccess | null> => {
+    if (initiallyOffline && !accessRef.current) return Promise.resolve(null);
     if (!shouldAutomaticallyRefreshCommercialAccess({
       now: Date.now(),
       lastSuccessfulRefreshAt: lastSuccessfulRefreshAt.current,
@@ -126,7 +134,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
       return Promise.resolve(accessRef.current);
     }
     return refresh();
-  }, [refresh]);
+  }, [initiallyOffline, refresh]);
 
   useEffect(() => {
     const monitor = createCommercialExpiryMonitor({
@@ -151,6 +159,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   useEffect(() => onIdTokenChanged(getAuth(getApp()), (user) => {
     const nextSessionKey = firebaseUserSessionKey(user);
     if (nextSessionKey === observedSessionKey.current) return;
+    setIdentity(user ? (!user.isAnonymous && user.providerData.some((provider) => provider.providerId === 'google.com') ? 'google' : 'anonymous') : null);
     const previousUserId = observedUserId.current;
     observedSessionKey.current = nextSessionKey;
     observedUserId.current = user?.uid;
@@ -171,32 +180,18 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   }), [clearAccessForIdentityChange, refresh]);
 
   useEffect(() => {
-    let mounted = true;
-    const startupDeadline = setTimeout(() => {
-      if (mounted) markStartupReady();
-    }, INITIAL_ACCESS_DEADLINE_MS);
+    if (initiallyOffline) return;
+    // Launch already fetched this snapshot. Do not immediately fetch it again.
+    if (!accessRef.current) void refreshIfStale();
+    if (accessRef.current?.deviceRecall.shouldVerify) {
+      void preparePlayIntegrity().catch((error) => recordDiagnosticError('commercial_initialization', error));
+    }
+  }, [initiallyOffline, refreshIfStale]);
 
-    // Firestore owns its own local cache and does not depend on the commercial
-    // access request. Warming it independently avoids a serial startup chain.
-    void prewarmFavoriteLessonsCache().catch((error) => {
-      recordDiagnosticError('notebook_prewarm', error);
-    });
-
-    prepareCommercialServices()
-      .then(() => mounted ? refreshIfStale() : null)
-      .catch((error) => {
-        recordDiagnosticError('commercial_initialization', error);
-        if (mounted) {
-          if (!accessRef.current) setStatus('unavailable');
-          setRefreshing(false);
-          markStartupReady();
-        }
-      });
-    return () => {
-      mounted = false;
-      clearTimeout(startupDeadline);
-    };
-  }, [markStartupReady, refreshIfStale]);
+  useEffect(() => {
+    // The session-scoped listener also keeps later saves ready for the next visit.
+    void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error));
+  }, [authSessionKey]);
 
   useEffect(() => {
     let previous = AppState.currentState;
@@ -329,6 +324,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
   const value = useMemo(
     () => ({
       authSessionKey,
+      identity,
       access,
       startupReady,
       status,
@@ -341,7 +337,7 @@ export function CommercialProvider({ children, initialAccess = null }: { childre
       disconnectGoogle,
       deleteAccount,
     }),
-    [access, applyServerAccess, authSessionKey, connectGoogle, deleteAccount, disconnectGoogle, refresh, refreshIfStale, refreshing, startupReady, status],
+    [access, applyServerAccess, authSessionKey, connectGoogle, deleteAccount, disconnectGoogle, identity, refresh, refreshIfStale, refreshing, startupReady, status],
   );
   return <CommercialContext.Provider value={value}>{children}</CommercialContext.Provider>;
 }

@@ -26,7 +26,7 @@ function harness(overrides: Record<string, (...args: any[]) => unknown> = {}) {
     isAnonymous: async () => customer === null,
     purchasePackage: async (plan: unknown) => { calls.push({ name: 'purchase', value: customer }); return overrides.purchasePackage?.(plan); },
     restorePurchases: async () => { calls.push({ name: 'restore', value: customer }); return overrides.restorePurchases?.(); },
-    getOfferings: async () => ({ current: { monthly: { identifier: 'month' }, annual: { identifier: 'year' } } }),
+    getOfferings: async () => { calls.push({ name: 'offerings' }); return overrides.getOfferings?.() ?? { current: { monthly: { identifier: 'month' }, annual: { identifier: 'year' } } }; },
     getCustomerInfo: async () => ({ managementURL: 'https://play.google.com/store/account/subscriptions' }),
   };
   const load = serviceLoader({
@@ -60,6 +60,45 @@ function harness(overrides: Record<string, (...args: any[]) => unknown> = {}) {
     },
   };
 }
+
+test('opening Premium initializes its account before fetching offers and reuses verified prices on the next visit', async () => {
+  const h = harness();
+  const first = await h.purchases.getPremiumOffer({ purchaseUserId: h.id('a') });
+  const second = await h.purchases.getPremiumOffer();
+  assert.equal(first, second);
+  assert.equal(h.purchases.getCachedPremiumOffer(), first);
+  assert.equal(h.calls.filter(call => call.name === 'configure').length, 1);
+  assert.equal(h.calls.filter(call => call.name === 'offerings').length, 1);
+});
+
+test('a single available monthly plan is offered instead of hiding the entire purchase screen', async () => {
+  const monthly = { identifier: 'monthly', product: { priceString: '29,99 RON' } };
+  const h = harness({ getOfferings: async () => ({ current: { monthly, annual: null, availablePackages: [] } }) });
+  const offer = await h.purchases.getPremiumOffer({ purchaseUserId: h.id('a') });
+  assert.equal(offer.monthly, monthly);
+  assert.equal(offer.annual, null);
+});
+
+test('a price response that arrives after an identity change cannot populate the next account cache', async () => {
+  const pending = deferred();
+  const h = harness({ getOfferings: () => pending.promise });
+  const request = h.purchases.getPremiumOffer({ purchaseUserId: h.id('a') });
+  await flush();
+  h.switchTo('b');
+  pending.resolve({ current: { monthly: { identifier: 'old-account' }, annual: null, availablePackages: [] } });
+  await assert.rejects(request);
+  assert.equal(h.purchases.getCachedPremiumOffer(), null);
+});
+
+test('logout immediately clears prices even before native billing logout completes', async () => {
+  const pending = deferred();
+  const h = harness({ logOut: () => pending.promise });
+  await h.purchases.getPremiumOffer({ purchaseUserId: h.id('a') });
+  const logout = h.purchases.resetPurchasesForSignedOutUser();
+  assert.equal(h.purchases.getCachedPremiumOffer(), null);
+  pending.resolve();
+  await logout;
+});
 
 test('a blocked RevenueCat login has a bounded caller wait and never overlaps another identity mutation', async () => {
   const login = deferred();

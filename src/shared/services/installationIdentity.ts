@@ -1,14 +1,11 @@
 import * as Crypto from 'expo-crypto';
+import * as SecureStore from 'expo-secure-store';
 
 const INSTALLATION_TOKEN_KEY = 'commercial.installation-token.v1';
 const INSTALLATION_TOKEN_PATTERN = /^[a-f0-9]{64}$/;
 
 let cachedToken: string | null = null;
 let tokenPromise: Promise<string> | null = null;
-
-async function secureStoreModule() {
-  return import('expo-secure-store');
-}
 
 function newInstallationToken(): string {
   return `${Crypto.randomUUID()}${Crypto.randomUUID()}`.replaceAll('-', '').toLocaleLowerCase('en-US');
@@ -18,7 +15,7 @@ export function getInstallationToken(): Promise<string> {
   if (cachedToken) return Promise.resolve(cachedToken);
   if (tokenPromise) return tokenPromise;
   tokenPromise = (async () => {
-    const storage = await secureStoreModule();
+    const storage = SecureStore;
     const stored = await storage.getItemAsync(INSTALLATION_TOKEN_KEY);
     if (stored && INSTALLATION_TOKEN_PATTERN.test(stored)) {
       cachedToken = stored;

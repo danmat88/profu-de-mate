@@ -1,5 +1,6 @@
 import { getApp } from '@react-native-firebase/app';
 import { getAuth } from '@react-native-firebase/auth';
+import * as SecureStore from 'expo-secure-store';
 import type { CommercialAccess } from '../../../shared/types';
 import { firebaseUserSessionKey } from '../../../shared/services/firebase';
 
@@ -15,10 +16,6 @@ type CachedCommercialAccess = {
   savedAt: number;
   access: CommercialAccess;
 };
-
-async function secureStoreModule() {
-  return import('expo-secure-store');
-}
 
 function finiteNonNegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
@@ -76,7 +73,7 @@ export async function readCachedCommercialAccess(): Promise<CommercialAccess | n
     const currentUser = getAuth(getApp()).currentUser;
     const currentSessionKey = firebaseUserSessionKey(currentUser);
     if (!currentUser || !currentSessionKey) return null;
-    const storage = await secureStoreModule();
+    const storage = SecureStore;
     const raw = await storage.getItemAsync(CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<CachedCommercialAccess>;
@@ -110,7 +107,7 @@ export async function writeCachedCommercialAccess(
       savedAt: Date.now(),
       access,
     };
-    const storage = await secureStoreModule();
+    const storage = SecureStore;
     await storage.setItemAsync(CACHE_KEY, JSON.stringify(entry));
   } catch {
     // The server remains authoritative; a cache failure only affects startup polish.
@@ -119,7 +116,7 @@ export async function writeCachedCommercialAccess(
 
 export async function clearCachedCommercialAccess(): Promise<void> {
   try {
-    const storage = await secureStoreModule();
+    const storage = SecureStore;
     await Promise.all([
       storage.deleteItemAsync(CACHE_KEY),
       storage.deleteItemAsync(LEGACY_CACHE_KEY),

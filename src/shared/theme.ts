@@ -35,6 +35,10 @@ export const layout = {
 } as const;
 
 export const motion = {
+  press: 90,
+  fast: 150,
+  enter: 220,
+  sheet: 240,
   entranceDistance: 18,
   springSpeed: 9,
   springBounce: 7,

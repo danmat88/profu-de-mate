@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useRef, useState } from 'react';
 import { HomeSurface } from '../components/HomeSurface';
+import { ReadinessScreen } from '../../../shared/ui/ReadinessScreen';
 import { useCommercial } from '../../access/context/CommercialContext';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
@@ -16,8 +17,8 @@ export function HomeScreen() {
   const navigation = useNavigation<Navigation>();
   const {
     access,
-    status: commercialStatus,
     refresh: refreshCommercialAccess,
+    status: commercialStatus,
     refreshIfStale: refreshCommercialAccessIfStale,
   } = useCommercial();
   const [mode, setMode] = useState<FlowMode>('solve');
@@ -112,11 +113,21 @@ export function HomeScreen() {
   }, [mode, navigation, resume]);
 
   const activeMode = pendingAnalysis?.mode ?? mode;
-  const allowance = allowancePresentation(access, commercialStatus);
   const openAllowance = () => {
-    if (allowance.canOpenAccess && access) navigation.navigate('Paywall', { source: 'home', access });
-    else if (allowance.canRetry) void refreshCommercialAccess();
+    navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) });
   };
+
+  if (!access) {
+    return <ReadinessScreen
+      busy={commercialStatus === 'resolving'}
+      title={commercialStatus === 'resolving' ? 'Actualizăm accesul' : 'Accesul nu este confirmat'}
+      message="Home se deschide după confirmarea contului și a limitei de azi. Caietul poate fi citit separat, inclusiv offline."
+      onRetry={() => void refreshCommercialAccess()}
+      onNotebook={openNotebook}
+    />;
+  }
+
+  const allowance = allowancePresentation(access);
 
   return (
     <HomeSurface
@@ -125,7 +136,6 @@ export function HomeScreen() {
       galleryBusy={galleryBusy}
       galleryError={galleryError}
       allowance={allowance}
-      allowanceLoading={!access && commercialStatus === 'resolving'}
       premiumActive={Boolean(access?.premium.active)}
       onMode={chooseMode}
       onCapture={openCapture}

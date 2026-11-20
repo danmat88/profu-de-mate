@@ -1,9 +1,10 @@
+import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeMotionReadyContext } from '../context/HomeMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -22,7 +23,6 @@ type Props = {
   galleryBusy: boolean;
   galleryError: string | null;
   allowance: AllowancePresentation;
-  allowanceLoading: boolean;
   premiumActive?: boolean;
   onMode: (mode: FlowMode) => void;
   onCapture: () => void;
@@ -86,18 +86,24 @@ function ModeOption({ active, compact, icon, label, note, tone, disabled, onPres
 
 // The visual reference is the production build 19 installed on the phone.
 // Navigation, pending-analysis recovery and session guards stay in HomeScreen.
-export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowance, allowanceLoading, premiumActive = false, onMode, onCapture, onGallery, onMath, onNotebook, onSettings, onAllowance }: Props) {
-  const { contentWidth, height, fontScale, isNarrow, isVeryNarrow } = useResponsiveLayout();
+export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowance, premiumActive = false, onMode, onCapture, onGallery, onMath, onNotebook, onSettings, onAllowance }: Props) {
+  // The provider frame describes our actual root view. Android's window
+  // dimensions can change independently while a native picker is dismissed.
+  const frame = useSafeAreaFrame();
+  const { contentWidth, height, fontScale, isNarrow, isVeryNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
-  const compact = height - insets.top - insets.bottom < 690 || fontScale >= 1.3;
+  // Navigation bars are hidden for this immersive screen; temporary bars
+  // overlay Home instead of changing its spacing and responsive breakpoint.
+  const compact = height - insets.top < 690 || fontScale >= 1.3;
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
   const motionReady = useContext(HomeMotionReadyContext);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
-  const entrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const entrance = useRef(new Animated.Value(1)).current;
   const float = useRef(new Animated.Value(0.45)).current;
-  const beam = useRef(new Animated.Value(0.5)).current;
+  const beam = useRef(new Animated.Value(1)).current;
   const modePop = useRef(new Animated.Value(1)).current;
+  const ambientPlayed = useRef(false);
   const isSolve = mode === 'solve';
   const hasPendingAnalysis = pending;
   const mascotWidth = compact ? 104 : isVeryNarrow ? 128 : 148;
@@ -108,26 +114,17 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
   }, []);
 
   useEffect(() => {
-    if (reducedMotion) { entrance.setValue(1); return; }
-    if (!motionReady || !focused) return;
-    const animation = Animated.timing(entrance, { toValue: 1, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true });
-    animation.start();
-    return () => animation.stop();
-  }, [entrance, focused, motionReady, reducedMotion]);
-
-  useEffect(() => {
-    if (reducedMotion || !motionReady || !focused || !foreground || pending) {
-      float.setValue(0.45); beam.setValue(0.5); return;
+    if (reducedMotion || pending) {
+      float.setValue(0.45); beam.setValue(1); return;
     }
-    const floating = Animated.loop(Animated.sequence([
+    if (!motionReady || !focused || !foreground || ambientPlayed.current) return;
+    ambientPlayed.current = true;
+    beam.setValue(0);
+    const floating = Animated.sequence([
       Animated.timing(float, { toValue: 1, duration: 1550, useNativeDriver: true }),
-      Animated.timing(float, { toValue: 0, duration: 1550, useNativeDriver: true }),
-    ]));
-    const scanning = Animated.loop(Animated.sequence([
-      Animated.timing(beam, { toValue: 1, duration: 1750, useNativeDriver: true }),
-      Animated.delay(350),
-      Animated.timing(beam, { toValue: 0, duration: 0, useNativeDriver: true }),
-    ]));
+      Animated.timing(float, { toValue: 0.45, duration: 1550, useNativeDriver: true }),
+    ]);
+    const scanning = Animated.timing(beam, { toValue: 1, duration: 2100, easing: Easing.inOut(Easing.quad), useNativeDriver: true });
     floating.start(); scanning.start();
     return () => { floating.stop(); scanning.stop(); };
   }, [beam, float, focused, foreground, motionReady, pending, reducedMotion]);
@@ -135,17 +132,17 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
   useEffect(() => {
     if (reducedMotion || !motionReady || !focused) { modePop.setValue(1); return; }
     modePop.setValue(0.98);
-    const animation = Animated.spring(modePop, { toValue: 1, useNativeDriver: true, speed: 22, bounciness: 6 });
+    const animation = Animated.timing(modePop, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     animation.start();
     return () => animation.stop();
   }, [focused, mode, modePop, motionReady, reducedMotion]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: insets.top }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={styles.homeScene}>
-        <View style={[styles.page, { width: contentWidth, paddingBottom: Math.max(insets.bottom, 8) }, compact && styles.pageCompact]}>
+        <View style={[styles.page, { width: contentWidth }, compact && styles.pageCompact]}>
           <Animated.View style={[styles.header, compact && styles.headerCompact, {
             opacity: entrance,
             transform: [{ translateY: entrance.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
@@ -153,7 +150,7 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
             <View style={styles.brandRow}>
               <View style={[styles.logoShadow, compact && styles.logoShadowCompact]} />
               <View style={[styles.logo, compact && styles.logoCompact]}>
-                <Image accessible={false} source={require('../../../../assets/brand/profu-mark-v2.png')} resizeMode="contain" style={[styles.logoImage, compact && styles.logoImageCompact]} />
+                <Image accessible={false} source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))} resizeMode="contain" style={[styles.logoImage, compact && styles.logoImageCompact]} />
               </View>
               <View style={styles.brandCopy}>
                 <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.brand, compact && styles.brandCompact]}>Profu’ de mate</Text>
@@ -163,19 +160,15 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={allowance.accessibilityLabel}
-              accessibilityState={{ disabled: !allowance.canOpenAccess && !allowance.canRetry }}
-              disabled={!allowance.canOpenAccess && !allowance.canRetry}
               onPress={onAllowance}
               style={({ pressed }) => [styles.allowanceShadow, pressed && styles.pressed]}
             >
               <View style={[styles.allowancePill, compact && styles.allowancePillCompact, premiumActive && styles.allowancePillPremium]}>
-                {allowanceLoading ? <PlayfulLoader micro /> : <>
-                  <MiniGlyph name={premiumActive ? 'spark' : 'dot'} size={13} color={colors.ink} />
+                  <MiniGlyph name="spark" size={13} color={colors.ink} />
                   <View style={styles.allowanceCopy}>
                     <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.allowanceText}>{allowance.label}</Text>
-                    <Text maxFontSizeMultiplier={1.3} style={styles.allowanceNote}>{allowance.note}</Text>
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.allowanceNote}>{allowance.note}</Text>
                   </View>
-                </>}
               </View>
             </Pressable>
             <Pressable
@@ -274,12 +267,15 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
                 {!hasPendingAnalysis ? <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
+                  accessibilityState={{ disabled: galleryBusy, busy: galleryBusy }}
                   disabled={galleryBusy}
                   onPress={onGallery}
                   style={({ pressed }) => [styles.galleryButton, galleryBusy && styles.galleryButtonBusy, pressed && styles.actionPressed]}
                 >
-                  {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={compact ? 23 : 30} />}
-                  <Text maxFontSizeMultiplier={1.3} style={styles.galleryButtonText}>{galleryBusy ? 'Deschid…' : 'Galerie'}</Text>
+                  <View style={[styles.galleryIcon, compact && styles.galleryIconCompact]}>
+                    {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={compact ? 23 : 30} />}
+                  </View>
+                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.galleryButtonText}>Galerie</Text>
                 </Pressable> : null}
               </View>
 
@@ -288,7 +284,7 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
                 height: mascotWidth * 1.08,
                 transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [3, -5] }) }, { rotate: '3deg' }],
               }]}>
-                <Image accessible={false} source={require('../../../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.mascot} />
+                <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={styles.mascot} />
               </Animated.View>
             </LinearGradient>
           </Animated.View>
@@ -352,7 +348,7 @@ export function HomeSurface({ mode, pending, galleryBusy, galleryError, allowanc
           </Animated.View>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -367,7 +363,7 @@ const styles = StyleSheet.create({
   mathNote: { marginTop: 2, fontFamily: fonts.bodyMedium, color: colors.violetDeep, fontSize: 11, lineHeight: 15 },
   safe: { flex: 1, overflow: 'hidden', backgroundColor: colors.canvas },
   homeScene: { flex: 1, overflow: 'hidden' },
-  page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 8 },
+  page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 8, paddingBottom: 8 },
   pageCompact: { gap: 6 },
   pressed: { transform: [{ translateY: 2 }], opacity: 0.94 },
   header: { height: 58, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -391,7 +387,7 @@ const styles = StyleSheet.create({
   allowancePillPremium: { backgroundColor: colors.lime },
   allowanceCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
   allowanceText: { width: '100%', fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, lineHeight: 11 },
-  allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6.5, letterSpacing: 0.65, lineHeight: 8 },
+  allowanceNote: { width: '100%', fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6.5, letterSpacing: 0.35, lineHeight: 9, includeFontPadding: false },
   intro: { height: 62, flexShrink: 0 },
   introCompact: { height: 32 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -458,6 +454,8 @@ const styles = StyleSheet.create({
   captureRibbonText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 16 },
   galleryButton: { width: 76, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 16, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', gap: 0 },
   galleryButtonBusy: { opacity: 0.72 },
+  galleryIcon: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+  galleryIconCompact: { height: 23 },
   galleryButtonText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12, lineHeight: 15 },
   actionPressed: { transform: [{ translateY: 2 }], opacity: 0.92 },
   mascotWrap: { position: 'absolute', zIndex: 0, right: -13, bottom: 45, opacity: 0.16 },

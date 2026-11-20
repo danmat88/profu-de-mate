@@ -72,10 +72,12 @@ test('a deleted local identity cannot reopen offline data while native sign-out 
   }, { process: { env: { EXPO_PUBLIC_APP_CHECK_PROVIDER: 'none' } } });
   const service = load('src/shared/services/firebase.ts');
   service.markFirebaseUserDeleted('alice');
+  assert.equal(service.getRestoredFirebaseUser(), null, 'offline entry cannot use a deleted identity');
   await assert.rejects(service.initializeFirebaseServices(), /native signout failed/);
   assert.equal(guests, 0);
   failSignOut = false;
   assert.equal((await service.initializeFirebaseServices()).uid, 'guest');
+  assert.equal(service.getRestoredFirebaseUser().uid, 'guest');
   assert.equal(guests, 1);
 });
 
@@ -153,6 +155,7 @@ test('actual logout completes locally even if Firebase verification and billing 
   const state = auth(); let signs = 0; let verify = 0; let cleared = 0;
   const never = () => new Promise(() => {});
   const load = serviceLoader({
+    'expo-secure-store': {},
     '@react-native-firebase/app': { getApp() {} },
     '@react-native-firebase/auth': { getAuth: () => state, signOut: async () => { signs++; state.currentUser = null; } },
     '@react-native-firebase/functions': {},

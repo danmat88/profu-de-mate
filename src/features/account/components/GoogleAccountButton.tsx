@@ -52,7 +52,7 @@ export function GoogleAccountButton({ busy = false, disabled = false, note, onPr
 const styles = StyleSheet.create({
   shadow: { minHeight: 68, borderRadius: 20, backgroundColor: colors.ink, paddingBottom: 5 },
   button: { minHeight: 63, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 19, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 11, paddingVertical: 8 },
-  pressed: { transform: [{ translateY: 3 }], opacity: 0.94 },
+  pressed: { transform: [{ translateY: 1 }], opacity: 0.94 },
   disabled: { opacity: 0.68 },
   googleMark: { width: 42, height: 42, borderRadius: 14, borderWidth: 1.5, borderColor: '#D8D4E2', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-2deg' }] },
   copy: { flex: 1, minWidth: 0 },

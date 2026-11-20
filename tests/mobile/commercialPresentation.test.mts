@@ -22,41 +22,20 @@ function access(overrides: Partial<CommercialAccess> = {}): CommercialAccess {
 }
 
 test('presents guest, free, migrated legacy and Premium access without ambiguity', () => {
-  assert.deepEqual(allowancePresentation(access(), 'ready'), {
+  assert.deepEqual(allowancePresentation(access()), {
     label: '4 din 5 cadou',
-    note: 'PROBLEME',
-    accessibilityLabel: '4 din 5 cadou. Deschide opțiunile de acces.',
-    canOpenAccess: true,
-    canRetry: false,
+    note: 'VEZI PREMIUM',
+    accessibilityLabel: '4 din 5 cadou. Descoperă Profu’ Premium.',
   });
 
-  assert.equal(allowancePresentation(access({ identity: 'google', tier: 'free' }), 'ready').label, '4 din 5 azi');
+  assert.equal(allowancePresentation(access({ identity: 'google', tier: 'free' })).label, '4 din 5 azi');
   assert.deepEqual(
-    allowancePresentation(access({ canAnalyze: false, reason: 'account_required', remaining: 0, used: 5 }), 'ready'),
+    allowancePresentation(access({ canAnalyze: false, reason: 'account_required', remaining: 0, used: 5 })),
     {
       label: '0 din 5 cadou',
-      note: 'PROBLEME',
-      accessibilityLabel: '0 din 5 cadou. Deschide opțiunile de acces.',
-      canOpenAccess: true,
-      canRetry: false,
+      note: 'VEZI PREMIUM',
+      accessibilityLabel: '0 din 5 cadou. Descoperă Profu’ Premium.',
     },
   );
-  assert.equal(allowancePresentation(access({ identity: 'google', tier: 'premium', premium: { active: true, productId: 'profu_premium', expiresAt: null } }), 'ready').note, 'PREMIUM');
-});
-
-test('uses stable unresolved and actionable failure states without inventing a quota', () => {
-  assert.deepEqual(allowancePresentation(null, 'resolving'), {
-    label: '— din —',
-    note: 'PROBLEME',
-    accessibilityLabel: 'Pregătim numărul de probleme disponibile.',
-    canOpenAccess: false,
-    canRetry: false,
-  });
-  assert.deepEqual(allowancePresentation(null, 'unavailable'), {
-    label: 'Reîncearcă',
-    note: 'PROBLEME',
-    accessibilityLabel: 'Accesul nu a putut fi încărcat. Încearcă din nou.',
-    canOpenAccess: false,
-    canRetry: true,
-  });
+  assert.equal(allowancePresentation(access({ identity: 'google', tier: 'premium', premium: { active: true, productId: 'profu_premium', expiresAt: null } })).note, 'PREMIUM');
 });

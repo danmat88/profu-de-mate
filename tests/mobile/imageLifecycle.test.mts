@@ -128,7 +128,7 @@ test('crop gestures stay on the native UI thread and commit only after interacti
 
 test('heavy photo routes paint first without stacking duplicate transitions', () => {
   assert.match(appSource, /name="Review"[^>]*options=\{\{[^}]*animation: 'none'/);
-  assert.match(appSource, /name="Capture"[^>]*animation: reducedMotion \? 'none' : 'slide_from_bottom'/);
+  assert.match(appSource, /name="Capture"[^>]*animation: reducedMotion \? 'none' : 'fade'/);
   for (const routeName of ['Processing', 'Lesson']) {
     assert.match(appSource, new RegExp(`name="${routeName}"[^>]*animation: reducedMotion \\? 'none' : 'fade'`));
   }

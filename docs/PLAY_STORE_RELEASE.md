@@ -1,61 +1,131 @@
-# Google Play release checklist
+# Publicare în Google Play — pași și verificări
 
-Policy references checked: **18 November 2026**. Complete each item against the release candidate and the actual Play Console/Firebase configuration. Record a short result or a CI/Console link beside completed items; keep raw build output in `.local/` or private artifact storage.
+Actualizat: **18 noiembrie 2026**. Acesta este singurul checklist de publicare. O bifă înseamnă că există o verificare concretă; codul prezent în proiect nu dovedește că serviciul este configurat sau că funcționează în producție. După modificarea candidatului, se repetă verificările afectate.
 
-## Repository baseline
+Aplicație: `ro.profudemate.app` · Expo SDK 57 · profil EAS pentru magazin: `production` → **AAB**. Buildul de dezvoltare de pe telefon nu este candidatul de publicare.
 
-- App identifier: `ro.profudemate.app`.
-- Expo SDK 57; Android compile/target SDK configured as 36.
-- EAS `production` creates an AAB and selects Play Integrity; `development` creates a development APK.
-- The repository includes automated checks, account-deletion flows, AI-result reporting, and hosted legal pages. Their production behavior still needs release verification.
+## Situația confirmată de audit
 
-## 1. Product decisions — Daniel
+| Problemă | Ce s-a constatat | Stare |
+| --- | --- | --- |
+| Premium dispărea la conectare | Schimbarea identității remonta navigatorul și revenea la Home. | Corectat în cod; testat resetul cu păstrarea ecranului Premium și eliminarea datelor vechi de cont. |
+| Oferta părea să lipsească | Conținutul era înlocuit de verificarea accesului sau de conectarea Google. | Oferta rămâne vizibilă înainte de conectare și în timpul actualizării contului. |
+| Nu apar prețuri și nu se poate cumpăra | `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` lipsește local și din mediile EAS verificate. | **Blocaj de configurare**, nu poate fi rezolvat prin desenarea unor prețuri în interfață. |
+| Billing pe backend | Configurația locală de deploy nu activează `PROFU_ENABLE_REVENUECAT`; stadiul de securitate este `pre-play-public`. | Necesită configurare și deploy coordonat. Starea cloud nu a fost certificată de preflightul local. |
+| Home apărea înaintea datelor reale | Pornirea permitea acces nul și refresh ulterior; o cerere nouă pornea la montare/focus. | Home se montează după confirmarea serverului, fonturi și toate iconițele. Snapshotul verificat este reutilizat; cererile simultane sunt deduplicate pe sesiune. |
+| Verificare lentă la pornire | Încărcare dinamică suplimentară pentru stocarea securizată și etape independente executate în serie. | Stocarea intră în pachetul inițial; resursele, sesiunea și identitatea instalării se pregătesc în paralel unde sunt independente. Timpii sunt măsurați separat în development. |
+| Încărcări repetate | Fonturile documentelor porneau fără un rezultat sincron în cache; încălzirea Caietului se oprea după prima citire. | Fonturi pregătite la pornire, cache reutilizat și sincronizare a Caietului păstrată pe sesiune. |
+| Mișcare agitată | Tranziții diferite între ecrane, salturi elastice și animații suprapuse. | Tranziții native mai coerente, mișcări scurte pentru controale și panouri, fără reapariția întregului conținut. |
+| Back în panourile lecției | Pe telefon, Back închidea lecția când era deschisă explicația alternativă. | Panouri modale native; verificat că Back închide explicația/enunțul și păstrează lecția. |
 
-- [ ] Confirm the launch audience, countries, supported Android versions, and minimum age. The app currently declares a minimum age of 13; verify the selected AI service’s terms and the intended audience before launch.
-- [ ] Approve the AI provider/model, image and text handling, retention, content safeguards, and operating budget. Test Romanian explanations and mathematical correctness on a representative problem set.
-- [ ] Decide whether Premium launches now. If enabled, finalize products, pricing, quotas, cancellation/restore behavior, and RevenueCat/Google Play Billing configuration. If deferred, verify the released app accurately presents the available offer.
-- [ ] Confirm the legal operator and working support/privacy/billing contact addresses in the app and hosted pages.
+**Ordinea de lucru:** finalizăm verificarea aplicației → configurăm abonamentele → configurăm producția → construim și testăm AAB-ul din Play → completăm pagina și declarațiile → publicăm gradual.
 
-## 2. Play Console and listing — Daniel
+## 1. Aplicația și verificările locale — Engineering
 
-- [ ] Complete developer identity, contact, and account verification. Create/select the app with the permanent package identifier above. [Console setup](https://support.google.com/googleplay/android-developer/answer/9859152)
-- [ ] Configure Play App Signing and securely retain the upload key, account recovery information, and signing fingerprints.
-- [ ] Prepare the Romanian listing: app name, short/full descriptions, category, contact details, current screenshots, store icon, and feature graphic. Ensure screenshots show the release candidate.
-- [ ] Complete content rating, target audience, ads, app access/reviewer instructions, and all applicable App content declarations. Supply a reviewer path through authenticated or restricted features.
-- [ ] Complete Data safety from the actual behavior of the app, backend, AI provider, Firebase, Crashlytics, Google sign-in, and any billing SDKs. Reconcile it with the privacy policy and retention behavior.
-- [ ] Verify the public privacy, terms, and account-deletion URLs on mobile and while signed out. Test the in-app account deletion and the web deletion request route end to end. [Account deletion requirements](https://support.google.com/googleplay/android-developer/answer/13327111)
-- [ ] Verify in-app reporting of unsafe/offensive AI output, delivery to the responsible operator, and the moderation response process. [AI-generated content policy](https://support.google.com/googleplay/android-developer/answer/13985936)
-- [ ] Check account-specific testing requirements. Personal accounts created after 13 November 2023 currently require at least 12 testers continuously opted into a closed test for 14 days, followed by a production-access application. [Testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465)
+- [x] Organizează codul pe funcționalități, păstrează datele private în afara Git și elimină rapoartele/artefactele vechi.
+- [x] Deschide Home numai cu acces confirmat de server și resurse pregătite. La eroare oferă reîncercare și intrare separată în Caiet offline, fără limite demonstrative.
+- [x] Reutilizează accesul verificat la montare/focus; deduplică cererile și respinge răspunsurile unei identități schimbate sau ale unei porniri deja eșuate.
+- [x] Pregătește toate cele 20 de iconițe, brandingul și cele 5 fonturi UI înainte de Home; reutilizează sursele locale și fonturile documentelor.
+- [x] Calculează Home din cadrul real al aplicației, cu insetul superior aplicat în același render. Bara de navigare temporară a galeriei nu schimbă breakpointul sau spațierea ecranului imersiv. Indicatorul din butonul Galerie păstrează dimensiunile iconiței. Verificat prin teste pentru modificări temporare de dimensiuni/insets, anulare, redeschidere, redimensionare reală și text mărit; comparat pozițiile elementelor în previzualizare. Reproducerea nativă pe telefon rămâne de verificat.
+- [x] Montează textele splashului numai după pregătirea fonturilor; păstrează titlul în Balsamiq Sans și textul secundar lizibil în Fira Sans. Verificat automat primul render fără fonturi și previzualizat la 360×802 și 320×640 cu fișierele de font reale. Verificarea acestui aspect pe Android rămâne de repetat; telefonul nu a fost disponibil la această corecție.
+- [x] Verifică generarea Android izolată, fără instalare: cele 23 de imagini și cele 5 fonturi sunt în resursele native, fără avertismente de nume. Încorporarea nativă se aplică următorului build, nu modifică APK-ul deja instalat.
+- [x] Separă oferta Premium de conectare și de încărcarea accesului; afișează corect indisponibilitatea plăților, fără prețuri inventate.
+- [x] Protejează prețurile și răspunsurile întârziate împotriva schimbării contului; acceptă și o ofertă cu un singur plan disponibil.
+- [x] Verifică automat aplicația: **191 teste**, inclusiv pornire, erori, timeout, identități diferite, resurse, cereri duplicate și revenirea din Galerie; TypeScript și ESLint trecute.
+- [x] Verifică backendul: **91 teste** trecute; reguli și tranzacții în emulatoarele Firebase: **41 teste** trecute. Total: **323 teste**.
+- [x] Exportă JavaScript-ul Android în mod production și verifică lipsa tokenurilor App Check de debug cunoscute. Aceasta nu este verificarea semnăturii unui AAB.
+- [x] Verifică local identitatea legală și preflightul de deploy. Aceste comenzi nu confirmă setările serviciilor din cloud.
+- [x] Verifică afișarea și navigarea de bază pe **OPPO CPH2695, Android 16, build de dezvoltare**: Home → Premium, Setări → Premium, Caiet → lecție → rezumat, editor și Camera. Verifică Back pentru explicația alternativă, enunț și ajutorul Camerei. Nu s-au efectuat achiziții, ștergeri de date sau o analiză AI nouă în această verificare; acestea rămân în pașii următori.
+- [x] Măsoară pornirea pe telefon: în două restarturi complete ale procesului, pregătirea după pornirea JavaScriptului a durat **1,87 s și 1,89 s**; verificarea accesului **1,65 s și 1,69 s**, iar resursele **0,44 s**, în paralel. Home a afișat limita confirmată de server și iconițele pregătite. Aceste valori development exclud transferul/compilarea din Metro și nu reprezintă un SLA sau măsurarea candidatului Play. O primă rulare, înaintea corecției încărcării dinamice, a durat 9,23 s; backendul și rețeaua pot influența comparația.
+- [ ] Verifică pe dispozitive reprezentative: ecran mic, text mărit, mod de mișcare redusă, revenire din fundal, rețea lentă/offline și pornire la rece. Nu bifa întregul grup după verificarea unui singur telefon.
 
-## 3. Production configuration and signed artifact — Engineering
+Comenzi uzuale, folosind dependențele deja instalate:
 
-- [ ] Select a clean release commit and run the validation commands in the README against that revision. Investigate dependency advisories and verify retained third-party licenses.
-- [ ] Validate the EAS `production` environment and Firebase configuration. Confirm the production bundle contains no App Check debug token and uses `playIntegrity`.
-- [ ] Verify the live backend has `PROFU_RELEASE_SECURITY_STAGE=play`, correct secrets, least-privilege service accounts, App Check enforcement, and an explicitly chosen Device Recall policy. Coordinate the backend change with the Play-distributed client.
-- [ ] Register the **Play app-signing certificate** fingerprints in Firebase/Google authentication and integrity configuration. Distinguish those fingerprints from the AAB upload certificate.
-- [ ] Build a new signed **AAB** with the `production` profile and an unused, increasing version code. Record its release commit, EAS build URL, SHA-256, and expected upload certificate.
-- [ ] Run `npm run release:artifact-check -- <candidate.aab>` with `PROFU_RELEASE_CERT_SHA256` and `BUNDLETOOL_JAR` configured. Verify non-debuggable output, package identifier, manifest, permissions, and debug-token checks.
-- [ ] Confirm the uploaded AAB meets the current target API requirement. New Android phone apps and updates currently require **API 36 or higher**. Recheck at submission. [Target API policy](https://support.google.com/googleplay/android-developer/answer/11926878)
-- [ ] Inspect every shipped native library for 16 KB page compatibility and test on a 16 KB device/environment. Review Play Console’s compatibility results. [Android page-size guidance](https://developer.android.com/guide/practices/page-sizes)
-- [ ] Install the candidate from a Play testing track and verify Play Integrity, Google sign-in, native permissions, and startup using the Play-delivered signature.
+```powershell
+npm run test:mobile
+npm run functions:test
+npm run test:rules
+npm run legal:check
+npm run release:bundle-check
+node scripts/firebase/deploy-firebase.mjs --preflight-only
+```
 
-## 4. Release-candidate acceptance — Engineering + Daniel
+Capturile, înregistrările și logurile de diagnostic rămân în `.local/`, ignorat de Git. Bara albastră „Refreshing…” din sesiunea Expo de dezvoltare apare când se aplică modificări de cod; verificarea pentru utilizatorii finali se repetă pe buildul Play.
 
-- [ ] Verify cold/warm startup, Home’s fixed viewport, top/bottom system areas, all navigation, small phones, larger text, and reduced-motion behavior.
-- [ ] Exercise camera permission allow/deny/retry, gallery selection/cancellation, crop/rotate/retake, and background/foreground transitions.
-- [ ] Exercise typed solve/check with fractions, powers, radicals, long formulas, editing/undo, saved drafts, and the fixed submit action.
-- [ ] Exercise complete photo and typed analyses, unclear inputs, provider errors/timeouts, offline recovery, app restart, and resuming the same request without duplicate charges.
-- [ ] Verify rendered formulas, lesson navigation, alternate explanations, feedback reporting, and saved notebook lessons across restart and sign-in changes.
-- [ ] Verify guest access, Google linking/sign-in/sign-out, quota exhaustion, daily reset in Europe/Bucharest, account isolation, export, and account deletion. Check partially completed account operations and recovery queues.
-- [ ] If Premium is enabled, test Play purchases, restore, renewals, cancellations, refunds, entitlement changes, and webhook handling with test accounts.
-- [ ] Resolve blocking crashes, ANRs, accessibility problems, and Play pre-launch report findings. Confirm usable behavior on every declared supported Android version.
+## 2. Activează Premium cu produse reale — Daniel + Engineering
 
-## 5. Operations and rollout — Engineering + Daniel
+- [ ] Confirmă dacă Premium intră în prima versiune publică. Dacă se amână, aprobă explicit cum se prezintă oferta indisponibilă; nu publica accidental o promisiune de cumpărare nefuncțională.
+- [ ] Confirmă limitele gratuite/Premium, prețurile, moneda, țările și planurile oferite. Nu introducem prețuri demonstrative în aplicația livrată.
+- [ ] În Play Console, creează/verifică abonamentul, planurile de bază lunare/anuale și prețurile regionale; activează planurile și distribuția lor. [Configurarea produselor](https://www.revenuecat.com/docs/getting-started/entitlements/android-products)
+- [ ] Conectează aplicația Android corectă la RevenueCat și validează accesul contului de serviciu Google Play. Leagă produsele de entitlementul folosit de backend (`premiumEntitlementId`) și de oferta curentă cu pachetele disponibile. [Oferte și produse](https://www.revenuecat.com/docs/getting-started/displaying-products)
+- [ ] Adaugă cheia **publică Android** RevenueCat în variabila EAS `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` pentru mediile folosite; sincronizează mediul local. Cheia secretă RevenueCat nu intră niciodată în `EXPO_PUBLIC_*` sau în Git.
+- [ ] Configurează pe backend `PROFU_ENABLE_REVENUECAT=true` și secretele `REVENUECAT_SECRET_API_KEY`, `REVENUECAT_WEBHOOK_AUTH`, `REVENUECAT_WEBHOOK_SIGNING_SECRET`. Pregătește și verifică deployul funcțiilor `syncPremiumAccess`, `revenueCatWebhook` și al procesării ștergerilor externe.
+- [ ] În RevenueCat, configurează URL-ul webhookului, Authorization și **semnarea HMAC**. Backendul verifică ambele; simpla creare a URL-ului nu este suficientă. Trimite un eveniment de test și verifică procesarea idempotentă. [Webhookuri](https://www.revenuecat.com/docs/integrations/webhooks)
+- [ ] Configurează testerii de licență Google Play și instalează candidatul dintr-un track Play. Verifică prețurile localizate și perioada înainte de confirmarea cumpărării.
+- [ ] Execută achiziție de test, anularea dialogului, plată în așteptare, confirmare întârziată, restaurare și reinstalare. Confirmă același cont Profu’ și absența achizițiilor duplicate.
+- [ ] Execută reînnoire, anulare a reînnoirii, expirare, rambursare/revocare și schimbare de cont. Confirmă entitlementul în backend, limitele din aplicație și administrarea abonamentului din Google Play.
 
-- [ ] Confirm the deployed backend revision, rules, indexes, scheduled cleanup, retention, and deletion processing match the release candidate. Keep configuration checks separate from deployment confirmation.
-- [ ] Establish working error/crash alerts, provider-spend alerts, quota limits, and an operator for support, AI-content reports, and failed deletion/merge/billing review jobs.
-- [ ] Verify the AI pause control (`_runtimeConfig/ai.enabled`), request recovery, and a compatible rollback procedure. Preserve monotonic provider-attempt counters during incidents.
-- [ ] Define backup retention/recovery objectives and complete an isolated restore exercise consistent with account-deletion obligations.
-- [ ] Run internal testing, then the required closed test. Review tester feedback and obtain production access where required.
-- [ ] Complete Console declarations, review access, release notes, distribution settings, and any remaining policy warnings for the exact uploaded AAB.
-- [ ] Submit the candidate for review, then use a controlled production rollout. Monitor crashes, failed analyses, authentication, quotas, spend, and support reports before expanding availability.
+## 3. Deciziile de produs și datele legale — Daniel
+
+- [ ] Confirmă publicul, țările, versiunile Android acceptate și vârsta minimă. Aplicația declară în prezent 13+; verifică termenii serviciului AI și publicul ales.
+- [ ] Aprobă modelul AI, prelucrarea imaginilor și textului, retenția, protecțiile de conținut și bugetul. Verifică explicațiile în română și corectitudinea pe un set reprezentativ de probleme.
+- [ ] Confirmă operatorul legal și adresele funcționale pentru suport, confidențialitate și plăți, în aplicație și în paginile publice.
+- [ ] Testează ștergerea contului și a datelor în aplicație, plus solicitarea web, inclusiv tratarea profilului extern de billing și informarea că abonamentul Play se anulează separat. [Cerințe de ștergere](https://support.google.com/googleplay/android-developer/answer/13327111)
+- [ ] Testează raportarea rezultatelor AI greșite/nepotrivite și stabilește persoana care primește și soluționează raportările. [Politica pentru conținut AI](https://support.google.com/googleplay/android-developer/answer/13985936)
+
+## 4. Configurează producția și construiește AAB-ul — Engineering
+
+- [ ] Alege commitul candidat și rulează verificările din README pe acea revizie. Verifică vulnerabilitățile dependențelor și licențele păstrate.
+- [ ] Validează mediul EAS `production`, configurația Firebase și `playIntegrity`, fără token de debug în client.
+- [ ] Pregătește trecerea coordonată a backendului la `PROFU_RELEASE_SECURITY_STAGE=play`, App Check și politica Device Recall. Verifică setările și secretele efectiv deployate; nu deduce starea cloud din fișierele locale.
+- [ ] Activează/verifică Play App Signing și înregistrează amprentele **certificatului de semnare Play** în Firebase, Google authentication și Play Integrity. Păstrează separat certificatul cheii de upload și copiile de recuperare.
+- [ ] Construiește un **AAB semnat** cu profilul EAS `production` și un `versionCode` nou. Înregistrează commitul, URL-ul buildului EAS, SHA-256 și certificatul de upload așteptat.
+- [ ] Rulează `npm run release:artifact-check -- <candidate.aab>` cu `PROFU_RELEASE_CERT_SHA256` și `BUNDLETOOL_JAR` configurate. Verifică pachetul, semnătura, manifestul, permisiunile, lipsa debugului și a tokenurilor de debug.
+- [ ] Confirmă target API în AAB: pentru aplicații Android de telefon noi și actualizări, cerința curentă este **API 36 sau mai nou**. Reverifică la încărcare. [Cerința Google Play](https://support.google.com/googleplay/android-developer/answer/11926878)
+- [ ] Verifică bibliotecile native și rezultatele Play Console pentru compatibilitatea cu pagini de memorie de 16 KB; testează într-un mediu corespunzător. [Ghid Android](https://developer.android.com/guide/practices/page-sizes)
+- [ ] Instalează aplicația din trackul Play și verifică startup, Play Integrity, autentificarea Google, Camera și billing cu semnătura livrată de Play.
+
+## 5. Testează candidatul distribuit prin Play — Engineering + Daniel
+
+- [ ] Repetă verificarea vizuală și tranzițiile pe candidatul Play, inclusiv accesul gratuit, Premium și accesul expirat. Bara de dezvoltare și instrumentele de debug nu trebuie să apară.
+- [ ] Măsoară startup rece/cald și revenirea din fundal pe candidatul Play, cu rețea bună/slabă și offline. Înregistrează separat timpul până la prima imagine, până la Home interactiv și latența verificării accesului; compară mediană/p95 pe dispozitive reprezentative. Testele de timeout și numerele obținute pe development nu înlocuiesc aceste măsurători.
+- [ ] Testează Camera: permisiune acceptată/refuzată, retry, galerie și anulare, crop, rotire, refotografiere și revenire din fundal.
+- [ ] Testează „Scrie problema”: rezolvare/verificare, fracții, puteri, radicali, formule lungi, undo, drafturi și butonul de trimitere.
+- [ ] Testează analiza foto și scrisă: succes, input neclar, eroare de provider, timeout, offline, restart și reluarea aceluiași request fără consum dublu.
+- [ ] Testează lecția, formulele, explicațiile alternative, rezumatul, raportarea și salvarea/ștergerea din Caiet, inclusiv după restart.
+- [ ] Testează vizitator, conectare Google, logout, transferul Caietului, conturi diferite, epuizarea limitei și resetarea zilnică în Europe/Bucharest, inclusiv schimbarea orei.
+- [ ] Testează ștergerea contului, operațiile întrerupte și recuperarea după eșec; verifică izolarea datelor între conturi.
+- [ ] Rezolvă crashuri, ANR-uri, probleme de accesibilitate și raportul de pre-lansare Play. Confirmă comportamentul pe versiunile Android declarate.
+
+## 6. Completează pagina și declarațiile în Play Console — Daniel
+
+- [ ] Finalizează verificarea contului de dezvoltator și aplicația cu identificatorul permanent `ro.profudemate.app`.
+- [ ] Pregătește numele, descrierile în română, categoria, datele de contact, iconul, grafica de prezentare și capturi din candidatul final.
+- [ ] Completează ratingul de conținut, publicul, reclamele, instrucțiunile de acces pentru reviewer și toate declarațiile aplicabile din App content.
+- [ ] Completează Data safety din comportamentul real al aplicației, Firebase/Crashlytics, Google sign-in, AI și billing; aliniază declarațiile cu politica de confidențialitate și retenția datelor.
+- [ ] Verifică public, de pe mobil și fără autentificare, paginile de confidențialitate, termeni, suport și ștergere a contului.
+- [ ] Verifică cerința aplicabilă contului tău: pentru conturi personale create după 13 noiembrie 2023 sunt necesari minimum **12 testeri înscriși continuu timp de 14 zile** într-un test închis, apoi cerere de acces la producție. [Cerințe de testare](https://support.google.com/googleplay/android-developer/answer/14151465)
+
+## 7. Publică și urmărește lansarea — Daniel + Engineering
+
+- [ ] Confirmă revizia backendului deployat, regulile, indexurile, retenția, curățarea programată și procesarea ștergerilor.
+- [ ] Configurează alerte pentru crashuri, autentificare, erori AI/billing și costuri; numește responsabilul pentru suport, raportări și operații eșuate.
+- [ ] Verifică oprirea temporară AI (`_runtimeConfig/ai.enabled`), limitele de consum, recuperarea requesturilor și procedura de rollback compatibilă cu datele existente.
+- [ ] Stabilește retenția backupurilor și verifică restaurarea într-un mediu izolat, compatibilă cu obligațiile de ștergere a datelor.
+- [ ] Finalizează testarea internă și testul închis cerut, rezolvă feedbackul și obține accesul la producție dacă se aplică.
+- [ ] Completează notele versiunii, distribuția, accesul reviewerului și avertismentele rămase pentru AAB-ul exact încărcat.
+- [ ] Trimite la review și lansează gradual. Urmărește crashurile, analizele eșuate, autentificarea, achizițiile, limitele, costurile și suportul înainte de extinderea distribuției.
+
+## Dovezile candidatului de publicare
+
+De completat când există candidatul Play, fără secrete:
+
+| Element | Valoare |
+| --- | --- |
+| Commit candidat | De completat |
+| Versiune / versionCode | De completat |
+| Build EAS / AAB SHA-256 | De completat |
+| Track Play / URL pentru testeri | De completat |
+| Rezultat testare billing și webhook | De completat |
+| Rezultat QA pe candidatul Play | De completat |
+| Responsabil / data aprobării lansării | De completat |

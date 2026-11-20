@@ -10,9 +10,10 @@ import {
   type User,
 } from '@react-native-firebase/auth';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
+import * as SecureStore from 'expo-secure-store';
 import type { CommercialAccess } from '../../../shared/types';
 import { clearCachedCommercialAccess, writeCachedCommercialAccess } from './commercialAccessCache';
-import { createWelcomeIntegrityProof, preparePlayIntegrity } from '../../../shared/services/deviceIntegrity';
+import { createWelcomeIntegrityProof } from '../../../shared/services/deviceIntegrity';
 import {
   firebaseUserSessionKey,
   initializeVerifiedFirebaseServices,
@@ -33,6 +34,7 @@ type PendingMerge = { ticket: string; sourceUserId: string; targetUserId?: strin
 
 let googleConfigured = false;
 let mergeResume: Promise<void> | null = null;
+let accessRequest: { sessionKey: string | null; promise: Promise<CommercialAccess> } | null = null;
 const PENDING_MERGES_KEY = 'commercial.pending-google-merges.v2';
 const LEGACY_PENDING_MERGE_KEY = 'commercial.pending-google-merge.v1';
 const MERGE_TICKET_CLIENT_LIFETIME_MS = 6 * 24 * 60 * 60 * 1000;
@@ -67,10 +69,6 @@ async function googleSigninModule() {
   return import('react-native-nitro-google-signin');
 }
 
-async function secureStoreModule() {
-  return import('expo-secure-store');
-}
-
 function validPendingMerge(value: unknown): value is PendingMerge {
   if (!value || typeof value !== 'object') return false;
   const data = value as Partial<PendingMerge>;
@@ -103,7 +101,7 @@ function uniquePendingMerges(values: readonly PendingMerge[]): PendingMerge[] {
 
 async function readPendingMerges(): Promise<PendingMerge[]> {
   try {
-    const storage = await secureStoreModule();
+    const storage = SecureStore;
     const [raw, legacyRaw] = await Promise.all([
       storage.getItemAsync(PENDING_MERGES_KEY),
       storage.getItemAsync(LEGACY_PENDING_MERGE_KEY),
@@ -134,7 +132,7 @@ async function writePendingMerges(values: readonly PendingMerge[]): Promise<void
     throw new Error('Mai multe conectări așteaptă recuperarea lecțiilor. Contactează suportul înainte să adaugi un alt cont pe acest dispozitiv.');
   }
   try {
-    const storage = await secureStoreModule();
+    const storage = SecureStore;
     if (pending.length > 0) await storage.setItemAsync(PENDING_MERGES_KEY, JSON.stringify(pending));
     else await storage.deleteItemAsync(PENDING_MERGES_KEY);
     await storage.deleteItemAsync(LEGACY_PENDING_MERGE_KEY);
@@ -236,21 +234,20 @@ async function configureGoogle(): Promise<void> {
   googleConfigured = true;
 }
 
-export async function prepareCommercialServices(): Promise<void> {
-  const user = await initializeVerifiedFirebaseServices();
-  await resumePendingMergeWithoutBlocking(user);
-  await Promise.all([preparePlayIntegrity().catch(() => undefined), getInstallationToken()]);
-}
-
 async function requestCommercialAccess(allowSessionRecovery: boolean): Promise<CommercialAccess> {
-  const user = await initializeVerifiedFirebaseServices();
+  const startedAt = Date.now();
+  // Installation storage does not depend on authentication. Resolve both in
+  // parallel; this module is part of the initial bundle rather than a second
+  // Metro download in the middle of startup.
+  const [user, installationToken] = await Promise.all([initializeVerifiedFirebaseServices(), getInstallationToken()]);
+  const sessionReadyAt = Date.now();
   const requestedSessionKey = firebaseUserSessionKey(user);
   if (!requestedSessionKey) throw new StaleCommercialSessionError();
   const session = captureSession(user.uid);
   await resumePendingMergeWithoutBlocking(user);
-  const installationToken = await getInstallationToken();
+  const requestStartedAt = Date.now();
   assertSessionActive(session);
-  const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 30_000 });
+  const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 12_000 });
   let access: CommercialAccess;
   try {
     access = (await callable({ installationToken })).data;
@@ -262,6 +259,7 @@ async function requestCommercialAccess(allowSessionRecovery: boolean): Promise<C
     throw error;
   }
   const activeSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
+  const responseAt = Date.now();
   if (activeSessionKey !== requestedSessionKey) throw new StaleCommercialSessionError();
   assertSessionActive(session);
   await writeCachedCommercialAccess(access, requestedSessionKey);
@@ -272,11 +270,24 @@ async function requestCommercialAccess(allowSessionRecovery: boolean): Promise<C
     });
   }
   assertSessionActive(session);
+  if (__DEV__) console.info('[access:ready]', {
+    session: sessionReadyAt - startedAt,
+    merge: requestStartedAt - sessionReadyAt,
+    request: responseAt - requestStartedAt,
+    persistence: Date.now() - responseAt,
+    total: Date.now() - startedAt,
+  });
   return access;
 }
 
 export function getCommercialAccess(): Promise<CommercialAccess> {
-  return requestCommercialAccess(true);
+  const sessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
+  if (accessRequest?.sessionKey === sessionKey) return accessRequest.promise;
+  const promise = requestCommercialAccess(true).finally(() => {
+    if (accessRequest?.promise === promise) accessRequest = null;
+  });
+  accessRequest = { sessionKey, promise };
+  return promise;
 }
 
 function detailsFromError(error: unknown): { reason: string; access: CommercialAccess | null } | null {

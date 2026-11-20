@@ -21,6 +21,12 @@ function assertInitializationCurrent(generation: number): void {
   if (generation !== initializationGeneration) throw new SessionChangedError();
 }
 
+/** A deleted local identity must not reopen cached data while sign-out retries. */
+export function getRestoredFirebaseUser(): User | null {
+  const user = getAuth(getApp()).currentUser;
+  return user?.uid === locallyDeletedUserId ? null : user;
+}
+
 type AppCheckMode = 'debug' | 'none' | 'playIntegrity';
 
 function configuredAppCheckMode(): AppCheckMode {
@@ -117,7 +123,7 @@ async function ensureAppCheckReady(appCheck: AppCheck): Promise<void> {
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
 
     try {
-      const { token } = await getAppCheckToken(appCheck, true);
+      const { token } = await getAppCheckToken(appCheck, delay > 0);
       if (isJwt(token)) return;
       lastError = new Error('Firebase App Check returned a malformed token.');
     } catch (error) {
@@ -171,9 +177,8 @@ export async function initializeVerifiedFirebaseServices(): Promise<User> {
   const generation = initializationGeneration;
   const initializedUser = await initializeFirebaseServices();
   assertInitializationCurrent(generation);
-  const user = await verifyServerAuthSession(initializedUser);
-  assertInitializationCurrent(generation);
-  if (configuredAppCheckMode() === 'none') return user;
+  const verifiedUser = verifyServerAuthSession(initializedUser);
+  if (configuredAppCheckMode() === 'none') return verifiedUser;
   if (!appCheckInstance) throw new Error('Firebase App Check nu a fost inițializat.');
   if (!appCheckVerification) {
     appCheckVerification = ensureAppCheckReady(appCheckInstance).catch((error) => {
@@ -181,7 +186,7 @@ export async function initializeVerifiedFirebaseServices(): Promise<User> {
       throw error;
     });
   }
-  await appCheckVerification;
+  const [user] = await Promise.all([verifiedUser, appCheckVerification]);
   assertInitializationCurrent(generation);
   if (authSessionIdentityKey(getAuth(getApp()).currentUser) !== authSessionIdentityKey(user)) throw new SessionChangedError();
   return user;

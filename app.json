@@ -44,7 +44,18 @@
       "favicon": "./assets/brand/favicon-v2.png"
     },
     "plugins": [
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/balsamiq-sans/400Regular/BalsamiqSans_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/balsamiq-sans/700Bold/BalsamiqSans_700Bold.ttf",
+            "./node_modules/@expo-google-fonts/fira-sans/400Regular/FiraSans_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/fira-sans/500Medium/FiraSans_500Medium.ttf",
+            "./node_modules/@expo-google-fonts/fira-sans/600SemiBold/FiraSans_600SemiBold.ttf"
+          ]
+        }
+      ],
       [
         "expo-camera",
         {
@@ -66,6 +77,17 @@
           "enforceContrast": false,
           "hidden": true,
           "style": "light"
+        }
+      ],
+      [
+        "expo-asset",
+        {
+          "assets": [
+            "./assets/icons",
+            "./assets/brand/splash_mark_v2.png",
+            "./assets/brand/profu_mark_v2.png",
+            "./assets/profu_mascot_v2.png"
+          ]
         }
       ]
     ],

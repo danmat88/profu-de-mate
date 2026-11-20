@@ -26,10 +26,9 @@ export function PlayfulLoader({ label, note, inverse = false, compact = false, m
     }
 
     const animation = Animated.loop(Animated.sequence([
-      Animated.stagger(90, motion.map((value) => Animated.spring(value, {
+      Animated.stagger(90, motion.map((value) => Animated.timing(value, {
         toValue: 1,
-        speed: 22,
-        bounciness: 10,
+        duration: 240,
         useNativeDriver: true,
       }))),
       Animated.delay(170),
@@ -62,9 +61,8 @@ export function PlayfulLoader({ label, note, inverse = false, compact = false, m
               {
                 opacity: reducedMotion ? 1 : value.interpolate({ inputRange: [0, 1], outputRange: [0.46, 1] }),
                 transform: [
-                  { translateY: reducedMotion ? 0 : value.interpolate({ inputRange: [0, 1], outputRange: [3, -4] }) },
-                  { rotate: index === 0 ? '-7deg' : index === 1 ? '4deg' : '-2deg' },
-                  { scale: reducedMotion ? 1 : value.interpolate({ inputRange: [0, 1], outputRange: [0.82, 1] }) },
+                  { translateY: reducedMotion ? 0 : value.interpolate({ inputRange: [0, 1], outputRange: [1, -1] }) },
+                  { scale: reducedMotion ? 1 : value.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) },
                 ],
               },
             ]}

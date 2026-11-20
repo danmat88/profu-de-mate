@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, BackHandler, Easing, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -230,23 +230,27 @@ export function CaptureScreen({ navigation, route }: Props) {
     }
   }, [acceptImage, working]);
 
+  const closeHelp = useCallback(() => {
+    if (reducedMotion) { setShowHelp(false); return; }
+    Animated.timing(helpPop, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => setShowHelp(false));
+  }, [helpPop, reducedMotion]);
+
+  useEffect(() => {
+    if (!isFocused || !showHelp) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { closeHelp(); return true; });
+    return () => subscription.remove();
+  }, [closeHelp, isFocused, showHelp]);
+
   const toggleHelp = () => {
     Haptics.selection();
-    if (showHelp) {
-      if (reducedMotion) {
-        setShowHelp(false);
-        return;
-      }
-      Animated.timing(helpPop, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => setShowHelp(false));
-      return;
-    }
+    if (showHelp) { closeHelp(); return; }
     setShowHelp(true);
     if (reducedMotion) {
       helpPop.setValue(1);
       return;
     }
     helpPop.setValue(0);
-    Animated.spring(helpPop, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 5 }).start();
+    Animated.timing(helpPop, { toValue: 1, duration: 220, useNativeDriver: true }).start();
   };
 
   return (

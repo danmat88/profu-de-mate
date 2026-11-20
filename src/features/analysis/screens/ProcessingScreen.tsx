@@ -1,3 +1,4 @@
+import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -195,7 +196,6 @@ export function ProcessingScreen({ navigation, route }: Props) {
   }, [commercialAccess?.canAnalyze]));
 
   useEffect(() => {
-    if (!sceneReady) return undefined;
     let mounted = true;
     let session: ActiveSession;
     try {
@@ -283,7 +283,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
       clearTimeout(slowStage);
       scanVisibility.stopAnimation();
     };
-  }, [navigation, orbit, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, route.params.userId, scanVisibility, sceneReady]);
+  }, [navigation, orbit, reducedMotion, requestKey, route.params.image, route.params.mode, route.params.origin, route.params.requestId, route.params.userId, scanVisibility]);
 
   if (screenState.kind !== 'analyzing') {
     const rejected = screenState.kind === 'rejected';
@@ -321,7 +321,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             ],
           }]}>
             <View style={styles.messageHalo} />
-            <Image accessible={false} source={require('../../../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.messageMascot} />
+            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={styles.messageMascot} />
             <View style={styles.messageGlyph}>{rejected ? <AppIcon name="camera" size={40} /> : <MiniGlyph name="spark" size={26} />}</View>
           </Animated.View>
           <Animated.View style={[styles.messageCardWrap, {
@@ -399,7 +399,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck]}>
               <Text style={styles.guideText}>{isCheck ? 'Verific atent.' : 'Citesc atent.'}</Text>
             </View>
-            <Image accessible={false} source={require('../../../../assets/profu-mascot-v2.png')} resizeMode="contain" style={styles.guideMascot} />
+            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={styles.guideMascot} />
           </Animated.View>
         </Animated.View>
         <View style={[styles.statusArea, isVeryShort && styles.statusAreaShort, { paddingBottom: bottomSpace }]}>

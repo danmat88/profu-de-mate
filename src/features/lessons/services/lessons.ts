@@ -9,6 +9,9 @@ type LessonListener = (lessons: StoredLesson[]) => void;
 let favoriteLessonsCache: StoredLesson[] | undefined;
 let favoriteLessonsCacheSessionKey: string | null = null;
 let favoriteLessonsPrewarm: Promise<void> | null = null;
+let warmUnsubscribe: (() => void) | undefined;
+let warming = false;
+let cacheGeneration = 0;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SAVED_RETENTION_MS = 400 * DAY_MS;
 const RETENTION_REFRESH_WINDOW_MS = 399 * DAY_MS;
@@ -22,6 +25,10 @@ export function getCachedFavoriteLessons(): StoredLesson[] | undefined {
 }
 
 export function clearFavoriteLessonsCache() {
+  cacheGeneration += 1;
+  warmUnsubscribe?.();
+  warmUnsubscribe = undefined;
+  warming = false;
   favoriteLessonsCache = undefined;
   favoriteLessonsCacheSessionKey = null;
   favoriteLessonsPrewarm = null;
@@ -29,28 +36,38 @@ export function clearFavoriteLessonsCache() {
 }
 
 export function prewarmFavoriteLessonsCache(): Promise<void> {
-  if (getCachedFavoriteLessons() !== undefined) return Promise.resolve();
   if (favoriteLessonsPrewarm) return favoriteLessonsPrewarm;
+  if (warming || warmUnsubscribe) return Promise.resolve();
+  warming = true;
+  const generation = cacheGeneration;
 
   const operation = new Promise<void>((resolve) => {
     let settled = false;
-    let unsubscribe: (() => void) | undefined;
+    let failed = false;
     const finish = () => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      unsubscribe?.();
       resolve();
     };
     const timeout = setTimeout(finish, 3_500);
 
     subscribeToFavoriteLessons(
       () => finish(),
-      () => finish(),
+      () => {
+        failed = true;
+        if (generation === cacheGeneration) { warmUnsubscribe?.(); warmUnsubscribe = undefined; warming = false; }
+        finish();
+      },
     ).then((stop) => {
-      unsubscribe = stop;
-      if (settled) stop();
-    }).catch(() => finish());
+      if (generation !== cacheGeneration || failed) { stop(); return; }
+      warming = false;
+      // Keep this listener alive so saving a lesson warms the next visit too.
+      warmUnsubscribe = stop;
+    }).catch(() => {
+      if (generation === cacheGeneration) warming = false;
+      finish();
+    });
   });
   const tracked = operation.finally(() => {
     if (favoriteLessonsPrewarm === tracked) favoriteLessonsPrewarm = null;
@@ -60,6 +77,7 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
 }
 
 export async function subscribeToFavoriteLessons(onChange: LessonListener, onError: (error: Error) => void): Promise<() => void> {
+  const generation = cacheGeneration;
   const user = await initializeFirebaseServices();
   const sessionKey = firebaseUserSessionKey(user);
   if (!sessionKey) throw new Error('Sesiunea Caietului nu este disponibilă.');
@@ -84,7 +102,7 @@ export async function subscribeToFavoriteLessons(onChange: LessonListener, onErr
   };
 
   return onSnapshot(lessonsQuery, (snapshot) => {
-    if (firebaseUserSessionKey(getAuth(getApp()).currentUser) !== sessionKey) return;
+    if (generation !== cacheGeneration || firebaseUserSessionKey(getAuth(getApp()).currentUser) !== sessionKey) return;
     snapshot.docs.forEach((snapshotDoc) => {
       const data = snapshotDoc.data() as { isFavorite?: unknown; expiresAt?: { toMillis?: () => number } };
       const refreshKey = `${sessionKey}:${snapshotDoc.id}`;

@@ -1,8 +1,10 @@
 import { useWindowDimensions } from 'react-native';
 import { layout } from '../theme';
 
-export function useResponsiveLayout() {
-  const { width, height, fontScale } = useWindowDimensions();
+export function useResponsiveLayout(frame?: { width: number; height: number }) {
+  const window = useWindowDimensions();
+  const { width, height } = frame ?? window;
+  const { fontScale } = window;
   const isVeryNarrow = width < 350;
   const isNarrow = width < 390;
   const isVeryShort = height < 700;

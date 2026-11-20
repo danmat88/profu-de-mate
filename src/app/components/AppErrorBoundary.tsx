@@ -1,3 +1,4 @@
+import { bundledImageSource } from '../../shared/services/bundledImages';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
@@ -35,7 +36,7 @@ export class AppErrorBoundary extends Component<Props, State> {
           <View style={styles.mascotHalo}>
             <Image
               accessible={false}
-              source={require('../../../assets/profu-mascot-v2.png')}
+              source={bundledImageSource(require('../../../assets/profu_mascot_v2.png'))}
               resizeMode="contain"
               style={styles.mascot}
             />

@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View, ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-import { colors, fonts } from '../theme';
+import { colors, fonts, motion } from '../theme';
 import { AppIcon, AppIconName } from './AppIcon';
 import { MiniGlyph } from './MiniGlyph';
 import { Text } from './Typography';
@@ -35,29 +35,22 @@ export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone
   const { isNarrow, isLargeText } = useResponsiveLayout();
   const reducedMotion = useReducedMotion();
   const press = useRef(new Animated.Value(0)).current;
-  const shine = useRef(new Animated.Value(0)).current;
   const light = tone === 'violet' || tone === 'ink';
   const condensed = (compact || isNarrow) && !isLargeText;
 
   useEffect(() => {
-    if (tone === 'paper' || reducedMotion) return;
-    const animation = Animated.sequence([
-      Animated.delay(420),
-      Animated.timing(shine, { toValue: 1, duration: 720, useNativeDriver: true }),
-    ]);
-    animation.start();
-    return () => animation.stop();
-  }, [reducedMotion, shine, tone]);
+    if (reducedMotion) { press.stopAnimation(); press.setValue(0); }
+  }, [press, reducedMotion]);
 
   const move = (value: number) => {
     if (reducedMotion) return;
-    Animated.spring(press, { toValue: value, useNativeDriver: true, speed: 34, bounciness: 2 }).start();
+    Animated.timing(press, { toValue: value, duration: motion.press, useNativeDriver: true }).start();
   };
 
   return (
     <View style={[styles.wrap, condensed && styles.wrapCompact, disabled && styles.disabled, style]}>
       <View style={styles.shadow} />
-      <Animated.View style={[styles.motion, { transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 5] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.985] }) }] }]}>
+      <Animated.View style={[styles.motion, { transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.99] }) }] }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={title}
@@ -69,10 +62,6 @@ export function ComicButton({ title, subtitle, icon, trailingIcon = 'next', tone
           onPress={() => { Haptics.impact(Haptics.ImpactFeedbackStyle.Medium); onPress(); }}
           style={[styles.face, condensed && styles.faceCompact, { backgroundColor: fills[tone] }]}
         >
-          {tone !== 'paper' ? <Animated.View pointerEvents="none" style={[styles.shine, { transform: [
-            { translateX: shine.interpolate({ inputRange: [0, 1], outputRange: [-90, 430] }) },
-            { rotate: '18deg' },
-          ] }]} /> : null}
           {icon ? (
             <View style={[styles.icon, condensed && styles.iconCompact]}><AppIcon name={icon} size={condensed ? 46 : 58} /></View>
           ) : null}
@@ -94,7 +83,6 @@ const styles = StyleSheet.create({
   shadow: { position: 'absolute', top: 7, left: 0, right: 0, bottom: 0, borderRadius: 22, backgroundColor: colors.ink },
   face: { width: '100%', minWidth: 0, minHeight: 75, borderRadius: 22, borderWidth: 3, borderColor: colors.ink, paddingHorizontal: 13, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 8, overflow: 'hidden' },
   faceCompact: { minHeight: 57, borderRadius: 18, paddingVertical: 5 },
-  shine: { position: 'absolute', top: -42, left: 0, width: 43, height: 150, backgroundColor: 'rgba(255,255,255,0.28)' },
   icon: { width: 57, height: 57, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   iconCompact: { width: 47, height: 47 },
   copy: { flex: 1, minWidth: 0, zIndex: 1 },

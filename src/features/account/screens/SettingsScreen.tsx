@@ -47,9 +47,9 @@ export function SettingsScreen({ navigation }: Props) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
-  const { access, loading: accessLoading, connectGoogle, disconnectGoogle, deleteAccount, refresh } = useCommercial();
+  const { access, identity, loading: accessLoading, connectGoogle, disconnectGoogle, deleteAccount, refresh } = useCommercial();
   const freeDailyLimit = access?.allowances.freeDaily ?? 5;
-  const hasGoogleAccount = access?.identity === 'google';
+  const hasGoogleAccount = (access?.identity ?? identity) === 'google';
   const deletionActionTitle = hasGoogleAccount ? 'Șterge contul și datele' : 'Șterge datele temporare';
   const deletionActionText = hasGoogleAccount
     ? 'Șterge definitiv contul Profu’ de mate, Caietul și raportările. Abonamentul Google Play se oprește separat.'
@@ -60,16 +60,16 @@ export function SettingsScreen({ navigation }: Props) {
     : 'Profilul temporar, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
   const diagnosticsLocked = useRef(false);
   const deletionLocked = useRef(false);
-  const accountLabel = !access ? 'STARE INDISPONIBILĂ' : access.premium.active ? 'PROFU’ PREMIUM' : access.identity === 'google' ? 'CONT GOOGLE CONECTAT' : 'CONT TEMPORAR';
+  const accountLabel = access?.premium.active ? 'PROFU’ PREMIUM' : hasGoogleAccount ? 'CONT GOOGLE CONECTAT' : 'SPAȚIUL TĂU';
   const accountTitle = !access
-    ? 'Nu am putut verifica sesiunea'
+    ? hasGoogleAccount ? 'Caietul tău, în contul tău' : 'Setările tale, într-un singur loc'
     : access.premium.active
     ? 'Premium și Caietul sunt legate de contul tău'
     : access.identity === 'google'
       ? 'Caietul poate fi recuperat'
       : 'Caietul este legat de această instalare';
   const accountText = !access
-    ? 'Verifică internetul și revino la acest ecran. Nu afișăm o limită estimată în locul celei confirmate de server.'
+    ? accessLoading ? 'Poți folosi setările cât timp limita de azi se actualizează în fundal.' : 'Limita de azi nu este disponibilă momentan. Verifică internetul pentru actualizare.'
     : access.identity === 'google'
     ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează accesul după reinstalare și pe celelalte telefoane ale tale.`
     : `Mai ai ${access.remaining} din ${access.limit} probleme de bun-venit pe această instalare. Pentru a recupera Caietul după reinstalare și pentru ${freeDailyLimit} probleme gratuite zilnic, conectează-te cu Google.`;
@@ -150,13 +150,11 @@ export function SettingsScreen({ navigation }: Props) {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 14) + 18 }]}>
         <View style={styles.identity}>
           <View style={styles.identityIcon}><AppIcon name="privacy" size={54} /></View>
-          {accessLoading && !access
-            ? <PlayfulLoader compact label="Verific spațiul tău" style={styles.identityLoader} />
-            : <View style={styles.identityCopy}>
+          <View style={styles.identityCopy}>
                 <Text style={styles.identityLabel}>{accountLabel}</Text>
                 <Text style={styles.identityTitle}>{accountTitle}</Text>
                 <Text style={styles.identityText}>{accountText}</Text>
-              </View>}
+              </View>
         </View>
 
         {!accessLoading && !access ? (
@@ -166,7 +164,7 @@ export function SettingsScreen({ navigation }: Props) {
           </Pressable>
         ) : null}
 
-        {!accessLoading && access?.identity === 'anonymous' ? (
+        {!hasGoogleAccount && identity === 'anonymous' ? (
           <GoogleAccountButton
             busy={connectingGoogle}
             note={`Păstrezi Caietul și primești ${freeDailyLimit} probleme gratuite zilnic`}
@@ -174,7 +172,7 @@ export function SettingsScreen({ navigation }: Props) {
             style={styles.settingsGoogleButton}
           />
         ) : null}
-        {!accessLoading && access?.identity === 'google' ? (
+        {hasGoogleAccount ? (
           <Pressable accessibilityRole="button" onPress={() => setConfirmLogout(true)} style={styles.accountAction}>
             <View style={[styles.rowIcon, { backgroundColor: colors.cyan }]}><AppIcon name="profile" size={36} /></View>
             <View style={styles.rowCopy}><Text style={styles.rowTitle}>Deconectează contul Google</Text><Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Revii la problemele de bun-venit rămase pe această instalare.</Text></View>

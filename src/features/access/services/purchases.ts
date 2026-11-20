@@ -17,6 +17,8 @@ let purchasesSdkConfigured = false;
 let configuredSessionKey: string | null = null;
 let sdkQueue: Promise<unknown> = Promise.resolve();
 let billingOperationActive = false;
+let cachedOffer: { sessionKey: string; userId: string; savedAt: number; offer: PremiumOffer } | null = null;
+const OFFER_CACHE_MS = 5 * 60_000;
 
 // Identity changes and transactions share a queue: a login cannot switch the
 // native customer underneath a purchase already presented by Google Play.
@@ -58,9 +60,19 @@ function beginBillingOperation(): void {
 }
 
 export type PremiumOffer = {
-  monthly: PurchasesPackage;
-  annual: PurchasesPackage;
+  monthly: PurchasesPackage | null;
+  annual: PurchasesPackage | null;
 };
+
+export function getCachedPremiumOffer(): PremiumOffer | null {
+  try {
+    const session = captureSession();
+    if (!cachedOffer || cachedOffer.sessionKey !== session.sessionKey
+      || cachedOffer.userId !== configuredUserId) return null;
+    const age = Date.now() - cachedOffer.savedAt;
+    return age >= 0 && age < OFFER_CACHE_MS ? cachedOffer.offer : null;
+  } catch { return null; }
+}
 
 function publicApiKey(): string | null {
   const value = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim();
@@ -101,6 +113,7 @@ export async function initializePurchases(userId: string, session = captureSessi
  * identity for quota, notebook ownership or server entitlements.
  */
 export async function resetPurchasesForSignedOutUser(): Promise<void> {
+  cachedOffer = null;
   configuredUserId = null;
   configuredSessionKey = null;
   await withSdk(async () => {
@@ -118,8 +131,12 @@ async function requirePurchases(session: ActiveSession): Promise<void> {
   }
 }
 
-export async function getPremiumOffer(): Promise<PremiumOffer> {
+export async function getPremiumOffer(options: { purchaseUserId?: string; force?: boolean } = {}): Promise<PremiumOffer> {
   const session = captureSession();
+  if (options.purchaseUserId) await initializePurchases(options.purchaseUserId, session);
+  assertSessionActive(session);
+  const cached = getCachedPremiumOffer();
+  if (cached && !options.force) return cached;
   return withSdk(async () => {
     await requirePurchases(session);
     const offerings = await withDeadline(Purchases.getOfferings(), 12_000, 'Oferta nu a sosit. Încearcă din nou.');
@@ -131,8 +148,10 @@ export async function getPremiumOffer(): Promise<PremiumOffer> {
     const annual = current?.annual
       ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.ANNUAL)
       ?? null;
-    if (!monthly || !annual) throw new Error('Oferta Premium nu este disponibilă momentan.');
-    return { monthly, annual };
+    if (!monthly && !annual) throw new Error('Oferta Premium nu este disponibilă momentan.');
+    const offer = { monthly, annual };
+    if (configuredUserId) cachedOffer = { sessionKey: session.sessionKey, userId: configuredUserId, savedAt: Date.now(), offer };
+    return offer;
   });
 }
 

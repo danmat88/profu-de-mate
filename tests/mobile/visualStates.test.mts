@@ -26,7 +26,7 @@ test('visible asynchronous states use the branded loader instead of platform spi
 test('Google account entry uses the app-owned accessible button in every screen', async () => {
   const [settings, paywall, button] = await Promise.all([
     readFile(path.resolve('src/features/account/screens/SettingsScreen.tsx'), 'utf8'),
-    readFile(path.resolve('src/features/access/screens/PaywallScreen.tsx'), 'utf8'),
+    readFile(path.resolve('src/features/access/components/PremiumSurface.tsx'), 'utf8'),
     readFile(path.resolve('src/features/account/components/GoogleAccountButton.tsx'), 'utf8'),
   ]);
 

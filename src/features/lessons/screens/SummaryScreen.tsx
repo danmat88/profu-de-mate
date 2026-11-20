@@ -1,3 +1,4 @@
+import { bundledImageSource } from '../../../shared/services/bundledImages';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Haptics from '../../../shared/services/haptics';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +17,7 @@ import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { setLessonFavorite } from '../services/lessons';
 import { hasSeenSaveCoach, markSaveCoachSeen } from '../../../shared/storage/localPreferences';
-import { colors, fonts } from '../../../shared/theme';
+import { colors, fonts, motion } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import type { MathDocumentDefinition, MathDocumentTone } from '../../math/utils/mathDocument';
@@ -32,8 +33,8 @@ export function SummaryScreen({ navigation, route }: Props) {
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [showSaveCoach, setShowSaveCoach] = useState(false);
-  const pop = useRef(new Animated.Value(0.72)).current;
-  const details = useRef(new Animated.Value(0)).current;
+  const pop = useRef(new Animated.Value(0.98)).current;
+  const details = useRef(new Animated.Value(1)).current;
   const coachReveal = useRef(new Animated.Value(0)).current;
   const saveLocked = useRef(false);
   const lesson = route.params.lesson;
@@ -87,11 +88,8 @@ export function SummaryScreen({ navigation, route }: Props) {
       return;
     }
     Animated.parallel([
-      Animated.spring(pop, { toValue: 1, useNativeDriver: true, speed: 10, bounciness: 8 }),
-      Animated.sequence([
-        Animated.delay(150),
-        Animated.timing(details, { toValue: 1, duration: 360, useNativeDriver: true }),
-      ]),
+      Animated.timing(pop, { toValue: 1, duration: motion.enter, useNativeDriver: true }),
+      Animated.timing(details, { toValue: 1, duration: motion.fast, useNativeDriver: true }),
     ]).start();
   }, [details, isPositive, pop, reducedMotion]);
 
@@ -100,7 +98,7 @@ export function SummaryScreen({ navigation, route }: Props) {
     const timer = setTimeout(() => {
       setShowSaveCoach(true);
       if (reducedMotion) coachReveal.setValue(1);
-      else Animated.spring(coachReveal, { toValue: 1, useNativeDriver: true, speed: 17, bounciness: 9 }).start();
+      else Animated.timing(coachReveal, { toValue: 1, duration: motion.enter, useNativeDriver: true }).start();
     }, 650);
     return () => clearTimeout(timer);
   }, [coachReveal, reducedMotion, saved]);
@@ -156,7 +154,7 @@ export function SummaryScreen({ navigation, route }: Props) {
           <Animated.View style={[styles.celebration, isNarrow && styles.celebrationNarrow, isShort && styles.celebrationShort, { transform: [{ scale: pop }] }]}>
             {isPositive ? <ConfettiBurst /> : null}
             <View style={[styles.burstOuter, !isPositive && styles.burstOuterReview, isShort && styles.burstOuterShort]} />
-            <Image accessible={false} source={require('../../../../assets/profu-mascot-v2.png')} resizeMode="contain" style={[styles.mascot, isShort && styles.mascotShort]} />
+            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={[styles.mascot, isShort && styles.mascotShort]} />
             <View style={[styles.doneSticker, !isPositive && styles.doneStickerReview]}><Text style={styles.doneStickerText}>{sticker}</Text></View>
           </Animated.View>
           <Animated.View style={[styles.heroCopy, {

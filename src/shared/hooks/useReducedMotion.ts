@@ -1,20 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { AccessibilityInfo } from 'react-native';
 
-export function useReducedMotion() {
-  const [reducedMotion, setReducedMotion] = useState(false);
+let reducedMotion = false;
+let subscription: ReturnType<typeof AccessibilityInfo.addEventListener> | undefined;
+let generation = 0;
+const listeners = new Set<() => void>();
 
-  useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => { if (mounted) setReducedMotion(enabled); })
+function update(enabled: boolean) {
+  if (enabled === reducedMotion) return;
+  reducedMotion = enabled;
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  if (!subscription) {
+    const current = ++generation;
+    subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', update);
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => { if (current === generation) update(enabled); })
       .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
+  }
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) { subscription?.remove(); subscription = undefined; generation += 1; }
+  };
+}
 
-  return reducedMotion;
+const snapshot = () => reducedMotion;
+
+/** One cached native accessibility preference shared by every screen and control. */
+export function useReducedMotion() {
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

@@ -1,29 +1,33 @@
-import { Asset } from 'expo-asset';
+import { BalsamiqSans_400Regular } from '@expo-google-fonts/balsamiq-sans/400Regular';
+import { BalsamiqSans_700Bold } from '@expo-google-fonts/balsamiq-sans/700Bold';
+import { FiraSans_400Regular } from '@expo-google-fonts/fira-sans/400Regular';
+import { FiraSans_500Medium } from '@expo-google-fonts/fira-sans/500Medium';
+import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
+import { loadAsync } from 'expo-font';
 import { iconAssets } from '../../shared/ui/AppIcon';
+import { prepareBundledImages } from '../../shared/services/bundledImages';
+import { preloadDocumentFonts } from '../../features/math/services/documentFonts';
 
 const criticalAssetModules = [
-  require('../../../assets/brand/splash-mark-v2.png'),
-  require('../../../assets/brand/profu-mark-v2.png'),
-  require('../../../assets/profu-mascot-v2.png'),
-  iconAssets.camera,
-  iconAssets.gallery,
-  iconAssets.notebook,
-  iconAssets.practice,
-  iconAssets.scan,
-  iconAssets.settings,
-  iconAssets.verify,
+  require('../../../assets/brand/splash_mark_v2.png'),
+  require('../../../assets/brand/profu_mark_v2.png'),
+  require('../../../assets/profu_mascot_v2.png'),
+  ...Object.values(iconAssets),
 ];
 
 let criticalAssetsPromise: Promise<void> | null = null;
 
 /**
- * Warms only the artwork needed by the splash and first Home frame. Other
- * screens keep their assets lazy so startup does not trade a flash for excess
- * decoding and memory pressure.
+ * All shared icons, branding, UI fonts and document fonts are prerequisites.
+ * Failure is reported to the launch boundary; it never becomes partial UI.
  */
 export function preloadCriticalAppAssets(): Promise<void> {
   if (criticalAssetsPromise) return criticalAssetsPromise;
-  criticalAssetsPromise = Asset.loadAsync(criticalAssetModules)
+  criticalAssetsPromise = Promise.all([
+    prepareBundledImages(criticalAssetModules),
+    loadAsync({ BalsamiqSans_400Regular, BalsamiqSans_700Bold, FiraSans_400Regular, FiraSans_500Medium, FiraSans_600SemiBold }),
+    preloadDocumentFonts(),
+  ])
     .then(() => undefined)
     .catch((error) => {
       criticalAssetsPromise = null;

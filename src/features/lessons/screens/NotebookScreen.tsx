@@ -23,10 +23,11 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
-import { colors, fonts } from '../../../shared/theme';
+import { colors, fonts, motion } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
 import {
   filterNotebookLessons,
@@ -200,16 +201,15 @@ function NotebookIllustration({ error = false }: { error?: boolean }) {
 }
 
 function NotebookLoading() {
+  const showProgress = useDelayedBusy(true, 300);
   return (
     <View style={styles.loadingState}>
       <NotebookIllustration />
       <Text style={styles.fullStateEyebrow}>CAIETUL TĂU</Text>
-      <Text style={styles.loadingTitle}>Așez lecțiile în ordine</Text>
-      <PlayfulLoader
-        label="Deschid Caietul"
-        note="Aduc enunțurile și pașii salvați, fără să mut ecranul din loc."
-        style={styles.notebookLoader}
-      />
+      <Text style={styles.loadingTitle}>Lecțiile tale, la un loc.</Text>
+      <View style={styles.notebookProgress}>
+        {showProgress ? <PlayfulLoader compact label="Sincronizez lecțiile" style={styles.notebookLoader} /> : null}
+      </View>
     </View>
   );
 }
@@ -304,7 +304,7 @@ export function NotebookScreen({ navigation }: Props) {
   const [pendingRemoval, setPendingRemoval] = useState<StoredLesson>();
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
-  const controlsReveal = useRef(new Animated.Value(0)).current;
+  const controlsReveal = useRef(new Animated.Value(1)).current;
   const listReveal = useRef(new Animated.Value(1)).current;
   const removeProgress = useRef(new Animated.Value(0)).current;
 
@@ -313,7 +313,9 @@ export function NotebookScreen({ navigation }: Props) {
       controlsReveal.setValue(1);
       return;
     }
-    Animated.spring(controlsReveal, { toValue: 1, useNativeDriver: true, speed: 15, bounciness: 5 }).start();
+    const animation = Animated.timing(controlsReveal, { toValue: 1, duration: motion.fast, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
   }, [controlsReveal, reducedMotion]);
 
   useEffect(() => {
@@ -354,8 +356,8 @@ export function NotebookScreen({ navigation }: Props) {
   const animateListChange = useCallback(() => {
     if (reducedMotion) return;
     listReveal.stopAnimation();
-    listReveal.setValue(0.72);
-    Animated.timing(listReveal, { toValue: 1, duration: 170, useNativeDriver: true }).start();
+    listReveal.setValue(0.94);
+    Animated.timing(listReveal, { toValue: 1, duration: motion.fast, useNativeDriver: true }).start();
   }, [listReveal, reducedMotion]);
 
   const chooseFilter = useCallback((next: NotebookFilter) => {
@@ -367,7 +369,6 @@ export function NotebookScreen({ navigation }: Props) {
     });
   }, [animateListChange]);
 
-  useEffect(() => { animateListChange(); }, [animateListChange, normalizedQuery]);
 
   const openNote = useCallback((lesson: StoredLesson) => {
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
@@ -380,7 +381,7 @@ export function NotebookScreen({ navigation }: Props) {
     setPendingRemoval(lesson);
     removeProgress.setValue(reducedMotion ? 1 : 0);
     if (!reducedMotion) {
-      Animated.spring(removeProgress, { toValue: 1, useNativeDriver: true, speed: 18, bounciness: 4 }).start();
+      Animated.timing(removeProgress, { toValue: 1, duration: motion.sheet, useNativeDriver: true }).start();
     }
   }, [reducedMotion, removeProgress]);
 
@@ -438,7 +439,7 @@ export function NotebookScreen({ navigation }: Props) {
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
   const activeTab = tabs.find((tab) => tab.value === filter)?.label ?? 'Toate';
   const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTab;
-  const headerCount = loading && notes.length === 0 ? 'SE ÎNCARCĂ LECȚIILE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
+  const headerCount = loading && notes.length === 0 ? 'LECȚII SALVATE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
 
   if (loading && notes.length === 0) {
@@ -641,6 +642,7 @@ const styles = StyleSheet.create({
   openText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10 },
   openArrow: { width: 25, height: 25, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
   loadingState: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 34 },
+  notebookProgress: { minHeight: 54, alignItems: 'center', justifyContent: 'center' },
   loadingTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 28, textAlign: 'center' },
   notebookLoader: { marginTop: 17 },
   fullState: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingTop: 16, paddingBottom: 32 },

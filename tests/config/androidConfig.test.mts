@@ -55,7 +55,7 @@ test('keeps the Android window and native splash on one continuous surface', asy
   assert.equal(config.expo?.backgroundColor, '#171337');
   assert.match(dynamicConfig, /backgroundColor: '#171337'/);
   assert.match(dynamicConfig, /image: '\.\/assets\/brand\/splash-transparent\.png'/);
-  assert.match(appSource, /preloadSurface: \{ flex: 1, backgroundColor: colors\.ink \}/);
+  assert.match(appSource, /<LaunchSplash ready=\{Boolean\(startup\) && navigationReady\} visualsReady=\{visualsReady\}/);
 });
 
 test('uses modern Android Credential Manager instead of legacy Google Sign-In', async () => {

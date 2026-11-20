@@ -1,11 +1,9 @@
-import type { CommercialAccess, CommercialStatus } from '../../../shared/types';
+import type { CommercialAccess } from '../../../shared/types';
 
 export type AllowancePresentation = {
   label: string;
-  note: 'PREMIUM' | 'CONT' | 'PROBLEME';
+  note: 'PREMIUM' | 'VEZI PREMIUM';
   accessibilityLabel: string;
-  canOpenAccess: boolean;
-  canRetry: boolean;
 };
 
 /**
@@ -14,40 +12,15 @@ export type AllowancePresentation = {
  * exposes internal implementation language such as "verific" to the user.
  */
 export function allowancePresentation(
-  access: CommercialAccess | null,
-  status: CommercialStatus,
+  access: CommercialAccess,
 ): AllowancePresentation {
-  if (access) {
-    const label = access.tier === 'guest'
-      ? `${access.remaining} din ${access.limit} cadou`
-      : `${access.remaining} din ${access.limit} azi`;
-    const note = access.premium.active
-      ? 'PREMIUM'
-      : 'PROBLEME';
-    return {
-      label,
-      note,
-      accessibilityLabel: `${label}. Deschide opțiunile de acces.`,
-      canOpenAccess: true,
-      canRetry: false,
-    };
-  }
-
-  if (status === 'unavailable') {
-    return {
-      label: 'Reîncearcă',
-      note: 'PROBLEME',
-      accessibilityLabel: 'Accesul nu a putut fi încărcat. Încearcă din nou.',
-      canOpenAccess: false,
-      canRetry: true,
-    };
-  }
-
+  const label = access.tier === 'guest'
+    ? `${access.remaining} din ${access.limit} cadou`
+    : `${access.remaining} din ${access.limit} azi`;
+  const note = access.premium.active ? 'PREMIUM' : 'VEZI PREMIUM';
   return {
-    label: '— din —',
-    note: 'PROBLEME',
-    accessibilityLabel: 'Pregătim numărul de probleme disponibile.',
-    canOpenAccess: false,
-    canRetry: false,
+    label,
+    note,
+    accessibilityLabel: `${label}. ${access.premium.active ? 'Administrează Premium.' : 'Descoperă Profu’ Premium.'}`,
   };
 }
