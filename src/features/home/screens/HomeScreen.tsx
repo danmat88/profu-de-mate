@@ -8,6 +8,7 @@ import { useCommercial } from '../../access/context/CommercialContext';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { getCachedFavoriteLessons } from '../../lessons/services/lessons';
+import { warmMathDrafts } from '../../math/services/mathDraft';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { hasSeenHomeGuide, markHomeGuideSeen } from '../../../shared/storage/localPreferences';
 import type { FlowMode, RootStackParamList } from '../../../shared/types';
@@ -45,11 +46,15 @@ export function HomeScreen() {
     navigationLocked.current = false;
     galleryLocked.current = false;
     setLatestLessonTitle(readLatestLessonTitle());
+    const warmFrame = requestAnimationFrame(() => {
+      if (!active) return;
+      try { warmMathDrafts(captureSession()); } catch { /* Ignore when session is not yet ready. */ }
+    });
     void preparePendingAnalysisOnStartup().then((pending) => {
       if (active) setPendingAnalysis(pending);
     });
     void refreshCommercialAccessIfStale();
-    return () => { active = false; alive.current = false; };
+    return () => { active = false; alive.current = false; cancelAnimationFrame(warmFrame); };
   }, [refreshCommercialAccessIfStale]));
 
   const chooseMode = (next: FlowMode) => {

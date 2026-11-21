@@ -24,6 +24,7 @@ export type MathEditorCommand =
   | { type: 'symbol'; value: MathSymbol }
   | { type: 'template'; value: 'fraction' | 'power' | 'root' | 'group' }
   | { type: 'select'; cursor: MathCursor }
+  | { type: 'replace'; document: MathDocument }
   | { type: 'left' | 'right' | 'next-slot' | 'backspace' | 'clear' | 'undo' | 'redo' };
 
 export const MATH_EDITOR_LIMITS = { depth: 8, nodes: 256, latexLength: 1600, history: 50 } as const;
@@ -147,6 +148,92 @@ export function getMathSlot(document: MathDocument, path: MathPathStep[]): MathN
   return nodes;
 }
 
+/** Finds the first empty nested slot so validation can focus the cursor right inside it. */
+export function findFirstEmptySlotCursor(document: MathDocument): MathCursor | null {
+  const visit = (nodes: MathNode[], path: MathPathStep[]): MathCursor | null => {
+    for (let index = 0; index < nodes.length; index++) {
+      for (const slot of getMathNodeSlots(nodes[index])) {
+        const nextPath = [...path, { index, slot: slot.name }];
+        if (slot.nodes.length === 0) return { path: nextPath, offset: 0 };
+        const nested = visit(slot.nodes, nextPath);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  };
+  return visit(document.nodes, []);
+}
+
+/** Measures nesting depth and nested fractions so the canvas scales smoothly without clipping. */
+export function getMathDocumentVisualDepth(document: MathDocument): { maxDepth: number; hasFraction: boolean; fractionDepth: number } {
+  let maxDepth = 0;
+  let hasFraction = false;
+  let fractionDepth = 0;
+  const visit = (nodes: MathNode[], depth: number, fractions: number) => {
+    if (depth > maxDepth) maxDepth = depth;
+    if (fractions > fractionDepth) fractionDepth = fractions;
+    for (const node of nodes) {
+      const nextFractions = node.type === 'fraction' ? fractions + 1 : fractions;
+      if (node.type === 'fraction') hasFraction = true;
+      for (const slot of getMathNodeSlots(node)) {
+        visit(slot.nodes, depth + 1, nextFractions);
+      }
+    }
+  };
+  visit(document.nodes, 0, 0);
+  return { maxDepth, hasFraction, fractionDepth };
+}
+
+const SLOT_SHORT_TITLE: Record<MathSlotName, string> = {
+  numerator: 'NUMĂRĂTOR',
+  denominator: 'NUMITOR',
+  base: 'BAZĂ',
+  exponent: 'EXPONENT',
+  radicand: 'RADICAL',
+  content: 'PARANTEZE',
+};
+
+const NODE_SHORT_TITLE: Record<Exclude<MathNode['type'], 'symbol'>, string> = {
+  fraction: 'FRACȚIE',
+  power: 'PUTERE',
+  root: 'RADICAL',
+  group: 'PARANTEZE',
+};
+
+/** Compact uppercase breadcrumb showing where inside nested structures the cursor sits. */
+export function getCursorBreadcrumb(document: MathDocument, cursor: MathCursor): string {
+  if (cursor.path.length === 0) return 'FORMULA TA';
+  const last = cursor.path[cursor.path.length - 1];
+  const leafLabel = SLOT_SHORT_TITLE[last.slot];
+  if (cursor.path.length === 1) return leafLabel;
+  const parentStep = cursor.path[cursor.path.length - 2];
+  const grandParent = getMathSlot(document, cursor.path.slice(0, -2));
+  const parentNode = grandParent?.[parentStep.index];
+  const parentLabel = parentNode && parentNode.type !== 'symbol'
+    ? NODE_SHORT_TITLE[parentNode.type]
+    : SLOT_SHORT_TITLE[parentStep.slot];
+  return `${parentLabel} › ${leafLabel}`;
+}
+
+/** Human-readable Romanian label describing what the next-slot button will do from the current cursor. */
+export function getNextSlotActionLabel(document: MathDocument, cursor: MathCursor): string | null {
+  if (cursor.path.length === 0) return null;
+  const parentPath = cursor.path.slice(0, -1);
+  const step = cursor.path[cursor.path.length - 1];
+  const parentNodes = getMathSlot(document, parentPath);
+  const owner = parentNodes?.[step.index];
+  if (!owner) return 'Ieși ↗';
+  if (owner.type === 'fraction') {
+    return step.slot === 'numerator' ? 'Numitor →' : 'Ieși din fracție ↗';
+  }
+  if (owner.type === 'power') {
+    return step.slot === 'base' ? 'Exponent →' : 'Ieși din putere ↗';
+  }
+  if (owner.type === 'root') return 'Ieși din radical ↗';
+  if (owner.type === 'group') return 'Ieși din paranteze ↗';
+  return 'Ieși ↗';
+}
+
 function normalizeCursor(document: MathDocument, cursor: MathCursor): MathCursor {
   const nodes = getMathSlot(document, cursor.path);
   if (!nodes) return { path: [], offset: document.nodes.length };
@@ -234,6 +321,11 @@ export function applyMathEditorCommand(state: MathEditorState, command: MathEdit
     if (document.nodes.length === 0) return clean;
     document.nodes = [];
     nextCursor = { path: [], offset: 0 };
+  } else if (command.type === 'replace') {
+    if (!isMathDocument(command.document)) return clean;
+    const replacement: MathDocument = JSON.parse(JSON.stringify(command.document));
+    document.nodes = replacement.nodes;
+    nextCursor = { path: [], offset: document.nodes.length };
   } else if (command.type === 'symbol') {
     nodes.splice(cursor.offset, 0, { type: 'symbol', value: command.value });
     nextCursor = { ...cursor, offset: cursor.offset + 1 };

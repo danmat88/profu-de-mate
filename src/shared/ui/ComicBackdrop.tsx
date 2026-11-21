@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { colors, fonts } from '../theme';
 import { Text } from './Typography';
@@ -6,7 +7,7 @@ import { Text } from './Typography';
  * Ambient cartoon notebook backdrop. All accents sit strictly in peripheral
  * corner margins so foreground typography and cards stay crisp and unobstructed.
  */
-export function ComicBackdrop({ dark = false }: { dark?: boolean }) {
+export const ComicBackdrop = memo(function ComicBackdrop({ dark = false }: { dark?: boolean }) {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={[styles.blobTopRight, dark && styles.blobTopRightDark]} />
@@ -24,7 +25,7 @@ export function ComicBackdrop({ dark = false }: { dark?: boolean }) {
       <Text style={[styles.symbol, styles.symbolBottomRight, dark && styles.symbolDark]}>√</Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   blobTopRight: {

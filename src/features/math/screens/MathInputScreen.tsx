@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -11,7 +11,6 @@ import { borders, colors, fonts, shadows, typography } from '../../../shared/the
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
-import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -20,9 +19,15 @@ import { Text } from '../../../shared/ui/Typography';
 import { commercialGateFromError, preflightAnalysisAccess } from '../../access/services/commercial';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
 import { getPreparedPendingAnalysis, savePendingWrittenMath } from '../../analysis/services/pendingAnalysis';
-import { MathEditor } from '../components/MathEditor';
-import { readMathDraft, writeMathDraft, type MathDraft } from '../services/mathDraft';
-import { createEmptyMathDocument, serializeMathDocument, validateMathDocument, type MathDocument } from '../utils/mathEditor';
+import { MathEditor, type MathEditorExample } from '../components/MathEditor';
+import { getCachedMathDraft, readMathDraft, writeMathDraft, type MathDraft } from '../services/mathDraft';
+import {
+  createEmptyMathDocument,
+  serializeMathDocument,
+  validateMathDocument,
+  type MathDocument,
+  type MathSymbol,
+} from '../utils/mathEditor';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MathInput'>;
 type Field = keyof MathDraft;
@@ -30,20 +35,85 @@ type SaveState = 'saved' | 'saving' | 'error';
 
 const SAVE_DELAY_MS = 420;
 
+const sym = (value: MathSymbol) => ({ type: 'symbol' as const, value });
+
+const SOLVE_EXAMPLES: readonly MathEditorExample[] = [
+  {
+    label: '2x + 5 = 13',
+    document: { version: 1, nodes: [sym('2'), sym('x'), sym('+'), sym('5'), sym('='), sym('1'), sym('3')] },
+  },
+  {
+    label: 'x² − 9 = 0',
+    document: {
+      version: 1,
+      nodes: [
+        { type: 'power', base: [sym('x')], exponent: [sym('2')] },
+        sym('-'),
+        sym('9'),
+        sym('='),
+        sym('0'),
+      ],
+    },
+  },
+  {
+    label: '3/4 + 1/2',
+    document: {
+      version: 1,
+      nodes: [
+        { type: 'fraction', numerator: [sym('3')], denominator: [sym('4')] },
+        sym('+'),
+        { type: 'fraction', numerator: [sym('1')], denominator: [sym('2')] },
+      ],
+    },
+  },
+];
+
+const CHECK_PROBLEM_EXAMPLES: readonly MathEditorExample[] = [
+  {
+    label: '2x + 4 = 10',
+    document: { version: 1, nodes: [sym('2'), sym('x'), sym('+'), sym('4'), sym('='), sym('1'), sym('0')] },
+  },
+  {
+    label: '3x − 6 = 9',
+    document: { version: 1, nodes: [sym('3'), sym('x'), sym('-'), sym('6'), sym('='), sym('9')] },
+  },
+];
+
+const CHECK_SOLUTION_EXAMPLES: readonly MathEditorExample[] = [
+  {
+    label: 'x = 3',
+    document: { version: 1, nodes: [sym('x'), sym('='), sym('3')] },
+  },
+  {
+    label: 'x = 5',
+    document: { version: 1, nodes: [sym('x'), sym('='), sym('5')] },
+  },
+];
+
 export function MathInputScreen({ navigation, route }: Props) {
   const { mode } = route.params;
-  const { gutter, isVeryShort, isNarrow } = useResponsiveLayout();
+  const { gutter, isVeryShort, isShort, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const compact = isVeryShort || isShort;
   const session = useRef<ActiveSession | null>(null);
+  const userEdited = useRef(false);
   const [draft, setDraft] = useState<MathDraft>(() => {
     try { session.current = captureSession(); } catch { /* The editor stays usable while authentication recovers. */ }
-    return (session.current && readMathDraft(mode, session.current))
-      || { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
+    if (session.current) {
+      const cached = getCachedMathDraft(mode, session.current);
+      if (cached !== undefined) {
+        return cached ?? { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
+      }
+      const stored = readMathDraft(mode, session.current);
+      if (stored) return stored;
+    }
+    return { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
   });
   const draftRef = useRef(draft);
   const [field, setField] = useState<Field>('problem');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorSignal, setErrorSignal] = useState(0);
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
@@ -72,13 +142,14 @@ export function MathInputScreen({ navigation, route }: Props) {
     setBusy(false);
     return () => {
       focused.current = false;
-      persistDraft(false);
+      if (userEdited.current) persistDraft(false);
     };
   }, [persistDraft]));
 
   useEffect(() => {
     draftRef.current = draft;
-    setSaveState('saving');
+    if (!userEdited.current) return undefined;
+    setSaveState((prev) => (prev === 'saving' ? prev : 'saving'));
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => persistDraft(), SAVE_DELAY_MS);
     return () => {
@@ -88,41 +159,57 @@ export function MathInputScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') persistDraft();
+      if (state !== 'active' && userEdited.current) persistDraft();
     });
     return () => {
       mounted.current = false;
       subscription.remove();
-      persistDraft(false);
+      if (userEdited.current) persistDraft(false);
     };
   }, [persistDraft]);
 
-  const updateDocument = (document: MathDocument) => {
+  const updateDocument = useCallback((document: MathDocument) => {
+    userEdited.current = true;
     setDraft((current) => {
       const next = { ...current, [field]: document };
       draftRef.current = next;
       return next;
     });
     setError(null);
-  };
+    setErrorSignal(0);
+  }, [field]);
 
-  const selectField = (next: Field) => {
+  const selectField = useCallback((next: Field) => {
     if (next === field || busy) return;
     Haptics.selection();
     setField(next);
     setError(null);
-  };
+    setErrorSignal(0);
+  }, [busy, field]);
+
+  const isCheck = mode === 'check';
+  const problemValid = useMemo(() => validateMathDocument(draft.problem) === null, [draft.problem]);
+  const solutionValid = useMemo(() => validateMathDocument(draft.solution) === null, [draft.solution]);
+  const shouldAdvanceToSolution = isCheck && field === 'problem' && problemValid && draft.solution.nodes.length === 0;
 
   const submit = async () => {
     if (inFlight.current) return;
+    if (shouldAdvanceToSolution) {
+      selectField('solution');
+      return;
+    }
+
     const problemError = validateMathDocument(draftRef.current.problem);
     const solutionError = mode === 'check' ? validateMathDocument(draftRef.current.solution) : null;
     if (problemError || solutionError) {
-      setField(problemError ? 'problem' : 'solution');
+      const targetField: Field = problemError ? 'problem' : 'solution';
+      if (targetField !== field) setField(targetField);
       setError(problemError ? `Problema: ${problemError}` : `Rezolvarea ta: ${solutionError}`);
+      setErrorSignal((value) => value + 1);
       Haptics.notification(Haptics.NotificationFeedbackType.Warning);
       return;
     }
+
     const pending = getPreparedPendingAnalysis();
     if (pending) {
       if (pending.schemaVersion === 3) navigation.navigate('MathProcessing', { ...pending, origin: 'home' });
@@ -160,85 +247,107 @@ export function MathInputScreen({ navigation, route }: Props) {
     }
   };
 
-  const isCheck = mode === 'check';
   const saveLabel = saveState === 'saving' ? 'Salvez ciorna…' : saveState === 'error' ? 'Ciorna nu este salvată' : 'Ciornă salvată';
   const fieldLabel = field === 'problem' ? 'Problema matematică' : 'Rezolvarea mea';
+  const currentExamples = isCheck
+    ? (field === 'problem' ? CHECK_PROBLEM_EXAMPLES : CHECK_SOLUTION_EXAMPLES)
+    : SOLVE_EXAMPLES;
+  const currentPlaceholder = isCheck
+    ? (field === 'problem' ? 'Scrie mai întâi enunțul problemei' : 'Scrie rezolvarea sau rezultatul tău')
+    : 'Construiește formula cu tastele de mai jos';
+
+  const ctaTitle = busy
+    ? 'Pregătesc analiza…'
+    : shouldAdvanceToSolution
+      ? 'Scrie rezolvarea ta'
+      : isCheck
+        ? 'Verifică rezolvarea'
+        : 'Explică problema';
+
+  const ctaNote = shouldAdvanceToSolution
+    ? 'Pasul 2: adaugă rezolvarea pe care o verificăm.'
+    : isCheck
+      ? 'Verificăm fiecare pas și îți arătăm rezultatul.'
+      : 'Primești explicația completă, pas cu pas.';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
 
-      <Enter delay={0} distance={10} style={[styles.header, { paddingHorizontal: gutter }, isVeryShort && styles.headerCompact]}>
-        <IconButton label="Înapoi" onPress={() => navigation.goBack()} size={44}>
-          <MiniGlyph name="back" size={24} color={colors.ink} />
+      <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
+        <IconButton label="Înapoi" onPress={() => navigation.goBack()} size={compact ? 38 : 42}>
+          <MiniGlyph name="back" size={compact ? 21 : 23} color={colors.ink} />
         </IconButton>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PAS CU PAS'}</Text>
-          <Text numberOfLines={1} style={[styles.title, isNarrow && styles.titleNarrow]}>Scrie problema</Text>
+          <Text numberOfLines={1} style={[styles.title, (isNarrow || compact) && styles.titleNarrow]}>Scrie problema</Text>
         </View>
         <View accessibilityLabel={saveLabel} style={[styles.savePill, saveState === 'error' && styles.savePillError]}>
           <MiniGlyph name={saveState === 'error' ? 'wrong' : saveState === 'saved' ? 'check' : 'dot'} size={13} color={colors.ink} />
           {!isNarrow ? <Text numberOfLines={1} style={styles.saveText}>{saveState === 'saving' ? 'SALVEZ' : saveState === 'error' ? 'NESALVATĂ' : 'SALVATĂ'}</Text> : null}
         </View>
-      </Enter>
+      </View>
 
       <View style={[styles.workspace, { paddingHorizontal: gutter }]}>
-        <Enter delay={50} distance={12}>
-          {isCheck ? (
-            <View style={styles.tabs} accessibilityRole="tablist">
-              <PressableScale
-                accessibilityRole="tab"
-                accessibilityState={{ selected: field === 'problem', disabled: busy }}
-                disabled={busy}
-                depth={field === 'problem' ? shadows.sm : 2}
-                radius={14}
-                shadowColor={field === 'problem' ? colors.ink : colors.line}
-                haptic="selection"
-                onPress={() => selectField('problem')}
-                style={styles.tabWrap}
-                contentStyle={[styles.tab, field === 'problem' && styles.tabActive]}
-              >
-                <View style={[styles.step, field === 'problem' && styles.stepActive]}><Text style={styles.stepText}>1</Text></View>
-                <Text numberOfLines={1} style={[styles.tabText, field === 'problem' && styles.tabTextActive]}>Problema</Text>
-              </PressableScale>
-              <PressableScale
-                accessibilityRole="tab"
-                accessibilityState={{ selected: field === 'solution', disabled: busy }}
-                disabled={busy}
-                depth={field === 'solution' ? shadows.sm : 2}
-                radius={14}
-                shadowColor={field === 'solution' ? colors.ink : colors.line}
-                haptic="selection"
-                onPress={() => selectField('solution')}
-                style={styles.tabWrap}
-                contentStyle={[styles.tab, field === 'solution' && styles.tabActiveCheck]}
-              >
-                <View style={[styles.step, field === 'solution' && styles.stepActiveCheck]}><Text style={styles.stepText}>2</Text></View>
-                <Text numberOfLines={1} style={[styles.tabText, field === 'solution' && styles.tabTextActive]}>Rezolvarea mea</Text>
-              </PressableScale>
-            </View>
-          ) : (
-            <View style={styles.contextLine}>
-              <View style={styles.contextIcon}><AppIcon name="practice" size={26} /></View>
-              <Text numberOfLines={2} style={styles.contextText}>Construiește formula exact cum apare în problemă.</Text>
-            </View>
-          )}
-        </Enter>
+        {isCheck ? (
+          <View style={styles.tabs} accessibilityRole="tablist">
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: field === 'problem', disabled: busy }}
+              disabled={busy}
+              onPress={() => selectField('problem')}
+              style={({ pressed }) => [
+                styles.tab,
+                field === 'problem' && styles.tabActive,
+                pressed && styles.tabPressed,
+              ]}
+            >
+              <View style={[styles.step, problemValid ? styles.stepDone : field === 'problem' && styles.stepActive]}>
+                {problemValid
+                  ? <MiniGlyph name="check" size={12} color={colors.ink} />
+                  : <Text style={styles.stepText}>1</Text>}
+              </View>
+              <Text numberOfLines={1} style={[styles.tabText, field === 'problem' && styles.tabTextActive]}>Problema</Text>
+            </Pressable>
 
-        <Enter delay={95} distance={14} style={styles.editor}>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: field === 'solution', disabled: busy }}
+              disabled={busy}
+              onPress={() => selectField('solution')}
+              style={({ pressed }) => [
+                styles.tab,
+                field === 'solution' && styles.tabActiveCheck,
+                pressed && styles.tabPressed,
+              ]}
+            >
+              <View style={[styles.step, solutionValid ? styles.stepDone : field === 'solution' && styles.stepActiveCheck]}>
+                {solutionValid
+                  ? <MiniGlyph name="check" size={12} color={colors.ink} />
+                  : <Text style={styles.stepText}>2</Text>}
+              </View>
+              <Text numberOfLines={1} style={[styles.tabText, field === 'solution' && styles.tabTextActive]}>Rezolvarea mea</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        <View style={styles.editor}>
           <MathEditor
             key={field}
             document={draft[field]}
             accessibilityLabel={fieldLabel}
             disabled={busy}
+            examples={currentExamples}
+            placeholder={currentPlaceholder}
+            errorSignal={errorSignal}
             onChange={updateDocument}
           />
-        </Enter>
+        </View>
 
         {error ? (
           <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.errorBanner}>
-            <MiniGlyph name="wrong" size={16} color="#9B2638" />
+            <MiniGlyph name="wrong" size={15} color="#9B2638" />
             <Text numberOfLines={2} style={styles.error}>{error}</Text>
           </View>
         ) : saveState === 'error' ? (
@@ -247,40 +356,46 @@ export function MathInputScreen({ navigation, route }: Props) {
           </Pressable>
         ) : null}
 
-        <Enter delay={135} distance={12} style={[styles.submitDock, { paddingBottom: Math.max(insets.bottom, 7) }]}>
-          <View testID="math-submit-dock">
-            <PressableScale
-              testID="math-submit-button"
-              accessibilityRole="button"
-              accessibilityState={{ disabled: busy, busy }}
-              disabled={busy}
-              depth={shadows.md}
-              radius={18}
-              shadowColor={colors.ink}
-              haptic="medium"
-              onPress={() => { void submit(); }}
-              contentStyle={[styles.submit, isCheck && styles.submitCheck]}
-            >
-              <View pointerEvents="none" style={styles.submitShine} />
-              {busy
-                ? <PlayfulLoader micro />
-                : <View style={styles.submitIcon}><AppIcon name={isCheck ? 'verify' : 'explain'} size={28} /></View>}
-              <View style={styles.submitCopy}>
-                <Text numberOfLines={1} style={styles.submitText}>
-                  {busy ? 'Pregătesc analiza…' : isCheck ? 'Verifică rezolvarea' : 'Explică problema'}
-                </Text>
-                {!busy && !isVeryShort ? (
-                  <Text numberOfLines={1} style={styles.submitNote}>Primești explicația completă, pas cu pas.</Text>
-                ) : null}
-              </View>
-              {!busy ? (
-                <View style={styles.submitArrow}>
-                  <MiniGlyph name="next" size={19} color={colors.paper} />
+        <View testID="math-submit-dock" style={[styles.submitDock, { paddingBottom: Math.max(insets.bottom, 7) }]}>
+          <PressableScale
+            testID="math-submit-button"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy, busy }}
+            disabled={busy}
+            depth={compact ? shadows.sm + 1 : shadows.md}
+            radius={18}
+            shadowColor={colors.ink}
+            haptic="medium"
+            onPress={() => { void submit(); }}
+            contentStyle={[
+              styles.submit,
+              compact && styles.submitCompact,
+              isCheck && !shouldAdvanceToSolution && styles.submitCheck,
+            ]}
+          >
+            <View pointerEvents="none" style={styles.submitShine} />
+            {busy
+              ? <PlayfulLoader micro />
+              : (
+                <View style={[styles.submitIcon, compact && styles.submitIconCompact]}>
+                  <AppIcon name={shouldAdvanceToSolution ? 'practice' : isCheck ? 'verify' : 'explain'} size={compact ? 24 : 28} />
                 </View>
+              )}
+            <View style={styles.submitCopy}>
+              <Text numberOfLines={1} style={[styles.submitText, compact && styles.submitTextCompact]}>
+                {ctaTitle}
+              </Text>
+              {!busy && !compact ? (
+                <Text numberOfLines={1} style={styles.submitNote}>{ctaNote}</Text>
               ) : null}
-            </PressableScale>
-          </View>
-        </Enter>
+            </View>
+            {!busy ? (
+              <View style={[styles.submitArrow, compact && styles.submitArrowCompact]}>
+                <MiniGlyph name="next" size={compact ? 17 : 19} color={colors.paper} />
+              </View>
+            ) : null}
+          </PressableScale>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -288,16 +403,16 @@ export function MathInputScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' },
-  header: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerCompact: { minHeight: 54 },
+  header: { flexShrink: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  headerCompact: { minHeight: 44, paddingVertical: 2 },
   headerCopy: { flex: 1, minWidth: 0 },
-  eyebrow: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
-  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 22, lineHeight: 26 },
-  titleNarrow: { fontSize: 19 },
+  eyebrow: { ...typography.kicker, fontSize: 10, color: colors.violetDeep },
+  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 20.5, lineHeight: 24 },
+  titleNarrow: { fontSize: 18.5, lineHeight: 21.5 },
   savePill: {
-    minHeight: 32,
-    paddingHorizontal: 9,
-    borderRadius: 11,
+    minHeight: 30,
+    paddingHorizontal: 8,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.limeSoft,
@@ -306,14 +421,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   savePillError: { backgroundColor: colors.roseSoft },
-  saveText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10, letterSpacing: 0.6 },
-  workspace: { flex: 1, minHeight: 0, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  tabs: { flexDirection: 'row', gap: 8, marginBottom: 7 },
-  tabWrap: { flex: 1, minWidth: 0 },
+  saveText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, letterSpacing: 0.6 },
+  workspace: { flex: 1, minHeight: 0, overflow: 'hidden', maxWidth: 560, width: '100%', alignSelf: 'center', paddingTop: 2 },
+
+  tabs: { flexShrink: 0, flexDirection: 'row', gap: 8, marginBottom: 7 },
   tab: {
-    height: 44,
+    flex: 1,
+    minWidth: 0,
+    height: 40,
     paddingHorizontal: 9,
     borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
     borderColor: colors.line,
     borderRadius: 14,
     backgroundColor: colors.paper,
@@ -324,6 +442,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { borderColor: colors.ink, backgroundColor: colors.violetSoft },
   tabActiveCheck: { borderColor: colors.ink, backgroundColor: colors.peachSoft },
+  tabPressed: { transform: [{ translateY: 1.5 }], borderBottomWidth: 2 },
   step: {
     width: 22,
     height: 22,
@@ -336,28 +455,19 @@ const styles = StyleSheet.create({
   },
   stepActive: { backgroundColor: colors.lime },
   stepActiveCheck: { backgroundColor: colors.peach },
+  stepDone: { backgroundColor: colors.mint },
   stepText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11 },
   tabText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12.5 },
   tabTextActive: { color: colors.ink },
-  contextLine: { minHeight: 38, marginBottom: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  contextIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
-  },
-  contextText: { flex: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12.5, lineHeight: 16.5 },
-  editor: { flex: 1, minHeight: 0 },
+
+  editor: { flex: 1, minHeight: 0, overflow: 'hidden' },
+
   errorBanner: {
-    minHeight: 38,
+    flexShrink: 0,
+    minHeight: 34,
     marginTop: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.rose,
@@ -366,12 +476,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-  error: { flex: 1, color: '#8C2031', fontSize: 12, lineHeight: 16, fontFamily: fonts.bodyBold },
-  saveWarning: { minHeight: 34, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
+  error: { flex: 1, color: '#8C2031', fontSize: 11.5, lineHeight: 15, fontFamily: fonts.bodyBold },
+  saveWarning: { flexShrink: 0, minHeight: 30, marginTop: 4, alignItems: 'center', justifyContent: 'center' },
   saveWarningText: { color: '#8C2031', fontFamily: fonts.bodyBold, fontSize: 11.5 },
+
   submitDock: { flexShrink: 0, paddingTop: 7 },
   submit: {
-    minHeight: 58,
+    minHeight: 54,
     paddingHorizontal: 10,
     borderWidth: borders.thick,
     borderColor: colors.ink,
@@ -382,6 +493,7 @@ const styles = StyleSheet.create({
     gap: 9,
     overflow: 'hidden',
   },
+  submitCompact: { minHeight: 46, borderRadius: 15, gap: 8 },
   submitCheck: { backgroundColor: '#FFB86B' },
   submitShine: {
     position: 'absolute',
@@ -393,8 +505,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.shine,
   },
   submitIcon: {
-    width: 38,
-    height: 38,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     borderWidth: borders.thin,
     borderColor: colors.ink,
@@ -402,8 +514,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  submitIconCompact: { width: 30, height: 30, borderRadius: 10 },
   submitCopy: { flex: 1, minWidth: 0 },
   submitText: { color: colors.ink, fontSize: 17, lineHeight: 20, fontFamily: fonts.display },
+  submitTextCompact: { fontSize: 16, lineHeight: 19 },
   submitNote: { color: colors.inkSoft, fontSize: 11, lineHeight: 14, fontFamily: fonts.bodyMedium },
   submitArrow: {
     width: 34,
@@ -413,4 +527,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  submitArrowCompact: { width: 30, height: 30, borderRadius: 9 },
 });

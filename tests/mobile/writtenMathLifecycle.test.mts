@@ -34,11 +34,15 @@ test('math drafts persist by account, survive editing sessions and reject stale 
   const sessions = load('src/shared/services/sessionGuard.ts');
   const service = load('src/features/math/services/mathDraft.ts');
   const session = sessions.captureSession();
+  assert.equal(service.getCachedMathDraft('solve', session), undefined);
   assert.equal(service.writeMathDraft('solve', draft, session), true);
+  assert.equal(JSON.stringify(service.getCachedMathDraft('solve', session)), JSON.stringify(draft));
   assert.equal(JSON.stringify(service.readMathDraft('solve', session)), JSON.stringify(draft));
   auth.currentUser = { ...alice, uid: 'bob' };
   assert.equal(service.writeMathDraft('solve', draft, session), false);
-  assert.equal(service.readMathDraft('solve', sessions.captureSession()), null);
+  const bobSession = sessions.captureSession();
+  assert.equal(service.getCachedMathDraft('solve', bobSession), undefined);
+  assert.equal(service.readMathDraft('solve', bobSession), null);
   assert.equal(disk.size, 0);
 });
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   applyMathEditorCommand as edit, createMathEditorState, createEmptyMathDocument,
+  findFirstEmptySlotCursor, getCursorBreadcrumb, getMathDocumentVisualDepth, getNextSlotActionLabel,
   isMathDocument, serializeMathDocument as latex, validateMathDocument as validate,
   synchronizeMathEditorDocument, type MathDocument, type MathEditorState, type MathSymbol,
 } from '../../src/features/math/utils/mathEditor.ts';
@@ -145,4 +146,37 @@ test('arrows remain bounded at the start and end of the expression', () => {
   state = type(state, '2');
   state = edit(state, { type: 'right' });
   assert.equal(state.cursor.offset, 1);
+});
+
+test('replace command loads starter examples with undo support and server-valid LaTeX', () => {
+  const example: MathDocument = {
+    version: 1,
+    nodes: [
+      { type: 'fraction', numerator: [symbol('3')], denominator: [symbol('4')] },
+      symbol('+'),
+      { type: 'fraction', numerator: [symbol('1')], denominator: [symbol('2')] },
+    ],
+  };
+  let state = type(createMathEditorState(), '9');
+  state = edit(state, { type: 'replace', document: example });
+  assert.equal(latex(state.document), '\\frac{3}{4}+\\frac{1}{2}');
+  assert.equal(validate(state.document), null);
+  assert.equal(parseMathInput(latex(state.document), 'problemLatex'), latex(state.document));
+  state = edit(state, { type: 'undo' });
+  assert.equal(latex(state.document), '9');
+});
+
+test('finds first empty nested slot, reports contextual next-slot labels, and measures visual depth', () => {
+  let state = type(createMathEditorState(), '2');
+  state = edit(state, { type: 'template', value: 'fraction' });
+  assert.deepEqual(findFirstEmptySlotCursor(state.document), { path: [{ index: 0, slot: 'denominator' }], offset: 0 });
+  assert.equal(getNextSlotActionLabel(state.document, { path: [{ index: 0, slot: 'numerator' }], offset: 1 }), 'Numitor →');
+  assert.equal(getNextSlotActionLabel(state.document, state.cursor), 'Ieși din fracție ↗');
+  assert.equal(getNextSlotActionLabel(state.document, { path: [], offset: 1 }), null);
+  assert.equal(getCursorBreadcrumb(state.document, { path: [], offset: 1 }), 'FORMULA TA');
+  assert.equal(getCursorBreadcrumb(state.document, state.cursor), 'NUMITOR');
+  assert.deepEqual(getMathDocumentVisualDepth(state.document), { maxDepth: 1, hasFraction: true, fractionDepth: 1 });
+  state = edit(state, { type: 'template', value: 'fraction' });
+  assert.equal(getCursorBreadcrumb(state.document, state.cursor), 'FRACȚIE › NUMĂRĂTOR');
+  assert.deepEqual(getMathDocumentVisualDepth(state.document), { maxDepth: 2, hasFraction: true, fractionDepth: 2 });
 });

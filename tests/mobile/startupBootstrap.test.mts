@@ -178,6 +178,7 @@ test('Home renders a preparation boundary until access exists, then paints the r
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access: current, status: 'resolving', refresh: async () => {}, refreshIfStale: async () => {} }) },
     'src/features/analysis/services/pendingAnalysis.ts': { getPreparedPendingAnalysis: () => null },
     'src/features/lessons/services/lessons.ts': { getCachedFavoriteLessons: () => undefined },
+    'src/features/math/services/mathDraft.ts': { warmMathDrafts() {} },
     'src/shared/storage/localPreferences.ts': { hasSeenHomeGuide: () => true, markHomeGuideSeen() {} },
   });
   const Home = load('src/features/home/screens/HomeScreen.tsx').HomeScreen;
