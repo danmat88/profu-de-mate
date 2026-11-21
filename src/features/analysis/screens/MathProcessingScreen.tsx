@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
@@ -37,7 +37,8 @@ type State = { kind: 'working' } | { kind: 'error'; message: string; canEdit?: b
   | { kind: 'rejected'; result: MathAnalysis };
 
 export function MathProcessingScreen({ route, navigation }: Props) {
-  const { gutter, isVeryShort, isNarrow } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter, isVeryShort, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const [state, setState] = useState<State>({ kind: 'working' });
   const [attempt, setAttempt] = useState(0);

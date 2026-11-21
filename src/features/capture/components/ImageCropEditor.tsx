@@ -1,4 +1,5 @@
 import * as Haptics from '../../../shared/services/haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -9,7 +10,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -20,6 +21,7 @@ import { borders, colors, fonts, shadows } from '../../../shared/theme';
 import type { CapturedImage, FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { IconButton } from '../../../shared/ui/IconButton';
+import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
@@ -95,7 +97,8 @@ function CloseGlyph() {
 }
 
 export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }: Props) {
-  const responsiveLayout = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const responsiveLayout = useResponsiveLayout(frame);
   const liveInsets = useSafeAreaInsets();
   const stableLayout = useRef(responsiveLayout).current;
   const stableInsets = useRef(liveInsets).current;
@@ -113,6 +116,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   const [workingImage, setWorkingImage] = useState(image);
   const [busy, setBusy] = useState(false);
   const [imageReady, setImageReady] = useState(false);
+  const [hasAdjusted, setHasAdjusted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const imageRect = useMemo(() => getImageRect(workspace, workingImage), [workspace, workingImage]);
   const isCheck = mode === 'check';
@@ -131,6 +135,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
 
   const commitCrop = useCallback((x: number, y: number, width: number, cropHeightValue: number) => {
     cropRef.current = { x, y, width, height: cropHeightValue };
+    setHasAdjusted(true);
   }, []);
 
   const hapticTick = useCallback(() => {
@@ -455,20 +460,23 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
       <StatusBar style="light" />
       <View accessibilityViewIsModal style={styles.screen}>
         <Animated.View style={[styles.header, isLargeText && styles.headerLargeText, { paddingHorizontal: gutter }]}>
-          <IconButton label="Renunță la fotografie" disabled={busy} onPress={cancelEditing} dark size={46}>
+          <IconButton label="Renunță la fotografie" disabled={busy} dimWhenDisabled={false} onPress={cancelEditing} dark size={46}>
             <CloseGlyph />
           </IconButton>
           <View style={styles.headerCopy}>
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>Încadrează {isCheck ? 'rezolvarea' : 'problema'}</Text>
-            <View style={styles.headerSubtitleRow}>
+            <View style={[styles.modePill, isCheck && styles.modePillCheck]}>
               <View style={[styles.headerSubtitleDot, isCheck && styles.headerSubtitleDotCheck]} />
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.headerSubtitle}>Păstrează doar exercițiul.</Text>
+              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.modePillText}>
+                {isCheck ? 'VERIFICARE' : 'REZOLVARE'}
+              </Text>
             </View>
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>Încadrează {isCheck ? 'rezolvarea' : 'problema'}</Text>
           </View>
           <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.headerBadgeWrap}>
             <View pointerEvents="none" style={styles.headerBadgeShadow} />
-            <View style={styles.headerBadge}>
-              <AppIcon name="crop" size={34} />
+            <View style={[styles.headerBadge, isCheck && styles.headerBadgeCheck]}>
+              <View pointerEvents="none" style={styles.toolShine} />
+              <AppIcon name="crop" size={32} />
             </View>
           </View>
         </Animated.View>
@@ -480,6 +488,11 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
             setWorkspace((current) => Math.abs(current.width - next.width) < 0.5 && Math.abs(current.height - next.height) < 0.5 ? current : next);
           }}
         >
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(124,58,237,0.14)', 'rgba(10,7,26,0)', 'rgba(124,58,237,0.12)']}
+            style={StyleSheet.absoluteFill}
+          />
           {imageRect.width > 0 ? (
             <View
               pointerEvents="none"
@@ -506,7 +519,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
 
           {imageRect.width > 0 ? (
             <>
-              <Animated.View pointerEvents="box-none" style={[styles.cropFrame, cropFrameStyle]}>
+              <Animated.View pointerEvents="box-none" style={[styles.cropFrame, isCheck && styles.cropFrameCheck, cropFrameStyle]}>
                 <View pointerEvents="none" style={styles.cropWindow}>
                   <Animated.Image
                     source={{ uri: workingImage.uri }}
@@ -533,6 +546,10 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                     </Animated.View>
                   </Animated.View>
                 </GestureDetector>
+                <View pointerEvents="none" style={[styles.edgeTick, styles.edgeTickTop, isCheck && styles.edgeTickCheck]} />
+                <View pointerEvents="none" style={[styles.edgeTick, styles.edgeTickBottom, isCheck && styles.edgeTickCheck]} />
+                <View pointerEvents="none" style={[styles.edgeTickV, styles.edgeTickLeft, isCheck && styles.edgeTickCheck]} />
+                <View pointerEvents="none" style={[styles.edgeTickV, styles.edgeTickRight, isCheck && styles.edgeTickCheck]} />
                 {renderHandle('topLeft', 'Colțul stânga sus', styles.handleTopLeft, styles.handleBorderTopLeft)}
                 {renderHandle('topRight', 'Colțul dreapta sus', styles.handleTopRight, styles.handleBorderTopRight)}
                 {renderHandle('bottomLeft', 'Colțul stânga jos', styles.handleBottomLeft, styles.handleBorderBottomLeft)}
@@ -546,17 +563,26 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               <View style={[styles.workspaceHintDot, styles.workspaceHintDotError]} />
               <Text numberOfLines={2} maxFontSizeMultiplier={1.2} style={[styles.workspaceHintText, styles.workspaceErrorText]}>{visibleError}</Text>
             </View>
+          ) : !hasAdjusted && imageReady && !isVeryShort ? (
+            <View pointerEvents="none" style={styles.workspaceHint}>
+              <View style={[styles.workspaceHintDot, isCheck && styles.headerSubtitleDotCheck]} />
+              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.workspaceHintText}>
+                Trage de colțuri ca să păstrezi doar exercițiul
+              </Text>
+            </View>
           ) : null}
 
         </Animated.View>
 
         <Animated.View style={[styles.dock, isLargeText && styles.dockLargeText, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
+          <View pointerEvents="none" style={styles.dockTopHighlight} />
           <View style={[styles.actionRow, isLargeText && styles.actionRowLargeText]}>
             <View style={[styles.toolButton, isLargeText && styles.toolButtonLargeText]}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Rotește fotografia"
                 disabled={busy}
+                dimWhenDisabled={false}
                 depth={shadows.sm}
                 radius={18}
                 shadowColor="#04030A"
@@ -565,7 +591,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 contentStyle={styles.toolIcon}
               >
                 <View pointerEvents="none" style={styles.toolShine} />
-                <AppIcon name="retake" size={36} />
+                <AppIcon name="retake" size={34} />
               </PressableScale>
               <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.toolText}>Rotește</Text>
             </View>
@@ -574,6 +600,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 accessibilityRole="button"
                 accessibilityLabel="Extinde selecția la toată fotografia"
                 disabled={busy}
+                dimWhenDisabled={false}
                 depth={shadows.sm}
                 radius={18}
                 shadowColor="#04030A"
@@ -582,7 +609,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 contentStyle={styles.toolIcon}
               >
                 <View pointerEvents="none" style={styles.toolShine} />
-                <AppIcon name="crop" size={36} />
+                <AppIcon name="crop" size={34} />
               </PressableScale>
               <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.toolText}>Tot cadrul</Text>
             </View>
@@ -590,6 +617,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               accessibilityRole="button"
               accessibilityLabel={isCheck ? 'Verifică rezolvarea încadrată' : 'Rezolvă problema încadrată'}
               disabled={busy || !imageReady}
+              dimWhenDisabled={!busy}
               depth={shadows.md}
               radius={22}
               shadowColor="#04030A"
@@ -599,8 +627,13 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               contentStyle={[styles.applyButton, isLargeText && styles.buttonLargeText, isCheck && styles.applyButtonCheck]}
             >
               <View pointerEvents="none" style={styles.applyShine} />
-              <View style={styles.applyIcon}>{busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={38} />}</View>
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.applyText}>{busy ? 'Pregătesc' : isCheck ? 'Verifică' : 'Rezolvă'}</Text>
+              <View style={styles.applyIcon}>{busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={34} />}</View>
+              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.applyText}>{busy ? 'Pregătesc…' : isCheck ? 'Verifică' : 'Rezolvă'}</Text>
+              {!busy ? (
+                <View style={styles.applyArrow}>
+                  <MiniGlyph name="next" size={17} color={colors.paper} />
+                </View>
+              ) : null}
             </PressableScale>
           </View>
         </Animated.View>
@@ -610,16 +643,27 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
 }
 
 const styles = StyleSheet.create({
-  safe: { width: '100%', flexGrow: 0, flexShrink: 0, backgroundColor: '#0E0A21' },
-  screen: { flex: 1, backgroundColor: '#0E0A21' },
-  header: { minHeight: 74, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11, backgroundColor: '#0E0A21' },
+  safe: { width: '100%', flexGrow: 0, flexShrink: 0, backgroundColor: '#110C29' },
+  screen: { flex: 1, backgroundColor: '#110C29' },
+  header: { minHeight: 74, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11, backgroundColor: '#110C29', paddingVertical: 4 },
   headerLargeText: { minHeight: 88 },
-  headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 18, lineHeight: 22, textAlign: 'center' },
-  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2 },
+  headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 2.5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(201,255,59,0.4)',
+    backgroundColor: 'rgba(34,26,74,0.9)',
+  },
+  modePillCheck: { borderColor: 'rgba(255,184,107,0.45)' },
+  modePillText: { fontFamily: fonts.bodyBold, color: '#EAE5F7', fontSize: 9.5, letterSpacing: 0.85 },
+  headerTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 18, lineHeight: 21, textAlign: 'center' },
   headerSubtitleDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime },
   headerSubtitleDotCheck: { backgroundColor: colors.peach },
-  headerSubtitle: { fontFamily: fonts.bodyBold, color: '#C6BEE0', fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
   headerBadgeWrap: { width: 46, height: 49, paddingBottom: 3, position: 'relative', flexShrink: 0 },
   headerBadgeShadow: { position: 'absolute', top: 3, left: 0, right: 0, bottom: 0, borderRadius: 15, backgroundColor: '#04030A' },
   headerBadge: {
@@ -627,26 +671,52 @@ const styles = StyleSheet.create({
     height: 46,
     borderRadius: 15,
     borderWidth: borders.thin,
-    borderColor: '#6D5EB0',
+    borderColor: '#7A68C8',
     backgroundColor: '#251D4F',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  workspace: { flex: 1, minHeight: 260, overflow: 'hidden', backgroundColor: '#060412' },
+  headerBadgeCheck: { borderColor: 'rgba(255,184,107,0.7)' },
+  workspace: { flex: 1, minHeight: 260, overflow: 'hidden', backgroundColor: '#080516' },
   workspaceShort: { minHeight: 200 },
   photoSurface: { position: 'absolute', zIndex: 1, borderRadius: CROP_RADIUS, overflow: 'hidden', backgroundColor: '#0D0B16' },
   photo: { width: '100%', height: '100%', borderRadius: CROP_RADIUS },
-  photoDim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(6,4,18,0.62)' },
-  cropFrame: { position: 'absolute', zIndex: 4, borderWidth: 2, borderColor: 'rgba(255,255,255,0.96)', borderRadius: CROP_RADIUS },
+  photoDim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(6,4,18,0.64)' },
+  cropFrame: { position: 'absolute', zIndex: 4, borderWidth: 2, borderColor: 'rgba(201,255,59,0.82)', borderRadius: CROP_RADIUS },
+  cropFrameCheck: { borderColor: 'rgba(255,184,107,0.88)' },
   cropWindow: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: CROP_RADIUS, overflow: 'hidden', backgroundColor: '#0D0B16' },
   cropPhoto: { position: 'absolute', left: 0, top: 0 },
   gestureSurface: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   grid: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.82)' },
+  gridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.78)' },
   gridVerticalOne: { top: 0, bottom: 0, left: '33.333%', width: 1 },
   gridVerticalTwo: { top: 0, bottom: 0, left: '66.666%', width: 1 },
   gridHorizontalOne: { left: 0, right: 0, top: '33.333%', height: 1 },
   gridHorizontalTwo: { left: 0, right: 0, top: '66.666%', height: 1 },
+  edgeTick: {
+    position: 'absolute',
+    left: '50%',
+    width: 26,
+    height: 4,
+    marginLeft: -13,
+    borderRadius: 2,
+    backgroundColor: colors.lime,
+  },
+  edgeTickTop: { top: -2 },
+  edgeTickBottom: { bottom: -2 },
+  edgeTickV: {
+    position: 'absolute',
+    top: '50%',
+    width: 4,
+    height: 26,
+    marginTop: -13,
+    borderRadius: 2,
+    backgroundColor: colors.lime,
+  },
+  edgeTickLeft: { left: -2 },
+  edgeTickRight: { right: -2 },
+  edgeTickCheck: { backgroundColor: colors.peach },
   handleTouch: { position: 'absolute', zIndex: 10, width: 64, height: 64, alignItems: 'center', justifyContent: 'center' },
   handle: { position: 'absolute', width: 32, height: 32, borderColor: colors.lime },
   handleCheck: { borderColor: colors.peach },
@@ -662,14 +732,31 @@ const styles = StyleSheet.create({
   handleBorderTopRight: { borderRightWidth: 6, borderTopWidth: 6, borderTopRightRadius: CROP_RADIUS },
   handleBorderBottomLeft: { borderLeftWidth: 6, borderBottomWidth: 6, borderBottomLeftRadius: CROP_RADIUS },
   handleBorderBottomRight: { borderRightWidth: 6, borderBottomWidth: 6, borderBottomRightRadius: CROP_RADIUS },
-  workspaceHint: { position: 'absolute', zIndex: 20, left: 20, right: 20, bottom: 13, minHeight: 38, maxWidth: 420, alignSelf: 'center', borderRadius: 19, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', backgroundColor: 'rgba(23,19,55,0.95)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  workspaceHint: { position: 'absolute', zIndex: 20, left: 20, right: 20, bottom: 13, minHeight: 36, maxWidth: 420, alignSelf: 'center', borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(139,92,246,0.42)', backgroundColor: 'rgba(20,15,48,0.92)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 6 },
   workspaceHintDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime, flexShrink: 0 },
   workspaceHintDotError: { backgroundColor: colors.rose },
   workspaceHintText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, lineHeight: 15, textAlign: 'center' },
   workspaceError: { backgroundColor: 'rgba(110,27,48,0.96)', borderColor: colors.rose },
   workspaceErrorText: { color: '#FFE1E5' },
-  dock: { minHeight: 118, paddingTop: 11, backgroundColor: '#0E0A21' },
-  dockLargeText: { minHeight: 130, paddingTop: 11 },
+  dock: {
+    minHeight: 122,
+    paddingTop: 14,
+    backgroundColor: '#150F33',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(139,92,246,0.34)',
+    overflow: 'hidden',
+  },
+  dockTopHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 28,
+    right: 28,
+    height: 2,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  dockLargeText: { minHeight: 134, paddingTop: 14 },
   actionRow: { maxWidth: 430, width: '100%', height: 92, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   actionRowLargeText: { height: 102 },
   toolButton: { width: 68, height: 84, alignItems: 'center', justifyContent: 'center', gap: 5 },
@@ -679,7 +766,7 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 18,
     borderWidth: borders.thin,
-    borderColor: '#6D5EB0',
+    borderColor: '#7A68C8',
     backgroundColor: '#251D4F',
     alignItems: 'center',
     justifyContent: 'center',
@@ -703,11 +790,11 @@ const styles = StyleSheet.create({
     borderWidth: borders.thick,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    gap: 8,
     overflow: 'hidden',
   },
   buttonLargeText: { height: 78, borderRadius: 24 },
@@ -732,5 +819,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  applyText: { flexShrink: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 18, lineHeight: 22, textAlign: 'center' },
+  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 22, textAlign: 'center' },
+  applyArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
 });

@@ -234,8 +234,14 @@ export function MathDocumentView({
                   lastInjectedMarkup.current = initialMarkup.current;
                 }
                 setDocumentReady(true);
-                revealDocument();
-                onReady?.();
+                if (revision.current === 0 && onReady) {
+                  stageOpacity.set(1);
+                  stageShiftX.set(0);
+                  requestAnimationFrame(() => onReady());
+                } else {
+                  revealDocument();
+                  onReady?.();
+                }
               }
             } catch {
               // The document bridge accepts only the tiny JSON readiness message.

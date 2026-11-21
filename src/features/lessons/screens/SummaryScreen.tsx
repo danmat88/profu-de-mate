@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -25,7 +25,6 @@ import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { ConfettiBurst } from '../../../shared/ui/ConfettiBurst';
-import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -43,7 +42,8 @@ type SummaryTab = 'answer' | 'ideas';
 const takeawayTones: MathDocumentTone[] = ['cyan', 'peach', 'lime'];
 
 export function SummaryScreen({ navigation, route }: Props) {
-  const { gutter, isNarrow, isShort, isLargeText } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter, isNarrow, isShort, isLargeText } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -271,7 +271,7 @@ export function SummaryScreen({ navigation, route }: Props) {
             />
           </Animated.View>
 
-          <Enter delay={40} distance={10} style={styles.heroCopy}>
+          <View style={styles.heroCopy}>
             <Text numberOfLines={1} style={styles.eyebrow}>{verdictEyebrow}</Text>
             <Text
               adjustsFontSizeToFit
@@ -281,7 +281,7 @@ export function SummaryScreen({ navigation, route }: Props) {
             >
               {lesson.headline}
             </Text>
-          </Enter>
+          </View>
 
           <IconButton label="Închide recapitularea" onPress={() => navigation.popToTop()} size={42}>
             <MiniGlyph name="close" size={20} color={colors.ink} />
@@ -289,17 +289,17 @@ export function SummaryScreen({ navigation, route }: Props) {
         </View>
 
         {hasTakeaways ? (
-          <Enter delay={75} distance={10} style={styles.tabsWrap}>
+          <View style={styles.tabsWrap}>
             <ComicTabBar
               compact
               options={summaryTabs}
               value={activeTab}
               onChange={switchTab}
             />
-          </Enter>
+          </View>
         ) : null}
 
-        <Enter delay={105} distance={14} style={styles.documentCardWrap}>
+        <View style={styles.documentCardWrap}>
           <GestureDetector gesture={swipeGesture}>
             <View style={styles.cardMotion}>
               <View pointerEvents="none" style={styles.documentCardShadow} />
@@ -313,7 +313,7 @@ export function SummaryScreen({ navigation, route }: Props) {
               </View>
             </View>
           </GestureDetector>
-        </Enter>
+        </View>
       </View>
 
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>

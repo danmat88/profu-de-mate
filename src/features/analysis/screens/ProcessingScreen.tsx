@@ -1,9 +1,10 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
@@ -59,7 +60,8 @@ function containedImageRect(frameWidth: number, frameHeight: number, image: Capt
 }
 
 export function ProcessingScreen({ navigation, route }: Props) {
-  const { height, gutter, contentWidth, isNarrow, isVeryShort } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { height, gutter, contentWidth, isNarrow, isVeryShort } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { access: commercialAccess } = useCommercial();
@@ -73,9 +75,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const scanVisibility = useRef(new Animated.Value(1)).current;
   const resumeAfterPaywall = useRef(false);
   const isCheck = route.params.mode === 'check';
-  const stageHeight = Math.max(isVeryShort ? 190 : 244, Math.min(330, height * (isVeryShort ? 0.33 : 0.39)));
-  const analysisFrameHeight = Math.max(isVeryShort ? 168 : 204, Math.min(242, stageHeight - 44));
-  const analysisFrameWidth = Math.min(440, Math.max(220, contentWidth - 8));
+  const stageHeight = Math.max(isVeryShort ? 182 : 218, Math.min(286, height * (isVeryShort ? 0.29 : 0.34)));
+  const analysisFrameHeight = Math.max(isVeryShort ? 170 : 206, Math.min(266, stageHeight - 12));
+  const analysisFrameWidth = Math.min(440, Math.max(220, contentWidth - 4));
   const analysisImageRect = containedImageRect(analysisFrameWidth, analysisFrameHeight, route.params.image);
   const analysisImageStyle = {
     left: analysisImageRect.x,
@@ -129,7 +131,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
     const unsubscribe = navigation.addListener('transitionEnd', (event) => {
       if (!event.data.closing) markReady();
     });
-    const fallback = setTimeout(markReady, 550);
+    const fallback = setTimeout(markReady, 200);
     return () => {
       settled = true;
       clearTimeout(fallback);
@@ -364,7 +366,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
       <ComicBackdrop dark />
       <View style={styles.sceneContent}>
         <View style={styles.top}>
-          <Text style={styles.brand}>Profu’ lucrează</Text>
+          <View style={styles.brandRow}>
+            <View style={[styles.brandDot, isCheck && styles.brandDotCheck]} />
+            <Text style={styles.brand}>Profu’ lucrează</Text>
+          </View>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Continuă analiza în fundal și revino acasă"
@@ -380,49 +385,65 @@ export function ProcessingScreen({ navigation, route }: Props) {
           </PressableScale>
         </View>
 
-        <ScrollView style={styles.analysisScroll} contentContainerStyle={styles.analysisContent} bounces={false} showsVerticalScrollIndicator={false}>
+        <View style={[styles.analysisBody, { paddingBottom: bottomSpace }]}>
           <View style={[styles.stage, { height: stageHeight }]}>
-            <View pointerEvents="none" style={[styles.analysisFrame, isCheck && styles.analysisFrameCheck, { width: analysisFrameWidth, height: analysisFrameHeight }]}>
-              <Image accessible={false} source={{ uri: route.params.image.uri }} resizeMode="contain" style={[styles.analysisPhoto, analysisImageStyle]} />
-              <View style={[styles.analysisVeil, analysisImageStyle]} />
-              <Animated.View style={[styles.analysisScan, {
-                left: analysisImageRect.x + 12,
-                width: Math.max(24, analysisImageRect.width - 24),
-                opacity: scanOpacity,
-                transform: [{ translateY: orbit.interpolate({ inputRange: [0, 1], outputRange: [scanStart, scanEnd] }) }],
-              }]}>
-                <View style={[styles.analysisScanCore, isCheck && styles.analysisScanCoreCheck]} />
-              </Animated.View>
-              <View style={[styles.corner, styles.cornerTL, { left: analysisImageRect.x, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
-              <View style={[styles.corner, styles.cornerTR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
-              <View style={[styles.corner, styles.cornerBL, { left: analysisImageRect.x, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
-              <View style={[styles.corner, styles.cornerBR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+            <View pointerEvents="none" style={[styles.stageAura, isCheck && styles.stageAuraCheck]} />
+            <View style={styles.analysisFrameShadow}>
+              <View pointerEvents="none" style={[styles.analysisFrame, isCheck && styles.analysisFrameCheck, { width: analysisFrameWidth, height: analysisFrameHeight }]}>
+                <Image
+                  accessible={false}
+                  source={{ uri: route.params.image.uri }}
+                  resizeMode="contain"
+                  fadeDuration={0}
+                  style={[styles.analysisPhoto, analysisImageStyle]}
+                />
+                <View style={[styles.analysisVeil, analysisImageStyle]} />
+                <Animated.View style={[styles.analysisScan, {
+                  left: analysisImageRect.x + 12,
+                  width: Math.max(24, analysisImageRect.width - 24),
+                  opacity: scanOpacity,
+                  transform: [{ translateY: orbit.interpolate({ inputRange: [0, 1], outputRange: [scanStart, scanEnd] }) }],
+                }]}>
+                  <LinearGradient
+                    colors={isCheck
+                      ? ['rgba(255,184,107,0)', 'rgba(255,184,107,0.34)', 'rgba(255,184,107,0)']
+                      : ['rgba(201,255,59,0)', 'rgba(201,255,59,0.32)', 'rgba(201,255,59,0)']}
+                    style={styles.analysisScanHalo}
+                  />
+                  <View style={[styles.analysisScanCore, isCheck && styles.analysisScanCoreCheck]} />
+                </Animated.View>
+                <View style={[styles.corner, styles.cornerTL, { left: analysisImageRect.x, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
+                <View style={[styles.corner, styles.cornerTR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
+                <View style={[styles.corner, styles.cornerBL, { left: analysisImageRect.x, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+                <View style={[styles.corner, styles.cornerBR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+              </View>
             </View>
+          </View>
 
-            <View pointerEvents="none" style={styles.guide}>
-              <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck]}>
+          <View style={styles.tutorBanner}>
+            <View style={styles.tutorMascotStage}>
+              <View style={[styles.tutorHalo, isCheck && styles.tutorHaloCheck, preparingLesson && styles.tutorHaloReady]} />
+              <Mascot pose={preparingLesson ? 'cheer' : 'thinking'} size={isVeryShort ? 74 : 88} active={sceneReady} />
+            </View>
+            <View style={styles.tutorCopy}>
+              <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck, preparingLesson && styles.guideBubbleReady]}>
                 <Text style={styles.guideText}>
                   {preparingLesson ? 'Gata! O așez…' : isCheck ? 'Verific atent…' : 'Citesc atent…'}
                 </Text>
               </View>
-              <Mascot pose={preparingLesson ? 'cheer' : 'thinking'} size={isVeryShort ? 82 : 96} active={sceneReady} />
-            </View>
-          </View>
-
-          <View style={[styles.statusArea, isVeryShort && styles.statusAreaShort, { paddingBottom: bottomSpace }]}>
-            <View>
               <Text style={[styles.title, isNarrow && styles.titleNarrow]}>
                 {preparingLesson ? 'Lecția ta e gata!' : isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}
               </Text>
-              <Text accessibilityLiveRegion="polite" style={styles.subtitle}>
+              <Text accessibilityLiveRegion="polite" numberOfLines={2} style={styles.subtitle}>
                 {takingLong
                   ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.'
                   : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
               </Text>
             </View>
-            <AnalysisActivity preparing={preparingLesson} check={isCheck} />
           </View>
-        </ScrollView>
+
+          <AnalysisActivity preparing={preparingLesson} check={isCheck} />
+        </View>
       </View>
     </View>
   );
@@ -431,9 +452,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.ink, overflow: 'hidden' },
   sceneContent: { flex: 1 },
-  analysisScroll: { flex: 1 },
-  analysisContent: { flexGrow: 1 },
-  top: { height: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  analysisBody: { flex: 1, justifyContent: 'space-between', paddingTop: 2 },
+  top: { height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.lime },
+  brandDotCheck: { backgroundColor: colors.peach },
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
   stopButton: {
     minWidth: 92,
@@ -443,31 +466,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 5,
     borderWidth: borders.thin,
-    borderColor: '#6D5EB0',
+    borderColor: '#7A68C8',
     backgroundColor: '#2B2259',
     borderRadius: 15,
     paddingHorizontal: 12,
   },
   stopText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
-  stage: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, position: 'relative' },
+  stage: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  stageAura: {
+    position: 'absolute',
+    width: 260,
+    height: 180,
+    borderRadius: 120,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  stageAuraCheck: {
+    backgroundColor: 'rgba(255, 168, 140, 0.16)',
+  },
+  analysisFrameShadow: {
+    borderRadius: 27,
+    backgroundColor: '#070512',
+    paddingBottom: 6,
+  },
   analysisFrame: {
     width: '100%',
     maxWidth: 440,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.28)',
-    backgroundColor: '#070514',
+    borderColor: 'rgba(167, 139, 250, 0.5)',
+    backgroundColor: '#090619',
     overflow: 'hidden',
-    shadowColor: '#070512',
-    shadowOpacity: 0.7,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 8,
   },
-  analysisFrameCheck: { borderColor: 'rgba(255,168,140,0.56)' },
+  analysisFrameCheck: { borderColor: 'rgba(255,184,107,0.62)' },
   analysisPhoto: { position: 'absolute', borderRadius: 18 },
-  analysisVeil: { position: 'absolute', borderRadius: 18, backgroundColor: 'rgba(12,9,28,0.12)' },
-  analysisScan: { position: 'absolute', top: 0, height: 3 },
+  analysisVeil: { position: 'absolute', borderRadius: 18, backgroundColor: 'rgba(12,9,28,0.1)' },
+  analysisScan: { position: 'absolute', top: -9, height: 21, justifyContent: 'center' },
+  analysisScanHalo: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 10 },
   analysisScanCore: { width: '100%', height: 3, borderRadius: 2, backgroundColor: colors.lime },
   analysisScanCoreCheck: { backgroundColor: colors.peach },
   corner: { position: 'absolute', width: 32, height: 32, borderColor: colors.lime },
@@ -476,26 +510,48 @@ const styles = StyleSheet.create({
   cornerTR: { right: 13, top: 13, borderRightWidth: 5, borderTopWidth: 5, borderTopRightRadius: 9 },
   cornerBL: { left: 13, bottom: 13, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 9 },
   cornerBR: { right: 13, bottom: 13, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 9 },
-  guide: { position: 'absolute', zIndex: 5, right: -4, bottom: 0, alignItems: 'flex-end', justifyContent: 'flex-end' },
+  tutorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  tutorMascotStage: {
+    width: 92,
+    height: 92,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  tutorHalo: {
+    position: 'absolute',
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    backgroundColor: '#292057',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#7A68C8',
+  },
+  tutorHaloCheck: { borderColor: 'rgba(255,184,107,0.7)' },
+  tutorHaloReady: { borderColor: colors.lime, backgroundColor: '#253257' },
+  tutorCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
   guideBubble: {
-    marginRight: 44,
-    marginBottom: -14,
-    zIndex: 2,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
-    transform: [{ rotate: '-3deg' }],
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    transform: [{ rotate: '-2deg' }],
+    marginBottom: 5,
   },
   guideBubbleCheck: { backgroundColor: colors.peach },
-  guideText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
-  statusArea: { flex: 1, minHeight: 0, justifyContent: 'space-evenly', gap: 12 },
-  statusAreaShort: { justifyContent: 'space-between', paddingTop: 6 },
-  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 29, lineHeight: 33, textAlign: 'center' },
-  titleNarrow: { fontSize: 25, lineHeight: 29 },
-  subtitle: { paddingHorizontal: 8, fontFamily: fonts.body, color: '#CCC4E6', fontSize: 13.5, lineHeight: 19, textAlign: 'center', marginTop: 5 },
+  guideBubbleReady: { backgroundColor: colors.lime },
+  guideText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11, lineHeight: 14 },
+  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 24, lineHeight: 28 },
+  titleNarrow: { fontSize: 21, lineHeight: 25 },
+  subtitle: { fontFamily: fonts.body, color: '#CCC4E6', fontSize: 12.5, lineHeight: 17.5, marginTop: 3 },
   messageScroll: { flex: 1 },
   messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 12, gap: 6 },
   messageAreaShort: { paddingTop: 6 },

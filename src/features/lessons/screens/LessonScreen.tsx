@@ -10,7 +10,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -55,7 +55,8 @@ const problemViewTabs: readonly ComicTabOption<ProblemView>[] = [
 ];
 
 export function LessonScreen({ navigation, route }: Props) {
-  const { gutter } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { refresh: refreshCommercialAccess } = useCommercial();
