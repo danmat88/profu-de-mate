@@ -20,8 +20,10 @@ import {
 
 assert.match(process.env.FIRESTORE_EMULATOR_HOST ?? '', /^(?:localhost|127\.0\.0\.1):\d{1,5}$/,
   'Integration tests require an explicit local Firestore emulator.');
+assert.match(process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '', /^(?:localhost|127\.0\.0\.1):\d{1,5}$/,
+  'Integration tests require an explicit local Auth emulator.');
 const projectId = 'demo-profu-de-mate';
-const app = initializeApp({ projectId }, `commercial-integration-${Date.now()}`);
+const app = initializeApp({ projectId });
 const db = getFirestore(app);
 const now = Date.parse('2040-03-15T10:00:00.000Z');
 const day = '2040-03-15';
@@ -65,6 +67,9 @@ after(async () => {
     deleteIfPresent(db.collection('_commercialUsers').doc(retainedMergeInstallationPrincipal)),
     deleteIfPresent(db.collection('_commercialUsers').doc(staleReservationPrincipal.principalId)),
     deleteIfPresent(db.collection('_commercialUsers').doc(retainedMergeGooglePrincipal.principalId)),
+    deleteIfPresent(db.collection('_commercialUsage').doc(`${guestPrincipal.principalId}_${day}`)),
+    deleteIfPresent(db.collection('_commercialUsage').doc(`${staleReservationPrincipal.principalId}_${day}`)),
+    deleteIfPresent(db.collection('_commercialUsage').doc(`${retainedMergeInstallationPrincipal}_${day}`)),
     deleteIfPresent(db.collection('_commercialUsage').doc(`${linkedGooglePrincipal.principalId}_${day}`)),
     deleteIfPresent(db.collection('_commercialUsage').doc(`${deletedGooglePrincipal.principalId}_${day}`)),
     deleteIfPresent(db.collection('_commercialUsage').doc(`${retainedMergeGooglePrincipal.principalId}_${day}`)),
@@ -92,12 +97,13 @@ test('rezervarea concurentă a aceleiași cereri consumă o singură problemă',
     reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now),
   ]);
 
-  const [profile, global, reservation] = await Promise.all([
+  const [usage, profile, global, reservation] = await Promise.all([
+    db.collection('_commercialUsage').doc(`${guestPrincipal.principalId}_${day}`).get(),
     db.collection('_commercialUsers').doc(guestPrincipal.principalId).get(),
     db.collection('_commercialGlobal').doc(day).get(),
     db.collection('_commercialReservations').doc(`${guestPrincipal.principalId}_${requestId}`).get(),
   ]);
-  assert.equal(profile.data()?.welcomeRequests, 1);
+  assert.equal(usage.data()?.requests, 1);
   assert.ok(profile.data()?.expiresAt?.toMillis() >= now + 399 * 24 * 60 * 60 * 1000);
   assert.equal(global.exists, false, 'Reserving user allowance makes no provider request.');
   assert.equal(reservation.data()?.state, 'reserved');
@@ -111,13 +117,13 @@ test('un rezultat nefinalizat restituie problema fără a restitui încercarea f
     transaction.set(resultRef, { status: 'not_math' });
   });
 
-  const [profile, global, reservation, result] = await Promise.all([
-    db.collection('_commercialUsers').doc(guestPrincipal.principalId).get(),
+  const [usage, global, reservation, result] = await Promise.all([
+    db.collection('_commercialUsage').doc(`${guestPrincipal.principalId}_${day}`).get(),
     db.collection('_commercialGlobal').doc(day).get(),
     db.collection('_commercialReservations').doc(`${guestPrincipal.principalId}_${requestId}`).get(),
     resultRef.get(),
   ]);
-  assert.equal(profile.data()?.welcomeRequests, 0);
+  assert.equal(usage.data()?.requests, 0);
   assert.equal(global.data()?.providerAttempts, 1);
   assert.equal(reservation.data()?.state, 'refunded');
   assert.equal(result.data()?.status, 'not_math');
@@ -155,17 +161,17 @@ test('aceeași cerere poate fi reluată după refund și este taxată o singură
   });
   await settleAnalysisQuota(db, guestPrincipal.principalId, requestId, true, () => undefined);
 
-  const [profile, global, reservation] = await Promise.all([
-    db.collection('_commercialUsers').doc(guestPrincipal.principalId).get(),
+  const [usage, global, reservation] = await Promise.all([
+    db.collection('_commercialUsage').doc(`${guestPrincipal.principalId}_${day}`).get(),
     db.collection('_commercialGlobal').doc(day).get(),
     db.collection('_commercialReservations').doc(`${guestPrincipal.principalId}_${requestId}`).get(),
   ]);
-  assert.equal(profile.data()?.welcomeRequests, 1);
+  assert.equal(usage.data()?.requests, 1);
   assert.equal(global.data()?.providerAttempts, 3);
   assert.equal(reservation.data()?.state, 'consumed');
 });
 
-test('a șasea problemă de bun-venit este refuzată de tranzacția serverului', async () => {
+test('a șasea problemă gratuită pe zi este refuzată de tranzacția serverului', async () => {
   for (let index = 2; index <= 5; index += 1) {
     const requestId = `analysis-limit-000${index}`;
     await reserveAnalysisQuota(db, userId, requestId, guestPrincipal, now + index * 61_000);
@@ -174,13 +180,13 @@ test('a șasea problemă de bun-venit este refuzată de tranzacția serverului',
 
   await assert.rejects(
     reserveAnalysisQuota(db, userId, 'analysis-limit-0006', guestPrincipal, now + 6 * 61_000),
-    (error) => error?.details?.commercialReason === 'welcome_exhausted',
+    (error) => error?.details?.commercialReason === 'daily_exhausted',
   );
-  const profile = await db.collection('_commercialUsers').doc(guestPrincipal.principalId).get();
-  assert.equal(profile.data()?.welcomeRequests, 5);
+  const usage = await db.collection('_commercialUsage').doc(`${guestPrincipal.principalId}_${day}`).get();
+  assert.equal(usage.data()?.requests, 5);
 });
 
-test('legarea directă la Google mută utilizarea de bun-venit în cota zilei fără bonus', async () => {
+test('legarea directă la Google mută utilizarea zilei în cont fără bonus', async () => {
   const profile = await db.collection('_commercialUsers').doc(guestPrincipal.principalId).get();
   const ticket = profile.data()?.activeMergeTicket;
   assert.equal(typeof ticket, 'string');
@@ -213,13 +219,12 @@ test('legarea directă la Google mută utilizarea de bun-venit în cota zilei f�
   assert.equal(daily.data()?.requests, 5);
   assert.equal(completedTicket.data()?.state, 'completed');
   assert.equal(preservedProfile.exists, true);
-  assert.equal(preservedProfile.data()?.welcomeRequests, 5);
   assert.equal(preservedProfile.data()?.welcomeLocked, undefined);
   assert.equal(preservedProfile.data()?.activeMergeTicket, undefined);
   assert.ok(preservedProfile.data()?.expiresAt?.toMillis() >= now + 399 * 24 * 60 * 60 * 1000);
 });
 
-test('logout-ul păstrează contorul instalării fără blocare artificială', async () => {
+test('logout-ul păstrează contorul zilnic al dispozitivului fără resetare', async () => {
   const access = await readCommercialAccess(
     db,
     `rotated-anonymous-${Date.now()}`,
@@ -227,8 +232,9 @@ test('logout-ul păstrează contorul instalării fără blocare artificială', a
     now + 8 * 61_000,
   );
   assert.equal(access.identity, 'anonymous');
-  assert.equal(access.reason, 'welcome_exhausted');
+  assert.equal(access.reason, 'daily_exhausted');
   assert.equal(access.remaining, 0);
+  assert.equal(access.resetAt, bucharestQuotaWindow(now + 8 * 61_000).resetAt);
   assert.equal(access.purchaseUserId, guestPrincipal.principalId);
 });
 
@@ -450,6 +456,7 @@ test('provider capacity is irreversible across refunded analyses and retries', a
   } finally {
     await Promise.all([
       globalRef.delete(),
+      db.collection('_commercialUsage').doc(`${principal.principalId}_${bucharestQuotaWindow(budgetNow).day}`).delete(),
       db.collection('_commercialUsers').doc(principal.principalId).delete(),
       ...[0, 1].map((attempt) => db.collection('_commercialReservations').doc(`${principal.principalId}_provider-refund-${attempt}`).delete()),
     ]);
@@ -496,6 +503,7 @@ test('an account marked for deletion cannot reserve provider capacity or resurre
   const principal = { identity: 'anonymous', principalId: `i_${'c'.repeat(64)}` };
   const lifecycleRef = db.collection('_accountLifecycle').doc(budgetUser);
   const globalRef = db.collection('_commercialGlobal').doc(bucharestQuotaWindow(budgetNow).day);
+  const usageRef = db.collection('_commercialUsage').doc(`${principal.principalId}_${bucharestQuotaWindow(budgetNow).day}`);
   const profileRef = db.collection('_commercialUsers').doc(principal.principalId);
   const reservationRef = db.collection('_commercialReservations').doc(`${principal.principalId}_${requestId}`);
   let resultWrites = 0;
@@ -503,14 +511,16 @@ test('an account marked for deletion cannot reserve provider capacity or resurre
     await reserveAnalysisQuota(db, budgetUser, requestId, principal, budgetNow);
     await lifecycleRef.set({ state: 'deleting' });
     await profileRef.delete();
+    await usageRef.delete();
     await assert.rejects(consumeProviderAttempt(db, 300, budgetNow, budgetUser), (error) => error?.code === 'failed-precondition');
     await assert.rejects(settleAnalysisQuota(db, principal.principalId, requestId, false, () => { resultWrites += 1; }),
       (error) => error?.code === 'failed-precondition');
     assert.equal(resultWrites, 0);
     assert.equal((await globalRef.get()).exists, false);
     assert.equal((await profileRef.get()).exists, false);
+    assert.equal((await usageRef.get()).exists, false);
   } finally {
-    await Promise.all([lifecycleRef.delete(), globalRef.delete(), profileRef.delete(), reservationRef.delete()]);
+    await Promise.all([lifecycleRef.delete(), globalRef.delete(), usageRef.delete(), profileRef.delete(), reservationRef.delete()]);
   }
 });
 
@@ -575,30 +585,109 @@ test('concurrent requests on separate devices cannot both consume the final dail
   }
 });
 
-test('guest welcome remains one-time over midnight while Premium receives a fresh daily counter', async () => {
+test('both guest and Premium receive fresh daily counters at Bucharest midnight', async () => {
   const guest = { identity: 'anonymous', principalId: `i_${'d'.repeat(64)}` };
   const premium = { identity: 'google', principalId: `g_${'f'.repeat(64)}` };
   const quotaUser = 'daily-tier-test';
   const before = Date.parse('2043-07-15T20:59:59.000Z');
   const after = Date.parse('2043-07-15T21:00:00.000Z');
-  const guestProfile = db.collection('_commercialUsers').doc(guest.principalId);
+  const previousGuestDaily = db.collection('_commercialUsage').doc(`${guest.principalId}_2043-07-15`);
   const premiumEntitlement = db.collection('_commercialEntitlements').doc(premium.principalId);
   const previousDaily = db.collection('_commercialUsage').doc(`${premium.principalId}_2043-07-15`);
   try {
     await Promise.all([
-      guestProfile.set({ welcomeRequests: 5 }),
+      previousGuestDaily.set({ principalId: guest.principalId, day: '2043-07-15', requests: 5 }),
       premiumEntitlement.set({ active: true, productId: 'test-premium' }),
-      previousDaily.set({ requests: 30 }),
+      previousDaily.set({ principalId: premium.principalId, day: '2043-07-15', requests: 30 }),
     ]);
     assert.equal((await readCommercialAccess(db, quotaUser, premium, before)).remaining, 0);
+    assert.equal((await readCommercialAccess(db, quotaUser, guest, before)).remaining, 0);
     const newPremium = await readCommercialAccess(db, quotaUser, premium, after);
     assert.equal(newPremium.tier, 'premium');
     assert.equal(newPremium.remaining, 30);
     const sameGuest = await readCommercialAccess(db, quotaUser, guest, after);
-    assert.equal(sameGuest.remaining, 0);
-    assert.equal(sameGuest.resetAt, null);
-    assert.equal(sameGuest.reason, 'welcome_exhausted');
+    assert.equal(sameGuest.remaining, 5);
+    assert.equal(sameGuest.resetAt, '2043-07-16T21:00:00.000Z');
+    assert.equal(sameGuest.reason, 'available');
   } finally {
-    await Promise.all([guestProfile.delete(), premiumEntitlement.delete(), previousDaily.delete()]);
+    await Promise.all([previousGuestDaily.delete(), premiumEntitlement.delete(), previousDaily.delete()]);
+  }
+});
+
+test('dual-bound daily quota survives uninstall/reinstall, sign-out, alt Gmail, second phone, and refunds symmetrically', async () => {
+  const deviceId = `i_${'7'.repeat(63)}a`;
+  const otherDeviceId = `i_${'7'.repeat(63)}b`;
+  const googlePrimary = { identity: 'google', principalId: `g_${'7'.repeat(63)}1` };
+  const googleAlt = { identity: 'google', principalId: `g_${'7'.repeat(63)}2` };
+  const guestDevice = { identity: 'anonymous', principalId: deviceId };
+  const testDay = '2044-05-10';
+  const baseAt = Date.parse('2044-05-10T09:00:00.000Z');
+  const primaryUid = 'dual-bound-primary-uid';
+  const reinstalledGuestUid = 'dual-bound-guest-uid';
+  const altUid = 'dual-bound-alt-uid';
+  const requests = ['dual-req-1', 'dual-req-2', 'dual-req-3', 'dual-req-4', 'dual-req-refund', 'dual-req-5'];
+  try {
+    // 1. Spend 4 problems while connected with Google on this phone.
+    for (let i = 0; i < 4; i += 1) {
+      await reserveAnalysisQuota(db, primaryUid, requests[i], googlePrimary, baseAt + i * 61_000, deviceId);
+      await settleAnalysisQuota(db, googlePrimary.principalId, requests[i], true, () => undefined);
+    }
+    const afterFour = await readCommercialAccess(db, primaryUid, googlePrimary, baseAt + 5 * 61_000, deviceId);
+    assert.equal(afterFour.remaining, 1);
+
+    // 2. A failed/refunded analysis restores BOTH account and device counters symmetrically.
+    await reserveAnalysisQuota(db, primaryUid, requests[4], googlePrimary, baseAt + 6 * 61_000, deviceId);
+    await settleAnalysisQuota(db, googlePrimary.principalId, requests[4], false, () => undefined);
+    assert.equal((await readCommercialAccess(db, primaryUid, googlePrimary, baseAt + 6 * 61_000, deviceId)).remaining, 1);
+    assert.equal((await readCommercialAccess(db, reinstalledGuestUid, guestDevice, baseAt + 6 * 61_000, deviceId)).remaining, 1);
+
+    // 3. Uninstall & reinstall -> opens as fresh guest on the SAME phone -> sees 1/5 (NOT 5/5!).
+    const afterReinstall = await readCommercialAccess(db, reinstalledGuestUid, guestDevice, baseAt + 7 * 61_000, deviceId);
+    assert.equal(afterReinstall.used, 4);
+    assert.equal(afterReinstall.remaining, 1);
+
+    // 4. Spend the 1 remaining problem as guest -> reaches 0/5.
+    await reserveAnalysisQuota(db, reinstalledGuestUid, requests[5], guestDevice, baseAt + 8 * 61_000, deviceId);
+    await settleAnalysisQuota(db, guestDevice.principalId, requests[5], true, () => undefined);
+    assert.equal((await readCommercialAccess(db, reinstalledGuestUid, guestDevice, baseAt + 9 * 61_000, deviceId)).remaining, 0);
+
+    // 5. Reconnect with Google -> merges req5 -> sees 0/5 (NOT 4/5!).
+    const ticket = await createAccountMergeTicket(db, reinstalledGuestUid, deviceId, baseAt + 9 * 61_000);
+    await completeAccountMerge({
+      db,
+      ticket,
+      targetUserId: primaryUid,
+      targetPrincipalId: googlePrimary.principalId,
+      expectedSourcePrincipalId: deviceId,
+      now: baseAt + 10 * 61_000,
+    });
+    const reconnected = await readCommercialAccess(db, primaryUid, googlePrimary, baseAt + 10 * 61_000, deviceId);
+    assert.equal(reconnected.used, 5);
+    assert.equal(reconnected.remaining, 0);
+    assert.equal(reconnected.reason, 'daily_exhausted');
+
+    // 6. Switch to a second Gmail on the same phone -> still 0/5!
+    const altOnSamePhone = await readCommercialAccess(db, altUid, googleAlt, baseAt + 10 * 61_000, deviceId);
+    assert.equal(altOnSamePhone.used, 5);
+    assert.equal(altOnSamePhone.remaining, 0);
+
+    // 7. Sign into the same Google account on a second phone -> still 0/5!
+    const primaryOnOtherPhone = await readCommercialAccess(db, primaryUid, googlePrimary, baseAt + 10 * 61_000, otherDeviceId);
+    assert.equal(primaryOnOtherPhone.used, 5);
+    assert.equal(primaryOnOtherPhone.remaining, 0);
+  } finally {
+    const tickets = await db.collection('_accountMergeTickets').where('sourcePrincipalId', '==', deviceId).get();
+    await Promise.all([
+      ...tickets.docs.map((doc) => doc.ref.delete()),
+      deleteIfPresent(db.collection('_accountLifecycle').doc(reinstalledGuestUid)),
+      deleteIfPresent(db.collection('_commercialUsage').doc(`${deviceId}_${testDay}`)),
+      deleteIfPresent(db.collection('_commercialUsage').doc(`${otherDeviceId}_${testDay}`)),
+      deleteIfPresent(db.collection('_commercialUsage').doc(`${googlePrimary.principalId}_${testDay}`)),
+      deleteIfPresent(db.collection('_commercialUsage').doc(`${googleAlt.principalId}_${testDay}`)),
+      deleteIfPresent(db.collection('_commercialUsers').doc(deviceId)),
+      deleteIfPresent(db.collection('_commercialUsers').doc(googlePrimary.principalId)),
+      ...requests.slice(0, 5).map((req) => deleteIfPresent(db.collection('_commercialReservations').doc(`${googlePrimary.principalId}_${req}`))),
+      deleteIfPresent(db.collection('_commercialReservations').doc(`${deviceId}_${requests[5]}`)),
+    ]);
   }
 });

@@ -80,6 +80,7 @@ type ReservationData = {
   day?: unknown;
   requestId?: unknown;
   principalId?: unknown;
+  devicePrincipalId?: unknown;
   reservedAt?: unknown;
 };
 
@@ -117,10 +118,9 @@ export async function getCommercialConfig(db: Firestore, now = Date.now()): Prom
 }
 
 /**
- * Records which account last received data from this installation. The
- * installation's one-time allowance remains governed exclusively by its
- * existing `welcomeRequests` counter: connecting or disconnecting an account
- * must never consume unused problems and must never mint a new allowance.
+ * Records which account last received data from this installation/device.
+ * Daily free usage is governed by the unified dual-bound daily counters
+ * (`_commercialUsage/{principalId}_{day}` for both account and device).
  */
 export async function bindInstallationToAccount(
   db: Firestore,
@@ -141,15 +141,13 @@ export async function bindInstallationToAccount(
       && current.data()?.linkedAccountUserId === accountUserId
       && current.data()?.welcomeLocked === undefined) return;
     transaction.set(profileRef, {
-    principalId: installationPrincipalId,
-    // Remove the obsolete lock written by older releases. The consumed counter
-    // already prevents Firebase UID rotation from granting another allowance.
-    welcomeLocked: FieldValue.delete(),
-    linkedAccountPrincipalId: accountPrincipalId,
-    linkedAccountUserId: accountUserId,
-    linkedAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-    expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
+      principalId: installationPrincipalId,
+      welcomeLocked: FieldValue.delete(),
+      linkedAccountPrincipalId: accountPrincipalId,
+      linkedAccountUserId: accountUserId,
+      linkedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
     }, { merge: true });
   });
 }
@@ -227,11 +225,25 @@ function timestampMillis(value: unknown): number | null {
   return value instanceof Timestamp ? value.toMillis() : null;
 }
 
+function secondaryDevicePrincipal(
+  principalId: string,
+  devicePrincipalId?: string,
+): string | null {
+  if (!devicePrincipalId
+    || !isCommercialPrincipalId(devicePrincipalId)
+    || !devicePrincipalId.startsWith('i_')
+    || devicePrincipalId === principalId) {
+    return null;
+  }
+  return devicePrincipalId;
+}
+
 export function buildCommercialAccess(args: {
   identity: CommercialIdentity;
   principalId: string;
   profile?: DocumentData;
   daily?: DocumentData;
+  deviceDaily?: DocumentData;
   entitlement?: DocumentData;
   config: CommercialConfig;
   now: number;
@@ -240,12 +252,14 @@ export function buildCommercialAccess(args: {
   const expiresAtMs = timestampMillis(args.entitlement?.expiresAt);
   const premiumActive = args.entitlement?.active === true && (expiresAtMs === null || expiresAtMs > args.now);
   const tier: CommercialTier = premiumActive ? 'premium' : args.identity === 'google' ? 'free' : 'guest';
-  const limit = tier === 'premium'
-    ? args.config.premiumDailyLimit
-    : tier === 'free'
-      ? args.config.freeDailyLimit
-      : args.config.welcomeLimit;
-  const used = tier === 'guest' ? numeric(args.profile, 'welcomeRequests') : numeric(args.daily, 'requests');
+  const limit = tier === 'premium' ? args.config.premiumDailyLimit : args.config.freeDailyLimit;
+  const primaryUsed = numeric(args.daily, 'requests');
+  const deviceUsed = numeric(args.deviceDaily, 'requests');
+  // Free tiers (both guest and signed-in) are bound to BOTH the account and
+  // the persistent device counter so reinstalls, sign-outs, and account
+  // switches on the same phone cannot reset or multiply the daily allowance.
+  // Paid Premium subscribers always receive their full account-bound limit.
+  const used = tier === 'premium' ? primaryUsed : Math.max(primaryUsed, deviceUsed);
   const remaining = Math.max(0, limit - used);
   const deviceRecallVerified = args.profile?.deviceRecallClaimed === true;
   return {
@@ -255,11 +269,11 @@ export function buildCommercialAccess(args: {
     used,
     remaining,
     canAnalyze: remaining > 0,
-    reason: remaining > 0 ? 'available' : tier === 'guest' ? 'welcome_exhausted' : 'daily_exhausted',
-    resetAt: tier === 'guest' ? null : args.resetAt,
+    reason: remaining > 0 ? 'available' : 'daily_exhausted',
+    resetAt: args.resetAt,
     purchaseUserId: args.principalId,
     allowances: {
-      welcome: args.config.welcomeLimit,
+      welcome: args.config.freeDailyLimit,
       freeDaily: args.config.freeDailyLimit,
       premiumDaily: args.config.premiumDailyLimit,
     },
@@ -269,16 +283,26 @@ export function buildCommercialAccess(args: {
       expiresAt: expiresAtMs === null ? null : new Date(expiresAtMs).toISOString(),
     },
     deviceRecall: {
-      shouldVerify: tier === 'guest' && args.config.deviceRecallMode !== 'off' && !deviceRecallVerified,
+      shouldVerify: false,
       verified: deviceRecallVerified,
     },
   };
 }
 
-function refsFor(db: Firestore, _userId: string, principalId: string, requestId: string, day: string) {
+function refsFor(
+  db: Firestore,
+  _userId: string,
+  principalId: string,
+  requestId: string,
+  day: string,
+  devicePrincipalId?: string,
+) {
+  const separateDevice = secondaryDevicePrincipal(principalId, devicePrincipalId);
   return {
     profile: db.collection('_commercialUsers').doc(principalId),
     daily: db.collection('_commercialUsage').doc(`${principalId}_${day}`),
+    deviceDaily: separateDevice ? db.collection('_commercialUsage').doc(`${separateDevice}_${day}`) : null,
+    devicePrincipalId: separateDevice,
     entitlement: db.collection('_commercialEntitlements').doc(principalId),
     reservation: db.collection('_commercialReservations').doc(`${principalId}_${requestId}`),
   };
@@ -337,20 +361,23 @@ export async function readCommercialAccess(
   userId: string,
   principal: CommercialPrincipal,
   now = Date.now(),
+  devicePrincipalId?: string,
 ): Promise<CommercialAccess> {
   const config = await getCommercialConfig(db, now);
   const window = bucharestQuotaWindow(now);
-  const refs = refsFor(db, userId, principal.principalId, '_status', window.day);
-  const [profile, daily, entitlement] = await Promise.all([
+  const refs = refsFor(db, userId, principal.principalId, '_status', window.day, devicePrincipalId);
+  const [profile, daily, entitlement, deviceDaily] = await Promise.all([
     refs.profile.get(),
     refs.daily.get(),
     refs.entitlement.get(),
+    refs.deviceDaily ? refs.deviceDaily.get() : Promise.resolve(null),
   ]);
   return buildCommercialAccess({
     identity: principal.identity,
     principalId: principal.principalId,
     profile: profile.data(),
     daily: daily.data(),
+    deviceDaily: deviceDaily?.data(),
     entitlement: entitlement.data(),
     config,
     now,
@@ -359,13 +386,6 @@ export async function readCommercialAccess(
 }
 
 function quotaError(access: CommercialAccess): HttpsError {
-  if (access.reason === 'welcome_exhausted') {
-    return new HttpsError(
-      'resource-exhausted',
-      `Ai folosit cele ${access.limit} probleme de bun-venit. Conectează-te cu Google pentru probleme gratuite în fiecare zi.`,
-      { commercialReason: access.reason, access },
-    );
-  }
   return new HttpsError(
     'resource-exhausted',
     access.tier === 'premium'
@@ -381,24 +401,27 @@ export async function reserveAnalysisQuota(
   requestId: string,
   principal: CommercialPrincipal,
   now = Date.now(),
+  devicePrincipalId?: string,
 ): Promise<CommercialAccess> {
   const config = await getCommercialConfig(db, now);
   const window = bucharestQuotaWindow(now);
   if (!isCommercialPrincipalId(principal.principalId)) {
     throw new HttpsError('internal', 'Identitatea comercială nu este validă.');
   }
-  const refs = refsFor(db, userId, principal.principalId, requestId, window.day);
+  const refs = refsFor(db, userId, principal.principalId, requestId, window.day, devicePrincipalId);
 
   return db.runTransaction(async (transaction) => {
     await assertUserActive(transaction, db, userId);
-    const [profileSnapshot, dailySnapshot, entitlementSnapshot, reservationSnapshot] = await Promise.all([
+    const [profileSnapshot, dailySnapshot, entitlementSnapshot, reservationSnapshot, deviceDailySnapshot] = await Promise.all([
       transaction.get(refs.profile),
       transaction.get(refs.daily),
       transaction.get(refs.entitlement),
       transaction.get(refs.reservation),
+      refs.deviceDaily ? transaction.get(refs.deviceDaily) : Promise.resolve(null),
     ]);
     const profile = profileSnapshot.data();
     const daily = dailySnapshot.data();
+    const deviceDaily = deviceDailySnapshot?.data();
     const entitlement = entitlementSnapshot.data();
     const reservation = reservationSnapshot.data() as ReservationData | undefined;
     if (reservation && reservation.userId !== userId) {
@@ -409,6 +432,7 @@ export async function reserveAnalysisQuota(
       principalId: principal.principalId,
       profile,
       daily,
+      deviceDaily,
       entitlement,
       config,
       now,
@@ -440,15 +464,8 @@ export async function reserveAnalysisQuota(
       );
     }
     if (!access.canAnalyze) throw quotaError(access);
-    if (access.tier === 'guest' && config.deviceRecallMode === 'enforce' && !access.deviceRecall.verified) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Verificarea sigură a problemelor de bun-venit nu este gata. Încearcă din nou sau conectează-te cu Google.',
-        { commercialReason: 'device_verification_required', access },
-      );
-    }
 
-    const scope: ReservationScope = access.tier === 'guest' ? 'welcome' : 'daily';
+    const scope: ReservationScope = 'daily';
     const expiresAt = Timestamp.fromMillis(now + COUNTER_RETENTION_MS);
     const profileWrite: DocumentData = {
       userId,
@@ -459,27 +476,28 @@ export async function reserveAnalysisQuota(
       expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
     };
 
-    if (scope === 'welcome') {
-      const requestIds = stringArray(profile, 'welcomeRequestIds');
-      const continuesCurrentDay = profile?.welcomeTodayDay === window.day;
-      const todayRequestIds = continuesCurrentDay
-        ? stringArray(profile, 'welcomeTodayRequestIds')
-        : [];
-      profileWrite.welcomeRequests = access.used + 1;
-      profileWrite.welcomeRequestIds = [...requestIds.filter((value) => value !== requestId), requestId].slice(-config.welcomeLimit);
-      profileWrite.welcomeTodayDay = window.day;
-      profileWrite.welcomeTodayRequestIds = [...todayRequestIds.filter((value) => value !== requestId), requestId].slice(-config.welcomeLimit);
-      if (!continuesCurrentDay) {
-        profileWrite.welcomeTodayRetainedRequests = FieldValue.delete();
-        profileWrite.welcomeTodayTransferHashes = FieldValue.delete();
-      }
-    } else {
-      const requestIds = stringArray(daily, 'requestIds');
-      transaction.set(refs.daily, {
-        principalId: principal.principalId,
+    const dailyUsed = numeric(daily, 'requests');
+    const dailyIds = stringArray(daily, 'requestIds');
+    const nextDailyUsed = dailyUsed + 1;
+    transaction.set(refs.daily, {
+      principalId: principal.principalId,
+      day: window.day,
+      requests: nextDailyUsed,
+      requestIds: [...dailyIds.filter((value) => value !== requestId), requestId].slice(-config.premiumDailyLimit),
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt,
+    }, { merge: true });
+
+    let nextDeviceUsed = nextDailyUsed;
+    if (refs.deviceDaily && refs.devicePrincipalId) {
+      const deviceUsed = numeric(deviceDaily, 'requests');
+      const deviceIds = stringArray(deviceDaily, 'requestIds');
+      nextDeviceUsed = deviceUsed + 1;
+      transaction.set(refs.deviceDaily, {
+        principalId: refs.devicePrincipalId,
         day: window.day,
-        requests: access.used + 1,
-        requestIds: [...requestIds.filter((value) => value !== requestId), requestId].slice(-config.premiumDailyLimit),
+        requests: nextDeviceUsed,
+        requestIds: [...deviceIds.filter((value) => value !== requestId), requestId].slice(-config.premiumDailyLimit),
         updatedAt: FieldValue.serverTimestamp(),
         expiresAt,
       }, { merge: true });
@@ -490,6 +508,7 @@ export async function reserveAnalysisQuota(
       userId,
       requestId,
       principalId: principal.principalId,
+      ...(refs.devicePrincipalId ? { devicePrincipalId: refs.devicePrincipalId } : {}),
       day: window.day,
       scope,
       tier: access.tier,
@@ -500,12 +519,17 @@ export async function reserveAnalysisQuota(
       expiresAt,
     }, { merge: true });
 
+    const nextUsed = access.tier === 'premium'
+      ? nextDailyUsed
+      : Math.max(nextDailyUsed, nextDeviceUsed);
+    const nextRemaining = Math.max(0, access.limit - nextUsed);
+
     return {
       ...access,
-      used: access.used + 1,
-      remaining: Math.max(0, access.remaining - 1),
-      canAnalyze: access.remaining - 1 > 0,
-      reason: access.remaining - 1 > 0 ? 'available' : access.tier === 'guest' ? 'welcome_exhausted' : 'daily_exhausted',
+      used: nextUsed,
+      remaining: nextRemaining,
+      canAnalyze: nextRemaining > 0,
+      reason: nextRemaining > 0 ? 'available' : 'daily_exhausted',
     };
   });
 }
@@ -531,6 +555,23 @@ function counterReference(
     };
   }
   return null;
+}
+
+function deviceCounterReference(
+  db: Firestore,
+  reservation: ReservationData,
+): { ref: DocumentReference; requestsKey: string; requestIdsKey: string } | null {
+  if (reservation.scope !== 'daily'
+    || typeof reservation.day !== 'string'
+    || !isCommercialPrincipalId(reservation.devicePrincipalId)
+    || reservation.devicePrincipalId === reservation.principalId) {
+    return null;
+  }
+  return {
+    ref: db.collection('_commercialUsage').doc(`${reservation.devicePrincipalId}_${reservation.day}`),
+    requestsKey: 'requests',
+    requestIdsKey: 'requestIds',
+  };
 }
 
 function applyCounterRefund(
@@ -604,12 +645,17 @@ export async function settleAnalysisQuota(
       if (!counter || typeof reservation.day !== 'string') {
         throw new HttpsError('internal', 'Rezervarea comercială nu este validă.');
       }
+      const deviceCounter = deviceCounterReference(db, reservation);
       const globalRef = db.collection('_commercialGlobal').doc(reservation.day);
-      const [counterSnapshot, globalSnapshot] = await Promise.all([
+      const [counterSnapshot, deviceCounterSnapshot, globalSnapshot] = await Promise.all([
         transaction.get(counter.ref),
+        deviceCounter ? transaction.get(deviceCounter.ref) : Promise.resolve(null),
         reservation.budgetVersion === 2 ? Promise.resolve(null) : transaction.get(globalRef),
       ]);
       const refunded = applyCounterRefund(transaction, counter, counterSnapshot.data(), requestId, reservation);
+      if (deviceCounter && deviceCounterSnapshot) {
+        applyCounterRefund(transaction, deviceCounter, deviceCounterSnapshot.data(), requestId, reservation);
+      }
       if (refunded && globalSnapshot?.exists) {
         transaction.update(globalRef, {
           requests: Math.max(0, numeric(globalSnapshot.data(), 'requests') - 1),

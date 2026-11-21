@@ -14,9 +14,7 @@ export type AllowancePresentation = {
 export function allowancePresentation(
   access: CommercialAccess,
 ): AllowancePresentation {
-  const label = access.tier === 'guest'
-    ? `${access.remaining} din ${access.limit} cadou`
-    : `${access.remaining} din ${access.limit} azi`;
+  const label = `${access.remaining} din ${access.limit} azi`;
   const note = access.premium.active ? 'PREMIUM' : 'VEZI PREMIUM';
   return {
     label,

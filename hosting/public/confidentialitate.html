@@ -27,14 +27,14 @@
 
         <h2>2. Ce date folosim</h2>
         <ul>
-          <li>un identificator Firebase anonim; dacă alegi conectarea Google, identificatorul, adresa de e-mail, numele și fotografia de profil furnizate de Google către Firebase Authentication; pentru cota zilnică, identificatorul Google este transformat server-side într-un cod HMAC opac;</li>
+          <li>un identificator Firebase anonim; dacă alegi conectarea Google, identificatorul, adresa de e-mail, numele și fotografia de profil furnizate de Google către Firebase Authentication; pentru cota zilnică gratuită și prevenirea abuzului la reinstalare, aplicația calculează local un hash SHA-256 din identificatorul de dispozitiv specific aplicației Android (fără a trimite valoarea brută), iar backendul transformă atât acest hash, cât și identificatorul Google în coduri HMAC opace;</li>
           <li>fotografia sau formula problemei și rezolvarea pe care alegi să le trimiți pentru analiză;</li>
           <li>enunțul extras, explicația structurată, formulele, verdictul și starea de salvare;</li>
           <li>metadate tehnice minime pentru limitarea abuzului și evitarea procesării duble;</li>
           <li>metadate standard de conexiune înregistrate automat de infrastructură, precum adresa IP, mărimea cererii, latența și codul răspunsului;</li>
           <li>categoria raportului trimis de tine;</li>
           <li>starea abonamentului, produsul cumpărat și evenimentele tehnice necesare activării ori restaurării Premium, fără numărul cardului;</li>
-          <li>verdicturi Play Integrity și, după aprobarea funcției, un bit Device Recall folosit pentru a împiedica repetarea abuzivă a ofertei de bun-venit;</li>
+          <li>verdicturi Play Integrity (App Check) folosite exclusiv pentru securitatea aplicației și prevenirea cererilor automate sau neautorizate;</li>
           <li>date tehnice de blocare numai dacă activezi voluntar Diagnosticarea din Setări.</li>
         </ul>
 
@@ -62,9 +62,7 @@
           <li>datele locale pentru reluarea unei analize, inclusiv formula trimisă: expiră după 30 de minute și sunt curățate la următoarea verificare;</li>
           <li>lecțiile nesalvate și cache-ul unei cereri: expirare după 7 zile;</li>
           <li>contoarele zilnice și rezervările de siguranță: expirare după 35 de zile;</li>
-          <li>după ștergerea unui cont Google, codul HMAC, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi;</li>
-          <li>markerul HMAC al instalării și numărul problemelor de bun-venit folosite pot rămâne maximum 400 de zile de la ultima activitate, inclusiv după ștergere, exclusiv pentru prevenirea refolosirii artificiale a ofertei; nu conțin e-mailul sau UID-ul Firebase;</li>
-          <li>dacă Device Recall este aprobat și activat, Google poate păstra bitul anti-abuz până la 3 ani de la ultima citire sau scriere, conform documentației Play Integrity; aplicația îl folosește numai pentru oferta de bun-venit;</li>
+          <li>după ștergerea datelor sau a contului, codurile HMAC opace ale contului și dispozitivului, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi; nu conțin e-mailul, UID-ul Firebase sau identificatorul brut al dispozitivului;</li>
           <li>evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există;</li>
           <li>metadatele standard din bucket-ul implicit Cloud Logging: în mod normal 30 de zile;</li>
           <li>lecțiile din Caiet: cât timp sunt folosite, dar maximum aproximativ 13 luni fără activitate;</li>

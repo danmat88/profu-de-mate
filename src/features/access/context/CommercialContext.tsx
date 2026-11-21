@@ -163,18 +163,22 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     const previousUserId = observedUserId.current;
     observedSessionKey.current = nextSessionKey;
     observedUserId.current = user?.uid;
-    invalidateSessionOperations();
-    identityGeneration.current += 1;
-    refreshInFlight.current = null;
-    setRefreshing(false);
+    if (!identityTransitionActive.current) {
+      invalidateSessionOperations();
+      identityGeneration.current += 1;
+      refreshInFlight.current = null;
+      setRefreshing(false);
+    }
     clearFavoriteLessonsCache();
     if (previousUserId !== user?.uid) {
       discardPendingAnalysis();
       clearMathDrafts();
     }
-    void resetPurchasesForSignedOutUser().catch((error) => recordDiagnosticError('purchases_identity', error));
-    resetFirebaseInitialization();
-    clearAccessForIdentityChange();
+    if (!identityTransitionActive.current) {
+      void resetPurchasesForSignedOutUser().catch((error) => recordDiagnosticError('purchases_identity', error));
+      resetFirebaseInitialization();
+      clearAccessForIdentityChange();
+    }
     setAuthSessionKey(nextSessionKey);
     if (!identityTransitionActive.current) void refresh();
   }), [clearAccessForIdentityChange, refresh]);

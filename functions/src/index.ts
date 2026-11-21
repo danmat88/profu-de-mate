@@ -178,6 +178,7 @@ export const analyzeMathImage = onCall({
       throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste un minut.');
     }
 
+    const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
     const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
     await reserveAnalysisQuota(
       db,
@@ -185,6 +186,7 @@ export const analyzeMathImage = onCall({
       input.requestId,
       commercialPrincipal,
       Date.now(),
+      installationPrincipal,
     );
     const provider = createMathProvider(geminiApiKey.value());
     let result: RenderedMathAnalysis;
@@ -311,7 +313,12 @@ export const getCommercialAccess = onCall({
   const installationToken = installationTokenFromData(request.data);
   const installationPrincipal = installationPrincipalId(installationToken, commercialIdentityHmacKey.value());
   const principal = requestCommercialPrincipal(request.auth.token, request.auth.uid, installationToken);
-  await reconcileStaleAnalysisReservations(db, principal.principalId).catch((error) => {
+  await Promise.all([
+    reconcileStaleAnalysisReservations(db, principal.principalId),
+    installationPrincipal !== principal.principalId
+      ? reconcileStaleAnalysisReservations(db, installationPrincipal)
+      : Promise.resolve(0),
+  ]).catch((error) => {
     // Index propagation or a transient database failure must not block access;
     // the same idempotent recovery runs again on the next refresh.
     logger.warn('Stale quota reconciliation deferred', safeErrorDescriptor(error));
@@ -328,6 +335,8 @@ export const getCommercialAccess = onCall({
     db,
     request.auth.uid,
     principal,
+    Date.now(),
+    installationPrincipal,
   );
 });
 
@@ -599,6 +608,9 @@ export const deleteMyData = onCall({
       deleteQueryInBatches(db, db.collection('_aiUsage').where('userId', '==', userId)),
       deleteQueryInBatches(db, db.collection('_analysisRequests').where('userId', '==', userId)),
       removeOrRetainCommercialUsage(db, principal),
+      principal.identity === 'google'
+        ? removeOrRetainCommercialUsage(db, { identity: 'anonymous', principalId: installationPrincipal })
+        : Promise.resolve(),
       deleteQueryInBatches(db, db.collection('_commercialReservations').where('userId', '==', userId)),
       db.collection('_feedbackRateLimits').doc(userId).delete(),
       deleteQueryInBatches(db, db.collection('_accountMergeTickets').where('sourceUserId', '==', userId)),

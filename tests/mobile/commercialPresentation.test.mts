@@ -12,7 +12,7 @@ function access(overrides: Partial<CommercialAccess> = {}): CommercialAccess {
     remaining: 4,
     canAnalyze: true,
     reason: 'available',
-    resetAt: null,
+    resetAt: '2026-09-20T21:00:00.000Z',
     purchaseUserId: `i_${'a'.repeat(64)}`,
     allowances: { welcome: 5, freeDaily: 5, premiumDaily: 30 },
     premium: { active: false, productId: null, expiresAt: null },
@@ -21,20 +21,20 @@ function access(overrides: Partial<CommercialAccess> = {}): CommercialAccess {
   };
 }
 
-test('presents guest, free, migrated legacy and Premium access without ambiguity', () => {
+test('presents unified daily free and Premium access cleanly without guest/account ambiguity', () => {
   assert.deepEqual(allowancePresentation(access()), {
-    label: '4 din 5 cadou',
+    label: '4 din 5 azi',
     note: 'VEZI PREMIUM',
-    accessibilityLabel: '4 din 5 cadou. Descoperă Profu’ Premium.',
+    accessibilityLabel: '4 din 5 azi. Descoperă Profu’ Premium.',
   });
 
   assert.equal(allowancePresentation(access({ identity: 'google', tier: 'free' })).label, '4 din 5 azi');
   assert.deepEqual(
-    allowancePresentation(access({ canAnalyze: false, reason: 'account_required', remaining: 0, used: 5 })),
+    allowancePresentation(access({ canAnalyze: false, reason: 'daily_exhausted', remaining: 0, used: 5 })),
     {
-      label: '0 din 5 cadou',
+      label: '0 din 5 azi',
       note: 'VEZI PREMIUM',
-      accessibilityLabel: '0 din 5 cadou. Descoperă Profu’ Premium.',
+      accessibilityLabel: '0 din 5 azi. Descoperă Profu’ Premium.',
     },
   );
   assert.equal(allowancePresentation(access({ identity: 'google', tier: 'premium', premium: { active: true, productId: 'profu_premium', expiresAt: null } })).note, 'PREMIUM');

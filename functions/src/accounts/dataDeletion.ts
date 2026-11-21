@@ -44,15 +44,28 @@ export async function removeOrRetainCommercialUsage(
   const currentDocumentId = `${principal.principalId}_${window.day}`;
   const batch = db.batch();
   snapshot.docs.forEach((document) => {
-    if (principal.identity === 'google' && document.id === currentDocumentId) {
+    if (document.id === currentDocumentId) {
       // Replace the complete document rather than merging fields. This is a
       // deliberate data-minimization boundary: legacy identifiers and future
-      // metadata cannot survive account deletion by accident.
-      const retainedTransferHashes = [...new Set(transferHashes(document.data().transferHashes))].slice(-200);
+      // metadata cannot survive account deletion by accident, while preserving
+      // today's count (for both account and device principals) until midnight.
+      const existingHashes = transferHashes(document.data().transferHashes);
+      const requestIds = Array.isArray(document.data().requestIds)
+        ? document.data().requestIds.filter((value: unknown): value is string => typeof value === 'string')
+        : [];
+      const retainedTransferHashes = [...new Set([
+        ...existingHashes,
+        ...requestIds.map(transferHash),
+      ])].slice(-200);
+      const count = retainedRequestCount(document.data().requests);
+      if (count === 0 && retainedTransferHashes.length === 0) {
+        batch.delete(document.ref);
+        return;
+      }
       batch.set(document.ref, {
         principalId: principal.principalId,
         day: window.day,
-        requests: retainedRequestCount(document.data().requests),
+        requests: count,
         ...(retainedTransferHashes.length > 0 ? { transferHashes: retainedTransferHashes } : {}),
         retainedFor: 'quota-abuse-prevention',
         updatedAt: FieldValue.serverTimestamp(),

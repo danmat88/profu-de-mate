@@ -133,12 +133,12 @@ export function LegalScreen({ navigation }: Props) {
               </View>
 
               <Section number="01" title="Ce date folosim">
-                <Bullet>Un identificator Firebase pentru spațiul aplicației; dacă alegi Google, adresa de e-mail, numele și identificatorul contului furnizate de Google. Pentru cota zilnică, backendul transformă identificatorul Google într-un cod HMAC opac, care nu conține e-mailul.</Bullet>
+                <Bullet>Un identificator Firebase pentru spațiul aplicației; dacă alegi Google, adresa de e-mail, numele și identificatorul contului furnizate de Google. Pentru cota zilnică gratuită și prevenirea abuzului, aplicația derivă local un hash SHA-256 din identificatorul de dispozitiv specific aplicației Android (fără a transmite valoarea brută), iar backendul transformă atât acest hash, cât și identificatorul Google în coduri HMAC opace.</Bullet>
                 <Bullet>Fotografia sau formula aleasă de tine, rezolvarea introdusă pentru verificare și cererea de analiză.</Bullet>
                 <Bullet>Soluția, verdictul, materia și starea de salvare a lecției.</Bullet>
                 <Bullet>Categoria unui raport trimis de tine și, doar dacă activezi opțiunea, date tehnice de blocare.</Bullet>
                 <Bullet>Starea abonamentului și produsul cumpărat, fără numărul cardului sau datele de plată.</Bullet>
-                <Bullet>Semnale Play Integrity și un bit Device Recall, când sunt disponibile, folosite numai pentru siguranță și prevenirea repetării abuzive a ofertei de bun-venit.</Bullet>
+                <Bullet>Semnale Play Integrity (App Check), când sunt disponibile, folosite exclusiv pentru securitatea aplicației și prevenirea cererilor neautorizate.</Bullet>
                 <Bullet>Infrastructura poate înregistra automat metadate de conexiune, precum adresa IP, mărimea cererii, latența și codul răspunsului, fără conținutul fotografiei.</Bullet>
               </Section>
 
@@ -155,9 +155,8 @@ export function LegalScreen({ navigation }: Props) {
                 <Bullet>Ciornele editorului rămân pe telefon, separat pentru rezolvare și verificare. Expiră după 7 zile fără editare și sunt eliminate la următoarea deschidere a editorului; sunt șterse și la deconectare, schimbarea contului sau ștergerea datelor. Datele locale pentru reluarea unei analize expiră după 30 de minute și sunt curățate la următoarea verificare.</Bullet>
                 <Bullet>Lecția nesalvată și rezultatul tehnic temporar: expirare după 7 zile.</Bullet>
                 <Bullet>Contoarele zilnice și rezervările anti-abuz: expirare după 35 de zile.</Bullet>
-                <Bullet>După ștergerea unui cont Google, codul HMAC, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul folosit în ziua curentă pot rămâne numai până la următoarea resetare, apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>
-                <Bullet>Markerul HMAC al instalării și numărul problemelor de bun-venit folosite pot rămâne maximum 400 de zile de la ultima activitate, inclusiv după ștergere, exclusiv pentru a împiedica refolosirea artificială a ofertei. Nu conțin e-mailul sau UID-ul Firebase.</Bullet>
-                <Bullet>Dacă Device Recall este aprobat și activat, Google poate păstra bitul anti-abuz până la 3 ani de la ultima citire sau scriere, conform documentației Play Integrity. Aplicația îl folosește numai pentru oferta de bun-venit.</Bullet>
+                <Bullet>După ștergerea datelor sau a contului, codurile HMAC opace ale contului și dispozitivului, hashurile unidirecționale de deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>
+                <Bullet>Nu folosim identificatorul de dispozitiv pentru publicitate și nu îl partajăm cu terți.</Bullet>
                 <Bullet>Evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există.</Bullet>
                 <Bullet>Metadatele standard din Cloud Logging: în mod normal 30 de zile.</Bullet>
                 <Bullet>Lecțiile salvate: până le ștergi sau după aproximativ 13 luni fără folosirea Caietului.</Bullet>

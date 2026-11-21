@@ -287,6 +287,7 @@ export async function completeAccountMerge(args: {
   const commercialConfig = await getCommercialConfig(args.db, now);
   const window = bucharestQuotaWindow(now);
   const sourceProfileRef = args.db.collection('_commercialUsers').doc(sourcePrincipalId);
+  const sourceDailyRef = args.db.collection('_commercialUsage').doc(`${sourcePrincipalId}_${window.day}`);
   const targetProfileRef = args.db.collection('_commercialUsers').doc(args.targetPrincipalId);
   const targetDailyRef = args.db.collection('_commercialUsage').doc(`${args.targetPrincipalId}_${window.day}`);
   const targetEntitlementRef = args.db.collection('_commercialEntitlements').doc(args.targetPrincipalId);
@@ -294,9 +295,10 @@ export async function completeAccountMerge(args: {
   await args.db.runTransaction(async (transaction) => {
     await assertUserActive(transaction, args.db, args.targetUserId);
     if (!keepsSameUser) await assertMergeSource(transaction, args.db, sourceUserId, args.ticket);
-    const [currentTicket, sourceProfile, targetDaily, targetEntitlement] = await Promise.all([
+    const [currentTicket, sourceProfile, sourceDaily, targetDaily, targetEntitlement] = await Promise.all([
       transaction.get(ticketRef),
       transaction.get(sourceProfileRef),
+      transaction.get(sourceDailyRef),
       transaction.get(targetDailyRef),
       transaction.get(targetEntitlementRef),
     ]);
@@ -311,15 +313,20 @@ export async function completeAccountMerge(args: {
     const premiumActive = entitlementData?.active === true && (entitlementExpiry === null || entitlementExpiry > now);
     const dailyLimit = premiumActive ? commercialConfig.premiumDailyLimit : commercialConfig.freeDailyLimit;
     const targetUsed = numeric(targetDaily.data()?.requests);
-    const sourceTodayRequestIds = sourceProfile.data()?.welcomeTodayDay === window.day
-      ? stringArray(sourceProfile.data()?.welcomeTodayRequestIds)
-      : [];
-    const sourceTodayRetainedRequests = sourceProfile.data()?.welcomeTodayDay === window.day
-      ? numeric(sourceProfile.data()?.welcomeTodayRetainedRequests)
-      : 0;
-    const sourceTodayTransferHashes = sourceProfile.data()?.welcomeTodayDay === window.day
-      ? transferHashes(sourceProfile.data()?.welcomeTodayTransferHashes)
-      : [];
+
+    const sourceDailyData = sourceDaily.data();
+    const sourceDailyRequestIds = stringArray(sourceDailyData?.requestIds);
+    const sourceDailyTransferHashes = transferHashes(sourceDailyData?.transferHashes);
+    const sourceDailyRetainedRequests = Math.max(0, numeric(sourceDailyData?.requests) - sourceDailyRequestIds.length);
+
+    const legacySameDay = sourceProfile.data()?.welcomeTodayDay === window.day;
+    const legacyRequestIds = legacySameDay ? stringArray(sourceProfile.data()?.welcomeTodayRequestIds) : [];
+    const legacyTransferHashes = legacySameDay ? transferHashes(sourceProfile.data()?.welcomeTodayTransferHashes) : [];
+    const legacyRetainedRequests = legacySameDay ? numeric(sourceProfile.data()?.welcomeTodayRetainedRequests) : 0;
+
+    const sourceTodayRequestIds = [...new Set([...sourceDailyRequestIds, ...legacyRequestIds])];
+    const sourceTodayTransferHashes = [...new Set([...sourceDailyTransferHashes, ...legacyTransferHashes])];
+    const sourceTodayRetainedRequests = Math.max(sourceDailyRetainedRequests, legacyRetainedRequests);
     const merged = mergeConsumedUsage(
       targetUsed,
       targetDaily.data()?.requestIds,

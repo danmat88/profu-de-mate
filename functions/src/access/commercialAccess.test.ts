@@ -63,7 +63,7 @@ test('Bucharest resets follow 23/25-hour DST days and calendar rollover, not a f
   }
 });
 
-test('builds guest, free and premium access from server-owned counters', () => {
+test('builds unified daily guest, dual-bound free, and account-bound premium access', () => {
   const guestPrincipal = `i_${'a'.repeat(64)}`;
   const googlePrincipal = `g_${'b'.repeat(64)}`;
   const common = {
@@ -71,29 +71,51 @@ test('builds guest, free and premium access from server-owned counters', () => {
     now: Date.parse('2026-08-25T10:00:00.000Z'),
     resetAt: '2026-08-25T21:00:00.000Z',
   };
-  assert.deepEqual(buildCommercialAccess({ identity: 'anonymous', principalId: guestPrincipal, profile: { welcomeRequests: 3 }, ...common }), {
+  assert.deepEqual(buildCommercialAccess({ identity: 'anonymous', principalId: guestPrincipal, daily: { requests: 3 }, ...common }), {
     identity: 'anonymous', tier: 'guest', limit: 5, used: 3, remaining: 2, canAnalyze: true,
-    reason: 'available', resetAt: null, purchaseUserId: guestPrincipal, premium: { active: false, productId: null, expiresAt: null },
+    reason: 'available', resetAt: common.resetAt, purchaseUserId: guestPrincipal, premium: { active: false, productId: null, expiresAt: null },
     allowances: { welcome: 5, freeDaily: 5, premiumDaily: 30 },
-    deviceRecall: { shouldVerify: true, verified: false },
+    deviceRecall: { shouldVerify: false, verified: false },
   });
   assert.equal(buildCommercialAccess({ identity: 'google', principalId: googlePrincipal, daily: { requests: 5 }, ...common }).reason, 'daily_exhausted');
-  const migratedGuest = buildCommercialAccess({
-    identity: 'anonymous',
-    principalId: guestPrincipal,
-    profile: { welcomeRequests: 1, welcomeLocked: true },
+
+  // Dual-bound free tier: switching to a fresh Gmail on an already-used phone
+  // cannot reset the phone's daily allowance.
+  const altGoogleOnUsedDevice = buildCommercialAccess({
+    identity: 'google',
+    principalId: googlePrincipal,
+    daily: { requests: 0 },
+    deviceDaily: { requests: 4 },
     ...common,
   });
-  assert.equal(migratedGuest.reason, 'available');
-  assert.equal(migratedGuest.remaining, 4);
+  assert.equal(altGoogleOnUsedDevice.used, 4);
+  assert.equal(altGoogleOnUsedDevice.remaining, 1);
+
+  // Dual-bound free tier: logging into an exhausted Google account on a new
+  // phone still respects the account's usage.
+  const usedGoogleOnNewDevice = buildCommercialAccess({
+    identity: 'google',
+    principalId: googlePrincipal,
+    daily: { requests: 5 },
+    deviceDaily: { requests: 0 },
+    ...common,
+  });
+  assert.equal(usedGoogleOnNewDevice.used, 5);
+  assert.equal(usedGoogleOnNewDevice.remaining, 0);
+  assert.equal(usedGoogleOnNewDevice.reason, 'daily_exhausted');
+
+  // Premium users always receive their paid account-bound limit even if the
+  // device already spent 5 free problems.
   const premium = buildCommercialAccess({
     identity: 'google',
     principalId: googlePrincipal,
     daily: { requests: 12 },
+    deviceDaily: { requests: 5 },
     entitlement: { active: true, productId: 'premium_monthly', expiresAt: Timestamp.fromMillis(common.now + 60_000) },
     ...common,
   });
   assert.equal(premium.tier, 'premium');
+  assert.equal(premium.used, 12);
   assert.equal(premium.remaining, 18);
 });
 

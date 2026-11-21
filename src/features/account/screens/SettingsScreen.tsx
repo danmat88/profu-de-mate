@@ -150,7 +150,6 @@ export function SettingsScreen({ navigation }: Props) {
   const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
   const { access, identity, loading: accessLoading, connectGoogle, disconnectGoogle, deleteAccount, refresh } = useCommercial();
-  const freeDailyLimit = access?.allowances.freeDaily ?? 5;
   const hasGoogleAccount = (access?.identity ?? identity) === 'google';
   const deletionActionTitle = hasGoogleAccount ? 'Șterge contul și datele' : 'Șterge datele temporare';
   const deletionActionText = hasGoogleAccount
@@ -173,8 +172,8 @@ export function SettingsScreen({ navigation }: Props) {
   const accountText = !access
     ? accessLoading ? 'Poți folosi setările cât timp limita de azi se actualizează în fundal.' : 'Limita de azi nu este disponibilă momentan. Verifică internetul pentru actualizare.'
     : access.identity === 'google'
-      ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează accesul după reinstalare și pe celelalte telefoane ale tale.`
-      : `Mai ai ${access.remaining} din ${access.limit} probleme de bun-venit pe această instalare. Pentru a recupera Caietul după reinstalare și pentru ${freeDailyLimit} probleme gratuite zilnic, conectează-te cu Google.`;
+      ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează Caietul și accesul Premium după reinstalare și pe alte telefoane.`
+      : `Ai ${access.remaining} din ${access.limit} probleme gratuite astăzi. Conectează-te cu Google pentru a păstra Caietul în cloud și pentru a putea activa Premium.`;
 
   const connectAccount = async () => {
     if (connectingGoogle) return;
@@ -291,7 +290,7 @@ export function SettingsScreen({ navigation }: Props) {
           <Enter delay={60} distance={12}>
             <GoogleAccountButton
               busy={connectingGoogle}
-              note={`Păstrezi Caietul și primești ${freeDailyLimit} probleme gratuite zilnic`}
+              note="Păstrezi Caietul în cloud și poți activa Premium"
               onPress={() => void connectAccount()}
               style={styles.settingsGoogleButton}
             />
@@ -309,7 +308,7 @@ export function SettingsScreen({ navigation }: Props) {
                 <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="profile" size={34} /></View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle}>Deconectează contul Google</Text>
-                  <Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Revii la problemele de bun-venit rămase pe această instalare.</Text>
+                  <Text style={styles.rowText}>Caietul rămâne în contul tău. Limita zilnică gratuită continuă pe acest telefon fără resetare.</Text>
                 </View>
                 <MiniGlyph name="next" size={18} color={colors.violetDeep} />
               </Pressable>
