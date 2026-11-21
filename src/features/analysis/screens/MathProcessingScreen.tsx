@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -20,6 +20,8 @@ import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
+import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
+import { useCommercial } from '../../access/context/CommercialContext';
 import { commercialGateFromError } from '../../access/services/commercial';
 import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { beginLessonPresentation, waitForLessonPresentation } from '../../lessons/services/lessonPresentation';
@@ -42,6 +44,8 @@ export function MathProcessingScreen({ route, navigation }: Props) {
   const { gutter, isVeryShort, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const focused = useIsFocused();
+  const { access: commercialAccess } = useCommercial();
   const [state, setState] = useState<State>({ kind: 'working' });
   const [attempt, setAttempt] = useState(0);
   const [slow, setSlow] = useState(false);
@@ -249,26 +253,40 @@ export function MathProcessingScreen({ route, navigation }: Props) {
             <Text accessibilityLiveRegion="polite" numberOfLines={2} style={[styles.copy, styles.workingSubtitle]}>{message}</Text>
           </View>
         ) : (
-          <Enter delay={60} distance={14}>
-            <ComicCard
-              tone="paper"
-              depth={6}
-              radius={24}
-              borderWidth={borders.thick}
-              shadowColor="#09061B"
-              shine
-              contentStyle={styles.messageCard}
-            >
-              <View accessibilityRole="alert">
-                <Chip
-                  label={state.kind === 'rejected' ? 'HAI SĂ MAI ÎNCERCĂM' : state.kind === 'commercial' ? 'CONTINUĂ ÎN RITMUL TĂU' : 'MAI ÎNCERCĂM O DATĂ'}
-                  tone={state.kind === 'commercial' ? 'gold' : state.kind === 'rejected' ? 'peach' : 'roseSoft'}
+          <>
+            <Enter delay={60} distance={14}>
+              <ComicCard
+                tone="paper"
+                depth={6}
+                radius={24}
+                borderWidth={borders.thick}
+                shadowColor="#09061B"
+                shine
+                contentStyle={styles.messageCard}
+              >
+                <View accessibilityRole="alert">
+                  <Chip
+                    label={state.kind === 'rejected' ? 'HAI SĂ MAI ÎNCERCĂM' : state.kind === 'commercial' ? 'CONTINUĂ ÎN RITMUL TĂU' : 'MAI ÎNCERCĂM O DATĂ'}
+                    tone={state.kind === 'commercial' ? 'gold' : state.kind === 'rejected' ? 'peach' : 'roseSoft'}
+                  />
+                  <Text style={[styles.title, isNarrow && styles.titleNarrow, styles.messageTitle]}>{title}</Text>
+                  <Text accessibilityLiveRegion="polite" style={[styles.copy, styles.messageCopy]}>{message}</Text>
+                </View>
+              </ComicCard>
+            </Enter>
+            {state.kind === 'commercial' && (state.access?.resetAt ?? commercialAccess?.resetAt) ? (
+              <Enter delay={110} distance={14}>
+                <QuotaResetTimer
+                  resetAt={state.access?.resetAt ?? commercialAccess?.resetAt}
+                  remaining={state.access?.remaining ?? commercialAccess?.remaining ?? 0}
+                  limit={state.access?.limit ?? commercialAccess?.limit ?? 5}
+                  premium={Boolean(state.access?.premium.active ?? commercialAccess?.premium.active)}
+                  variant="hero"
+                  active={focused}
                 />
-                <Text style={[styles.title, isNarrow && styles.titleNarrow, styles.messageTitle]}>{title}</Text>
-                <Text accessibilityLiveRegion="polite" style={[styles.copy, styles.messageCopy]}>{message}</Text>
-              </View>
-            </ComicCard>
-          </Enter>
+              </Enter>
+            ) : null}
+          </>
         )}
       </ScrollView>
 

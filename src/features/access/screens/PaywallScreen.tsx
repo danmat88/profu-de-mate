@@ -58,10 +58,20 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [successLimit, setSuccessLimit] = useState(30);
+  const [screenFocused, setScreenFocused] = useState(() => navigation.isFocused?.() ?? true);
   const identity = sessionIdentity ?? access?.identity ?? null;
   const googleLinked = identity === 'google';
   const premium = access?.premium.active === true;
   const purchaseUserId = access?.purchaseUserId;
+
+  useEffect(() => {
+    const onFocus = navigation.addListener?.('focus', () => setScreenFocused(true));
+    const onBlur = navigation.addListener?.('blur', () => setScreenFocused(false));
+    return () => {
+      onFocus?.();
+      onBlur?.();
+    };
+  }, [navigation]);
 
   useEffect(() => {
     navigation.setOptions?.({ gestureEnabled: !activeBusy });
@@ -184,6 +194,7 @@ export function PaywallScreen({ navigation, route }: Props) {
       error={error}
       success={success}
       successLimit={successLimit}
+      active={screenFocused}
       onClose={() => { if (!activeBusy) navigation.goBack(); }}
       onConnect={() => void connect()}
       onBuy={() => void buy()}

@@ -31,6 +31,7 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
 import { GoogleAccountButton } from '../../account/components/GoogleAccountButton';
 import type { PremiumOffer } from '../services/purchases';
+import { QuotaResetTimer } from './QuotaResetTimer';
 
 export type PremiumAction = 'google' | 'purchase' | 'restore' | 'manage' | null;
 export type PremiumPlan = 'annual' | 'monthly';
@@ -49,6 +50,7 @@ type Props = {
   error: string | null;
   success: boolean;
   successLimit: number;
+  active?: boolean;
   onClose: () => void;
   onConnect: () => void;
   onBuy: () => void;
@@ -129,8 +131,9 @@ export function PremiumSurface(props: Props) {
   const { gutter, isVeryShort } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit } = props;
+  const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit, active = true } = props;
   const premium = access?.premium.active === true;
+  const quotaExhausted = Boolean(access && !access.canAnalyze);
   const googleLinked = identity === 'google';
   const busyPrices = useDelayedBusy(props.offerLoading);
   const selectedPackage = offer?.[selected] ?? null;
@@ -236,8 +239,31 @@ export function PremiumSurface(props: Props) {
               <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
               <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
               <Text style={styles.sectionTitle}>probleme disponibile</Text>
-              <Text style={styles.body}>Limita se reînnoiește la miezul nopții. Abonamentul se administrează din Google Play.</Text>
+              {access.resetAt ? (
+                <QuotaResetTimer
+                  resetAt={access.resetAt}
+                  remaining={access.remaining}
+                  limit={access.limit}
+                  premium
+                  variant={quotaExhausted ? 'hero' : 'compact'}
+                  active={active}
+                  style={styles.activeTimer}
+                />
+              ) : null}
+              <Text style={styles.body}>Abonamentul se administrează din Google Play.</Text>
             </View>
+          ) : null}
+
+          {!success && !premium && access?.resetAt ? (
+            <QuotaResetTimer
+              resetAt={access.resetAt}
+              remaining={access.remaining}
+              limit={access.limit}
+              premium={false}
+              variant={quotaExhausted ? 'hero' : 'compact'}
+              active={active}
+              style={styles.resetTimerWrap}
+            />
           ) : null}
 
           {props.canContinue && !success ? (
@@ -487,6 +513,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   benefitText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
+  resetTimerWrap: { marginTop: 14 },
+  activeTimer: { width: '100%', marginTop: 6 },
 
   plansSection: { paddingTop: 16 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 },

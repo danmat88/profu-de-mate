@@ -53,6 +53,10 @@ function surfaceFixture() {
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
     'src/shared/ui/Typography.tsx': { Text: 'Text' },
+    'src/features/access/components/QuotaResetTimer.tsx': {
+      ComicClockIcon: 'ComicClockIcon',
+      HomeResetPillNote: 'HomeResetPillNote',
+    },
     'assets/brand/profu_mark_v2.png': 1, 'assets/profu_mascot_v2.png': 2,
   });
   const Surface = load('src/features/home/components/HomeSurface.tsx').HomeSurface;

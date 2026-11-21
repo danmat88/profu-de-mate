@@ -31,6 +31,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SegmentedToggle, type SegmentedOption } from '../../../shared/ui/SegmentedToggle';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
 import { Text } from '../../../shared/ui/Typography';
+import { ComicClockIcon, HomeResetPillNote } from '../../access/components/QuotaResetTimer';
 import type { AllowancePresentation } from '../../access/utils/commercialPresentation';
 import { HomeMotionReadyContext } from '../context/HomeMotionContext';
 
@@ -40,6 +41,9 @@ type Props = {
   galleryBusy: boolean;
   galleryError: string | null;
   allowance: AllowancePresentation;
+  resetAt?: string | null;
+  remaining?: number;
+  limit?: number;
   premiumActive?: boolean;
   latestLessonTitle?: string | null;
   showGuide?: boolean;
@@ -93,6 +97,9 @@ export function HomeSurface({
   galleryBusy,
   galleryError,
   allowance,
+  resetAt = null,
+  remaining,
+  limit,
   premiumActive = false,
   latestLessonTitle = null,
   showGuide = false,
@@ -128,6 +135,8 @@ export function HomeSurface({
 
   const isSolve = mode === 'solve';
   const hasPendingAnalysis = pending;
+  const quotaExhausted = remaining !== undefined && remaining <= 0;
+  const showPillResetTimer = Boolean(resetAt) && remaining !== undefined && limit !== undefined && remaining < limit;
   const cheerScope = `${mode}:${hasPendingAnalysis}:${galleryError ?? ''}`;
   const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index : null;
   const motionActive = motionReady && focused && foreground && !reducedMotion;
@@ -253,9 +262,11 @@ export function HomeSurface({
       ? 'oops'
       : activeCheer
         ? 'cheer'
-        : isSolve
-          ? 'wave'
-          : 'point';
+        : quotaExhausted
+          ? 'thinking'
+          : isSolve
+            ? 'wave'
+            : 'point';
 
   const bubbleTone: SpeechBubbleTone = hasPendingAnalysis
     ? 'limeSoft'
@@ -263,9 +274,11 @@ export function HomeSurface({
       ? 'roseSoft'
       : activeCheer
         ? 'limeSoft'
-        : isSolve
-          ? 'paper'
-          : 'peachSoft';
+        : quotaExhausted
+          ? 'peachSoft'
+          : isSolve
+            ? 'paper'
+            : 'peachSoft';
 
   const greetingTitle = hasPendingAnalysis
     ? 'Încă lucrez la ea!'
@@ -273,17 +286,21 @@ export function HomeSurface({
       ? 'Hopa! Încearcă alta.'
       : activeCheer
         ? activeCheer.title
-        : isSolve
-          ? solveGreeting(new Date().getHours())
-          : 'Hai să verificăm!';
+        : quotaExhausted
+          ? 'Ai terminat pe azi!'
+          : isSolve
+            ? solveGreeting(new Date().getHours())
+            : 'Hai să verificăm!';
 
   const greetingBody = hasPendingAnalysis
     ? 'Fotografia și progresul sunt păstrate.'
     : galleryError
       ?? activeCheer?.body
-      ?? (isSolve
-        ? 'Fă o poză sau scrie problema — explicăm pas cu pas.'
-        : 'Arată-mi rezolvarea ta și vedem fiecare pas.');
+      ?? (quotaExhausted
+        ? 'Problemele revin la 00:00 — apasă sus pentru cronometru sau Premium.'
+        : isSolve
+          ? 'Fă o poză sau scrie problema — explicăm pas cu pas.'
+          : 'Arată-mi rezolvarea ta și vedem fiecare pas.');
 
   const mascotSize = compact ? 74 : isVeryNarrow ? 90 : 102;
   const cornerColor = isSolve || hasPendingAnalysis ? colors.lime : colors.gold;
@@ -336,11 +353,16 @@ export function HomeSurface({
               contentStyle={[
                 styles.allowancePill,
                 (compact || isVeryNarrow) && styles.allowancePillCompact,
-                premiumActive && styles.allowancePillPremium,
+                premiumActive && !quotaExhausted && styles.allowancePillPremium,
+                quotaExhausted && styles.allowancePillExhausted,
               ]}
             >
               <View pointerEvents="none" style={styles.pillShine} />
-              <MiniGlyph name="spark" size={14} color={colors.ink} />
+              {quotaExhausted ? (
+                <ComicClockIcon size={15} color={colors.ink} accent={colors.peach} />
+              ) : (
+                <MiniGlyph name="spark" size={14} color={colors.ink} />
+              )}
               <View style={styles.allowanceCopy}>
                 <Text
                   maxFontSizeMultiplier={1.3}
@@ -351,15 +373,24 @@ export function HomeSurface({
                 >
                   {allowance.label}
                 </Text>
-                <Text
-                  maxFontSizeMultiplier={1.3}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                  style={styles.allowanceNote}
-                >
-                  {allowance.note}
-                </Text>
+                {showPillResetTimer ? (
+                  <HomeResetPillNote
+                    resetAt={resetAt}
+                    exhausted={quotaExhausted}
+                    active={focused}
+                    fallbackNote={allowance.note}
+                  />
+                ) : (
+                  <Text
+                    maxFontSizeMultiplier={1.3}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                    style={styles.allowanceNote}
+                  >
+                    {allowance.note}
+                  </Text>
+                )}
               </View>
             </PressableScale>
 
@@ -736,6 +767,7 @@ const styles = StyleSheet.create({
   },
   allowancePillCompact: { minWidth: 92, height: 36, paddingHorizontal: 7 },
   allowancePillPremium: { backgroundColor: colors.lime },
+  allowancePillExhausted: { backgroundColor: colors.peachSoft },
   pillShine: {
     position: 'absolute',
     top: 2,

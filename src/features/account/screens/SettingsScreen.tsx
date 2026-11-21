@@ -1,5 +1,6 @@
 import { getApp } from '@react-native-firebase/app';
 import { getCrashlytics, setCrashlyticsCollectionEnabled } from '@react-native-firebase/crashlytics';
+import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
@@ -37,6 +38,7 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { Text } from '../../../shared/ui/Typography';
+import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { GoogleAccountButton } from '../components/GoogleAccountButton';
 import { DataDeletionCancelledError } from '../services/dataManagement';
@@ -155,6 +157,7 @@ export function SettingsScreen({ navigation }: Props) {
   const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const focused = useIsFocused();
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -385,22 +388,35 @@ export function SettingsScreen({ navigation }: Props) {
         <View collapsable={false} style={styles.contentInner}>
         <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={identityAnimated}>
           <ComicCard tone="paper" depth={5} radius={24} shine contentStyle={styles.identity}>
-            <View style={styles.identityMascotWrap}>
-              <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active interactive={!accountBusy} />
+            <View style={styles.identityTopRow}>
+              <View style={styles.identityMascotWrap}>
+                <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active interactive={!accountBusy} />
+              </View>
+              <Animated.View
+                key={`${hasGoogleAccount ? 'google' : 'guest'}-${access?.premium.active ? 'premium' : 'free'}`}
+                entering={enterAfterSwap}
+                style={styles.identityCopy}
+              >
+                <Chip
+                  label={accountLabel}
+                  tone={access?.premium.active ? 'lime' : hasGoogleAccount ? 'cyanSoft' : 'violetSoft'}
+                  outlined={Boolean(access?.premium.active)}
+                />
+                <Text style={styles.identityTitle}>{accountTitle}</Text>
+                <Text style={styles.identityText}>{accountText}</Text>
+              </Animated.View>
             </View>
-            <Animated.View
-              key={`${hasGoogleAccount ? 'google' : 'guest'}-${access?.premium.active ? 'premium' : 'free'}`}
-              entering={enterAfterSwap}
-              style={styles.identityCopy}
-            >
-              <Chip
-                label={accountLabel}
-                tone={access?.premium.active ? 'lime' : hasGoogleAccount ? 'cyanSoft' : 'violetSoft'}
-                outlined={Boolean(access?.premium.active)}
+            {access?.resetAt ? (
+              <QuotaResetTimer
+                resetAt={access.resetAt}
+                remaining={access.remaining}
+                limit={access.limit}
+                premium={access.premium.active}
+                variant="embedded"
+                active={focused}
+                style={styles.identityTimer}
               />
-              <Text style={styles.identityTitle}>{accountTitle}</Text>
-              <Text style={styles.identityText}>{accountText}</Text>
-            </Animated.View>
+            ) : null}
           </ComicCard>
         </Animated.View>
 
@@ -782,7 +798,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   noticePillText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, lineHeight: 17 },
-  identity: { minHeight: 156, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  identity: { minHeight: 156, padding: 14, gap: 12 },
+  identityTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  identityTimer: { width: '100%' },
   identityMascotWrap: {
     width: 68,
     height: 68,

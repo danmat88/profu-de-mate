@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -22,6 +22,7 @@ import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
+import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { commercialGateFromError } from '../../access/services/commercial';
 import { deleteTemporaryCapturedImages } from '../../capture/services/temporaryImages';
@@ -64,6 +65,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const { height, gutter, contentWidth, isNarrow, isVeryShort } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const focused = useIsFocused();
   const { access: commercialAccess } = useCommercial();
   const [preparingLesson, setPreparingLesson] = useState(false);
   const [requestKey, setRequestKey] = useState(0);
@@ -343,6 +345,20 @@ export function ProcessingScreen({ navigation, route }: Props) {
               </View>
             </ComicCard>
           </Enter>
+
+          {commercialBlocked && (screenState.access?.resetAt ?? commercialAccess?.resetAt) ? (
+            <Enter delay={115} distance={14}>
+              <QuotaResetTimer
+                resetAt={screenState.access?.resetAt ?? commercialAccess?.resetAt}
+                remaining={screenState.access?.remaining ?? commercialAccess?.remaining ?? 0}
+                limit={screenState.access?.limit ?? commercialAccess?.limit ?? 5}
+                premium={Boolean(screenState.access?.premium.active ?? commercialAccess?.premium.active)}
+                variant="hero"
+                active={focused}
+                style={styles.commercialTimer}
+              />
+            </Enter>
+          ) : null}
         </ScrollView>
 
         <Enter delay={130} distance={12} style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
@@ -637,6 +653,7 @@ const styles = StyleSheet.create({
   messageTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 25, lineHeight: 29, marginTop: 10 },
   messageTitleNarrow: { fontSize: 22, lineHeight: 26 },
   messageText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  commercialTimer: { marginTop: 6 },
   messageActions: { gap: 8, paddingTop: 6 },
   backLink: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
   backLinkText: { fontFamily: fonts.bodyBold, color: '#CEC7E8', fontSize: 13 },

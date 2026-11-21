@@ -179,6 +179,9 @@ export function HomeScreen() {
       galleryBusy={galleryBusy}
       galleryError={galleryError}
       allowance={allowance}
+      resetAt={access.resetAt}
+      remaining={access.remaining}
+      limit={access.limit}
       premiumActive={Boolean(access?.premium.active)}
       latestLessonTitle={latestLessonTitle}
       showGuide={!guideDismissed}
