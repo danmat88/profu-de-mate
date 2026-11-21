@@ -15,6 +15,7 @@ type Props = {
   onRight?: () => void;
   rightActive?: boolean;
   dark?: boolean;
+  compact?: boolean;
 };
 
 export function ScreenHeader({
@@ -26,21 +27,24 @@ export function ScreenHeader({
   onRight,
   rightActive = false,
   dark = false,
+  compact = false,
 }: Props) {
   const color = dark ? colors.paper : colors.ink;
   const { gutter, isNarrow, isLargeText } = useResponsiveLayout();
+  const buttonSize = compact && !isLargeText ? 42 : 46;
 
   return (
     <View
       style={[
         styles.row,
         { paddingHorizontal: gutter },
+        compact && !isLargeText && styles.rowCompact,
         isNarrow && !isLargeText && styles.rowNarrow,
         isLargeText && styles.rowLargeText,
       ]}
     >
-      <IconButton label="Înapoi" onPress={onBack} dark={dark} size={46}>
-        <MiniGlyph name="back" size={25} color={color} />
+      <IconButton label="Înapoi" onPress={onBack} dark={dark} size={buttonSize}>
+        <MiniGlyph name="back" size={compact && !isLargeText ? 22 : 25} color={color} />
       </IconButton>
       <View style={styles.copy}>
         {eyebrow ? (
@@ -50,7 +54,12 @@ export function ScreenHeader({
         ) : null}
         <Text
           numberOfLines={isLargeText ? 2 : 1}
-          style={[styles.title, isNarrow && !isLargeText && styles.titleNarrow, dark && styles.titleDark]}
+          style={[
+            styles.title,
+            compact && !isLargeText && styles.titleCompact,
+            isNarrow && !isLargeText && styles.titleNarrow,
+            dark && styles.titleDark,
+          ]}
         >
           {title}
         </Text>
@@ -61,12 +70,12 @@ export function ScreenHeader({
           onPress={onRight}
           dark={dark}
           active={rightActive}
-          size={46}
+          size={buttonSize}
         >
-          <AppIcon name={rightIcon} size={36} />
+          <AppIcon name={rightIcon} size={compact && !isLargeText ? 32 : 36} />
         </IconButton>
       ) : (
-        <View style={styles.spacer} />
+        <View style={{ width: buttonSize }} />
       )}
     </View>
   );
@@ -81,7 +90,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 12,
   },
-  rowNarrow: { minHeight: 64, gap: 9 },
+  rowCompact: {
+    minHeight: 54,
+    paddingVertical: 4,
+    gap: 10,
+  },
+  rowNarrow: { minHeight: 62, gap: 9 },
   rowLargeText: { minHeight: 94, paddingVertical: 10 },
   copy: { flex: 1, minWidth: 0 },
   eyebrow: {
@@ -90,7 +104,7 @@ const styles = StyleSheet.create({
   },
   eyebrowDark: { color: colors.lime },
   title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 24 },
+  titleCompact: { fontSize: 18.5, lineHeight: 22 },
   titleNarrow: { fontSize: 18, lineHeight: 22 },
   titleDark: { color: colors.paper },
-  spacer: { width: 46 },
 });

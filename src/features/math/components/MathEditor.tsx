@@ -1,8 +1,19 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
-import { colors, fonts } from '../../../shared/theme';
+import { borders, colors, fonts, shadows, springs } from '../../../shared/theme';
+import { Text } from '../../../shared/ui/Typography';
 import {
   applyMathEditorCommand,
   createMathEditorState,
@@ -19,7 +30,6 @@ import {
   type MathSlotName,
   type MathSymbol,
 } from '../utils/mathEditor';
-import { Text } from '../../../shared/ui/Typography';
 
 const SYMBOL_LABELS: Partial<Record<MathSymbol, string>> = {
   pi: 'π', '.': ',', times: '×', div: '÷', '-': '−', le: '≤', ge: '≥',
@@ -48,6 +58,36 @@ const TEMPLATES = [
   { value: 'group', label: '( )', spoken: 'Inserează paranteze' },
 ] as const;
 
+function BlinkingCaret({ height, onTarget }: { height: number; onTarget?: (target: View | null) => void }) {
+  const reducedMotion = useReducedMotion();
+  const blink = useSharedValue(1);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      cancelAnimation(blink);
+      blink.set(1);
+      return;
+    }
+    blink.set(withRepeat(
+      withSequence(
+        withTiming(1, { duration: 480 }),
+        withTiming(0.22, { duration: 420 }),
+      ),
+      -1,
+      true,
+    ));
+    return () => cancelAnimation(blink);
+  }, [blink, reducedMotion]);
+
+  const caretAnimated = useAnimatedStyle(() => ({ opacity: blink.get() }));
+
+  return (
+    <View ref={onTarget} collapsable={false}>
+      <Animated.View style={[styles.caret, { height }, caretAnimated]} />
+    </View>
+  );
+}
+
 type ExpressionProps = {
   nodes: MathNode[];
   path: MathPathStep[];
@@ -74,7 +114,9 @@ function ExpressionSlot({ nodes, path, depth, cursor, onSelect, onCursorTarget, 
         onPress={() => select(offset)}
         style={[styles.insertionPoint, { minHeight: fontSize + 16 }]}
       >
-        <View ref={active ? onCursorTarget : undefined} style={[styles.caret, { height: fontSize + 3 }, !active && styles.invisible]} />
+        {active
+          ? <BlinkingCaret height={fontSize + 4} onTarget={onCursorTarget} />
+          : <View style={[styles.caret, { height: fontSize + 3 }, styles.invisible]} />}
       </Pressable>
     ) : null;
   };
@@ -88,7 +130,8 @@ function ExpressionSlot({ nodes, path, depth, cursor, onSelect, onCursorTarget, 
         onPress={() => select(0)}
         style={[styles.emptySlot, selected && styles.emptySlotSelected]}
       >
-        {selected ? <View ref={onCursorTarget} style={[styles.caret, { height: fontSize + 3 }]} />
+        {selected
+          ? <BlinkingCaret height={fontSize + 4} onTarget={onCursorTarget} />
           : <Text style={[styles.placeholder, { fontSize }]}>□</Text>}
       </Pressable>
     ) : <Text style={[styles.placeholder, { fontSize }]}>□</Text>;
@@ -163,30 +206,67 @@ export function MathExpression({ document, accessibilityLabel, emptyText = 'Nici
   );
 }
 
+type KeyTone = 'plain' | 'symbol' | 'template' | 'primary' | 'tool' | 'danger';
+
 type KeyProps = {
   label: string;
   spoken: string;
   onPress: () => void;
-  tone?: 'plain' | 'symbol' | 'primary' | 'tool';
+  tone?: KeyTone;
   disabled?: boolean;
   compact?: boolean;
 };
 
 function EditorKey({ label, spoken, onPress, tone = 'plain', disabled = false, compact = false }: KeyProps) {
+  const reducedMotion = useReducedMotion();
+  const push = useSharedValue(0);
+
+  const animatedKey = useAnimatedStyle(() => {
+    const p = push.get();
+    return {
+      transform: [{ translateY: p * 2.5 }, { scale: 1 - p * 0.04 }],
+    };
+  });
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={spoken}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={() => { Haptics.selection(); onPress(); }}
-      style={({ pressed }) => [
-        styles.key, tone === 'symbol' && styles.symbolKey, tone === 'primary' && styles.primaryKey,
-        tone === 'tool' && styles.toolKey, compact && styles.keyCompact, pressed && styles.keyPressed, disabled && styles.keyDisabled,
-      ]}
-    >
-      <Text maxFontSizeMultiplier={1.4} style={[styles.keyLabel, tone === 'primary' && styles.primaryLabel]}>{label}</Text>
-    </Pressable>
+    <Animated.View style={[styles.keyWrap, animatedKey, disabled && styles.keyDisabled]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={spoken}
+        accessibilityState={{ disabled }}
+        disabled={disabled}
+        onPressIn={() => {
+          if (!disabled && !reducedMotion) push.set(withSpring(1, springs.press));
+        }}
+        onPressOut={() => {
+          if (!reducedMotion) push.set(withSpring(0, springs.bouncy));
+        }}
+        onPress={() => { Haptics.selection(); onPress(); }}
+        style={[
+          styles.key,
+          tone === 'symbol' && styles.symbolKey,
+          tone === 'template' && styles.templateKey,
+          tone === 'primary' && styles.primaryKey,
+          tone === 'tool' && styles.toolKey,
+          tone === 'danger' && styles.dangerKey,
+          compact && styles.keyCompact,
+        ]}
+      >
+        <View pointerEvents="none" style={styles.keyShine} />
+        <Text
+          maxFontSizeMultiplier={1.4}
+          style={[
+            styles.keyLabel,
+            tone === 'symbol' && styles.symbolLabel,
+            tone === 'template' && styles.templateLabel,
+            tone === 'primary' && styles.primaryLabel,
+            tone === 'danger' && styles.dangerLabel,
+          ]}
+        >
+          {label}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -260,37 +340,61 @@ export function MathEditor({ document, onChange, accessibilityLabel = 'Editor ma
 
   return (
     <View style={[styles.editor, compact && styles.editorCompact]} accessibilityLabel={accessibilityLabel}>
-      <View style={styles.writingSurface}>
-        <View style={styles.surfaceToolbar}>
-          <Text numberOfLines={1} style={styles.slotLabel}>{cursorSlot ? SLOT_LABELS[cursorSlot] : 'FORMULA TA'}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={showRelations ? 'Afișează variabilele x, y, z și pi' : 'Afișează semnele de inegalitate'}
-            accessibilityState={{ selected: showRelations, disabled }} disabled={disabled}
-            onPress={() => { Haptics.selection(); setShowRelations(value => !value); }}
-            style={({ pressed }) => [styles.paletteButton, showRelations && styles.paletteSelected, pressed && styles.keyPressed]}>
-            <Text maxFontSizeMultiplier={1.4} style={styles.paletteLabel}>{showRelations ? 'x, π' : '≤ ≥'}</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Golește formula. Poți anula această acțiune."
-            accessibilityState={{ disabled: disabled || !state.document.nodes.length }} disabled={disabled || !state.document.nodes.length}
-            onPress={() => { Haptics.selection(); run({ type: 'clear' }); }}
-            style={({ pressed }) => [styles.clearButton, pressed && styles.keyPressed, (disabled || !state.document.nodes.length) && styles.keyDisabled]}>
-            <Text maxFontSizeMultiplier={1.4} style={styles.clearLabel}>C</Text>
-          </Pressable>
-        </View>
-        <ScrollView
-          ref={scroll}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.writingContent, compact && styles.writingContentCompact]}
-          onLayout={event => { viewport.current.width = event.nativeEvent.layout.width; revealCursor(); }}
-          onScroll={event => { viewport.current.offset = event.nativeEvent.contentOffset.x; }}
-          scrollEventThrottle={16}
-          onContentSizeChange={revealCursor}
-        >
-          <View ref={formula} collapsable={false} style={styles.expressionRow}>
-            <ExpressionSlot nodes={state.document.nodes} path={[]} depth={0} cursor={state.cursor} onSelect={cursor => run({ type: 'select', cursor })} onCursorTarget={selectCursorTarget} />
-            {!state.document.nodes.length ? <Text style={styles.writingHint}>Alege cifrele și semnele de mai jos.</Text> : null}
+      <View style={styles.writingShadow}>
+        <View style={styles.writingSurface}>
+          <View style={styles.surfaceToolbar}>
+            <View style={[styles.slotPill, cursorSlot && styles.slotPillActive]}>
+              <Text numberOfLines={1} style={styles.slotLabel}>
+                {cursorSlot ? SLOT_LABELS[cursorSlot].toLocaleUpperCase('ro-RO') : 'FORMULA TA'}
+              </Text>
+            </View>
+            <View style={styles.toolbarActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={showRelations ? 'Afișează variabilele x, y, z și pi' : 'Afișează semnele de inegalitate'}
+                accessibilityState={{ selected: showRelations, disabled }}
+                disabled={disabled}
+                onPress={() => { Haptics.selection(); setShowRelations(value => !value); }}
+                style={({ pressed }) => [
+                  styles.paletteButton,
+                  showRelations && styles.paletteSelected,
+                  pressed && styles.toolChipPressed,
+                ]}
+              >
+                <Text maxFontSizeMultiplier={1.4} style={styles.paletteLabel}>{showRelations ? 'x, π' : '≤ ≥'}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Golește formula. Poți anula această acțiune."
+                accessibilityState={{ disabled: disabled || !state.document.nodes.length }}
+                disabled={disabled || !state.document.nodes.length}
+                onPress={() => { Haptics.selection(); run({ type: 'clear' }); }}
+                style={({ pressed }) => [
+                  styles.clearButton,
+                  pressed && styles.toolChipPressed,
+                  (disabled || !state.document.nodes.length) && styles.keyDisabled,
+                ]}
+              >
+                <Text maxFontSizeMultiplier={1.4} style={styles.clearLabel}>C</Text>
+              </Pressable>
+            </View>
           </View>
-        </ScrollView>
+          <ScrollView
+            ref={scroll}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.writingContent, compact && styles.writingContentCompact]}
+            onLayout={event => { viewport.current.width = event.nativeEvent.layout.width; revealCursor(); }}
+            onScroll={event => { viewport.current.offset = event.nativeEvent.contentOffset.x; }}
+            scrollEventThrottle={16}
+            onContentSizeChange={revealCursor}
+          >
+            <View ref={formula} collapsable={false} style={styles.expressionRow}>
+              <ExpressionSlot nodes={state.document.nodes} path={[]} depth={0} cursor={state.cursor} onSelect={cursor => run({ type: 'select', cursor })} onCursorTarget={selectCursorTarget} />
+              {!state.document.nodes.length ? <Text style={styles.writingHint}>Alege cifrele și semnele de mai jos.</Text> : null}
+            </View>
+          </ScrollView>
+        </View>
       </View>
 
       <View style={styles.tools}>
@@ -298,7 +402,7 @@ export function MathEditor({ document, onChange, accessibilityLabel = 'Editor ma
         <EditorKey compact={compact} label="↷" spoken="Refă modificarea" tone="tool" disabled={disabled || !state.redo.length} onPress={() => run({ type: 'redo' })} />
         <EditorKey compact={compact} label="←" spoken="Mută cursorul la stânga" tone="tool" disabled={disabled} onPress={() => run({ type: 'left' })} />
         <EditorKey compact={compact} label="→" spoken="Mută cursorul la dreapta" tone="tool" disabled={disabled} onPress={() => run({ type: 'right' })} />
-        <EditorKey compact={compact} label="⌫" spoken="Șterge înaintea cursorului" tone="tool" disabled={disabled || !state.document.nodes.length} onPress={() => run({ type: 'backspace' })} />
+        <EditorKey compact={compact} label="⌫" spoken="Șterge înaintea cursorului" tone="danger" disabled={disabled || !state.document.nodes.length} onPress={() => run({ type: 'backspace' })} />
         <EditorKey compact={compact} label="↗" spoken="Treci la următoarea căsuță sau ieși din structură" tone="primary" disabled={disabled || !cursorSlot} onPress={() => run({ type: 'next-slot' })} />
       </View>
       {NUMBER_ROWS.map((row, index) => (
@@ -314,7 +418,7 @@ export function MathEditor({ document, onChange, accessibilityLabel = 'Editor ma
               onPress={() => run({ type: 'symbol', value })}
             />
           ))}
-          <EditorKey compact={compact} label={TEMPLATES[index].label} spoken={TEMPLATES[index].spoken} tone="symbol" disabled={disabled} onPress={template(TEMPLATES[index].value)} />
+          <EditorKey compact={compact} label={TEMPLATES[index].label} spoken={TEMPLATES[index].spoken} tone="template" disabled={disabled} onPress={template(TEMPLATES[index].value)} />
         </View>
       ))}
       {state.message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{state.message}</Text> : null}
@@ -325,46 +429,141 @@ export function MathEditor({ document, onChange, accessibilityLabel = 'Editor ma
 export default MathEditor;
 
 const styles = StyleSheet.create({
-  editor: { flex: 1, minHeight: 0, gap: 5 },
-  editorCompact: { gap: 3 },
-  writingSurface: { flex: 1, minHeight: 0, backgroundColor: colors.paper, borderWidth: 1.5, borderColor: colors.ink, borderRadius: 18, overflow: 'hidden' },
-  writingContent: { flexGrow: 1, minWidth: '100%', minHeight: 92, paddingHorizontal: 14, paddingVertical: 5, alignItems: 'center' },
+  editor: { flex: 1, minHeight: 0, gap: 6 },
+  editorCompact: { gap: 4 },
+  writingShadow: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 21,
+    backgroundColor: colors.ink,
+    paddingBottom: shadows.sm + 1,
+  },
+  writingSurface: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: colors.paper,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  writingContent: { flexGrow: 1, minWidth: '100%', minHeight: 88, paddingHorizontal: 14, paddingVertical: 5, alignItems: 'center' },
   writingContentCompact: { minHeight: 45, paddingVertical: 2 },
-  writingHint: { fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 16, color: colors.inkSoft, marginLeft: 8, maxWidth: 178 },
-  surfaceToolbar: { minHeight: 40, paddingLeft: 12, paddingRight: 2, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: colors.line, backgroundColor: '#F3ECFF' },
-  slotLabel: { flex: 1, fontFamily: fonts.bodyBold, fontSize: 11, letterSpacing: 0.5, color: colors.violetDeep },
-  paletteButton: { minWidth: 52, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
+  writingHint: { fontFamily: fonts.bodyMedium, fontSize: 12.5, lineHeight: 16, color: colors.inkSoft, marginLeft: 8, maxWidth: 185 },
+  surfaceToolbar: {
+    minHeight: 42,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderBottomWidth: borders.thin,
+    borderBottomColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+  },
+  slotPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    transform: [{ rotate: '-1.5deg' }],
+  },
+  slotPillActive: {
+    backgroundColor: colors.lime,
+  },
+  slotLabel: { fontFamily: fonts.bodyBold, fontSize: 10.5, letterSpacing: 0.65, color: colors.ink },
+  toolbarActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  paletteButton: {
+    minWidth: 48,
+    minHeight: 32,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   paletteSelected: { backgroundColor: colors.lime },
-  paletteLabel: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.violetDeep },
+  paletteLabel: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.ink },
+  clearButton: {
+    minWidth: 34,
+    minHeight: 32,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.peachSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearLabel: { color: colors.ink, fontFamily: fonts.display, fontSize: 14 },
+  toolChipPressed: { transform: [{ translateY: 1.5 }], opacity: 0.9 },
   readOnlyExpression: { minWidth: '100%', paddingVertical: 9 },
   emptyText: { fontFamily: fonts.body, fontSize: 15, color: colors.inkSoft, paddingVertical: 14 },
   expressionRow: { flexDirection: 'row', alignItems: 'center' },
-  selectedSlot: { backgroundColor: '#F5F0FF', borderRadius: 5 },
+  selectedSlot: { backgroundColor: '#F2EAFF', borderRadius: 7 },
   symbol: { color: colors.ink, fontFamily: 'serif', textAlign: 'center' },
   symbolTarget: { minHeight: 44, justifyContent: 'center', minWidth: 14 },
   insertionPoint: { width: 7, alignItems: 'center', justifyContent: 'center' },
-  caret: { width: 2, backgroundColor: colors.violet },
+  caret: { width: 2.5, borderRadius: 2, backgroundColor: colors.violet },
   invisible: { opacity: 0 },
-  emptySlot: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: colors.line, borderRadius: 5, margin: 3 },
+  emptySlot: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.line,
+    borderRadius: 8,
+    margin: 3,
+  },
   emptySlotSelected: { backgroundColor: colors.violetSoft, borderColor: colors.violet, borderStyle: 'solid' },
   placeholder: { color: colors.inkSoft, textAlign: 'center' },
   fraction: { alignItems: 'center', paddingHorizontal: 2 },
-  fractionLine: { height: 1.5, alignSelf: 'stretch', minWidth: 35, backgroundColor: colors.ink, marginVertical: 2 },
+  fractionLine: { height: 2, alignSelf: 'stretch', minWidth: 35, backgroundColor: colors.ink, marginVertical: 2 },
   power: { flexDirection: 'row', alignItems: 'flex-end' },
   root: { flexDirection: 'row', alignItems: 'center' },
-  radicand: { borderTopWidth: 1.5, borderColor: colors.ink, marginTop: 3, paddingTop: 2 },
-  tools: { flexDirection: 'row', gap: 4, paddingVertical: 1 },
-  keyRow: { flexDirection: 'row', gap: 4 },
-  key: { flex: 1, minWidth: 44, minHeight: 48, paddingVertical: 2, paddingHorizontal: 1, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.94)', borderWidth: 1.25, borderBottomWidth: 2.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  keyCompact: { minHeight: 44, paddingVertical: 1 },
+  radicand: { borderTopWidth: 2, borderColor: colors.ink, marginTop: 3, paddingTop: 2 },
+  tools: { flexDirection: 'row', gap: 5, paddingVertical: 1 },
+  keyRow: { flexDirection: 'row', gap: 5 },
+  keyWrap: { flex: 1, minWidth: 42 },
+  key: {
+    minHeight: 48,
+    paddingVertical: 2,
+    paddingHorizontal: 1,
+    borderRadius: 13,
+    backgroundColor: colors.paper,
+    borderWidth: borders.thin,
+    borderBottomWidth: 4,
+    borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  keyCompact: { minHeight: 43, paddingVertical: 1, borderRadius: 11 },
+  keyShine: {
+    position: 'absolute',
+    top: 2,
+    left: 6,
+    right: 6,
+    height: 3.5,
+    borderRadius: 2,
+    backgroundColor: colors.shine,
+  },
   symbolKey: { backgroundColor: colors.violetSoft },
+  templateKey: { backgroundColor: colors.cyanSoft },
   primaryKey: { backgroundColor: colors.lime },
-  toolKey: { backgroundColor: 'rgba(255,248,236,0.78)', borderColor: colors.line, borderBottomWidth: 1.5 },
-  keyLabel: { fontFamily: fonts.display, fontSize: 21, color: colors.ink, textAlign: 'center' },
+  toolKey: { backgroundColor: colors.canvasWarm },
+  dangerKey: { backgroundColor: colors.peachSoft },
+  keyLabel: { fontFamily: fonts.display, fontSize: 20, color: colors.ink, textAlign: 'center' },
+  symbolLabel: { color: colors.violetDeep },
+  templateLabel: { fontSize: 18, color: colors.ink },
   primaryLabel: { color: colors.ink },
-  keyPressed: { opacity: 0.85, transform: [{ translateY: 2 }] },
-  keyDisabled: { opacity: 0.35 },
-  clearButton: { minWidth: 44, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
-  clearLabel: { color: colors.inkSoft, fontFamily: fonts.bodyBold, fontSize: 15 },
-  message: { color: colors.violetDeep, fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  dangerLabel: { color: colors.peachDeep },
+  keyDisabled: { opacity: 0.36 },
+  message: { color: colors.violetDeep, fontFamily: fonts.bodyBold, fontSize: 13, lineHeight: 18 },
 });

@@ -1,7 +1,7 @@
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { AppState, Image, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -17,7 +17,7 @@ import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
-import { borders, colors, fonts, radii, shadows, springs, typography } from '../../../shared/theme';
+import { borders, colors, fonts, radii, shadows, springs } from '../../../shared/theme';
 import type { FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -74,6 +74,13 @@ const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode
   },
 ];
 
+const CHEER_MESSAGES: readonly { title: string; body: string }[] = [
+  { title: 'Hai că poți!', body: 'Fiecare problemă devine clară pas cu pas.' },
+  { title: 'E mai simplu decât pare!', body: 'Arată-mi exercițiul și îl luăm pe rând.' },
+  { title: 'Sunt aici cu tine!', body: 'Poți face poză sau poți scrie formula direct.' },
+  { title: 'Super ritm!', body: 'Deschide camera când ești gata să începem.' },
+];
+
 function solveGreeting(hour: number): string {
   if (hour >= 6 && hour < 12) return 'Bună dimineața!';
   if (hour >= 18 && hour < 23) return 'Lucrăm ceva azi?';
@@ -110,9 +117,13 @@ export function HomeSurface({
   const focused = useIsFocused();
   const motionReady = useContext(HomeMotionReadyContext);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [cheerIndex, setCheerIndex] = useState<number | null>(null);
+  const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const stagePop = useSharedValue(1);
   const beamProgress = useSharedValue(0.5);
+  const sparkPulse = useSharedValue(0);
+  const arrowNudge = useSharedValue(0);
 
   const isSolve = mode === 'solve';
   const hasPendingAnalysis = pending;
@@ -123,72 +134,142 @@ export function HomeSurface({
     return () => subscription.remove();
   }, []);
 
+  useEffect(() => () => {
+    if (cheerTimer.current) clearTimeout(cheerTimer.current);
+  }, []);
+
+  useEffect(() => {
+    setCheerIndex(null);
+    if (cheerTimer.current) {
+      clearTimeout(cheerTimer.current);
+      cheerTimer.current = null;
+    }
+  }, [mode, hasPendingAnalysis, galleryError]);
+
   useEffect(() => {
     if (!motionActive || hasPendingAnalysis) {
       cancelAnimation(beamProgress);
-      beamProgress.value = 0.5;
+      cancelAnimation(sparkPulse);
+      cancelAnimation(arrowNudge);
+      beamProgress.set(0.5);
+      sparkPulse.set(0);
+      arrowNudge.set(0);
       return;
     }
 
-    beamProgress.value = 0;
-    beamProgress.value = withRepeat(
+    beamProgress.set(0);
+    beamProgress.set(withRepeat(
       withSequence(
-        withTiming(1, { duration: 1900, easing: Easing.inOut(Easing.quad) }),
-        withTiming(0, { duration: 1900, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 1850, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 1850, easing: Easing.inOut(Easing.quad) }),
       ),
       -1,
       false,
-    );
+    ));
 
-    return () => cancelAnimation(beamProgress);
-  }, [beamProgress, hasPendingAnalysis, motionActive]);
+    sparkPulse.set(0);
+    sparkPulse.set(withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1350, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 1350, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    ));
+
+    arrowNudge.set(0);
+    arrowNudge.set(withRepeat(
+      withSequence(
+        withTiming(3, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    ));
+
+    return () => {
+      cancelAnimation(beamProgress);
+      cancelAnimation(sparkPulse);
+      cancelAnimation(arrowNudge);
+    };
+  }, [arrowNudge, beamProgress, hasPendingAnalysis, motionActive, sparkPulse]);
 
   useEffect(() => {
     if (reducedMotion || !motionReady || !focused) {
-      stagePop.value = 1;
+      stagePop.set(1);
       return;
     }
-    stagePop.value = 0.975;
-    stagePop.value = withSpring(1, springs.bouncy);
+    stagePop.set(0.97);
+    stagePop.set(withSpring(1, springs.bouncy));
   }, [focused, mode, motionReady, reducedMotion, stagePop]);
 
+  const cycleEncouragement = () => {
+    if (hasPendingAnalysis || galleryError) return;
+    if (cheerTimer.current) clearTimeout(cheerTimer.current);
+    setCheerIndex((current) => (current === null ? 0 : (current + 1) % CHEER_MESSAGES.length));
+    cheerTimer.current = setTimeout(() => setCheerIndex(null), 3200);
+  };
+
   const stageAnimated = useAnimatedStyle(() => ({
-    transform: [{ scale: stagePop.value }],
+    transform: [{ scale: stagePop.get() }],
   }));
 
   const beamRange = compact ? 22 : 34;
   const beamStyle = useAnimatedStyle(() => ({
-    opacity: hasPendingAnalysis ? 0 : 0.92,
-    transform: [{ translateY: (beamProgress.value - 0.5) * 2 * beamRange }],
+    opacity: hasPendingAnalysis ? 0 : 0.94,
+    transform: [{ translateY: (beamProgress.get() - 0.5) * 2 * beamRange }],
   }), [beamRange, hasPendingAnalysis]);
+
+  const sparkStyle = useAnimatedStyle(() => {
+    const p = sparkPulse.get();
+    return {
+      opacity: 0.72 + p * 0.28,
+      transform: [{ scale: 0.92 + p * 0.22 }, { rotate: `${-8 + p * 16}deg` }],
+    };
+  });
+
+  const arrowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: arrowNudge.get() }],
+  }));
+
+  const activeCheer = !hasPendingAnalysis && !galleryError && cheerIndex !== null
+    ? CHEER_MESSAGES[cheerIndex]
+    : null;
 
   const mascotPose: MascotPose = hasPendingAnalysis
     ? 'thinking'
     : galleryError
       ? 'oops'
-      : isSolve
-        ? 'wave'
-        : 'point';
+      : activeCheer
+        ? 'cheer'
+        : isSolve
+          ? 'wave'
+          : 'point';
 
   const bubbleTone: SpeechBubbleTone = hasPendingAnalysis
     ? 'limeSoft'
     : galleryError
       ? 'roseSoft'
-      : isSolve
-        ? 'paper'
-        : 'peachSoft';
+      : activeCheer
+        ? 'limeSoft'
+        : isSolve
+          ? 'paper'
+          : 'peachSoft';
 
   const greetingTitle = hasPendingAnalysis
     ? 'Încă lucrez la ea!'
     : galleryError
       ? 'Hopa! Încearcă alta.'
-      : isSolve
-        ? solveGreeting(new Date().getHours())
-        : 'Hai să verificăm!';
+      : activeCheer
+        ? activeCheer.title
+        : isSolve
+          ? solveGreeting(new Date().getHours())
+          : 'Hai să verificăm!';
 
   const greetingBody = hasPendingAnalysis
     ? 'Fotografia și progresul sunt păstrate.'
     : galleryError
+      ?? activeCheer?.body
       ?? (isSolve
         ? 'Fă o poză sau scrie problema — explicăm pas cu pas.'
         : 'Arată-mi rezolvarea ta și vedem fiecare pas.');
@@ -204,8 +285,16 @@ export function HomeSurface({
         <View style={[styles.page, { width: contentWidth }, compact && styles.pageCompact]}>
           <Enter ready={motionReady} delay={35} distance={14} scaleFrom={0.96} style={[styles.header, compact && styles.headerCompact]}>
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
-              <View style={[styles.logoShadow, (compact || isVeryNarrow) && styles.logoShadowCompact]} />
-              <View style={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Profu’ de mate"
+                depth={3}
+                radius={compact || isVeryNarrow ? 11 : 14}
+                shadowColor={colors.ink}
+                haptic="selection"
+                onPress={cycleEncouragement}
+                contentStyle={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}
+              >
                 <View pointerEvents="none" style={styles.logoShine} />
                 <Image
                   accessible={false}
@@ -213,7 +302,7 @@ export function HomeSurface({
                   resizeMode="contain"
                   style={[styles.logoImage, (compact || isVeryNarrow) && styles.logoImageCompact]}
                 />
-              </View>
+              </PressableScale>
               <Text
                 maxFontSizeMultiplier={1.3}
                 numberOfLines={1}
@@ -279,6 +368,7 @@ export function HomeSurface({
               size={mascotSize}
               active={motionActive}
               interactive
+              onPress={cycleEncouragement}
             />
             <SpeechBubble
               title={greetingTitle}
@@ -286,7 +376,7 @@ export function HomeSurface({
               tone={bubbleTone}
               tail="left"
               compact={compact}
-              messageKey={`${mascotPose}:${galleryError ?? mode}`}
+              messageKey={`${mascotPose}:${galleryError ?? mode}:${cheerIndex ?? 'idle'}`}
             />
           </Enter>
 
@@ -308,111 +398,116 @@ export function HomeSurface({
                 stageAnimated,
               ]}
             >
-            <LinearGradient
-              colors={isSolve || hasPendingAnalysis ? ['#8E54FF', '#6B2CE8', '#4F1CC4'] : ['#9037E6', '#C23574', '#98225A']}
-              start={{ x: 0.06, y: 0 }}
-              end={{ x: 0.94, y: 1 }}
-              style={[styles.cameraStage, compact && styles.cameraStageCompact]}
-            >
-              <View pointerEvents="none" style={styles.stageGlowTop} />
-              <View pointerEvents="none" style={styles.stageGlowBottom} />
-              <View pointerEvents="none" style={styles.stageTopShine} />
+              <LinearGradient
+                colors={isSolve || hasPendingAnalysis ? ['#8E54FF', '#6B2CE8', '#4F1CC4'] : ['#9037E6', '#C23574', '#98225A']}
+                start={{ x: 0.06, y: 0 }}
+                end={{ x: 0.94, y: 1 }}
+                style={[styles.cameraStage, compact && styles.cameraStageCompact]}
+              >
+                <View pointerEvents="none" style={styles.stageGlowTop} />
+                <View pointerEvents="none" style={styles.stageGlowBottom} />
+                <View pointerEvents="none" style={styles.stageTopShine} />
+                <Text accessible={false} style={styles.stageWatermark}>{isSolve ? 'π' : '✓'}</Text>
 
-              <View style={[styles.stageTopRow, compact && styles.stageTopRowCompact]}>
-                <Chip
-                  label={hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}
-                  tone={hasPendingAnalysis || !isSolve ? 'gold' : 'lime'}
-                  tilt={-2}
-                />
-                <Text accessible={false} style={[styles.stageSpark, { color: cornerColor }]}>✦</Text>
-              </View>
-
-              <View style={[styles.stageContent, compact && styles.stageContentCompact]}>
-                <View style={[styles.focusFrame, compact && styles.focusFrameCompact]}>
-                  <View pointerEvents="none" style={styles.focusGlass} />
-                  <View style={[styles.focusCorner, styles.focusCornerTL, { borderColor: cornerColor }]} />
-                  <View style={[styles.focusCorner, styles.focusCornerTR, { borderColor: cornerColor }]} />
-                  <View style={[styles.focusCorner, styles.focusCornerBL, { borderColor: cornerColor }]} />
-                  <View style={[styles.focusCorner, styles.focusCornerBR, { borderColor: cornerColor }]} />
-                  <AppIcon
-                    name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'}
-                    size={compact ? 46 : isVeryNarrow ? 58 : 66}
+                <View style={[styles.stageTopRow, compact && styles.stageTopRowCompact]}>
+                  <Chip
+                    label={hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}
+                    tone={hasPendingAnalysis || !isSolve ? 'gold' : 'lime'}
+                    tilt={-2}
                   />
-                  <Animated.View
-                    pointerEvents="none"
-                    style={[
-                      styles.scanBeam,
-                      { backgroundColor: cornerColor },
-                      beamStyle,
+                  <Animated.View style={sparkStyle}>
+                    <Text accessible={false} style={[styles.stageSpark, { color: cornerColor }]}>✦</Text>
+                  </Animated.View>
+                </View>
+
+                <View style={[styles.stageContent, compact && styles.stageContentCompact]}>
+                  <View style={[styles.focusFrame, compact && styles.focusFrameCompact]}>
+                    <View pointerEvents="none" style={styles.focusGlass} />
+                    <View style={[styles.focusCorner, styles.focusCornerTL, { borderColor: cornerColor }]} />
+                    <View style={[styles.focusCorner, styles.focusCornerTR, { borderColor: cornerColor }]} />
+                    <View style={[styles.focusCorner, styles.focusCornerBL, { borderColor: cornerColor }]} />
+                    <View style={[styles.focusCorner, styles.focusCornerBR, { borderColor: cornerColor }]} />
+                    <View style={[styles.focusMedallion, compact && styles.focusMedallionCompact]}>
+                      <AppIcon
+                        name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'}
+                        size={compact ? 42 : isVeryNarrow ? 54 : 60}
+                      />
+                    </View>
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.scanBeam,
+                        { backgroundColor: cornerColor },
+                        beamStyle,
+                      ]}
+                    />
+                  </View>
+
+                  <View style={styles.stageCopy}>
+                    <Text
+                      maxFontSizeMultiplier={1.3}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.84}
+                      style={[styles.stageTitle, isVeryNarrow && styles.stageTitleNarrow, compact && styles.stageTitleCompact]}
+                    >
+                      {hasPendingAnalysis ? 'Revino la analiză' : isSolve ? 'Fotografiază problema' : 'Fotografiază rezolvarea'}
+                    </Text>
+                    <Text
+                      maxFontSizeMultiplier={1.3}
+                      numberOfLines={2}
+                      style={[styles.stageNote, compact && styles.stageNoteCompact]}
+                    >
+                      {hasPendingAnalysis
+                        ? 'Rezultatul tău se pregătește.'
+                        : isSolve
+                          ? 'Încadrezi enunțul și primești pașii clari.'
+                          : 'Vezi ce ai făcut bine și ce corectezi.'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.stageCtaWrap, compact && styles.stageCtaWrapCompact]}>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      hasPendingAnalysis
+                        ? 'Revino la analiza în curs'
+                        : isSolve
+                          ? 'Fotografiază o problemă de rezolvat'
+                          : 'Fotografiază o rezolvare de verificat'
+                    }
+                    disabled={galleryBusy}
+                    depth={compact ? 4 : shadows.md}
+                    radius={18}
+                    shadowColor={colors.ink}
+                    haptic="medium"
+                    onPress={onCapture}
+                    contentStyle={[
+                      styles.captureCta,
+                      compact && styles.captureCtaCompact,
+                      !isSolve && !hasPendingAnalysis && styles.captureCtaCheck,
                     ]}
-                  />
+                  >
+                    <View pointerEvents="none" style={styles.ctaShine} />
+                    <View style={[styles.captureIconBadge, compact && styles.captureIconBadgeCompact]}>
+                      <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 26 : 32} />
+                    </View>
+                    <Text
+                      maxFontSizeMultiplier={1.3}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                      style={[styles.captureCtaText, compact && styles.captureCtaTextCompact]}
+                    >
+                      {hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
+                    </Text>
+                    <Animated.View style={[styles.captureArrow, compact && styles.captureArrowCompact, arrowStyle]}>
+                      <MiniGlyph name="next" size={compact ? 18 : 21} color={colors.paper} />
+                    </Animated.View>
+                  </PressableScale>
                 </View>
-
-                <View style={styles.stageCopy}>
-                  <Text
-                    maxFontSizeMultiplier={1.3}
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.84}
-                    style={[styles.stageTitle, isVeryNarrow && styles.stageTitleNarrow, compact && styles.stageTitleCompact]}
-                  >
-                    {hasPendingAnalysis ? 'Revino la analiză' : isSolve ? 'Fotografiază problema' : 'Fotografiază rezolvarea'}
-                  </Text>
-                  <Text
-                    maxFontSizeMultiplier={1.3}
-                    numberOfLines={2}
-                    style={[styles.stageNote, compact && styles.stageNoteCompact]}
-                  >
-                    {hasPendingAnalysis
-                      ? 'Rezultatul tău se pregătește.'
-                      : isSolve
-                        ? 'Încadrezi enunțul și primești pașii clari.'
-                        : 'Vezi ce ai făcut bine și ce corectezi.'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={[styles.stageCtaWrap, compact && styles.stageCtaWrapCompact]}>
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    hasPendingAnalysis
-                      ? 'Revino la analiza în curs'
-                      : isSolve
-                        ? 'Fotografiază o problemă de rezolvat'
-                        : 'Fotografiază o rezolvare de verificat'
-                  }
-                  disabled={galleryBusy}
-                  depth={compact ? 4 : shadows.md}
-                  radius={18}
-                  shadowColor={colors.ink}
-                  haptic="medium"
-                  onPress={onCapture}
-                  contentStyle={[
-                    styles.captureCta,
-                    compact && styles.captureCtaCompact,
-                    !isSolve && !hasPendingAnalysis && styles.captureCtaCheck,
-                  ]}
-                >
-                  <View pointerEvents="none" style={styles.ctaShine} />
-                  <View style={[styles.captureIconBadge, compact && styles.captureIconBadgeCompact]}>
-                    <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 26 : 32} />
-                  </View>
-                  <Text
-                    maxFontSizeMultiplier={1.3}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
-                    style={[styles.captureCtaText, compact && styles.captureCtaTextCompact]}
-                  >
-                    {hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
-                  </Text>
-                  <View style={[styles.captureArrow, compact && styles.captureArrowCompact]}>
-                    <MiniGlyph name="next" size={compact ? 18 : 21} color={colors.paper} />
-                  </View>
-                </PressableScale>
-              </View>
-            </LinearGradient>
+              </LinearGradient>
             </Animated.View>
           </Enter>
 
@@ -472,7 +567,7 @@ export function HomeSurface({
                   ]}
                 >
                   <View pointerEvents="none" style={styles.tileShine} />
-                  <View style={[styles.tileIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                  <View style={[styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
                     <AppIcon name="practice" size={compact || isVeryNarrow ? 26 : 34} />
                   </View>
                   <View style={styles.tileCopy}>
@@ -501,6 +596,11 @@ export function HomeSurface({
                 style={styles.notebookWrap}
                 contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
               >
+                <View pointerEvents="none" style={styles.notebookShine} />
+                <View pointerEvents="none" style={styles.notebookLines}>
+                  <View style={styles.notebookLine} />
+                  <View style={styles.notebookLine} />
+                </View>
                 <View style={styles.notebookSpine}>
                   <View style={styles.spineRing} />
                   <View style={styles.spineRing} />
@@ -510,15 +610,22 @@ export function HomeSurface({
                   <AppIcon name="notebook" size={compact ? 34 : 42} />
                 </View>
                 <View style={styles.notebookCopy}>
-                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookKicker}>
-                    CAIETUL MEU
-                  </Text>
+                  <View style={styles.notebookHeaderRow}>
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookKicker}>
+                      CAIETUL MEU
+                    </Text>
+                    {latestLessonTitle && !compact ? (
+                      <View style={styles.latestBadge}>
+                        <Text style={styles.latestBadgeText}>ULTIMA</Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
                     {latestLessonTitle ? 'Revezi ce ai lucrat' : 'Lecții salvate'}
                   </Text>
                   {!compact ? (
                     <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
-                      {latestLessonTitle ? `Ultima: ${latestLessonTitle}` : 'Explicațiile tale, disponibile și offline'}
+                      {latestLessonTitle ? latestLessonTitle : 'Explicațiile tale, disponibile și offline'}
                     </Text>
                   ) : null}
                 </View>
@@ -566,10 +673,8 @@ const styles = StyleSheet.create({
   // Header
   header: { height: 58, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCompact: { height: 44 },
-  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, position: 'relative' },
+  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandRowNarrow: { gap: 7 },
-  logoShadow: { position: 'absolute', left: 2, top: 5, width: 44, height: 44, borderRadius: 14, backgroundColor: colors.ink },
-  logoShadowCompact: { top: 4, width: 36, height: 36, borderRadius: 11 },
   logo: {
     width: 44,
     height: 44,
@@ -661,7 +766,7 @@ const styles = StyleSheet.create({
     borderRadius: 110,
     top: -110,
     right: -60,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.13)',
   },
   stageGlowBottom: {
     position: 'absolute',
@@ -670,7 +775,7 @@ const styles = StyleSheet.create({
     borderRadius: 85,
     bottom: -70,
     left: -50,
-    backgroundColor: 'rgba(23, 19, 55, 0.18)',
+    backgroundColor: 'rgba(23, 19, 55, 0.2)',
   },
   stageTopShine: {
     position: 'absolute',
@@ -679,7 +784,17 @@ const styles = StyleSheet.create({
     right: 20,
     height: 6,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: 'rgba(255, 255, 255, 0.24)',
+  },
+  stageWatermark: {
+    position: 'absolute',
+    right: 12,
+    bottom: 58,
+    fontFamily: fonts.display,
+    fontSize: 78,
+    lineHeight: 82,
+    color: 'rgba(255, 255, 255, 0.08)',
+    transform: [{ rotate: '12deg' }],
   },
   stageTopRow: {
     flexDirection: 'row',
@@ -692,9 +807,8 @@ const styles = StyleSheet.create({
   },
   stageSpark: {
     fontFamily: fonts.display,
-    fontSize: 20,
-    lineHeight: 22,
-    opacity: 0.9,
+    fontSize: 22,
+    lineHeight: 24,
   },
   stageContent: {
     flex: 1,
@@ -727,7 +841,20 @@ const styles = StyleSheet.create({
     bottom: 8,
     left: 8,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  focusMedallion: {
+    width: 70,
+    height: 70,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  focusMedallionCompact: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
   },
   focusCorner: { position: 'absolute', width: 24, height: 24 },
   focusCornerTL: { left: 0, top: 0, borderLeftWidth: 4.5, borderTopWidth: 4.5, borderTopLeftRadius: 9 },
@@ -802,14 +929,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   captureIconBadgeCompact: { width: 32, height: 32, borderRadius: 10 },
-  captureCtaText: {
-    flex: 1,
-    fontFamily: fonts.display,
-    color: colors.ink,
-    fontSize: 18.5,
-    lineHeight: 22,
-  },
-  captureCtaTextCompact: { fontSize: 16, lineHeight: 19 },
+  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23 },
+  captureCtaTextCompact: { fontSize: 17, lineHeight: 20 },
   captureArrow: {
     width: 36,
     height: 36,
@@ -820,12 +941,11 @@ const styles = StyleSheet.create({
   },
   captureArrowCompact: { width: 30, height: 30, borderRadius: 10 },
 
-  // Lower actions stack
+  // Secondary actions + Notebook shelf
   lowerStack: { flexShrink: 0, gap: 9 },
-  notebookGroup: { gap: 9 },
-  secondaryRow: { flexDirection: 'row', gap: 10 },
+  secondaryRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
   secondaryRowCompact: { gap: 8 },
-  secondaryTileWrap: { flex: 1 },
+  secondaryTileWrap: { flex: 1, minWidth: 0 },
   secondaryTile: {
     height: 68,
     borderRadius: 20,
@@ -837,23 +957,15 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
   },
-  secondaryTileNarrow: {
-    paddingHorizontal: 8,
-    gap: 7,
-  },
-  secondaryTileCompact: {
-    height: 50,
-    borderRadius: 16,
-    paddingHorizontal: 9,
-    gap: 8,
-  },
-  galleryTile: { backgroundColor: '#E5FAFC' },
-  mathTile: { backgroundColor: colors.violetSoft },
+  secondaryTileNarrow: { paddingHorizontal: 9, gap: 8 },
+  secondaryTileCompact: { height: 52, borderRadius: 16, paddingHorizontal: 8, gap: 7 },
+  galleryTile: { backgroundColor: colors.cyanSoft },
+  mathTile: { backgroundColor: colors.goldSoft },
   tileShine: {
     position: 'absolute',
     top: 3,
-    left: 10,
-    right: 10,
+    left: 12,
+    right: 12,
     height: 5,
     borderRadius: 4,
     backgroundColor: colors.shine,
@@ -869,17 +981,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     transform: [{ rotate: '-3deg' }],
   },
+  mathIconBadge: {
+    transform: [{ rotate: '3deg' }],
+  },
   tileIconBadgeCompact: { width: 34, height: 34, borderRadius: 11 },
   tileCopy: { flex: 1, minWidth: 0 },
-  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
-  tileTitleCompact: { fontSize: 15.5, lineHeight: 19 },
-  tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 15 },
+  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5, lineHeight: 20 },
+  tileTitleCompact: { fontSize: 15, lineHeight: 18 },
+  tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
 
-  // Notebook shelf
+  notebookGroup: { gap: 7 },
   notebookWrap: {},
   notebookShelf: {
-    height: 66,
-    overflow: 'hidden',
+    minHeight: 74,
     borderRadius: 20,
     borderWidth: borders.regular,
     borderColor: colors.ink,
@@ -887,71 +1001,110 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 11,
+    gap: 11,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  notebookShelfCompact: { height: 50, borderRadius: 16 },
+  notebookShelfCompact: { minHeight: 54, borderRadius: 16, paddingRight: 9, gap: 9 },
+  notebookShine: {
+    position: 'absolute',
+    top: 3,
+    left: 22,
+    right: 14,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
+  },
+  notebookLines: {
+    position: 'absolute',
+    left: 22,
+    right: 14,
+    top: 22,
+    bottom: 16,
+    justifyContent: 'space-evenly',
+    opacity: 0.4,
+  },
+  notebookLine: {
+    height: 1,
+    backgroundColor: '#EAE1FA',
+  },
   notebookSpine: {
+    width: 16,
     alignSelf: 'stretch',
-    width: 11,
     backgroundColor: colors.cyan,
     borderRightWidth: borders.thin,
     borderRightColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'space-evenly',
-    paddingVertical: 6,
+    paddingVertical: 10,
   },
   spineRing: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.paper,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
     borderWidth: 1.5,
     borderColor: colors.ink,
+    backgroundColor: colors.paper,
   },
-  notebookIcon: { width: 54, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
-  notebookIconCompact: { width: 44 },
-  notebookCopy: { flex: 1, minWidth: 0, paddingRight: 6 },
-  notebookKicker: { ...typography.kicker, color: colors.violetDeep },
-  notebookTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16.5, lineHeight: 20 },
+  notebookIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.limeSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-3deg' }],
+  },
+  notebookIconCompact: { width: 38, height: 38, borderRadius: 12 },
+  notebookCopy: { flex: 1, minWidth: 0, paddingVertical: 8 },
+  notebookHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  notebookKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 0.85 },
+  latestBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    transform: [{ rotate: '-2deg' }],
+  },
+  latestBadgeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 8.5, letterSpacing: 0.5 },
+  notebookTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20, marginTop: 1 },
   notebookTitleCompact: { fontSize: 15, lineHeight: 18 },
-  notebookNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 15 },
+  notebookNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 15 },
   notebookArrow: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.violet,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  notebookArrowCompact: { width: 32, height: 32, borderRadius: 11 },
+  notebookArrowCompact: { width: 30, height: 30, borderRadius: 10 },
 
-  // First-launch dismissible mini-guide
   guidePill: {
-    height: 34,
-    borderRadius: radii.pill,
-    borderWidth: borders.thin,
+    minHeight: 34,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: colors.line,
     backgroundColor: colors.paperTint,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 14,
-    paddingRight: 6,
+    justifyContent: 'space-between',
+    paddingLeft: 13,
+    paddingRight: 8,
     gap: 8,
   },
-  guideText: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: fonts.bodyBold,
-    color: colors.violetDeep,
-    fontSize: 11.5,
-    lineHeight: 15,
-  },
+  guideText: { flex: 1, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5, lineHeight: 15 },
   guideDismiss: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: 8,
+    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },

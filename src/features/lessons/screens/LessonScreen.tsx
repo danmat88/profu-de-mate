@@ -20,6 +20,7 @@ import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
+import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -47,6 +48,11 @@ const ribbonColors: Record<MathDocumentTone, string> = {
   violet: colors.violetBright,
   rose: colors.rose,
 };
+
+const problemViewTabs: readonly ComicTabOption<ProblemView>[] = [
+  { value: 'statement', label: 'Enunț citit', activeFill: colors.violet, activeText: colors.paper },
+  { value: 'photo', label: 'Fotografia ta', activeFill: colors.cyan, activeText: colors.ink },
+];
 
 export function LessonScreen({ navigation, route }: Props) {
   const { gutter } = useResponsiveLayout();
@@ -81,7 +87,7 @@ export function LessonScreen({ navigation, route }: Props) {
 
   const current = lesson.steps[step];
   const tone = documentTones[step % documentTones.length];
-  const bottomSpace = Math.max(insets.bottom, 10);
+  const bottomSpace = Math.max(insets.bottom, 8);
   const problemAccessible = contentToAccessibleText(lesson.problem);
   const isLastStep = step === lesson.steps.length - 1;
   const nextTitle = isLastStep ? 'Vezi rezultatul' : 'Continuă';
@@ -150,9 +156,15 @@ export function LessonScreen({ navigation, route }: Props) {
   const lockPaging = useCallback(() => {
     if (pagingLocked.current) return false;
     pagingLocked.current = true;
-    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 380);
+    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 340);
     return true;
   }, []);
+
+  const jumpToStep = useCallback((target: number) => {
+    if (target < 0 || target >= lesson.steps.length || target === step) return;
+    if (!lockPaging()) return;
+    setStep(target);
+  }, [lesson.steps.length, lockPaging, step]);
 
   const next = useCallback(() => {
     if (!lockPaging()) return;
@@ -313,6 +325,7 @@ export function LessonScreen({ navigation, route }: Props) {
       <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader
+        compact
         title={isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'}
         eyebrow={`PASUL ${step + 1} DIN ${lesson.steps.length}`}
         onBack={back}
@@ -332,6 +345,7 @@ export function LessonScreen({ navigation, route }: Props) {
       <ProgressDots
         total={lesson.steps.length}
         current={step}
+        onSelectStep={jumpToStep}
         style={[styles.progress, { marginHorizontal: gutter }]}
       />
 
@@ -340,7 +354,7 @@ export function LessonScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel={`Deschide enunțul: ${problemAccessible}`}
           depth={shadows.sm}
-          radius={18}
+          radius={14}
           shadowColor={colors.ink}
           haptic="selection"
           onPress={toggleProblem}
@@ -350,13 +364,10 @@ export function LessonScreen({ navigation, route }: Props) {
           <View style={styles.problemIcon}>
             <Text style={styles.problemIconText}>x²</Text>
           </View>
-          <View style={styles.problemCopy}>
-            <Text style={styles.problemLabel}>PROBLEMA CURENTĂ</Text>
-            <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
-          </View>
+          <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
           <View style={styles.problemActionPill}>
             <Text style={styles.problemAction}>Enunț</Text>
-            <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+            <MiniGlyph name="next" size={13} color={colors.violetDeep} />
           </View>
         </PressableScale>
 
@@ -380,36 +391,50 @@ export function LessonScreen({ navigation, route }: Props) {
 
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
         <View style={styles.secondaryRow}>
+          {step > 0 ? (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Pasul anterior"
+              depth={shadows.sm}
+              radius={14}
+              shadowColor={colors.ink}
+              haptic="selection"
+              onPress={back}
+              contentStyle={styles.prevStepAction}
+            >
+              <MiniGlyph name="back" size={18} color={colors.ink} />
+            </PressableScale>
+          ) : null}
+
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Explică-mi altfel"
             depth={shadows.sm}
-            radius={15}
+            radius={14}
             shadowColor={colors.ink}
             haptic="selection"
             onPress={explainDifferently}
             style={styles.secondaryActionWrap}
             contentStyle={styles.secondaryAction}
           >
-            <AppIcon name="hint" size={26} />
+            <AppIcon name="hint" size={24} />
             <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.secondaryTitle}>
               Explică-mi altfel
             </Text>
-            <MiniGlyph name="next" size={15} color={colors.violetDeep} />
+            <MiniGlyph name="next" size={14} color={colors.violetDeep} />
           </PressableScale>
 
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Raportează o problemă în explicație"
             depth={shadows.sm}
-            radius={15}
+            radius={14}
             shadowColor={colors.ink}
             haptic="selection"
             onPress={() => setFeedbackOpen(true)}
             contentStyle={styles.reportAction}
           >
-            <MiniGlyph name="wrong" size={15} color={colors.inkSoft} />
-            <Text numberOfLines={1} style={styles.reportText}>Semnalează</Text>
+            <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
           </PressableScale>
         </View>
 
@@ -466,24 +491,13 @@ export function LessonScreen({ navigation, route }: Props) {
                 </IconButton>
               </View>
               {sourceImage ? (
-                <View accessibilityRole="tablist" style={styles.problemTabs}>
-                  <Pressable
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: problemView === 'statement' }}
-                    onPress={() => { Haptics.selection(); setProblemView('statement'); }}
-                    style={[styles.problemTab, problemView === 'statement' && styles.problemTabActive]}
-                  >
-                    <Text style={[styles.problemTabText, problemView === 'statement' && styles.problemTabTextActive]}>Enunț citit</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: problemView === 'photo' }}
-                    onPress={() => { Haptics.selection(); setProblemView('photo'); }}
-                    style={[styles.problemTab, problemView === 'photo' && styles.problemTabActive]}
-                  >
-                    <Text style={[styles.problemTabText, problemView === 'photo' && styles.problemTabTextActive]}>Fotografia ta</Text>
-                  </Pressable>
-                </View>
+                <ComicTabBar
+                  compact
+                  options={problemViewTabs}
+                  value={problemView}
+                  onChange={setProblemView}
+                  style={styles.problemTabs}
+                />
               ) : null}
               <View style={styles.problemContent}>
                 {problemView === 'photo' && sourceImage ? (
@@ -505,12 +519,12 @@ export function LessonScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  progress: { marginBottom: 10 },
+  progress: { marginBottom: 7 },
   savedToast: {
     position: 'absolute',
     zIndex: 20,
     right: 18,
-    top: 62,
+    top: 56,
     minHeight: 36,
     borderRadius: 13,
     borderWidth: borders.thin,
@@ -527,25 +541,24 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
-  stage: { flex: 1, minHeight: 0, gap: 10, paddingBottom: 4 },
+  stage: { flex: 1, minHeight: 0, gap: 7, paddingBottom: 2 },
 
   problemWrap: {},
   problemRow: {
-    minHeight: 54,
+    height: 38,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    borderRadius: 18,
+    gap: 8,
+    borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.paperTint,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingHorizontal: 8,
   },
   problemIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 26,
+    height: 26,
+    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
@@ -553,70 +566,78 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     transform: [{ rotate: '-3deg' }],
   },
-  problemIconText: { fontFamily: fonts.display, color: colors.ink, fontSize: 15 },
-  problemCopy: { flex: 1, minWidth: 0 },
-  problemLabel: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
-  problem: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, lineHeight: 17 },
+  problemIconText: { fontFamily: fonts.display, color: colors.ink, fontSize: 12.5 },
+  problem: { flex: 1, minWidth: 0, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5, lineHeight: 16 },
   problemActionPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 10,
+    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 9,
     backgroundColor: colors.violetSoft,
   },
-  problemAction: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12 },
+  problemAction: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
 
   // Illustrated step card deck
   cardWrap: {
     flex: 1,
     minHeight: 0,
     position: 'relative',
-    paddingBottom: shadows.md + 1,
+    paddingBottom: shadows.md,
   },
   cardShadow: {
     position: 'absolute',
-    top: shadows.md + 1,
+    top: shadows.md,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 24,
+    borderRadius: 23,
     backgroundColor: colors.ink,
   },
   cardFace: {
     flex: 1,
     minHeight: 0,
-    borderRadius: 24,
+    borderRadius: 23,
     borderWidth: borders.regular,
     borderColor: colors.ink,
     backgroundColor: colors.paper,
     overflow: 'hidden',
   },
   cardRibbon: {
-    height: 11,
+    height: 9,
     borderBottomWidth: borders.thin,
     borderBottomColor: colors.ink,
     position: 'relative',
   },
   cardRibbonShine: {
     position: 'absolute',
-    top: 2,
+    top: 1.5,
     left: 14,
     right: 14,
-    height: 3,
+    height: 2.5,
     borderRadius: 2,
     backgroundColor: colors.shine,
   },
   documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
 
   // Action dock
-  actionDock: { backgroundColor: colors.canvas, paddingTop: 6, gap: 6 },
-  secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  actionDock: { backgroundColor: colors.canvas, paddingTop: 5, gap: 6 },
+  secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  prevStepAction: {
+    width: 42,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   secondaryActionWrap: { flex: 1 },
   secondaryAction: {
-    height: 44,
-    borderRadius: 15,
+    height: 40,
+    borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
@@ -627,19 +648,15 @@ const styles = StyleSheet.create({
   },
   secondaryTitle: { flex: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
   reportAction: {
-    minWidth: 104,
-    height: 44,
-    borderRadius: 15,
+    width: 42,
+    height: 40,
+    borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.paper,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
   },
-  reportText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
 
   // Bottom sheets
   modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
@@ -690,19 +707,7 @@ const styles = StyleSheet.create({
   sheetEyebrow: { ...typography.kicker, color: colors.violetDeep },
   sheetTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18, lineHeight: 22, marginTop: 1 },
   sheetDocument: { marginBottom: 10 },
-  problemTabs: {
-    flexDirection: 'row',
-    borderRadius: 15,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.violetSoft,
-    padding: 3,
-    marginBottom: 10,
-  },
-  problemTab: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  problemTabActive: { borderWidth: borders.thin, borderColor: colors.ink, backgroundColor: colors.paper },
-  problemTabText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12.5 },
-  problemTabTextActive: { color: colors.violetDeep },
+  problemTabs: { marginBottom: 10 },
   problemContent: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
   sourceImageCard: { flex: 1, padding: 8, borderRadius: 16, borderWidth: borders.thin, borderColor: colors.line, backgroundColor: '#F4EEFF' },
   sourceImage: { width: '100%', height: '100%', borderRadius: 12 },

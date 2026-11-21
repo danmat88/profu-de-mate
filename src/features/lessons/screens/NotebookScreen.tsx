@@ -26,12 +26,14 @@ import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, radii, shadows, springs, typography } from '../../../shared/theme';
+import { borders, colors, fonts, shadows, springs, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
+import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
+import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -49,19 +51,13 @@ import {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notebook'>;
 
-const tabs: { value: NotebookFilter; label: string }[] = [
-  { value: 'all', label: 'Toate' },
-  { value: 'solve', label: 'Rezolvate' },
-  { value: 'check', label: 'Verificate' },
-];
-
 const verdictTones = {
-  correct: { backgroundColor: colors.limeSoft, color: colors.ink },
-  partial: { backgroundColor: colors.goldSoft, color: colors.ink },
+  correct: { backgroundColor: colors.lime, color: colors.ink },
+  partial: { backgroundColor: colors.gold, color: colors.ink },
   incorrect: { backgroundColor: colors.roseSoft, color: colors.berryDeep },
 } as const;
 
-function TrashGlyph({ size = 18, color = colors.inkSoft }: { size?: number; color?: string }) {
+function TrashGlyph({ size = 16, color = colors.inkSoft }: { size?: number; color?: string }) {
   return (
     <Svg accessible={false} width={size} height={size} viewBox="0 0 24 24">
       <Path d="M4 7h16M9 7V4.8h6V7M6.7 7l.9 13h8.8l.9-13M10 10.2v6.6M14 10.2v6.6" fill="none" stroke={color} strokeWidth={2.15} strokeLinecap="round" strokeLinejoin="round" />
@@ -89,99 +85,122 @@ function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
 
 type LessonRowProps = {
   lesson: StoredLesson;
+  index: number;
   newest: boolean;
   onOpen: (lesson: StoredLesson) => void;
   onRemove: (lesson: StoredLesson) => void;
 };
 
-const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: LessonRowProps) {
+const LessonRow = memo(function LessonRow({ lesson, index, newest, onOpen, onRemove }: LessonRowProps) {
   const presentation = notebookProblemPresentation(lesson);
   const verdict = notebookVerdictPresentation(lesson);
   const checked = lesson.mode === 'check';
-  const tone = verdict?.tone === 'correct'
+  const spineTone = verdict?.tone === 'correct'
     ? colors.lime
     : verdict?.tone === 'incorrect'
       ? colors.rose
       : checked ? colors.peach : colors.cyan;
+  const modePillBg = checked ? colors.peachSoft : colors.cyanSoft;
   const modeLabel = checked ? 'VERIFICATĂ' : 'REZOLVATĂ';
   const actionLabel = checked ? 'Vezi verificarea' : 'Vezi rezolvarea';
-  const stepLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas explicat' : 'pași explicați'}`;
+  const stepLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas' : 'pași'}`;
   const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : undefined;
 
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
-      accessibilityHint={actionLabel}
-      depth={4}
-      radius={20}
-      shadowColor={colors.ink}
-      haptic="light"
-      onPress={() => onOpen(lesson)}
-      contentStyle={styles.lessonCard}
-    >
-      <View style={[styles.lessonRail, { backgroundColor: tone }]}>
-        {[0, 1, 2].map((dot) => <View key={dot} style={styles.railDot} />)}
-      </View>
+    <Enter delay={Math.min(index, 5) * 42} distance={14} scaleFrom={0.96} bouncy={false}>
+      <PressableScale
+        accessibilityRole="button"
+        accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
+        accessibilityHint={actionLabel}
+        depth={5}
+        radius={22}
+        shadowColor={colors.ink}
+        haptic="light"
+        onPress={() => onOpen(lesson)}
+        contentStyle={styles.lessonCard}
+      >
+        <View style={[styles.lessonRail, { backgroundColor: spineTone }]}>
+          <View pointerEvents="none" style={styles.railShine} />
+          {[0, 1, 2].map((dot) => (
+            <View key={dot} style={styles.railHole}>
+              <View style={styles.railRing} />
+            </View>
+          ))}
+        </View>
 
-      <View style={styles.lessonBody}>
-        <View style={styles.lessonMeta}>
-          <View style={styles.metaLeft}>
-            <View style={[styles.modeDot, { backgroundColor: tone }]} />
-            <Text style={styles.modeText}>{modeLabel}</Text>
-            {newest ? (
-              <View style={styles.newDot}>
-                <Text style={styles.newDotText}>NOUĂ</Text>
+        <View style={styles.lessonBody}>
+          <View pointerEvents="none" style={styles.cardShine} />
+          <View pointerEvents="none" style={styles.ruledLines}>
+            <View style={styles.ruledLine} />
+            <View style={styles.ruledLine} />
+            <View style={styles.ruledLine} />
+          </View>
+
+          <View style={styles.lessonMeta}>
+            <View style={styles.metaLeft}>
+              <View style={[styles.modeStamp, { backgroundColor: modePillBg }]}>
+                <AppIcon name={checked ? 'verify' : 'practice'} size={15} />
+                <Text style={styles.modeText}>{modeLabel}</Text>
+              </View>
+              {newest ? (
+                <View style={styles.newDot}>
+                  <Text style={styles.newDotText}>★ NOUĂ</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
+          </View>
+
+          <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
+
+          <View style={styles.topicRow}>
+            <View style={styles.topicTag}>
+              <View style={[styles.topicMarker, { backgroundColor: spineTone }]} />
+              <Text numberOfLines={1} style={styles.topicText}>{lesson.topic}</Text>
+            </View>
+            {verdict ? (
+              <View style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].backgroundColor }]}>
+                <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>{verdict.label}</Text>
               </View>
             ) : null}
           </View>
-          <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
-        </View>
 
-        <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
-
-        <View style={styles.topicRow}>
-          <View style={[styles.topicMarker, { backgroundColor: tone }]} />
-          <Text numberOfLines={1} style={styles.topicText}>{lesson.topic}</Text>
-          {verdict ? (
-            <View style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].backgroundColor }]}>
-              <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>{verdict.label}</Text>
+          <View style={styles.lessonFooter}>
+            <View style={styles.detailCluster}>
+              <View style={styles.detailChip}>
+                <View style={[styles.detailDot, { backgroundColor: colors.violet }]} />
+                <Text style={styles.detailText}>{stepLabel}</Text>
+              </View>
+              {requestLabel ? (
+                <View style={styles.detailChip}>
+                  <Text style={styles.detailText}>{requestLabel}</Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-        </View>
 
-        <View style={styles.lessonFooter}>
-          <View style={styles.detailCluster}>
-            <Text style={styles.detailText}>{stepLabel}</Text>
-            {requestLabel ? (
-              <>
-                <View style={styles.detailDot} />
-                <Text style={styles.detailText}>{requestLabel}</Text>
-              </>
-            ) : null}
-          </View>
-
-          <View style={styles.rowActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Scoate ${presentation.title} din Caiet`}
-              hitSlop={8}
-              onPress={(event) => {
-                event.stopPropagation();
-                onRemove(lesson);
-              }}
-              style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
-            >
-              <TrashGlyph size={16} color={colors.inkSoft} />
-              <Text style={styles.removeText}>Scoate</Text>
-            </Pressable>
-            <View style={styles.openChevron}>
-              <MiniGlyph name="next" size={16} color={colors.paper} />
+            <View style={styles.rowActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Scoate ${presentation.title} din Caiet`}
+                hitSlop={8}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onRemove(lesson);
+                }}
+                style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
+              >
+                <TrashGlyph size={15} color={colors.inkSoft} />
+                <Text style={styles.removeText}>Scoate</Text>
+              </Pressable>
+              <View style={styles.openPill}>
+                <Text style={styles.openPillText}>Deschide</Text>
+                <MiniGlyph name="next" size={14} color={colors.paper} />
+              </View>
             </View>
           </View>
         </View>
-      </View>
-    </PressableScale>
+      </PressableScale>
+    </Enter>
   );
 }, (previous, next) => (
   previous.lesson.id === next.lesson.id
@@ -189,6 +208,7 @@ const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: 
   && previous.lesson.mode === next.lesson.mode
   && previous.lesson.steps.length === next.lesson.steps.length
   && previous.lesson.createdAt?.toDate?.().getTime() === next.lesson.createdAt?.toDate?.().getTime()
+  && previous.index === next.index
   && previous.newest === next.newest
   && previous.onOpen === next.onOpen
   && previous.onRemove === next.onRemove
@@ -227,24 +247,28 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
       contentContainerStyle={styles.fullState}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.emptyMascotStage}>
+      <Enter delay={20} distance={14} scaleFrom={0.9} style={styles.emptyMascotStage}>
         <View style={[styles.emptyHalo, error && styles.emptyHaloError]} />
         <Mascot pose={error ? 'oops' : 'wave'} size={142} active interactive />
-      </View>
-      <Chip
-        label={error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}
-        tone={error ? 'peach' : 'lime'}
-        tilt={-2}
-      />
-      <Text style={styles.fullStateTitle}>
-        {error ? 'Caietul e încă pe raft' : 'Prima lecție merită un loc bun'}
-      </Text>
-      <Text style={styles.fullStateText}>
-        {error
-          ? 'Lecțiile tale rămân în siguranță. Verifică internetul și încearcă din nou.'
-          : 'Rezolvă ori verifică o problemă, apoi salveaz-o. Revii oricând la enunț și la pașii explicați.'}
-      </Text>
-      <View style={styles.emptyActions}>
+      </Enter>
+      <Enter delay={70} distance={12}>
+        <Chip
+          label={error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}
+          tone={error ? 'peach' : 'lime'}
+          tilt={-2}
+        />
+      </Enter>
+      <Enter delay={105} distance={12} style={styles.emptyCopyWrap}>
+        <Text style={styles.fullStateTitle}>
+          {error ? 'Caietul e încă pe raft' : 'Prima lecție merită un loc bun'}
+        </Text>
+        <Text style={styles.fullStateText}>
+          {error
+            ? 'Lecțiile tale rămân în siguranță. Verifică internetul și încearcă din nou.'
+            : 'Rezolvă ori verifică o problemă, apoi salveaz-o. Revii oricând la enunț și la pașii explicați.'}
+        </Text>
+      </Enter>
+      <Enter delay={145} distance={12} style={styles.emptyActions}>
         <ComicButton
           compact
           title={error ? 'Reîncearcă' : 'Rezolvă prima problemă'}
@@ -264,7 +288,7 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
             <Text style={styles.secondaryEmptyText}>Sau verifică o rezolvare →</Text>
           </PressableScale>
         ) : null}
-      </View>
+      </Enter>
     </ScrollView>
   );
 }
@@ -315,6 +339,7 @@ export function NotebookScreen({ navigation }: Props) {
   const reducedMotion = useReducedMotion();
   const [filter, setFilter] = useState<NotebookFilter>('all');
   const [queryText, setQueryText] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const deferredQueryText = useDeferredValue(queryText);
   const [notes, setNotes] = useState<StoredLesson[]>(() => getCachedFavoriteLessons() ?? []);
   const [loading, setLoading] = useState(() => getCachedFavoriteLessons() === undefined);
@@ -325,6 +350,7 @@ export function NotebookScreen({ navigation }: Props) {
   const [removeError, setRemoveError] = useState(false);
 
   const listOpacity = useSharedValue(1);
+  const listShift = useSharedValue(0);
   const removeProgress = useSharedValue(0);
   const closeRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -367,17 +393,48 @@ export function NotebookScreen({ navigation }: Props) {
   );
   const counts = useMemo(() => notebookFilterCounts(notes), [notes]);
 
+  const tabOptions = useMemo<readonly ComicTabOption<NotebookFilter>[]>(() => [
+    {
+      value: 'all',
+      label: 'Toate',
+      badge: counts.all,
+      activeFill: colors.violet,
+      activeText: colors.paper,
+      badgeFill: colors.lime,
+      badgeText: colors.ink,
+    },
+    {
+      value: 'solve',
+      label: 'Rezolvate',
+      badge: counts.solve,
+      activeFill: colors.cyan,
+      activeText: colors.ink,
+      badgeFill: colors.paper,
+      badgeText: colors.ink,
+    },
+    {
+      value: 'check',
+      label: 'Verificate',
+      badge: counts.check,
+      activeFill: colors.peach,
+      activeText: colors.ink,
+      badgeFill: colors.paper,
+      badgeText: colors.ink,
+    },
+  ], [counts.all, counts.check, counts.solve]);
+
   const chooseFilter = useCallback((next: NotebookFilter) => {
     setFilter((current) => {
       if (current === next) return current;
-      Haptics.selection();
       if (!reducedMotion) {
-        listOpacity.set(0.86);
+        listOpacity.set(0.65);
+        listShift.set(10);
         listOpacity.set(withSpring(1, springs.snappy));
+        listShift.set(withSpring(0, springs.snappy));
       }
       return next;
     });
-  }, [listOpacity, reducedMotion]);
+  }, [listOpacity, listShift, reducedMotion]);
 
   const openNote = useCallback((lesson: StoredLesson) => {
     navigation.navigate('Lesson', { lesson, lessonId: lesson.id, isFavorite: true, source: 'notebook' });
@@ -443,6 +500,7 @@ export function NotebookScreen({ navigation }: Props) {
 
   const listAnimated = useAnimatedStyle(() => ({
     opacity: listOpacity.get(),
+    transform: [{ translateY: listShift.get() }],
   }));
 
   const removeScrimStyle = useAnimatedStyle(() => ({
@@ -458,12 +516,12 @@ export function NotebookScreen({ navigation }: Props) {
   });
 
   const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
-  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item }) => (
-    <LessonRow lesson={item} newest={item.id === newestNoteId} onOpen={openNote} onRemove={requestRemove} />
+  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item, index }) => (
+    <LessonRow lesson={item} index={index} newest={item.id === newestNoteId} onOpen={openNote} onRemove={requestRemove} />
   ), [newestNoteId, openNote, requestRemove]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
-  const activeTab = tabs.find((tab) => tab.value === filter)?.label ?? 'Toate';
-  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTab;
+  const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
+  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTabLabel;
   const headerCount = loading && notes.length === 0 ? 'LECȚII SALVATE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
 
@@ -493,17 +551,20 @@ export function NotebookScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
+      <ScreenHeader compact title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.controls, { paddingHorizontal: gutter }]}>
-          <View style={styles.searchShadow}>
-            <View style={styles.searchBox}>
-              <AppIcon name="search" size={28} />
+        <Enter delay={20} distance={10} style={[styles.controls, { paddingHorizontal: gutter }]}>
+          <View style={[styles.searchShadow, searchFocused && styles.searchShadowFocused]}>
+            <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+              <View pointerEvents="none" style={styles.searchShine} />
+              <AppIcon name="search" size={26} />
               <TextInput
                 autoCorrect={false}
                 returnKeyType="search"
                 value={queryText}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
                 onChangeText={setQueryText}
                 placeholder={isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole'}
                 placeholderTextColor={colors.inkSoft}
@@ -512,32 +573,19 @@ export function NotebookScreen({ navigation }: Props) {
               />
               {queryText ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
-                  <MiniGlyph name="close" size={15} color={colors.ink} />
+                  <MiniGlyph name="close" size={14} color={colors.ink} />
                 </Pressable>
               ) : null}
             </View>
           </View>
 
-          <View style={styles.tabBar} accessibilityRole="tablist">
-            {tabs.map((tab) => {
-              const active = tab.value === filter;
-              return (
-                <Pressable
-                  key={tab.value}
-                  accessibilityRole="tab"
-                  accessibilityState={{ selected: active }}
-                  onPress={() => chooseFilter(tab.value)}
-                  style={({ pressed }) => [styles.tab, active && styles.tabActive, pressed && styles.tabPressed]}
-                >
-                  <Text numberOfLines={1} style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
-                  <View style={[styles.tabCount, active && styles.tabCountActive]}>
-                    <Text style={[styles.tabCountText, active && styles.tabCountTextActive]}>{counts[tab.value]}</Text>
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+          <ComicTabBar
+            compact
+            options={tabOptions}
+            value={filter}
+            onChange={chooseFilter}
+          />
+        </Enter>
 
         {loadError ? (
           <Pressable accessibilityRole="button" onPress={retrySubscription} style={[styles.syncWarning, { marginHorizontal: gutter }]}>
@@ -547,11 +595,22 @@ export function NotebookScreen({ navigation }: Props) {
         ) : null}
 
         <View style={[styles.listHeading, { paddingHorizontal: gutter }]}>
-          <View>
-            <Text style={styles.listEyebrow}>{normalizedQuery ? `CĂUTARE: ${normalizedQuery.toLocaleUpperCase('ro-RO')}` : 'CAIETUL TĂU'}</Text>
-            <Text style={styles.listTitle}>{resultLabel}</Text>
+          <View style={styles.listHeadingLeft}>
+            <View style={styles.miniMascotBadge}>
+              <Mascot pose="wave" size={38} active interactive />
+            </View>
+            <View style={styles.listHeadingCopy}>
+              <Text numberOfLines={1} style={styles.listEyebrow}>
+                {normalizedQuery ? `CĂUTARE: ${normalizedQuery.toLocaleUpperCase('ro-RO')}` : 'CAIETUL TĂU'}
+              </Text>
+              <Text numberOfLines={1} style={styles.listTitle}>{resultLabel}</Text>
+            </View>
           </View>
-          <Text style={styles.visibleCount}>{visibleNotes.length} {visibleNotes.length === 1 ? 'problemă' : 'probleme'}</Text>
+          <View style={styles.visibleCountPill}>
+            <Text style={styles.visibleCount}>
+              {visibleNotes.length} {visibleNotes.length === 1 ? 'lecție' : 'lecții'}
+            </Text>
+          </View>
         </View>
 
         <Animated.View style={[styles.listMotion, listAnimated]}>
@@ -594,8 +653,11 @@ export function NotebookScreen({ navigation }: Props) {
             ]}
           >
             <View style={styles.removeHandle} />
-            <View style={styles.removeSheetIcon}><TrashGlyph size={32} color={colors.ink} /></View>
-            <Text style={styles.removeEyebrow}>GESTIONEAZĂ CAIETUL</Text>
+            <View style={styles.removeMascotStage}>
+              <View style={styles.removeMascotHalo} />
+              <Mascot pose="oops" size={90} active />
+            </View>
+            <Chip label="GESTIONEAZĂ CAIETUL" tone="roseSoft" tilt={-2} />
             <Text style={styles.removeTitle}>Scoți problema din Caiet?</Text>
             <Text numberOfLines={2} style={styles.removeLessonTitle}>{pendingRemovalTitle}</Text>
             <Text style={styles.removeDescription}>Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet.</Text>
@@ -611,6 +673,7 @@ export function NotebookScreen({ navigation }: Props) {
               style={styles.confirmRemoveWrap}
               contentStyle={styles.confirmRemove}
             >
+              <View pointerEvents="none" style={styles.removeBtnShine} />
               {removing ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
               <Text style={styles.confirmRemoveText}>{removing ? 'Actualizez Caietul…' : 'Da, scoate problema'}</Text>
             </PressableScale>
@@ -629,10 +692,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minHeight: 0 },
   controls: { paddingTop: 4, gap: 9 },
 
-  searchShadow: { borderRadius: 17, backgroundColor: colors.ink, paddingBottom: 3 },
+  searchShadow: { borderRadius: 17, backgroundColor: colors.ink, paddingBottom: shadows.sm },
+  searchShadowFocused: { backgroundColor: colors.violetShadow },
   searchBox: {
-    height: 48,
-    borderWidth: borders.thin,
+    height: 46,
+    borderWidth: borders.regular,
     borderColor: colors.ink,
     borderRadius: 16,
     backgroundColor: colors.paper,
@@ -640,29 +704,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     gap: 6,
+    overflow: 'hidden',
   },
-  searchInput: { flex: 1, height: 44, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
-  clearSearch: { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
-
-  tabBar: {
-    height: 46,
-    borderRadius: 16,
-    borderWidth: borders.thin,
+  searchBoxFocused: { borderColor: colors.violet },
+  searchShine: {
+    position: 'absolute',
+    top: 2,
+    left: 12,
+    right: 12,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: colors.shine,
+  },
+  searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
+  clearSearch: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    borderWidth: 1.5,
     borderColor: colors.ink,
-    backgroundColor: colors.paper,
-    flexDirection: 'row',
-    padding: 3,
-    gap: 3,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  tab: { flex: 1, minWidth: 0, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
-  tabActive: { backgroundColor: colors.violet, borderWidth: 1.5, borderColor: colors.ink },
-  tabPressed: { opacity: 0.78 },
-  tabText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
-  tabTextActive: { color: colors.paper },
-  tabCount: { minWidth: 22, height: 22, borderRadius: 8, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
-  tabCountActive: { backgroundColor: colors.lime },
-  tabCountText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11 },
-  tabCountTextActive: { color: colors.ink },
 
   syncWarning: {
     minHeight: 40,
@@ -679,52 +743,151 @@ const styles = StyleSheet.create({
   },
   syncWarningText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 15 },
 
-  listHeading: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 4 },
+  listHeading: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  listHeadingLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  miniMascotBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.limeSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-3deg' }],
+  },
+  listHeadingCopy: { flex: 1, minWidth: 0 },
   listEyebrow: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
-  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23, marginTop: 1 },
-  visibleCount: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
+  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 22.5, marginTop: 1 },
+  visibleCountPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+    transform: [{ rotate: '1.5deg' }],
+  },
+  visibleCount: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
 
   listMotion: { flex: 1, minHeight: 0 },
-  listContent: { flexGrow: 1 },
-  lessonSeparator: { height: 12 },
+  listContent: { flexGrow: 1, paddingTop: 4 },
+  lessonSeparator: { height: 13 },
 
   lessonCard: {
     overflow: 'hidden',
-    borderRadius: 20,
+    borderRadius: 22,
     borderWidth: borders.regular,
     borderColor: colors.ink,
     backgroundColor: colors.paper,
     flexDirection: 'row',
   },
   lessonRail: {
-    width: 12,
+    width: 18,
     borderRightWidth: borders.thin,
     borderRightColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'space-evenly',
-    paddingVertical: 18,
+    paddingVertical: 16,
+    position: 'relative',
   },
-  railDot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.paper },
-  lessonBody: { flex: 1, minWidth: 0, paddingHorizontal: 13, paddingTop: 11, paddingBottom: 10 },
+  railShine: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 2,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: colors.shine,
+  },
+  railHole: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.canvas,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  railRing: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.ink,
+  },
+  lessonBody: { flex: 1, minWidth: 0, paddingHorizontal: 13, paddingTop: 11, paddingBottom: 10, position: 'relative' },
+  cardShine: {
+    position: 'absolute',
+    top: 3,
+    left: 12,
+    right: 12,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
+  },
+  ruledLines: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    top: 46,
+    bottom: 46,
+    justifyContent: 'space-evenly',
+    opacity: 0.45,
+  },
+  ruledLine: {
+    height: 1,
+    backgroundColor: '#ECE4FA',
+  },
   lessonMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
   metaLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modeDot: { width: 9, height: 9, borderRadius: 3, borderWidth: 1, borderColor: colors.ink },
-  modeText: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
+  modeStamp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    transform: [{ rotate: '-1deg' }],
+  },
+  modeText: { ...typography.kicker, fontSize: 9.5, lineHeight: 12, color: colors.ink },
   newDot: {
-    borderRadius: 7,
+    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
     paddingHorizontal: 6,
-    paddingVertical: 1,
-    transform: [{ rotate: '2deg' }],
+    paddingVertical: 2,
+    transform: [{ rotate: '2.5deg' }],
   },
-  newDotText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, letterSpacing: 0.5 },
-  timeText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5 },
-  problemIdentity: { marginTop: 5, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18, lineHeight: 22 },
-  topicRow: { minHeight: 22, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  topicMarker: { width: 12, height: 4, borderRadius: 3 },
-  topicText: { flex: 1, minWidth: 0, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12.5 },
+  newDotText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, letterSpacing: 0.45 },
+  timeText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11 },
+  problemIdentity: { marginTop: 7, fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 23 },
+  topicRow: { minHeight: 24, marginTop: 7, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  topicTag: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.paperTint,
+  },
+  topicMarker: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.25, borderColor: colors.ink },
+  topicText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
   verdictBadge: {
     flexShrink: 0,
     minHeight: 22,
@@ -734,12 +897,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     alignItems: 'center',
     justifyContent: 'center',
+    transform: [{ rotate: '1.2deg' }],
   },
   verdictText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.45 },
 
   lessonFooter: {
     marginTop: 10,
-    paddingTop: 9,
+    paddingTop: 8,
     borderTopWidth: 1.5,
     borderTopColor: '#EFEAF8',
     flexDirection: 'row',
@@ -747,30 +911,46 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  detailText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12 },
-  detailDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.line },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
+  detailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  detailText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
+  detailDot: { width: 5, height: 5, borderRadius: 3 },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   removeAction: {
-    minHeight: 34,
-    borderRadius: 11,
+    minHeight: 32,
+    borderRadius: 10,
+    borderWidth: 1.25,
+    borderColor: colors.line,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
     backgroundColor: colors.paperTint,
   },
-  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
-  openChevron: {
-    width: 32,
+  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
+  openPill: {
     height: 32,
+    paddingHorizontal: 10,
     borderRadius: 11,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.violet,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 3,
   },
+  openPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
 
   loadingState: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 34 },
   stateChip: { marginTop: 12 },
@@ -791,6 +971,7 @@ const styles = StyleSheet.create({
     borderColor: colors.violet,
   },
   emptyHaloError: { backgroundColor: colors.peachSoft, borderColor: colors.peach },
+  emptyCopyWrap: { alignItems: 'center' },
   fullStateTitle: { marginTop: 10, fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center' },
   fullStateText: { maxWidth: 330, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
   emptyActions: { width: '100%', maxWidth: 340, marginTop: 22, gap: 6 },
@@ -798,30 +979,31 @@ const styles = StyleSheet.create({
   secondaryEmptyAction: { minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   secondaryEmptyText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
 
-  actionPressed: { opacity: 0.72 },
-  filterEmpty: { minHeight: 310, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
-  filterEmptyTitle: { marginTop: 10, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, textAlign: 'center' },
-  filterEmptyText: { maxWidth: 310, marginTop: 4, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, textAlign: 'center' },
-  filterEmptyActionWrap: { marginTop: 14 },
+  filterEmpty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingTop: 34, paddingBottom: 24 },
+  filterEmptyTitle: { marginTop: 8, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 24, textAlign: 'center' },
+  filterEmptyText: { maxWidth: 300, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  filterEmptyActionWrap: { marginTop: 16 },
   filterEmptyAction: {
     minHeight: 44,
+    paddingHorizontal: 18,
     borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
-    paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
   filterEmptyActionText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13 },
 
+  listFooter: { height: 10 },
+  actionPressed: { opacity: 0.72 },
+
   removeModalLayer: { flex: 1, justifyContent: 'flex-end' },
-  removeScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(16, 12, 38, 0.68)' },
+  removeScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(16, 12, 38, 0.66)' },
   removeSheet: {
     width: '100%',
     maxWidth: 640,
     alignSelf: 'center',
-    alignItems: 'center',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: borders.thick,
@@ -829,26 +1011,26 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     backgroundColor: colors.canvas,
     paddingHorizontal: 22,
-    paddingTop: 10,
-  },
-  removeHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 10 },
-  removeSheetIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.roseSoft,
+    paddingTop: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
-  removeEyebrow: { marginTop: 12, ...typography.kicker, color: colors.violetDeep },
-  removeTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center' },
-  removeLessonTitle: { maxWidth: 430, marginTop: 6, fontFamily: fonts.displaySemi, color: colors.violetDeep, fontSize: 15.5, lineHeight: 20, textAlign: 'center' },
-  removeDescription: { maxWidth: 430, marginTop: 7, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18.5, textAlign: 'center' },
-  removeError: { width: '100%', marginTop: 10, borderRadius: radii.sm, backgroundColor: colors.roseSoft, padding: 10, fontFamily: fonts.bodyBold, color: colors.berryDeep, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  confirmRemoveWrap: { width: '100%', maxWidth: 430, marginTop: 16 },
+  removeHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 12 },
+  removeMascotStage: { width: 102, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  removeMascotHalo: {
+    position: 'absolute',
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: colors.rose,
+    backgroundColor: colors.roseSoft,
+  },
+  removeTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center', marginTop: 10 },
+  removeLessonTitle: { maxWidth: 330, marginTop: 5, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  removeDescription: { maxWidth: 330, marginTop: 5, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18.5, textAlign: 'center' },
+  removeError: { marginTop: 8, fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
+  confirmRemoveWrap: { width: '100%', marginTop: 16 },
   confirmRemove: {
     width: '100%',
     minHeight: 52,
@@ -860,9 +1042,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+  },
+  removeBtnShine: {
+    position: 'absolute',
+    top: 3,
+    left: 12,
+    right: 12,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
   },
   confirmRemoveText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16.5 },
   keepLesson: { minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 6 },
-  keepLessonText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
-  listFooter: { height: 6 },
+  keepLessonText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 13.5 },
 });

@@ -2,19 +2,30 @@ import { getApp } from '@react-native-firebase/app';
 import { getCrashlytics, setCrashlyticsCollectionEnabled } from '@react-native-firebase/crashlytics';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { getAppVersionLabel } from '../../../shared/services/appInfo';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
+import { borders, colors, fonts, shadows, springs } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicCard } from '../../../shared/ui/ComicCard';
+import { ComicSwitch } from '../../../shared/ui/ComicSwitch';
+import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -34,6 +45,93 @@ function SettingsSectionTitle({ children, tone }: { children: string; tone: stri
       <Text style={styles.sectionTitle}>{children}</Text>
       <View style={styles.sectionLine} />
     </View>
+  );
+}
+
+function ComicSheetModal({
+  visible,
+  busy = false,
+  dismissable = true,
+  alertRole = false,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  busy?: boolean;
+  dismissable?: boolean;
+  alertRole?: boolean;
+  onClose?: () => void;
+  children: ReactNode;
+}) {
+  const reducedMotion = useReducedMotion();
+  const [present, setPresent] = useState(visible);
+  const reveal = useSharedValue(visible ? 1 : 0);
+  const mountedRef = useRef(visible);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    if (visible) {
+      mountedRef.current = true;
+      setPresent(true);
+      reveal.set(reducedMotion ? 1 : 0);
+      if (!reducedMotion) {
+        reveal.set(withSpring(1, springs.snappy));
+      }
+      return;
+    }
+    if (!mountedRef.current) return;
+    if (reducedMotion) {
+      mountedRef.current = false;
+      setPresent(false);
+      reveal.set(0);
+      return;
+    }
+    reveal.set(withTiming(0, { duration: 155, easing: Easing.in(Easing.quad) }));
+    closeTimer.current = setTimeout(() => {
+      mountedRef.current = false;
+      setPresent(false);
+    }, 160);
+  }, [reducedMotion, reveal, visible]);
+
+  useEffect(() => () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
+  const scrimAnimated = useAnimatedStyle(() => ({
+    opacity: reveal.get(),
+  }));
+
+  const sheetAnimated = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - reveal.get()) * 360 }],
+  }));
+
+  return (
+    <Modal
+      visible={present}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={busy ? undefined : onClose}
+    >
+      <SafeAreaView style={styles.modalLayer} edges={[]}>
+        <Animated.View pointerEvents="none" style={[styles.scrim, scrimAnimated]} />
+        {dismissable && onClose ? (
+          <Pressable accessible={false} disabled={busy} onPress={onClose} style={StyleSheet.absoluteFill} />
+        ) : null}
+        <Animated.View
+          accessibilityViewIsModal
+          accessibilityRole={alertRole ? 'alert' : undefined}
+          style={[styles.confirmSheet, sheetAnimated]}
+        >
+          {children}
+        </Animated.View>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -155,260 +253,274 @@ export function SettingsScreen({ navigation }: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 14) + 18 }]}
       >
-        <ComicCard tone="paper" depth={5} radius={24} shine contentStyle={styles.identity}>
-          <View style={styles.identityMascotWrap}>
-            <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active />
-          </View>
-          <View style={styles.identityCopy}>
-            <Chip
-              label={accountLabel}
-              tone={access?.premium.active ? 'lime' : hasGoogleAccount ? 'cyanSoft' : 'violetSoft'}
-              outlined={Boolean(access?.premium.active)}
-            />
-            <Text style={styles.identityTitle}>{accountTitle}</Text>
-            <Text style={styles.identityText}>{accountText}</Text>
-          </View>
-        </ComicCard>
+        <Enter delay={20} distance={14}>
+          <ComicCard tone="paper" depth={5} radius={24} shine contentStyle={styles.identity}>
+            <View style={styles.identityMascotWrap}>
+              <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active interactive />
+            </View>
+            <View style={styles.identityCopy}>
+              <Chip
+                label={accountLabel}
+                tone={access?.premium.active ? 'lime' : hasGoogleAccount ? 'cyanSoft' : 'violetSoft'}
+                outlined={Boolean(access?.premium.active)}
+              />
+              <Text style={styles.identityTitle}>{accountTitle}</Text>
+              <Text style={styles.identityText}>{accountText}</Text>
+            </View>
+          </ComicCard>
+        </Enter>
 
         {!accessLoading && !access ? (
-          <PressableScale
-            accessibilityRole="button"
-            depth={shadows.sm}
-            radius={16}
-            shadowColor={colors.ink}
-            haptic="selection"
-            onPress={() => void refresh()}
-            contentStyle={styles.accountRetry}
-          >
-            <MiniGlyph name="spark" size={17} color={colors.ink} />
-            <Text style={styles.accountRetryText}>Verifică din nou</Text>
-          </PressableScale>
+          <Enter delay={55} distance={12}>
+            <PressableScale
+              accessibilityRole="button"
+              depth={shadows.sm}
+              radius={16}
+              shadowColor={colors.ink}
+              haptic="selection"
+              onPress={() => void refresh()}
+              contentStyle={styles.accountRetry}
+            >
+              <MiniGlyph name="spark" size={17} color={colors.ink} />
+              <Text style={styles.accountRetryText}>Verifică din nou</Text>
+            </PressableScale>
+          </Enter>
         ) : null}
 
         {!hasGoogleAccount && identity === 'anonymous' ? (
-          <GoogleAccountButton
-            busy={connectingGoogle}
-            note={`Păstrezi Caietul și primești ${freeDailyLimit} probleme gratuite zilnic`}
-            onPress={() => void connectAccount()}
-            style={styles.settingsGoogleButton}
-          />
+          <Enter delay={60} distance={12}>
+            <GoogleAccountButton
+              busy={connectingGoogle}
+              note={`Păstrezi Caietul și primești ${freeDailyLimit} probleme gratuite zilnic`}
+              onPress={() => void connectAccount()}
+              style={styles.settingsGoogleButton}
+            />
+          </Enter>
         ) : null}
 
-        <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
-          {hasGoogleAccount ? (
+        <Enter delay={85} distance={14}>
+          <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
+            {hasGoogleAccount ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { Haptics.selection(); setConfirmLogout(true); }}
+                style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="profile" size={34} /></View>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle}>Deconectează contul Google</Text>
+                  <Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Revii la problemele de bun-venit rămase pe această instalare.</Text>
+                </View>
+                <MiniGlyph name="next" size={18} color={colors.violetDeep} />
+              </Pressable>
+            ) : null}
+
             <Pressable
               accessibilityRole="button"
-              onPress={() => { Haptics.selection(); setConfirmLogout(true); }}
-              style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
+              onPress={() => { Haptics.selection(); navigation.navigate('Paywall', { source: 'settings', ...(access ? { access } : {}) }); }}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
-              <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="profile" size={34} /></View>
+              <View style={[styles.rowIcon, { backgroundColor: access?.premium.active ? colors.lime : colors.violetSoft }]}>
+                <AppIcon name="trophy" size={34} />
+              </View>
               <View style={styles.rowCopy}>
-                <Text style={styles.rowTitle}>Deconectează contul Google</Text>
-                <Text style={styles.rowText}>Caietul și limita de azi rămân în cont. Revii la problemele de bun-venit rămase pe această instalare.</Text>
+                <Text style={styles.rowTitle}>{access?.premium.active ? 'Administrează Premium' : 'Vezi Profu’ Premium'}</Text>
+                <Text style={styles.rowText}>
+                  {access?.premium.active
+                    ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
+                    : 'O limită zilnică mai mare, fără reclame și fără pachete de credite.'}
+                </Text>
               </View>
               <MiniGlyph name="next" size={18} color={colors.violetDeep} />
             </Pressable>
-          ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => { Haptics.selection(); navigation.navigate('Paywall', { source: 'settings', ...(access ? { access } : {}) }); }}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: access?.premium.active ? colors.lime : colors.violetSoft }]}>
-              <AppIcon name="trophy" size={34} />
-            </View>
-            <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>{access?.premium.active ? 'Administrează Premium' : 'Vezi Profu’ Premium'}</Text>
-              <Text style={styles.rowText}>
-                {access?.premium.active
-                  ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
-                  : 'O limită zilnică mai mare, fără reclame și fără pachete de credite.'}
-              </Text>
-            </View>
-            <MiniGlyph name="next" size={18} color={colors.violetDeep} />
-          </Pressable>
-        </ComicCard>
+          </ComicCard>
+        </Enter>
 
         {accountError ? <Text accessibilityRole="alert" style={styles.accountError}>{accountError}</Text> : null}
 
-        <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
-        <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
-          <Pressable
-            accessibilityRole="switch"
-            accessibilityState={{ checked: diagnostics }}
-            onPress={() => void toggleDiagnostics()}
-            style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="settings" size={34} /></View>
-            <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>Rapoarte tehnice opționale</Text>
-              <Text style={styles.rowText}>Ne ajută să reparăm erorile aplicației. Fotografia problemei nu este inclusă.</Text>
-            </View>
-            <View style={[styles.toggle, diagnostics && styles.toggleActive]}>
-              <View style={[styles.toggleKnob, diagnostics && styles.toggleKnobActive]} />
-            </View>
-          </Pressable>
+        <Enter delay={120} distance={14} style={styles.sectionBlock}>
+          <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
+          <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
+            <Pressable
+              accessibilityRole="switch"
+              accessibilityState={{ checked: diagnostics }}
+              onPress={() => void toggleDiagnostics()}
+              style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="settings" size={34} /></View>
+              <View style={styles.rowCopy}>
+                <Text style={styles.rowTitle}>Rapoarte tehnice opționale</Text>
+                <Text style={styles.rowText}>Ne ajută să reparăm erorile aplicației. Fotografia problemei nu este inclusă.</Text>
+              </View>
+              <ComicSwitch value={diagnostics} />
+            </Pressable>
 
-          <View style={styles.row}>
-            <View style={[styles.rowIcon, { backgroundColor: colors.limeSoft }]}><AppIcon name="privacy" size={34} /></View>
-            <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>Fotografiile nu intră în Caiet</Text>
-              <Text style={styles.rowText}>Sunt micșorate pe telefon și trimise securizat, fără să ajungă în Firebase Storage. Detaliile sunt explicate la „Legal și siguranță”.</Text>
+            <View style={styles.row}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.limeSoft }]}><AppIcon name="privacy" size={34} /></View>
+              <View style={styles.rowCopy}>
+                <Text style={styles.rowTitle}>Fotografiile nu intră în Caiet</Text>
+                <Text style={styles.rowText}>Sunt micșorate pe telefon și trimise securizat, fără să ajungă în Firebase Storage. Detaliile sunt explicate la „Legal și siguranță”.</Text>
+              </View>
+              <MiniGlyph name="check" size={18} color={colors.violetDeep} />
             </View>
-            <MiniGlyph name="check" size={18} color={colors.violetDeep} />
-          </View>
-        </ComicCard>
+          </ComicCard>
+        </Enter>
 
-        <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
-        <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
-          <View style={[styles.row, styles.rowBorder]}>
-            <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={34} /></View>
-            <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>Cât timp păstrăm datele</Text>
-              <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergere pot rămâne numai markerii anti-abuz minimizați, pentru perioadele explicate la „Legal și siguranță”.</Text>
+        <Enter delay={155} distance={14} style={styles.sectionBlock}>
+          <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
+          <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
+            <View style={[styles.row, styles.rowBorder]}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={34} /></View>
+              <View style={styles.rowCopy}>
+                <Text style={styles.rowTitle}>Cât timp păstrăm datele</Text>
+                <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergere pot rămâne numai markerii anti-abuz minimizați, pentru perioadele explicate la „Legal și siguranță”.</Text>
+              </View>
             </View>
-          </View>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => { Haptics.selection(); setDeleteError(false); setConfirmDelete(true); }}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-          >
-            <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
-            <View style={styles.rowCopy}>
-              <Text style={styles.deleteTitle}>{deletionActionTitle}</Text>
-              <Text style={styles.rowText}>{deletionActionText}</Text>
-            </View>
-            <MiniGlyph name="next" size={18} color={colors.rose} />
-          </Pressable>
-        </ComicCard>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => { Haptics.selection(); setDeleteError(false); setConfirmDelete(true); }}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            >
+              <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
+              <View style={styles.rowCopy}>
+                <Text style={styles.deleteTitle}>{deletionActionTitle}</Text>
+                <Text style={styles.rowText}>{deletionActionText}</Text>
+              </View>
+              <MiniGlyph name="next" size={18} color={colors.rose} />
+            </Pressable>
+          </ComicCard>
+        </Enter>
 
-        <SettingsSectionTitle tone={colors.lime}>Despre aplicație</SettingsSectionTitle>
-        <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => { Haptics.selection(); navigation.navigate('Legal'); }}
-            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="help" size={34} /></View>
-            <View style={styles.rowCopy}>
-              <Text style={styles.rowTitle}>Legal și siguranță</Text>
-              <Text style={styles.rowText}>Confidențialitatea, folosirea inteligenței artificiale, păstrarea datelor și regulile aplicației.</Text>
-            </View>
-            <MiniGlyph name="next" size={18} color={colors.violetDeep} />
-          </Pressable>
-        </ComicCard>
+        <Enter delay={190} distance={14} style={styles.sectionBlock}>
+          <SettingsSectionTitle tone={colors.lime}>Despre aplicație</SettingsSectionTitle>
+          <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => { Haptics.selection(); navigation.navigate('Legal'); }}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            >
+              <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="help" size={34} /></View>
+              <View style={styles.rowCopy}>
+                <Text style={styles.rowTitle}>Legal și siguranță</Text>
+                <Text style={styles.rowText}>Confidențialitatea, folosirea inteligenței artificiale, păstrarea datelor și regulile aplicației.</Text>
+              </View>
+              <MiniGlyph name="next" size={18} color={colors.violetDeep} />
+            </Pressable>
+          </ComicCard>
+        </Enter>
 
         <View style={styles.versionRow}><Text style={styles.version}>{getAppVersionLabel()}</Text></View>
       </ScrollView>
 
-      <Modal visible={confirmDelete} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={deleting ? undefined : () => setConfirmDelete(false)}>
-        <SafeAreaView style={styles.modalLayer} edges={[]}>
-          <Pressable accessible={false} disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.scrim} />
-          <View accessibilityViewIsModal style={styles.confirmSheet}>
-            <ScrollView
-              bounces={false}
-              showsVerticalScrollIndicator={false}
-              style={styles.confirmScroll}
-              contentContainerStyle={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}
-            >
-              <View style={styles.sheetHandle} />
-              <View style={styles.confirmIcon}><MiniGlyph name="wrong" size={28} color={colors.paper} /></View>
-              <Text style={styles.confirmEyebrow}>ACȚIUNE DEFINITIVĂ</Text>
-              <Text style={styles.confirmTitle}>{deletionConfirmTitle}</Text>
-              <Text style={styles.confirmText}>{deletionConfirmText}</Text>
-              {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
-              <PressableScale
-                accessibilityRole="button"
-                disabled={deleting}
-                depth={shadows.sm}
-                radius={17}
-                shadowColor={colors.ink}
-                haptic="medium"
-                onPress={() => void deleteData()}
-                style={styles.confirmActionWrap}
-                contentStyle={styles.confirmDelete}
-              >
-                {deleting ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
-                <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : hasGoogleAccount ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
-              </PressableScale>
-              <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
-                <Text style={styles.cancelText}>Păstrează datele</Text>
-              </Pressable>
-            </ScrollView>
+      <ComicSheetModal visible={confirmDelete} busy={deleting} onClose={() => setConfirmDelete(false)}>
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          style={styles.confirmScroll}
+          contentContainerStyle={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}
+        >
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetMascotStage}>
+            <View style={[styles.sheetMascotHalo, styles.sheetMascotHaloDanger]} />
+            <Mascot pose="oops" size={88} active />
           </View>
-        </SafeAreaView>
-      </Modal>
+          <Chip label="ACȚIUNE DEFINITIVĂ" tone="roseSoft" tilt={-2} />
+          <Text style={styles.confirmTitle}>{deletionConfirmTitle}</Text>
+          <Text style={styles.confirmText}>{deletionConfirmText}</Text>
+          {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
+          <PressableScale
+            accessibilityRole="button"
+            disabled={deleting}
+            depth={shadows.sm}
+            radius={17}
+            shadowColor={colors.ink}
+            haptic="medium"
+            onPress={() => void deleteData()}
+            style={styles.confirmActionWrap}
+            contentStyle={styles.confirmDelete}
+          >
+            <View pointerEvents="none" style={styles.sheetBtnShine} />
+            {deleting ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
+            <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : hasGoogleAccount ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
+          </PressableScale>
+          <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
+            <Text style={styles.cancelText}>Păstrează datele</Text>
+          </Pressable>
+        </ScrollView>
+      </ComicSheetModal>
 
-      <Modal visible={confirmLogout} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={disconnectingGoogle ? undefined : () => setConfirmLogout(false)}>
-        <SafeAreaView style={styles.modalLayer} edges={[]}>
-          <Pressable accessible={false} disabled={disconnectingGoogle} onPress={() => setConfirmLogout(false)} style={styles.scrim} />
-          <View accessibilityViewIsModal style={styles.confirmSheet}>
-            <View style={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.logoutIcon}><AppIcon name="profile" size={44} /></View>
-              <Text style={styles.logoutEyebrow}>SCHIMBI CONTUL DE PE TELEFON</Text>
-              <Text style={styles.confirmTitle}>Te deconectezi?</Text>
-              <Text style={styles.confirmText}>Nu se șterge nimic și nu se resetează nicio limită. Caietul, problemele folosite azi și Premium rămân legate de contul Google și reapar când îl conectezi din nou.</Text>
-              <PressableScale
-                accessibilityRole="button"
-                disabled={disconnectingGoogle}
-                depth={shadows.sm}
-                radius={17}
-                shadowColor={colors.ink}
-                haptic="medium"
-                onPress={() => void disconnectAccount()}
-                style={styles.confirmActionWrap}
-                contentStyle={styles.confirmLogout}
-              >
-                {disconnectingGoogle ? <PlayfulLoader micro /> : <MiniGlyph name="next" size={18} color={colors.ink} />}
-                <Text style={styles.confirmLogoutText}>{disconnectingGoogle ? 'Deconectez…' : 'Da, deconectează-mă'}</Text>
-              </PressableScale>
-              <Pressable accessibilityRole="button" disabled={disconnectingGoogle} onPress={() => setConfirmLogout(false)} style={styles.cancel}>
-                <Text style={styles.cancelText}>Rămân conectat</Text>
-              </Pressable>
-            </View>
+      <ComicSheetModal visible={confirmLogout} busy={disconnectingGoogle} onClose={() => setConfirmLogout(false)}>
+        <View style={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetMascotStage}>
+            <View style={[styles.sheetMascotHalo, styles.sheetMascotHaloCyan]} />
+            <Mascot pose="wave" size={88} active />
           </View>
-        </SafeAreaView>
-      </Modal>
+          <Chip label="SCHIMBI CONTUL DE PE TELEFON" tone="cyanSoft" tilt={-1.5} />
+          <Text style={styles.confirmTitle}>Te deconectezi?</Text>
+          <Text style={styles.confirmText}>Nu se șterge nimic și nu se resetează nicio limită. Caietul, problemele folosite azi și Premium rămân legate de contul Google și reapar când îl conectezi din nou.</Text>
+          <PressableScale
+            accessibilityRole="button"
+            disabled={disconnectingGoogle}
+            depth={shadows.sm}
+            radius={17}
+            shadowColor={colors.ink}
+            haptic="medium"
+            onPress={() => void disconnectAccount()}
+            style={styles.confirmActionWrap}
+            contentStyle={styles.confirmLogout}
+          >
+            <View pointerEvents="none" style={styles.sheetBtnShine} />
+            {disconnectingGoogle ? <PlayfulLoader micro /> : <MiniGlyph name="next" size={18} color={colors.ink} />}
+            <Text style={styles.confirmLogoutText}>{disconnectingGoogle ? 'Deconectez…' : 'Da, deconectează-mă'}</Text>
+          </PressableScale>
+          <Pressable accessibilityRole="button" disabled={disconnectingGoogle} onPress={() => setConfirmLogout(false)} style={styles.cancel}>
+            <Text style={styles.cancelText}>Rămân conectat</Text>
+          </Pressable>
+        </View>
+      </ComicSheetModal>
 
-      <Modal visible={deleteComplete} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={() => { setDeleteComplete(false); navigation.popToTop(); }}>
-        <SafeAreaView style={styles.modalLayer} edges={[]}>
-          <View style={styles.scrim} />
-          <View accessibilityViewIsModal accessibilityRole="alert" style={styles.confirmSheet}>
-            <ScrollView
-              bounces={false}
-              showsVerticalScrollIndicator={false}
-              style={styles.confirmScroll}
-              contentContainerStyle={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 12 }]}
-            >
-              <View style={styles.sheetHandle} />
-              <View style={styles.successIcon}><MiniGlyph name="check" size={29} color={colors.ink} /></View>
-              <Text style={styles.successEyebrow}>ȘTERGERE ÎNCHEIATĂ</Text>
-              <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
-              <Text style={styles.confirmText}>
-                {externalDeletionPending
-                  ? 'Datele aplicației au fost șterse. Cererea de ștergere a profilului tehnic de plăți a fost înregistrată și necesită verificarea echipei de suport.'
-                  : 'Contul sau profilul anterior și datele asociate au fost șterse. Aplicația pornește acum cu un spațiu temporar nou, fără legătură cu identitatea ștearsă.'}
-              </Text>
-              <PressableScale
-                accessibilityRole="button"
-                depth={shadows.sm}
-                radius={17}
-                shadowColor={colors.ink}
-                haptic="medium"
-                onPress={() => { setDeleteComplete(false); navigation.popToTop(); }}
-                style={styles.confirmActionWrap}
-                contentStyle={styles.successButton}
-              >
-                <Text style={styles.successButtonText}>Înapoi la început</Text>
-                <MiniGlyph name="next" size={19} color={colors.ink} />
-              </PressableScale>
-            </ScrollView>
+      <ComicSheetModal
+        visible={deleteComplete}
+        dismissable={false}
+        alertRole
+        onClose={() => { setDeleteComplete(false); navigation.popToTop(); }}
+      >
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          style={styles.confirmScroll}
+          contentContainerStyle={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 12 }]}
+        >
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetMascotStage}>
+            <View style={[styles.sheetMascotHalo, styles.sheetMascotHaloLime]} />
+            <Mascot pose="cheer" size={88} active />
           </View>
-        </SafeAreaView>
-      </Modal>
+          <Chip label="ȘTERGERE ÎNCHEIATĂ" tone="lime" tilt={-2} />
+          <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
+          <Text style={styles.confirmText}>
+            {externalDeletionPending
+              ? 'Datele aplicației au fost șterse. Cererea de ștergere a profilului tehnic de plăți a fost înregistrată și necesită verificarea echipei de suport.'
+              : 'Contul sau profilul anterior și datele asociate au fost șterse. Aplicația pornește acum cu un spațiu temporar nou, fără legătură cu identitatea ștearsă.'}
+          </Text>
+          <PressableScale
+            accessibilityRole="button"
+            depth={shadows.sm}
+            radius={17}
+            shadowColor={colors.ink}
+            haptic="medium"
+            onPress={() => { setDeleteComplete(false); navigation.popToTop(); }}
+            style={styles.confirmActionWrap}
+            contentStyle={styles.successButton}
+          >
+            <View pointerEvents="none" style={styles.sheetBtnShine} />
+            <Text style={styles.successButtonText}>Înapoi la început</Text>
+            <MiniGlyph name="next" size={19} color={colors.ink} />
+          </PressableScale>
+        </ScrollView>
+      </ComicSheetModal>
     </SafeAreaView>
   );
 }
@@ -416,6 +528,7 @@ export function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { gap: 12, paddingTop: 4 },
+  sectionBlock: { gap: 8 },
   identity: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   identityMascotWrap: {
     width: 68,
@@ -456,7 +569,7 @@ const styles = StyleSheet.create({
   },
   accountRetryText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13.5 },
 
-  sectionHeading: { minHeight: 34, marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionHeading: { minHeight: 32, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionMark: { width: 14, height: 14, borderRadius: 5, borderWidth: 1.5, borderColor: colors.ink, transform: [{ rotate: '-5deg' }] },
   sectionTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 22 },
   sectionLine: { flex: 1, height: 1.5, backgroundColor: colors.line },
@@ -479,27 +592,6 @@ const styles = StyleSheet.create({
   rowTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 19 },
   rowText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, marginTop: 2 },
 
-  toggle: {
-    width: 48,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.line,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  toggleActive: { backgroundColor: colors.lime },
-  toggleKnob: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.paper,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-  },
-  toggleKnobActive: { alignSelf: 'flex-end' },
-
   deleteIcon: { backgroundColor: colors.rose },
   deleteTitle: { fontFamily: fonts.displaySemi, color: colors.rose, fontSize: 15, lineHeight: 19 },
   versionRow: { alignItems: 'center', paddingVertical: 12 },
@@ -520,25 +612,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     paddingHorizontal: 22,
   },
-  sheetHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 14 },
+  sheetHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 12 },
   confirmScroll: { width: '100%' },
   confirmSheetContent: { alignItems: 'center', paddingTop: 12 },
-  confirmIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.rose,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
+  sheetMascotStage: { width: 102, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  sheetMascotHalo: {
+    position: 'absolute',
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    borderWidth: 2,
+    borderStyle: 'dashed',
   },
-  confirmEyebrow: { ...typography.kicker, color: colors.rose, marginTop: 12 },
-  confirmTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 26, lineHeight: 30, textAlign: 'center', marginTop: 4 },
+  sheetMascotHaloDanger: { backgroundColor: colors.roseSoft, borderColor: colors.rose },
+  sheetMascotHaloCyan: { backgroundColor: colors.cyanSoft, borderColor: colors.cyan },
+  sheetMascotHaloLime: { backgroundColor: colors.limeSoft, borderColor: colors.mint },
+  confirmTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 25, lineHeight: 29, textAlign: 'center', marginTop: 10 },
   confirmText: { maxWidth: 340, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 6 },
   confirmError: { fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 12.5, lineHeight: 17, textAlign: 'center', marginTop: 8 },
   confirmActionWrap: { width: '100%', marginTop: 16 },
+  sheetBtnShine: {
+    position: 'absolute',
+    top: 3,
+    left: 12,
+    right: 12,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
+  },
   confirmDelete: {
     width: '100%',
     minHeight: 52,
@@ -550,20 +651,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
   },
   confirmDeleteText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16.5 },
-  logoutIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.cyanSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
-  },
-  logoutEyebrow: { ...typography.kicker, color: colors.violetDeep, marginTop: 12 },
   confirmLogout: {
     width: '100%',
     minHeight: 52,
@@ -575,22 +665,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
   },
   confirmLogoutText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16.5 },
   cancel: { minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 6 },
   cancelText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 13.5 },
-  successIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
-  },
-  successEyebrow: { ...typography.kicker, color: colors.violetDeep, marginTop: 12 },
   successButton: {
     width: '100%',
     minHeight: 54,
@@ -602,6 +681,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
   },
   successButtonText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16.5 },
 });

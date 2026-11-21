@@ -1,14 +1,26 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { borders, colors, fonts, radii, shadows, typography } from '../../../shared/theme';
+import * as Haptics from '../../../shared/services/haptics';
+import { borders, colors, fonts, radii, shadows, springs, typography } from '../../../shared/theme';
 import type { CommercialAccess } from '../../../shared/types';
 import { Chip } from '../../../shared/ui/Chip';
+import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
+import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -51,17 +63,39 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
   disabled: boolean;
   onSelect: () => void;
 }) {
+  const reducedMotion = useReducedMotion();
+  const pop = useSharedValue(1);
   const annual = period === 'annual';
+
+  useEffect(() => {
+    if (!selected || reducedMotion) {
+      pop.set(1);
+      return;
+    }
+    pop.set(withSequence(
+      withTiming(1.028, { duration: 90 }),
+      withSpring(1, springs.bouncy),
+    ));
+  }, [pop, reducedMotion, selected]);
+
+  const cardAnimated = useAnimatedStyle(() => ({
+    transform: [{ scale: pop.get() }],
+  }));
+
   return (
-    <View style={[styles.planShadow, selected && styles.planShadowSelected]}>
+    <Animated.View style={[styles.planShadow, selected && styles.planShadowSelected, cardAnimated]}>
       <Pressable
         accessibilityRole="radio"
         accessibilityLabel={`${annual ? 'Plan anual' : 'Plan lunar'}. ${plan?.product.priceString ?? 'Preț indisponibil momentan'}`}
         accessibilityState={{ checked: selected, disabled }}
         disabled={disabled}
-        onPress={onSelect}
+        onPress={() => {
+          Haptics.selection();
+          onSelect();
+        }}
         style={({ pressed }) => [styles.plan, selected && styles.planSelected, pressed && styles.pressed]}
       >
+        {selected ? <View pointerEvents="none" style={styles.planShine} /> : null}
         <View style={[styles.radio, selected && styles.radioSelected]}>
           {selected ? <MiniGlyph name="check" size={14} color={colors.ink} /> : null}
         </View>
@@ -83,7 +117,7 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
           {plan ? <Text style={styles.planPeriod}>{annual ? '/ an' : '/ lună'}</Text> : null}
         </View>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -103,6 +137,7 @@ export function PremiumSurface(props: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="dark" />
+      <ComicBackdrop />
       <View style={[styles.header, { paddingHorizontal: gutter }]}>
         <Text style={styles.brand}>
           Profu’ de mate<Text style={styles.brandAccent}> / Premium</Text>
@@ -118,7 +153,7 @@ export function PremiumSurface(props: Props) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={[styles.heroOuter, { paddingHorizontal: gutter }]}>
+        <Enter delay={25} distance={14} style={[styles.heroOuter, { paddingHorizontal: gutter }]}>
           <View style={styles.heroShadow}>
             <LinearGradient
               colors={['#8C52FF', '#6427E0', '#4A1BB8']}
@@ -154,10 +189,10 @@ export function PremiumSurface(props: Props) {
               </View>
             </LinearGradient>
           </View>
-        </View>
+        </Enter>
 
         <View style={{ paddingHorizontal: gutter }}>
-          <View style={styles.benefits}>
+          <Enter delay={75} distance={12} style={styles.benefits}>
             {['Rezolvi', 'Verifici', 'Păstrezi în Caiet'].map((label) => (
               <View key={label} style={styles.benefit}>
                 <View style={styles.benefitCheck}>
@@ -166,37 +201,39 @@ export function PremiumSurface(props: Props) {
                 <Text style={styles.benefitText}>{label}</Text>
               </View>
             ))}
-          </View>
+          </Enter>
 
           {success ? (
-            <View style={styles.activeSection}>
+            <Enter delay={110} distance={14} style={styles.activeSection}>
               <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
               <Text style={styles.sectionTitle}>Premium este activ.</Text>
               <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la problemă când ești pregătit.</Text>
-            </View>
+            </Enter>
           ) : premium ? (
-            <View style={styles.activeSection}>
+            <Enter delay={110} distance={14} style={styles.activeSection}>
               <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
               <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
               <Text style={styles.sectionTitle}>probleme disponibile</Text>
               <Text style={styles.body}>Limita se reînnoiește la miezul nopții. Abonamentul se administrează din Google Play.</Text>
-            </View>
+            </Enter>
           ) : null}
 
           {props.canContinue && !success ? (
-            <View style={styles.continueRow}>
-              <View style={styles.continueCopy}>
-                <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
-                <Text style={styles.bodySmall}>Poți reveni la problema ta.</Text>
+            <Enter delay={100} distance={12} style={styles.continueShadow}>
+              <View style={styles.continueRow}>
+                <View style={styles.continueCopy}>
+                  <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
+                  <Text style={styles.bodySmall}>Poți reveni la problema ta.</Text>
+                </View>
+                <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onClose} style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}>
+                  <Text style={styles.continueLabel}>Continuă</Text>
+                </Pressable>
               </View>
-              <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onClose} style={styles.continueButton}>
-                <Text style={styles.continueLabel}>Continuă</Text>
-              </Pressable>
-            </View>
+            </Enter>
           ) : null}
 
           {showPlans ? (
-            <View style={styles.plansSection}>
+            <Enter delay={120} distance={14} style={styles.plansSection}>
               <View style={styles.sectionHeading}>
                 <Text style={styles.sectionTitle}>Alege ritmul tău.</Text>
                 <Chip label="PREMIUM" tone="violetSoft" outlined={false} />
@@ -225,7 +262,7 @@ export function PremiumSurface(props: Props) {
                   <Text style={styles.bodySmall}>Prețul și perioada sunt confirmate în Google Play înainte de plată.</Text>
                 )}
               </View>
-            </View>
+            </Enter>
           ) : null}
 
           {!access && !success ? (
@@ -375,7 +412,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: colors.line,
+    borderColor: colors.ink,
     backgroundColor: colors.paper,
   },
   benefitCheck: {
@@ -395,7 +432,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.display, fontSize: 23, lineHeight: 27, color: colors.ink },
   plans: { gap: 10 },
   planShadow: { borderRadius: 20, backgroundColor: colors.line, paddingBottom: 3 },
-  planShadowSelected: { backgroundColor: colors.violetShadow, paddingBottom: 4 },
+  planShadowSelected: { backgroundColor: colors.violetShadow, paddingBottom: 5 },
   plan: {
     minHeight: 78,
     padding: 13,
@@ -406,8 +443,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
+    overflow: 'hidden',
   },
   planSelected: { backgroundColor: colors.violetSoft, borderWidth: borders.regular },
+  planShine: {
+    position: 'absolute',
+    top: 3,
+    left: 14,
+    right: 14,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
+  },
   radio: {
     width: 24,
     height: 24,
@@ -429,6 +476,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.gold,
+    transform: [{ rotate: '-2deg' }],
   },
   bestBadgeText: { ...typography.kicker, fontSize: 9.5, color: colors.ink },
   planNote: { fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 16, color: colors.inkSoft, marginTop: 2 },
@@ -474,14 +522,14 @@ const styles = StyleSheet.create({
   },
   quota: { fontFamily: fonts.display, fontSize: 60, color: colors.violetDeep },
   quotaTotal: { fontSize: 29, color: colors.inkSoft },
+  continueShadow: { marginTop: 14, borderRadius: 19, backgroundColor: colors.ink, paddingBottom: shadows.sm },
   continueRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 14,
     padding: 12,
     borderRadius: 18,
-    borderWidth: borders.thin,
+    borderWidth: borders.regular,
     borderColor: colors.ink,
     backgroundColor: colors.limeSoft,
   },
@@ -492,6 +540,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 14,
     borderWidth: borders.thin,
+    borderBottomWidth: 4,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
     alignItems: 'center',
@@ -499,5 +548,5 @@ const styles = StyleSheet.create({
   },
   continueLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink },
   error: { fontFamily: fonts.bodyBold, fontSize: 12.5, lineHeight: 18, color: '#A92D46', paddingTop: 12 },
-  pressed: { opacity: 0.9, transform: [{ translateY: 1 }] },
+  pressed: { opacity: 0.9, transform: [{ translateY: 2 }] },
 });

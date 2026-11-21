@@ -33,6 +33,8 @@ type Props = {
   active?: boolean;
   /** Allows tapping Profu’ for a playful spring hop + wiggle. */
   interactive?: boolean;
+  /** Optional extra callback when tapped (requires `interactive`). */
+  onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -41,6 +43,7 @@ export function Mascot({
   size = 104,
   active = true,
   interactive = false,
+  onPress,
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
@@ -101,6 +104,7 @@ export function Mascot({
 
   const handleTap = () => {
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
     if (reducedMotion) return;
     hopY.set(withSequence(
       withTiming(-11, { duration: 110, easing: Easing.out(Easing.quad) }),

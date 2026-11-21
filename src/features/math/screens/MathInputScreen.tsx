@@ -11,6 +11,7 @@ import { borders, colors, fonts, shadows, typography } from '../../../shared/the
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
+import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -168,7 +169,7 @@ export function MathInputScreen({ navigation, route }: Props) {
       <StatusBar style="dark" />
       <ComicBackdrop />
 
-      <View style={[styles.header, { paddingHorizontal: gutter }, isVeryShort && styles.headerCompact]}>
+      <Enter delay={0} distance={10} style={[styles.header, { paddingHorizontal: gutter }, isVeryShort && styles.headerCompact]}>
         <IconButton label="Înapoi" onPress={() => navigation.goBack()} size={44}>
           <MiniGlyph name="back" size={24} color={colors.ink} />
         </IconButton>
@@ -180,40 +181,52 @@ export function MathInputScreen({ navigation, route }: Props) {
           <MiniGlyph name={saveState === 'error' ? 'wrong' : saveState === 'saved' ? 'check' : 'dot'} size={13} color={colors.ink} />
           {!isNarrow ? <Text numberOfLines={1} style={styles.saveText}>{saveState === 'saving' ? 'SALVEZ' : saveState === 'error' ? 'NESALVATĂ' : 'SALVATĂ'}</Text> : null}
         </View>
-      </View>
+      </Enter>
 
       <View style={[styles.workspace, { paddingHorizontal: gutter }]}>
-        {isCheck ? (
-          <View style={styles.tabs} accessibilityRole="tablist">
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: field === 'problem', disabled: busy }}
-              disabled={busy}
-              onPress={() => selectField('problem')}
-              style={[styles.tab, field === 'problem' && styles.tabActive]}
-            >
-              <View style={[styles.step, field === 'problem' && styles.stepActive]}><Text style={styles.stepText}>1</Text></View>
-              <Text numberOfLines={1} style={[styles.tabText, field === 'problem' && styles.tabTextActive]}>Problema</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: field === 'solution', disabled: busy }}
-              disabled={busy}
-              onPress={() => selectField('solution')}
-              style={[styles.tab, field === 'solution' && styles.tabActiveCheck]}
-            >
-              <View style={[styles.step, field === 'solution' && styles.stepActiveCheck]}><Text style={styles.stepText}>2</Text></View>
-              <Text numberOfLines={1} style={[styles.tabText, field === 'solution' && styles.tabTextActive]}>Rezolvarea mea</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.contextLine}>
-            <View style={styles.contextIcon}><AppIcon name="practice" size={26} /></View>
-            <Text numberOfLines={2} style={styles.contextText}>Construiește formula exact cum apare în problemă.</Text>
-          </View>
-        )}
+        <Enter delay={50} distance={12}>
+          {isCheck ? (
+            <View style={styles.tabs} accessibilityRole="tablist">
+              <PressableScale
+                accessibilityRole="tab"
+                accessibilityState={{ selected: field === 'problem', disabled: busy }}
+                disabled={busy}
+                depth={field === 'problem' ? shadows.sm : 2}
+                radius={14}
+                shadowColor={field === 'problem' ? colors.ink : colors.line}
+                haptic="selection"
+                onPress={() => selectField('problem')}
+                style={styles.tabWrap}
+                contentStyle={[styles.tab, field === 'problem' && styles.tabActive]}
+              >
+                <View style={[styles.step, field === 'problem' && styles.stepActive]}><Text style={styles.stepText}>1</Text></View>
+                <Text numberOfLines={1} style={[styles.tabText, field === 'problem' && styles.tabTextActive]}>Problema</Text>
+              </PressableScale>
+              <PressableScale
+                accessibilityRole="tab"
+                accessibilityState={{ selected: field === 'solution', disabled: busy }}
+                disabled={busy}
+                depth={field === 'solution' ? shadows.sm : 2}
+                radius={14}
+                shadowColor={field === 'solution' ? colors.ink : colors.line}
+                haptic="selection"
+                onPress={() => selectField('solution')}
+                style={styles.tabWrap}
+                contentStyle={[styles.tab, field === 'solution' && styles.tabActiveCheck]}
+              >
+                <View style={[styles.step, field === 'solution' && styles.stepActiveCheck]}><Text style={styles.stepText}>2</Text></View>
+                <Text numberOfLines={1} style={[styles.tabText, field === 'solution' && styles.tabTextActive]}>Rezolvarea mea</Text>
+              </PressableScale>
+            </View>
+          ) : (
+            <View style={styles.contextLine}>
+              <View style={styles.contextIcon}><AppIcon name="practice" size={26} /></View>
+              <Text numberOfLines={2} style={styles.contextText}>Construiește formula exact cum apare în problemă.</Text>
+            </View>
+          )}
+        </Enter>
 
-        <View style={styles.editor}>
+        <Enter delay={95} distance={14} style={styles.editor}>
           <MathEditor
             key={field}
             document={draft[field]}
@@ -221,7 +234,7 @@ export function MathInputScreen({ navigation, route }: Props) {
             disabled={busy}
             onChange={updateDocument}
           />
-        </View>
+        </Enter>
 
         {error ? (
           <View accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.errorBanner}>
@@ -234,38 +247,40 @@ export function MathInputScreen({ navigation, route }: Props) {
           </Pressable>
         ) : null}
 
-        <View testID="math-submit-dock" style={[styles.submitDock, { paddingBottom: Math.max(insets.bottom, 7) }]}>
-          <PressableScale
-            testID="math-submit-button"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: busy, busy }}
-            disabled={busy}
-            depth={shadows.md}
-            radius={18}
-            shadowColor={colors.ink}
-            haptic="medium"
-            onPress={() => { void submit(); }}
-            contentStyle={[styles.submit, isCheck && styles.submitCheck]}
-          >
-            <View pointerEvents="none" style={styles.submitShine} />
-            {busy
-              ? <PlayfulLoader micro />
-              : <View style={styles.submitIcon}><AppIcon name={isCheck ? 'verify' : 'explain'} size={28} /></View>}
-            <View style={styles.submitCopy}>
-              <Text numberOfLines={1} style={styles.submitText}>
-                {busy ? 'Pregătesc analiza…' : isCheck ? 'Verifică rezolvarea' : 'Explică problema'}
-              </Text>
-              {!busy && !isVeryShort ? (
-                <Text numberOfLines={1} style={styles.submitNote}>Primești explicația completă, pas cu pas.</Text>
-              ) : null}
-            </View>
-            {!busy ? (
-              <View style={styles.submitArrow}>
-                <MiniGlyph name="next" size={19} color={colors.paper} />
+        <Enter delay={135} distance={12} style={[styles.submitDock, { paddingBottom: Math.max(insets.bottom, 7) }]}>
+          <View testID="math-submit-dock">
+            <PressableScale
+              testID="math-submit-button"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy, busy }}
+              disabled={busy}
+              depth={shadows.md}
+              radius={18}
+              shadowColor={colors.ink}
+              haptic="medium"
+              onPress={() => { void submit(); }}
+              contentStyle={[styles.submit, isCheck && styles.submitCheck]}
+            >
+              <View pointerEvents="none" style={styles.submitShine} />
+              {busy
+                ? <PlayfulLoader micro />
+                : <View style={styles.submitIcon}><AppIcon name={isCheck ? 'verify' : 'explain'} size={28} /></View>}
+              <View style={styles.submitCopy}>
+                <Text numberOfLines={1} style={styles.submitText}>
+                  {busy ? 'Pregătesc analiza…' : isCheck ? 'Verifică rezolvarea' : 'Explică problema'}
+                </Text>
+                {!busy && !isVeryShort ? (
+                  <Text numberOfLines={1} style={styles.submitNote}>Primești explicația completă, pas cu pas.</Text>
+                ) : null}
               </View>
-            ) : null}
-          </PressableScale>
-        </View>
+              {!busy ? (
+                <View style={styles.submitArrow}>
+                  <MiniGlyph name="next" size={19} color={colors.paper} />
+                </View>
+              ) : null}
+            </PressableScale>
+          </View>
+        </Enter>
       </View>
     </SafeAreaView>
   );
@@ -273,8 +288,8 @@ export function MathInputScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' },
-  header: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerCompact: { minHeight: 56 },
+  header: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerCompact: { minHeight: 54 },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 22, lineHeight: 26 },
@@ -293,10 +308,10 @@ const styles = StyleSheet.create({
   savePillError: { backgroundColor: colors.roseSoft },
   saveText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10, letterSpacing: 0.6 },
   workspace: { flex: 1, minHeight: 0, maxWidth: 560, width: '100%', alignSelf: 'center' },
-  tabs: { height: 46, flexDirection: 'row', gap: 8, marginBottom: 7 },
+  tabs: { flexDirection: 'row', gap: 8, marginBottom: 7 },
+  tabWrap: { flex: 1, minWidth: 0 },
   tab: {
-    flex: 1,
-    minWidth: 0,
+    height: 44,
     paddingHorizontal: 9,
     borderWidth: borders.thin,
     borderColor: colors.line,
@@ -324,7 +339,7 @@ const styles = StyleSheet.create({
   stepText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11 },
   tabText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12.5 },
   tabTextActive: { color: colors.ink },
-  contextLine: { minHeight: 40, marginBottom: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  contextLine: { minHeight: 38, marginBottom: 6, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 9 },
   contextIcon: {
     width: 34,
     height: 34,

@@ -10,14 +10,16 @@ import { Animated, BackHandler, Easing, Linking, Pressable, StyleSheet, View } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { ComicButton } from '../../../shared/ui/ComicButton';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
-import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
+import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { colors, fonts } from '../../../shared/theme';
+import { borders, colors, fonts, shadows } from '../../../shared/theme';
 import type { CaptureSource, RootStackParamList } from '../../../shared/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Capture'>;
@@ -294,16 +296,27 @@ export function CaptureScreen({ navigation, route }: Props) {
         opacity: permission?.granted ? chromeEntrance : 1,
         transform: [{ translateY: permission?.granted ? chromeEntrance.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) : 0 }],
       }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Închide camera" disabled={working} onPress={() => navigation.goBack()} style={({ pressed }) => [styles.roundButton, pressed && styles.controlPressed]}>
+        <IconButton label="Închide camera" disabled={working} onPress={() => navigation.goBack()} dark size={46}>
           <CloseGlyph />
-        </Pressable>
-        <View style={[styles.modeChip, isNarrow && styles.modeChipNarrow]}>
-          <View style={[styles.modeDot, isCheck && styles.modeDotCheck]} />
-          <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modeChipText}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PROBLEMA'}</Text>
+        </IconButton>
+        <View style={[styles.modeChipWrap, isNarrow && styles.modeChipNarrow]}>
+          <View pointerEvents="none" style={styles.modeChipShadow} />
+          <View style={[styles.modeChip, isCheck && styles.modeChipCheck]}>
+            <View pointerEvents="none" style={styles.darkShine} />
+            <View style={[styles.modeDot, isCheck && styles.modeDotCheck]} />
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modeChipText}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PROBLEMA'}</Text>
+          </View>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={flash ? 'Oprește blițul' : 'Pornește blițul'} accessibilityState={{ selected: flash }} disabled={working} onPress={() => { Haptics.selection(); setFlash((value) => !value); }} style={({ pressed }) => [styles.roundButton, flash && styles.roundButtonActive, pressed && styles.controlPressed]}>
-          <AppIcon name="flash" size={31} />
-        </Pressable>
+        <IconButton
+          label={flash ? 'Oprește blițul' : 'Pornește blițul'}
+          disabled={working}
+          active={flash}
+          dark={!flash}
+          onPress={() => { Haptics.selection(); setFlash((value) => !value); }}
+          size={46}
+        >
+          <AppIcon name="flash" size={30} />
+        </IconButton>
       </Animated.View>
 
       {permission?.granted ? (
@@ -318,11 +331,11 @@ export function CaptureScreen({ navigation, route }: Props) {
           }]}
         >
           <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finder, isCheck && styles.finderCheck]}>
-            <Animated.View style={[styles.scanLine, { opacity: cameraReady ? 0.9 : 0, transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-scanTravel, scanTravel] }) }] }]} />
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+            <Animated.View style={[styles.scanLine, isCheck && styles.scanLineCheck, { opacity: cameraReady ? 0.92 : 0, transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-scanTravel, scanTravel] }) }] }]} />
+            <View style={[styles.corner, styles.cornerTL, isCheck && styles.cornerCheck]} />
+            <View style={[styles.corner, styles.cornerTR, isCheck && styles.cornerCheck]} />
+            <View style={[styles.corner, styles.cornerBL, isCheck && styles.cornerCheck]} />
+            <View style={[styles.corner, styles.cornerBR, isCheck && styles.cornerCheck]} />
           </View>
         </Animated.View>
       ) : (
@@ -337,14 +350,30 @@ export function CaptureScreen({ navigation, route }: Props) {
               </View>
               <Text style={styles.permissionTitle}>Activează camera</Text>
               <Text style={styles.permissionText}>Avem nevoie de ea numai când fotografiezi un exercițiu.</Text>
-              <Pressable accessibilityRole="button" onPress={() => permission.canAskAgain ? void requestPermission() : void Linking.openSettings()} style={({ pressed }) => [styles.permissionButton, pressed && styles.primaryPressed]}>
-                <Text style={styles.permissionButtonText}>{permission.canAskAgain ? 'Permite accesul' : 'Deschide setările'}</Text>
-                <MiniGlyph name="next" size={20} color={colors.ink} />
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Alege o fotografie din galerie" disabled={working} onPress={() => void pickFromGallery()} style={styles.permissionGallery}>
-                <AppIcon name="gallery" size={31} />
+              <View style={styles.permissionButtonWrap}>
+                <ComicButton
+                  compact
+                  title={permission.canAskAgain ? 'Permite accesul' : 'Deschide setările'}
+                  trailingIcon="next"
+                  tone="lime"
+                  onPress={() => {
+                    if (permission.canAskAgain) void requestPermission();
+                    else void Linking.openSettings();
+                  }}
+                />
+              </View>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Alege o fotografie din galerie"
+                disabled={working}
+                haptic="selection"
+                onPress={() => void pickFromGallery()}
+                style={styles.permissionGalleryWrap}
+                contentStyle={styles.permissionGallery}
+              >
+                <AppIcon name="gallery" size={30} />
                 <Text style={styles.permissionGalleryText}>Alege din galerie</Text>
-              </Pressable>
+              </PressableScale>
             </>
           )}
         </View>
@@ -357,21 +386,54 @@ export function CaptureScreen({ navigation, route }: Props) {
             <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.captureHint}>{isCheck ? 'Prinde enunțul și toți pașii' : 'Prinde tot exercițiul în cadru'}</Text>
           </View>
           <View style={styles.controls}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Alege din galerie" disabled={working} onPress={() => void pickFromGallery()} style={({ pressed }) => [styles.sideControl, working && styles.controlDisabled, pressed && styles.controlPressed]}>
-              <View style={styles.sideIcon}><AppIcon name="gallery" size={35} /></View>
+            <View style={[styles.sideControl, working && styles.controlDisabled]}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Alege din galerie"
+                disabled={working}
+                depth={shadows.sm}
+                radius={18}
+                shadowColor="#04030A"
+                haptic="selection"
+                onPress={() => void pickFromGallery()}
+                contentStyle={styles.sideIcon}
+              >
+                <View pointerEvents="none" style={styles.darkShine} />
+                <AppIcon name="gallery" size={34} />
+              </PressableScale>
               <Text style={styles.sideLabel}>Galerie</Text>
-            </Pressable>
-            <Animated.View style={{ transform: [{ scale: shutterPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.025] }) }] }}>
-              <Pressable accessibilityRole="button" accessibilityLabel={cameraFailed ? 'Repornește camera' : 'Fă fotografia'} disabled={working} onPress={() => void takePhoto()} style={({ pressed }) => [styles.shutterOuter, isCompact && styles.shutterOuterCompact, working && styles.controlDisabled, pressed && styles.shutterPressed]}>
+            </View>
+            <Animated.View style={{ transform: [{ scale: shutterPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.03] }) }] }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={cameraFailed ? 'Repornește camera' : 'Fă fotografia'}
+                disabled={working}
+                onPress={() => void takePhoto()}
+                style={({ pressed }) => [styles.shutterOuter, isCompact && styles.shutterOuterCompact, working && styles.controlDisabled, pressed && styles.shutterPressed]}
+              >
                 <View style={[styles.shutterInner, isCheck && styles.shutterInnerCheck, isCompact && styles.shutterInnerCompact]}>
+                  <View pointerEvents="none" style={styles.shutterShine} />
                   {working ? <PlayfulLoader micro /> : cameraFailed ? <AppIcon name="retake" size={39} /> : null}
                 </View>
               </Pressable>
             </Animated.View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Ajutor pentru fotografie" accessibilityState={{ expanded: showHelp }} onPress={toggleHelp} style={({ pressed }) => [styles.sideControl, pressed && styles.controlPressed]}>
-              <View style={[styles.sideIcon, showHelp && styles.sideIconActive]}><AppIcon name="help" size={35} /></View>
+            <View style={styles.sideControl}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Ajutor pentru fotografie"
+                accessibilityState={{ expanded: showHelp }}
+                depth={shadows.sm}
+                radius={18}
+                shadowColor="#04030A"
+                haptic="selection"
+                onPress={toggleHelp}
+                contentStyle={[styles.sideIcon, showHelp && styles.sideIconActive]}
+              >
+                <View pointerEvents="none" style={styles.darkShine} />
+                <AppIcon name="help" size={34} />
+              </PressableScale>
               <Text style={styles.sideLabel}>Ajutor</Text>
-            </Pressable>
+            </View>
           </View>
         </Animated.View>
       ) : null}
@@ -396,57 +458,114 @@ const styles = StyleSheet.create({
   cameraTint: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(17,13,40,0.08)' },
   topGradient: { position: 'absolute', top: 0, left: 0, right: 0 },
   bottomGradient: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  topBar: { position: 'absolute', zIndex: 20, left: 0, right: 0, height: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  roundButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: 'rgba(25,20,55,0.82)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
-  roundButtonActive: { backgroundColor: colors.lime, borderColor: colors.lime },
-  modeChip: { maxWidth: 220, minHeight: 38, borderRadius: 19, backgroundColor: 'rgba(25,20,55,0.86)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  modeChipNarrow: { maxWidth: 198, paddingHorizontal: 10 },
+  topBar: { position: 'absolute', zIndex: 20, left: 0, right: 0, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modeChipWrap: { maxWidth: 224, paddingBottom: 3, position: 'relative' },
+  modeChipNarrow: { maxWidth: 198 },
+  modeChipShadow: { position: 'absolute', top: 3, left: 0, right: 0, bottom: 0, borderRadius: 19, backgroundColor: '#04030A' },
+  modeChip: {
+    minHeight: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(34,26,74,0.92)',
+    borderWidth: borders.thin,
+    borderColor: '#6D5EB0',
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    overflow: 'hidden',
+  },
+  modeChipCheck: { borderColor: colors.peach },
+  darkShine: { position: 'absolute', top: 2, left: 10, right: 10, height: 4, borderRadius: 3, backgroundColor: colors.shineSoft },
   modeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   modeDotCheck: { backgroundColor: colors.peach },
   modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, letterSpacing: 0.7 },
   finderArea: { position: 'absolute', zIndex: 4, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
-  finder: { width: '100%', aspectRatio: 4 / 3, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)', backgroundColor: 'rgba(8,7,18,0.04)' },
+  finder: { width: '100%', aspectRatio: 4 / 3, borderRadius: 24, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: 'rgba(8,7,18,0.04)' },
   finderCheck: { aspectRatio: 1.08 },
-  scanLine: { position: 'absolute', top: '50%', left: 23, right: 23, height: 2, borderRadius: 2, backgroundColor: colors.lime, shadowColor: colors.lime, shadowOpacity: 0.7, shadowRadius: 7, elevation: 5 },
-  corner: { position: 'absolute', width: 36, height: 36, borderColor: colors.lime },
-  cornerTL: { left: 0, top: 0, borderLeftWidth: 5, borderTopWidth: 5, borderTopLeftRadius: 11 },
-  cornerTR: { right: 0, top: 0, borderRightWidth: 5, borderTopWidth: 5, borderTopRightRadius: 11 },
-  cornerBL: { left: 0, bottom: 0, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 11 },
-  cornerBR: { right: 0, bottom: 0, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 11 },
+  scanLine: { position: 'absolute', top: '50%', left: 23, right: 23, height: 3, borderRadius: 2, backgroundColor: colors.lime },
+  scanLineCheck: { backgroundColor: colors.peach },
+  corner: { position: 'absolute', width: 38, height: 38, borderColor: colors.lime },
+  cornerCheck: { borderColor: colors.peach },
+  cornerTL: { left: 0, top: 0, borderLeftWidth: 5.5, borderTopWidth: 5.5, borderTopLeftRadius: 12 },
+  cornerTR: { right: 0, top: 0, borderRightWidth: 5.5, borderTopWidth: 5.5, borderTopRightRadius: 12 },
+  cornerBL: { left: 0, bottom: 0, borderLeftWidth: 5.5, borderBottomWidth: 5.5, borderBottomLeftRadius: 12 },
+  cornerBR: { right: 0, bottom: 0, borderRightWidth: 5.5, borderBottomWidth: 5.5, borderBottomRightRadius: 12 },
   bottomChrome: { position: 'absolute', zIndex: 20, left: 0, right: 0, alignItems: 'center' },
-  captureGuide: { minHeight: 30, borderRadius: 15, backgroundColor: 'rgba(23,19,55,0.86)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', paddingHorizontal: 12, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  captureGuideDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime },
+  captureGuide: { minHeight: 32, borderRadius: 16, backgroundColor: 'rgba(28,22,64,0.9)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 13, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  captureGuideDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   captureGuideDotCheck: { backgroundColor: colors.peach },
-  captureHint: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11, lineHeight: 15, textAlign: 'center' },
-  controls: { width: '100%', height: 100, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sideControl: { width: 72, minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  sideIcon: { width: 52, height: 52, borderRadius: 20, backgroundColor: 'rgba(35,28,73,0.9)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
-  sideIconActive: { backgroundColor: colors.lime, borderColor: colors.lime },
+  captureHint: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, lineHeight: 15, textAlign: 'center' },
+  controls: { width: '100%', height: 102, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sideControl: { width: 72, minHeight: 78, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  sideIcon: {
+    width: 54,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: 'rgba(37,29,79,0.94)',
+    borderWidth: borders.thin,
+    borderColor: '#6D5EB0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  sideIconActive: { backgroundColor: colors.lime, borderColor: colors.ink },
   sideLabel: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
-  shutterOuter: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: colors.paper, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  shutterOuter: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 4,
+    borderColor: colors.paper,
+    backgroundColor: 'rgba(23,19,55,0.48)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#04030A',
+    shadowOpacity: 0.85,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+  },
   shutterOuterCompact: { width: 78, height: 78, borderRadius: 39 },
-  shutterInner: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.lime, borderWidth: 2, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  shutterInner: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.lime,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   shutterInnerCheck: { backgroundColor: colors.peach },
   shutterInnerCompact: { width: 60, height: 60, borderRadius: 30 },
-  controlPressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
-  shutterPressed: { transform: [{ scale: 0.92 }] },
-  primaryPressed: { transform: [{ translateY: 2 }], opacity: 0.9 },
+  shutterShine: {
+    position: 'absolute',
+    top: 6,
+    left: 14,
+    right: 14,
+    height: 8,
+    borderRadius: 5,
+    backgroundColor: colors.shine,
+  },
+  shutterPressed: { transform: [{ scale: 0.91 }] },
   controlDisabled: { opacity: 0.45 },
   permissionPanel: { flex: 1, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#17132E' },
   permissionMascot: { width: 146, height: 146, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   permissionHalo: { position: 'absolute', width: 126, height: 126, borderRadius: 63, backgroundColor: '#2B2259', borderWidth: 2.5, borderStyle: 'dashed', borderColor: '#6D5EB0' },
   permissionTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 27, lineHeight: 31, textAlign: 'center' },
-  permissionText: { maxWidth: 300, marginTop: 5, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 13, lineHeight: 18, textAlign: 'center' },
-  permissionButton: { width: '100%', maxWidth: 330, minHeight: 56, marginTop: 20, borderRadius: 18, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#090817', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
-  permissionButtonText: { fontFamily: fonts.display, color: colors.ink, fontSize: 16 },
-  permissionGallery: { minHeight: 52, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18 },
-  permissionGalleryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13 },
-  errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: 1.5, borderColor: colors.paper, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
+  permissionText: { maxWidth: 300, marginTop: 5, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 13.5, lineHeight: 19, textAlign: 'center' },
+  permissionButtonWrap: { width: '100%', maxWidth: 330, marginTop: 20 },
+  permissionGalleryWrap: { marginTop: 8 },
+  permissionGallery: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18 },
+  permissionGalleryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5 },
+  errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: borders.thin, borderColor: colors.paper, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 22, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
-  helpIcon: { width: 44, height: 44, borderRadius: 14, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 22, borderWidth: borders.thick, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
+  helpIcon: { width: 44, height: 44, borderRadius: 14, borderWidth: borders.thin, borderColor: colors.ink, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
   helpCopy: { flex: 1, minWidth: 0 },
   helpTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18 },
   helpText: { marginTop: 2, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 16.5 },
-  helpClose: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
+  helpClose: { width: 38, height: 38, borderRadius: 13, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
 });
