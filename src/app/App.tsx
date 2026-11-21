@@ -103,6 +103,7 @@ function AppRoot() {
   const [homeRevealReady, setHomeRevealReady] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
   const [openingNotebook, setOpeningNotebook] = useState(false);
   const reducedMotion = useReducedMotion();
   const markNavigationReady = useCallback(() => setNavigationReady(true), []);
@@ -114,7 +115,9 @@ function AppRoot() {
 
   useEffect(() => {
     let active = true;
-    setFailure(null);
+    let retryFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+    const startedAt = Date.now();
+    if (attempt === 0) setFailure(null);
     setStartup(undefined);
     setNavigationReady(false);
     setHomeRevealReady(false);
@@ -125,20 +128,43 @@ function AppRoot() {
     void prepareApplication().then((snapshot) => {
       if (!active) return;
       if (__DEV__) console.info('[startup:ready]', snapshot.timings);
+      setFailure(null);
+      setRetrying(false);
       setStartup({ ...snapshot, offline: false });
     }).catch((error: unknown) => {
       recordDiagnosticError('startup_bootstrap', error);
-      if (active) setFailure(error);
+      if (!active) return;
+      const elapsed = Date.now() - startedAt;
+      const delay = attempt > 0 ? Math.max(0, 350 - elapsed) : 0;
+      if (delay > 0) {
+        retryFeedbackTimer = setTimeout(() => {
+          if (!active) return;
+          setFailure(error);
+          setRetrying(false);
+        }, delay);
+      } else {
+        setFailure(error);
+        setRetrying(false);
+      }
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      if (retryFeedbackTimer) clearTimeout(retryFeedbackTimer);
+    };
   }, [attempt]);
 
   useEffect(() => {
     if (failure) void SplashScreen.hideAsync().catch(() => undefined);
   }, [failure]);
 
+  const retryStartup = () => {
+    if (retrying || openingNotebook) return;
+    setRetrying(true);
+    setAttempt(value => value + 1);
+  };
+
   const openNotebookOffline = async () => {
-    if (openingNotebook) return;
+    if (openingNotebook || retrying) return;
     setOpeningNotebook(true);
     try {
       await preloadCriticalAppAssets();
@@ -159,10 +185,10 @@ function AppRoot() {
   if (failure && !startup) {
     const resourceFailure = failure instanceof StartupError && failure.stage === 'visuals';
     return <ReadinessScreen
-      busy={openingNotebook}
+      busy={openingNotebook || retrying}
       title={resourceFailure ? 'Aplicația nu este încă pregătită' : 'Nu putem verifica accesul'}
       message={resourceFailure ? 'Unele resurse nu s-au putut încărca. Verifică legătura și reîncearcă.' : 'Verifică conexiunea și reîncearcă. Vom deschide Home după confirmarea contului și a limitei de azi.'}
-      onRetry={() => setAttempt(value => value + 1)}
+      onRetry={retryStartup}
       onNotebook={currentStartupSession() ? () => void openNotebookOffline() : undefined}
     />;
   }

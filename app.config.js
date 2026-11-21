@@ -60,7 +60,6 @@ module.exports = ({ config }) => {
     '@react-native-firebase/app-check',
     '@react-native-firebase/crashlytics',
     'react-native-nitro-google-signin',
-    'expo-asset',
     'expo-secure-store',
     ],
   });

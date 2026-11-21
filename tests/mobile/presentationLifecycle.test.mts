@@ -115,6 +115,45 @@ test('an image decode failure is not marked ready and can be retried', async () 
   assert.equal(images.bundledImageSource(1).uri, 'file://icon.png');
 });
 
+test('release Android drawable resource identifiers prepare without invoking Fresco encoded Image.getSize', async () => {
+  let getSizeCalls = 0;
+  let downloads = 0;
+  const assets: Record<number, { uri: string; localUri?: string }> = {
+    1: { uri: 'assets_brand_splash_mark_v2', localUri: 'assets_brand_splash_mark_v2' },
+    2: { uri: 'res:/2131230845' },
+    3: { uri: 'file:///android_res/drawable/assets_mascot_owl_wave.png' },
+    4: { uri: '' },
+  };
+  const load = serviceLoader({
+    'expo-asset': {
+      Asset: {
+        fromModule: (id: number) => ({
+          ...assets[id],
+          downloadAsync: async () => { downloads++; },
+        }),
+      },
+    },
+    'react-native': {
+      Image: {
+        getSize: async () => {
+          getSizeCalls++;
+          throw new Error('Unsupported uri scheme for encoded image fetch! Uri is: res:2131230845');
+        },
+      },
+    },
+  });
+  const images = load('src/shared/services/bundledImages.ts');
+  await images.prepareBundledImages([1, 2, 3]);
+  assert.equal(getSizeCalls, 0);
+  assert.equal(downloads, 3);
+  assert.equal(images.bundledImageSource(1), 1);
+  assert.equal(images.bundledImageSource(2), 2);
+  assert.equal(images.bundledImageSource(3), 3);
+  await images.prepareBundledImages([1, 2, 3]);
+  assert.equal(downloads, 3);
+  await assert.rejects(images.prepareBundledImages([4]));
+});
+
 test('document fonts are downloaded once and become synchronously available to subsequent lesson screens', async () => {
   let downloads = 0;
   const load = serviceLoader({

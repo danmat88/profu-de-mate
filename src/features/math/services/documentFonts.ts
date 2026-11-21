@@ -23,7 +23,7 @@ export function preloadDocumentFonts(): Promise<MathDocumentFonts> {
   ]).then(([bodyRegular, bodySemibold, display]) => {
     cachedFonts = { bodyRegular, bodySemibold, display };
     return cachedFonts;
-  }), 3_000, 'Document fonts timed out.').catch((error: unknown) => {
+  }), 8_000, 'Document fonts timed out.').catch((error: unknown) => {
     pending = undefined;
     throw error;
   });
