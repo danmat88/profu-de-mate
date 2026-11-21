@@ -202,7 +202,7 @@ export function HomeSurface({
       <ComicBackdrop />
       <View style={styles.homeScene}>
         <View style={[styles.page, { width: contentWidth }, compact && styles.pageCompact]}>
-          <Enter ready={motionReady} delay={0} distance={8} style={[styles.header, compact && styles.headerCompact]}>
+          <Enter ready={motionReady} delay={35} distance={14} scaleFrom={0.96} style={[styles.header, compact && styles.headerCompact]}>
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
               <View style={[styles.logoShadow, (compact || isVeryNarrow) && styles.logoShadowCompact]} />
               <View style={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}>
@@ -273,7 +273,7 @@ export function HomeSurface({
             </IconButton>
           </Enter>
 
-          <Enter ready={motionReady} delay={40} distance={12} style={[styles.tutorRow, compact && styles.tutorRowCompact]}>
+          <Enter ready={motionReady} delay={95} distance={20} scaleFrom={0.9} tiltFrom={-2} style={[styles.tutorRow, compact && styles.tutorRowCompact]}>
             <Mascot
               pose={mascotPose}
               size={mascotSize}
@@ -290,7 +290,7 @@ export function HomeSurface({
             />
           </Enter>
 
-          <Enter ready={motionReady} delay={80} distance={12}>
+          <Enter ready={motionReady} delay={150} distance={18} scaleFrom={0.94}>
             <SegmentedToggle
               options={modeOptions}
               value={mode}
@@ -300,13 +300,14 @@ export function HomeSurface({
             />
           </Enter>
 
-          <Animated.View
-            style={[
-              styles.cameraStageShadow,
-              !isSolve && !hasPendingAnalysis && styles.cameraStageShadowCheck,
-              stageAnimated,
-            ]}
-          >
+          <Enter ready={motionReady} delay={205} distance={22} scaleFrom={0.92} style={styles.cameraStageEnter}>
+            <Animated.View
+              style={[
+                styles.cameraStageShadow,
+                !isSolve && !hasPendingAnalysis && styles.cameraStageShadowCheck,
+                stageAnimated,
+              ]}
+            >
             <LinearGradient
               colors={isSolve || hasPendingAnalysis ? ['#8E54FF', '#6B2CE8', '#4F1CC4'] : ['#9037E6', '#C23574', '#98225A']}
               start={{ x: 0.06, y: 0 }}
@@ -412,11 +413,12 @@ export function HomeSurface({
                 </PressableScale>
               </View>
             </LinearGradient>
-          </Animated.View>
+            </Animated.View>
+          </Enter>
 
-          <Enter ready={motionReady} delay={130} distance={12} style={styles.lowerStack}>
+          <View style={styles.lowerStack}>
             {!hasPendingAnalysis ? (
-              <View style={[styles.secondaryRow, compact && styles.secondaryRowCompact]}>
+              <Enter ready={motionReady} delay={265} distance={18} scaleFrom={0.94} style={[styles.secondaryRow, compact && styles.secondaryRowCompact]}>
                 <PressableScale
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
@@ -484,69 +486,71 @@ export function HomeSurface({
                     ) : null}
                   </View>
                 </PressableScale>
-              </View>
+              </Enter>
             ) : null}
 
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Deschide caietul cu lecții salvate"
-              depth={compact ? 4 : shadows.md}
-              radius={20}
-              shadowColor={colors.ink}
-              haptic="selection"
-              onPress={onNotebook}
-              style={styles.notebookWrap}
-              contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
-            >
-              <View style={styles.notebookSpine}>
-                <View style={styles.spineRing} />
-                <View style={styles.spineRing} />
-                {!compact ? <View style={styles.spineRing} /> : null}
-              </View>
-              <View style={[styles.notebookIcon, compact && styles.notebookIconCompact]}>
-                <AppIcon name="notebook" size={compact ? 34 : 42} />
-              </View>
-              <View style={styles.notebookCopy}>
-                <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookKicker}>
-                  CAIETUL MEU
-                </Text>
-                <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
-                  {latestLessonTitle ? 'Revezi ce ai lucrat' : 'Lecții salvate'}
-                </Text>
-                {!compact ? (
-                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
-                    {latestLessonTitle ? `Ultima: ${latestLessonTitle}` : 'Explicațiile tale, disponibile și offline'}
-                  </Text>
-                ) : null}
-              </View>
-              <View style={[styles.notebookArrow, compact && styles.notebookArrowCompact]}>
-                <MiniGlyph name="next" size={compact ? 18 : 20} color={colors.paper} />
-              </View>
-            </PressableScale>
-
-            {showGuide && !compact && !hasPendingAnalysis ? (
-              <View
-                accessible
-                accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
-                style={styles.guidePill}
+            <Enter ready={motionReady} delay={320} distance={16} scaleFrom={0.95} style={styles.notebookGroup}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Deschide caietul cu lecții salvate"
+                depth={compact ? 4 : shadows.md}
+                radius={20}
+                shadowColor={colors.ink}
+                haptic="selection"
+                onPress={onNotebook}
+                style={styles.notebookWrap}
+                contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
               >
-                <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.guideText}>
-                  ✦  Fotografiezi  →  Înțelegi  →  Salvezi
-                </Text>
-                {onDismissGuide ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Ascunde ghidul"
-                    hitSlop={10}
-                    onPress={onDismissGuide}
-                    style={styles.guideDismiss}
-                  >
-                    <MiniGlyph name="close" size={16} color={colors.violetDeep} />
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
-          </Enter>
+                <View style={styles.notebookSpine}>
+                  <View style={styles.spineRing} />
+                  <View style={styles.spineRing} />
+                  {!compact ? <View style={styles.spineRing} /> : null}
+                </View>
+                <View style={[styles.notebookIcon, compact && styles.notebookIconCompact]}>
+                  <AppIcon name="notebook" size={compact ? 34 : 42} />
+                </View>
+                <View style={styles.notebookCopy}>
+                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookKicker}>
+                    CAIETUL MEU
+                  </Text>
+                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
+                    {latestLessonTitle ? 'Revezi ce ai lucrat' : 'Lecții salvate'}
+                  </Text>
+                  {!compact ? (
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
+                      {latestLessonTitle ? `Ultima: ${latestLessonTitle}` : 'Explicațiile tale, disponibile și offline'}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={[styles.notebookArrow, compact && styles.notebookArrowCompact]}>
+                  <MiniGlyph name="next" size={compact ? 18 : 20} color={colors.paper} />
+                </View>
+              </PressableScale>
+
+              {showGuide && !compact && !hasPendingAnalysis ? (
+                <View
+                  accessible
+                  accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
+                  style={styles.guidePill}
+                >
+                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.guideText}>
+                    ✦  Fotografiezi  →  Înțelegi  →  Salvezi
+                  </Text>
+                  {onDismissGuide ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Ascunde ghidul"
+                      hitSlop={10}
+                      onPress={onDismissGuide}
+                      style={styles.guideDismiss}
+                    >
+                      <MiniGlyph name="close" size={16} color={colors.violetDeep} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
+            </Enter>
+          </View>
         </View>
       </View>
     </View>
@@ -631,6 +635,7 @@ const styles = StyleSheet.create({
   tutorRowCompact: { gap: 2 },
 
   // Hero camera stage
+  cameraStageEnter: { flex: 1, minHeight: 0, width: '100%' },
   cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: radii.xl, backgroundColor: colors.violetShadow, paddingBottom: shadows.lg },
   cameraStageShadowCheck: {
     backgroundColor: colors.berryDeep,
@@ -817,6 +822,7 @@ const styles = StyleSheet.create({
 
   // Lower actions stack
   lowerStack: { flexShrink: 0, gap: 9 },
+  notebookGroup: { gap: 9 },
   secondaryRow: { flexDirection: 'row', gap: 10 },
   secondaryRowCompact: { gap: 8 },
   secondaryTileWrap: { flex: 1 },

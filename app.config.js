@@ -48,8 +48,8 @@ module.exports = ({ config }) => {
     [
       'expo-splash-screen',
       {
-        backgroundColor: '#171337',
-        // The branded React scene continues this exact dark launch surface.
+        backgroundColor: '#FFF8EC',
+        // The branded React scene and Home share this exact warm comic canvas.
         image: './assets/brand/splash-transparent.png',
         imageWidth: 1,
         resizeMode: 'contain',

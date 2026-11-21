@@ -43,7 +43,7 @@ type AppStartup = (StartupSnapshot & { offline: false }) | {
   offline: true; initialAccess: null; pendingAnalysis: null; verifiedAt: 0; sessionKey: string;
 };
 
-function AppExperience({ startup, interactive, onReady }: { startup: AppStartup; interactive: boolean; onReady: () => void }) {
+function AppExperience({ startup, interactive, revealReady, onReady }: { startup: AppStartup; interactive: boolean; revealReady: boolean; onReady: () => void }) {
   const { pendingAnalysis } = startup;
   const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home');
   const reducedMotion = useReducedMotion();
@@ -62,7 +62,7 @@ function AppExperience({ startup, interactive, onReady }: { startup: AppStartup;
         pointerEvents={interactive ? 'auto' : 'none'}
         importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
       >
-        <HomeMotionReadyContext.Provider value={interactive}>
+        <HomeMotionReadyContext.Provider value={revealReady}>
         <NavigationContainer
             key={authSessionKey ?? 'signed-out'}
             initialState={offlineEntry ?? (activePending ? undefined : navigationAfterIdentityChange(activeRoute))}
@@ -100,18 +100,24 @@ function AppRoot() {
   const [visualsReady, setVisualsReady] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [homeRevealReady, setHomeRevealReady] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
   const [openingNotebook, setOpeningNotebook] = useState(false);
   const reducedMotion = useReducedMotion();
   const markNavigationReady = useCallback(() => setNavigationReady(true), []);
-  const finishLaunch = useCallback(() => setShowLaunchSplash(false), []);
+  const startHomeReveal = useCallback(() => setHomeRevealReady(true), []);
+  const finishLaunch = useCallback(() => {
+    setHomeRevealReady(true);
+    setShowLaunchSplash(false);
+  }, []);
 
   useEffect(() => {
     let active = true;
     setFailure(null);
     setStartup(undefined);
     setNavigationReady(false);
+    setHomeRevealReady(false);
     setShowLaunchSplash(true);
     void preloadCriticalAppAssets().then(() => {
       if (active) setVisualsReady(true);
@@ -140,6 +146,7 @@ function AppRoot() {
       if (!session) return;
       setVisualsReady(true);
       setNavigationReady(false);
+      setHomeRevealReady(false);
       setShowLaunchSplash(true);
       setStartup({ offline: true, initialAccess: null, pendingAnalysis: null, verifiedAt: 0, sessionKey: session.key });
       setFailure(null);
@@ -163,9 +170,14 @@ function AppRoot() {
   return (
     <View style={styles.app}>
       {startup ? <CommercialProvider initialAccess={startup.initialAccess} initialVerifiedAt={startup.verifiedAt} initiallyOffline={startup.offline}>
-        <AppExperience startup={startup} interactive={!showLaunchSplash} onReady={markNavigationReady} />
+        <AppExperience
+          startup={startup}
+          interactive={!showLaunchSplash}
+          revealReady={homeRevealReady || reducedMotion}
+          onReady={markNavigationReady}
+        />
       </CommercialProvider> : null}
-      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} reducedMotion={reducedMotion} onFinish={finishLaunch} /> : null}
+      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} startupReady={Boolean(startup)} reducedMotion={reducedMotion} onRevealStart={startHomeReveal} onFinish={finishLaunch} /> : null}
     </View>
   );
 }

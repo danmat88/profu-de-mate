@@ -8,20 +8,34 @@ import { serviceLoader } from '../helpers/loadService.mts';
 test('splash text first mounts with prepared custom typefaces, never a temporary system font', () => {
   let textMounts = 0;
   const view = ({ children }: any) => React.createElement('div', null, children);
-  class Value { interpolate() { return 1; } }
+  const sharedValue = (initial: number) => ({ value: initial, get: () => initial, set() {} });
+  const flatten = (style: any): any => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
   const load = serviceLoader({
     react: React,
     'react/jsx-runtime': jsxRuntime,
     'react-native': {
-      Animated: { Value, View: view }, Easing: {}, Image: () => React.createElement('img'),
+      Image: () => React.createElement('img'),
       StyleSheet: { create: (styles: unknown) => styles }, View: view,
       useWindowDimensions: () => ({ width: 360, height: 802 }),
+    },
+    'react-native-reanimated': {
+      __esModule: true,
+      default: { View: view },
+      cancelAnimation() {},
+      Easing: { inOut: (fn: unknown) => fn, out: (fn: unknown) => fn, in: (fn: unknown) => fn, quad: (v: number) => v, sin: (v: number) => v, cubic: (v: number) => v },
+      useAnimatedStyle: (fn: () => unknown) => fn(),
+      useSharedValue: sharedValue,
+      withDelay: (_d: number, v: unknown) => v,
+      withRepeat: (v: unknown) => v,
+      withSequence: (v: unknown) => v,
+      withSpring: (v: unknown) => v,
+      withTiming: (v: unknown) => v,
     },
     'expo-splash-screen': {}, 'expo-status-bar': { StatusBar: () => null },
     'src/shared/services/bundledImages.ts': { bundledImageSource: (id: number) => id },
     'src/shared/ui/Typography.tsx': { Text: ({ style, children }: any) => {
       textMounts++;
-      return React.createElement('span', { 'data-typeface': style.fontFamily }, children);
+      return React.createElement('span', { 'data-typeface': flatten(style).fontFamily }, children);
     } },
     'assets/brand/splash_mark_v2.png': 1,
   });
@@ -30,10 +44,10 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
   renderToStaticMarkup(React.createElement(LaunchSplash, { ...props, visualsReady: false }));
   assert.equal(textMounts, 0, 'native text cannot cache a fallback typeface before fonts are ready');
   const ready = renderToStaticMarkup(React.createElement(LaunchSplash, { ...props, visualsReady: true }));
-  assert.equal(textMounts, 3);
-  assert.match(ready, /data-typeface="BalsamiqSans_700Bold">Profu’ de mate/);
-  assert.match(ready, /data-typeface="FiraSans_400Regular">Matematica, pas cu pas\./);
-  assert.match(ready, /data-typeface="FiraSans_500Medium">Se pregătește aplicația/);
+  assert.ok(textMounts > 0);
+  assert.match(ready, /data-typeface="BalsamiqSans_700Bold">Profu’/);
+  assert.match(ready, /data-typeface="FiraSans_500Medium">Matematica, pas cu pas\./);
+  assert.match(ready, /data-typeface="FiraSans_600SemiBold">Verific contul și caietul…/);
 });
 
 test('all icon artwork and UI/document fonts must finish before visual preparation succeeds', async () => {

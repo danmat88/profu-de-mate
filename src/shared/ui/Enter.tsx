@@ -15,52 +15,77 @@ type Props = {
   children: ReactNode;
   delay?: number;
   distance?: number;
+  scaleFrom?: number;
+  tiltFrom?: number;
+  bouncy?: boolean;
   ready?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
 /**
- * Staggered comic panel entrance. Starts visible when reduced motion is on
- * or immediately lifts in with spring physics once `ready` becomes true.
+ * Staggered comic panel entrance. Stays cleanly hidden while `ready` is false
+ * (unless reduced motion is enabled) and pops in with Reanimated spring physics
+ * when its turn arrives.
  */
 export function Enter({
   children,
   delay = 0,
-  distance = 14,
+  distance = 16,
+  scaleFrom = 0.94,
+  tiltFrom = 0,
+  bouncy = true,
   ready = true,
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
-  const played = useRef(false);
+  const played = useRef(reducedMotion);
   const progress = useSharedValue(reducedMotion ? 1 : 0);
 
   useEffect(() => {
     if (reducedMotion) {
-      progress.value = 1;
+      progress.set(1);
       played.current = true;
       return;
     }
-    if (!ready || played.current) return;
-    played.current = true;
-    if (delay > 0) {
-      progress.value = withDelay(delay, withSpring(1, springs.snappy));
-    } else {
-      progress.value = withSpring(1, springs.snappy);
+    if (!ready) {
+      if (!played.current) progress.set(0);
+      return;
     }
-  }, [delay, progress, ready, reducedMotion]);
+    if (played.current) return;
+    played.current = true;
+    const springConfig = bouncy ? springs.bouncy : springs.snappy;
+    if (delay > 0) {
+      progress.set(withDelay(delay, withSpring(1, springConfig)));
+    } else {
+      progress.set(withSpring(1, springConfig));
+    }
+  }, [bouncy, delay, progress, ready, reducedMotion]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const p = progress.value;
+    const p = progress.get();
+    const opacity = p <= 0.01 ? 0 : Math.min(1, p * 1.45);
+    const scale = scaleFrom + p * (1 - scaleFrom);
+    const translateY = (1 - p) * distance;
+    if (tiltFrom !== 0) {
+      return {
+        opacity,
+        transform: [
+          { translateY },
+          { scale },
+          { rotate: `${(1 - p) * tiltFrom}deg` },
+        ],
+      };
+    }
     return {
-      opacity: Math.min(1, p * 1.25),
-      transform: [{ translateY: (1 - p) * distance }],
+      opacity,
+      transform: [{ translateY }, { scale }],
     };
-  }, [distance]);
+  }, [distance, scaleFrom, tiltFrom]);
 
   return <Animated.View style={[animatedStyle, style]}>{children}</Animated.View>;
 }
 
-/** Quick spring pulse helper hook-free export for inline pops. */
+/** Quick timing helper export for inline pops. */
 export function popTiming(toValue: number) {
   return withTiming(toValue, { duration: motion.fast });
 }

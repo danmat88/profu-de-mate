@@ -36,14 +36,15 @@ test('launch preparation includes all shared icons and branding', () => {
   assert.match(assetsSource, /prepareBundledImages\(criticalAssetModules\)/);
 });
 
-test('React splash restores the branded scene but keeps its handoff bounded and lightweight', () => {
+test('React splash restores the branded comic scene on Home’s canvas with a bounded handoff', () => {
   assert.doesNotMatch(splashSource, /imageFallback/);
   assert.match(splashSource, /if \(!sceneReady \|\| !imageReady \|\| !visualsReady\) return/);
   assert.match(splashSource, /if \(!ready \|\| !introComplete \|\| !nativeSplashHidden\) return/);
   assert.match(splashSource, /const hardDeadline = setTimeout\(finishOnce, 2_500\)/);
-  assert.match(splashSource, /duration: 220/);
   assert.match(splashSource, /assets\/brand\/splash_mark_v2\.png/);
-  assert.doesNotMatch(splashSource, /homeWipe|progressReveal|wipeSize|Animated\.delay|Animated\.loop/);
+  assert.match(splashSource, /backgroundColor: colors\.canvas/);
+  assert.match(splashSource, /<ComicBackdrop \/>/);
+  assert.match(splashSource, /notifyRevealOnce\(\)/);
 });
 
 test('native splash hands off only after the branded scene and image are painted', () => {
@@ -52,8 +53,7 @@ test('native splash hands off only after the branded scene and image are painted
   assert.match(splashSource, /onLayout=\{handleSceneLayout\}/);
   assert.match(splashSource, /if \(!sceneReady \|\| !imageReady \|\| !visualsReady\) return/);
   assert.match(splashSource, /SplashScreen\.hideAsync\(\)/);
-  assert.match(splashSource, /Animated\.timing\(opacity/);
-  assert.doesNotMatch(splashSource, /homeWipe|Animated\.delay|Animated\.loop|progressReveal/);
+  assert.match(splashSource, /backdropOpacity\.set\(/);
 });
 
 test('Home fills the safe-area viewport without a scrolling container', () => {

@@ -52,8 +52,8 @@ test('keeps the Android window and native splash on one continuous surface', asy
     readFile(new URL('../../app.config.js', import.meta.url), 'utf8'),
     readFile(new URL('../../src/app/App.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.equal(config.expo?.backgroundColor, '#171337');
-  assert.match(dynamicConfig, /backgroundColor: '#171337'/);
+  assert.equal(config.expo?.backgroundColor, '#FFF8EC');
+  assert.match(dynamicConfig, /backgroundColor: '#FFF8EC'/);
   assert.match(dynamicConfig, /image: '\.\/assets\/brand\/splash-transparent\.png'/);
   assert.match(appSource, /<LaunchSplash ready=\{Boolean\(startup\) && navigationReady\} visualsReady=\{visualsReady\}/);
 });

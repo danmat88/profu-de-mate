@@ -10,7 +10,7 @@
     "icon": "./assets/brand/app-icon-v2.png",
     "scheme": "profudemate",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#171337",
+    "backgroundColor": "#FFF8EC",
     "ios": {
       "supportsTablet": true
     },
@@ -84,6 +84,7 @@
         {
           "assets": [
             "./assets/icons",
+            "./assets/mascot",
             "./assets/brand/splash_mark_v2.png",
             "./assets/brand/profu_mark_v2.png",
             "./assets/profu_mascot_v2.png"
