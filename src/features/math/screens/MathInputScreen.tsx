@@ -8,7 +8,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
 import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
-import type { RootStackParamList } from '../../../shared/types';
+import type { FlowMode, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -23,6 +23,7 @@ import { MathEditor, type MathEditorExample } from '../components/MathEditor';
 import { getCachedMathDraft, readMathDraft, writeMathDraft, type MathDraft } from '../services/mathDraft';
 import {
   createEmptyMathDocument,
+  formatMathPreview,
   serializeMathDocument,
   validateMathDocument,
   type MathDocument,
@@ -90,26 +91,31 @@ const CHECK_SOLUTION_EXAMPLES: readonly MathEditorExample[] = [
   },
 ];
 
+function loadInitialDraft(mode: FlowMode, session: ActiveSession | null): MathDraft {
+  if (session) {
+    const cached = getCachedMathDraft(mode, session);
+    if (cached !== undefined) {
+      return cached ?? { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
+    }
+    const stored = readMathDraft(mode, session);
+    if (stored) return stored;
+  }
+  return { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
+}
+
 export function MathInputScreen({ navigation, route }: Props) {
-  const { mode } = route.params;
   const { gutter, isVeryShort, isShort, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const compact = isVeryShort || isShort;
   const session = useRef<ActiveSession | null>(null);
   const userEdited = useRef(false);
+  const [activeMode, setActiveMode] = useState<FlowMode>(route.params.mode);
   const [draft, setDraft] = useState<MathDraft>(() => {
     try { session.current = captureSession(); } catch { /* The editor stays usable while authentication recovers. */ }
-    if (session.current) {
-      const cached = getCachedMathDraft(mode, session.current);
-      if (cached !== undefined) {
-        return cached ?? { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
-      }
-      const stored = readMathDraft(mode, session.current);
-      if (stored) return stored;
-    }
-    return { problem: createEmptyMathDocument(), solution: createEmptyMathDocument() };
+    return loadInitialDraft(route.params.mode, session.current);
   });
   const draftRef = useRef(draft);
+  const modeRef = useRef(activeMode);
   const [field, setField] = useState<Field>('problem');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,14 +133,14 @@ export function MathInputScreen({ navigation, route }: Props) {
     }
     try {
       if (!session.current) session.current = captureSession();
-      const saved = writeMathDraft(mode, draftRef.current, session.current);
+      const saved = writeMathDraft(modeRef.current, draftRef.current, session.current);
       if (publish && mounted.current) setSaveState(saved ? 'saved' : 'error');
       return saved;
     } catch {
       if (publish && mounted.current) setSaveState('error');
       return false;
     }
-  }, [mode]);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
@@ -168,6 +174,33 @@ export function MathInputScreen({ navigation, route }: Props) {
     };
   }, [persistDraft]);
 
+  const toggleMode = useCallback(() => {
+    if (busy) return;
+    Haptics.selection();
+    if (userEdited.current) persistDraft(false);
+    const nextMode: FlowMode = modeRef.current === 'solve' ? 'check' : 'solve';
+    const currentProblem = draftRef.current.problem;
+    let nextDraft = loadInitialDraft(nextMode, session.current);
+    // Carry over the typed problem if the destination mode doesn't have one yet.
+    const carriedOver = nextDraft.problem.nodes.length === 0 && currentProblem.nodes.length > 0;
+    if (carriedOver) {
+      nextDraft = { ...nextDraft, problem: currentProblem };
+    }
+    modeRef.current = nextMode;
+    draftRef.current = nextDraft;
+    userEdited.current = carriedOver;
+    const jumpToSolution = carriedOver
+      && nextMode === 'check'
+      && validateMathDocument(nextDraft.problem) === null
+      && nextDraft.solution.nodes.length === 0;
+    setActiveMode(nextMode);
+    setDraft(nextDraft);
+    setField(jumpToSolution ? 'solution' : 'problem');
+    setError(null);
+    setErrorSignal(0);
+    setSaveState('saved');
+  }, [busy, persistDraft]);
+
   const updateDocument = useCallback((document: MathDocument) => {
     userEdited.current = true;
     setDraft((current) => {
@@ -187,9 +220,13 @@ export function MathInputScreen({ navigation, route }: Props) {
     setErrorSignal(0);
   }, [busy, field]);
 
-  const isCheck = mode === 'check';
+  const isCheck = activeMode === 'check';
   const problemValid = useMemo(() => validateMathDocument(draft.problem) === null, [draft.problem]);
   const solutionValid = useMemo(() => validateMathDocument(draft.solution) === null, [draft.solution]);
+  const problemPreview = useMemo(
+    () => (isCheck && field === 'solution' ? formatMathPreview(draft.problem) : ''),
+    [draft.problem, field, isCheck],
+  );
   const shouldAdvanceToSolution = isCheck && field === 'problem' && problemValid && draft.solution.nodes.length === 0;
 
   const submit = async () => {
@@ -200,7 +237,7 @@ export function MathInputScreen({ navigation, route }: Props) {
     }
 
     const problemError = validateMathDocument(draftRef.current.problem);
-    const solutionError = mode === 'check' ? validateMathDocument(draftRef.current.solution) : null;
+    const solutionError = isCheck ? validateMathDocument(draftRef.current.solution) : null;
     if (problemError || solutionError) {
       const targetField: Field = problemError ? 'problem' : 'solution';
       if (targetField !== field) setField(targetField);
@@ -230,10 +267,10 @@ export function MathInputScreen({ navigation, route }: Props) {
       const currentDraft = draftRef.current;
       const math = {
         problemLatex: serializeMathDocument(currentDraft.problem),
-        ...(mode === 'check' ? { solutionLatex: serializeMathDocument(currentDraft.solution) } : {}),
+        ...(isCheck ? { solutionLatex: serializeMathDocument(currentDraft.solution) } : {}),
       };
-      if (!savePendingWrittenMath(mode, math, requestId, activeSession.userId)) throw new Error('pending-write');
-      navigation.navigate('MathProcessing', { mode, math, requestId, userId: activeSession.userId, origin: 'editor' });
+      if (!savePendingWrittenMath(activeMode, math, requestId, activeSession.userId)) throw new Error('pending-write');
+      navigation.navigate('MathProcessing', { mode: activeMode, math, requestId, userId: activeSession.userId, origin: 'editor' });
     } catch (cause) {
       if (!focused.current) return;
       const gate = commercialGateFromError(cause);
@@ -279,14 +316,31 @@ export function MathInputScreen({ navigation, route }: Props) {
         <IconButton label="Înapoi" onPress={() => navigation.goBack()} size={compact ? 38 : 42}>
           <MiniGlyph name="back" size={compact ? 21 : 23} color={colors.ink} />
         </IconButton>
+
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PAS CU PAS'}</Text>
+          <View style={styles.headerMetaRow}>
+            <Text style={styles.eyebrow}>{isCheck ? 'MOD VERIFICARE' : 'MOD REZOLVARE'}</Text>
+            <View accessibilityLabel={saveLabel} style={[styles.saveDot, saveState === 'error' && styles.saveDotError]} />
+          </View>
           <Text numberOfLines={1} style={[styles.title, (isNarrow || compact) && styles.titleNarrow]}>Scrie problema</Text>
         </View>
-        <View accessibilityLabel={saveLabel} style={[styles.savePill, saveState === 'error' && styles.savePillError]}>
-          <MiniGlyph name={saveState === 'error' ? 'wrong' : saveState === 'saved' ? 'check' : 'dot'} size={13} color={colors.ink} />
-          {!isNarrow ? <Text numberOfLines={1} style={styles.saveText}>{saveState === 'saving' ? 'SALVEZ' : saveState === 'error' ? 'NESALVATĂ' : 'SALVATĂ'}</Text> : null}
-        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isCheck ? 'Schimbă în modul Rezolvă' : 'Schimbă în modul Verifică'}
+          disabled={busy}
+          onPress={toggleMode}
+          style={({ pressed }) => [
+            styles.modeSwitchPill,
+            isCheck && styles.modeSwitchPillCheck,
+            pressed && styles.pillPressed,
+          ]}
+        >
+          <View style={[styles.modeSwitchDot, isCheck && styles.modeSwitchDotCheck]} />
+          <Text numberOfLines={1} style={styles.modeSwitchText}>
+            {isCheck ? 'Verifică ⇄' : 'Rezolvă ⇄'}
+          </Text>
+        </Pressable>
       </View>
 
       <View style={[styles.workspace, { paddingHorizontal: gutter }]}>
@@ -334,12 +388,15 @@ export function MathInputScreen({ navigation, route }: Props) {
 
         <View style={styles.editor}>
           <MathEditor
-            key={field}
+            key={`${activeMode}:${field}`}
             document={draft[field]}
             accessibilityLabel={fieldLabel}
             disabled={busy}
+            accent={isCheck && field === 'solution' ? 'check' : 'solve'}
             examples={currentExamples}
             placeholder={currentPlaceholder}
+            referenceText={problemPreview || undefined}
+            onPressReference={problemPreview ? () => selectField('problem') : undefined}
             errorSignal={errorSignal}
             onChange={updateDocument}
           />
@@ -406,22 +463,43 @@ const styles = StyleSheet.create({
   header: { flexShrink: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   headerCompact: { minHeight: 44, paddingVertical: 2 },
   headerCopy: { flex: 1, minWidth: 0 },
+  headerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   eyebrow: { ...typography.kicker, fontSize: 10, color: colors.violetDeep },
+  saveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.ink,
+    backgroundColor: colors.mint,
+  },
+  saveDotError: { backgroundColor: colors.rose },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 20.5, lineHeight: 24 },
   titleNarrow: { fontSize: 18.5, lineHeight: 21.5 },
-  savePill: {
-    minHeight: 30,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    borderWidth: 1.5,
+  modeSwitchPill: {
+    minHeight: 34,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
     borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
+    backgroundColor: colors.violetSoft,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
   },
-  savePillError: { backgroundColor: colors.roseSoft },
-  saveText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, letterSpacing: 0.6 },
+  modeSwitchPillCheck: { backgroundColor: colors.peachSoft },
+  modeSwitchDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.ink,
+    backgroundColor: colors.violet,
+  },
+  modeSwitchDotCheck: { backgroundColor: colors.peach },
+  modeSwitchText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5 },
+  pillPressed: { transform: [{ translateY: 1.5 }], borderBottomWidth: 2 },
   workspace: { flex: 1, minHeight: 0, overflow: 'hidden', maxWidth: 560, width: '100%', alignSelf: 'center', paddingTop: 2 },
 
   tabs: { flexShrink: 0, flexDirection: 'row', gap: 8, marginBottom: 7 },

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   applyMathEditorCommand as edit, createMathEditorState, createEmptyMathDocument,
-  findFirstEmptySlotCursor, getCursorBreadcrumb, getMathDocumentVisualDepth, getNextSlotActionLabel,
+  findFirstEmptySlotCursor, formatMathPreview, getCursorBreadcrumb, getMathDocumentVisualDepth, getNextSlotActionLabel,
   isMathDocument, serializeMathDocument as latex, validateMathDocument as validate,
   synchronizeMathEditorDocument, type MathDocument, type MathEditorState, type MathSymbol,
 } from '../../src/features/math/utils/mathEditor.ts';
@@ -179,4 +179,18 @@ test('finds first empty nested slot, reports contextual next-slot labels, and me
   state = edit(state, { type: 'template', value: 'fraction' });
   assert.equal(getCursorBreadcrumb(state.document, state.cursor), 'FRACȚIE › NUMĂRĂTOR');
   assert.deepEqual(getMathDocumentVisualDepth(state.document), { maxDepth: 2, hasFraction: true, fractionDepth: 2 });
+});
+
+test('square template wraps previous operand and exits cleanly, and formatMathPreview renders readable single-line math', () => {
+  let state = type(createMathEditorState(), 'x');
+  state = edit(state, { type: 'template', value: 'square' });
+  assert.deepEqual(state.cursor, { path: [], offset: 1 });
+  state = type(state, '-', '9', '=', '0');
+  assert.equal(latex(state.document), '{x}^{2}-9=0');
+  assert.equal(validate(state.document), null);
+  assert.equal(parseMathInput(latex(state.document), 'problemLatex'), '{x}^{2}-9=0');
+  assert.equal(formatMathPreview(state.document), 'x² − 9 = 0');
+
+  const emptySquare = edit(createMathEditorState(), { type: 'template', value: 'square' });
+  assert.deepEqual(emptySquare.cursor, { path: [{ index: 0, slot: 'base' }], offset: 0 });
 });

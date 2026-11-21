@@ -22,7 +22,7 @@ export interface MathEditorState extends MathSnapshot {
 
 export type MathEditorCommand =
   | { type: 'symbol'; value: MathSymbol }
-  | { type: 'template'; value: 'fraction' | 'power' | 'root' | 'group' }
+  | { type: 'template'; value: 'fraction' | 'power' | 'square' | 'root' | 'group' }
   | { type: 'select'; cursor: MathCursor }
   | { type: 'replace'; document: MathDocument }
   | { type: 'left' | 'right' | 'next-slot' | 'backspace' | 'clear' | 'undo' | 'redo' };
@@ -93,6 +93,51 @@ export function isMathDocument(value: unknown): value is MathDocument {
     return true;
   };
   return inspect(doc.nodes, 0) && serializeNodes(doc.nodes as MathNode[]).trim().length <= MATH_EDITOR_LIMITS.latexLength;
+}
+
+const PREVIEW_SYMBOLS: Partial<Record<MathSymbol, string>> = {
+  pi: 'π', '.': ',', times: ' × ', div: ' ÷ ', '+': ' + ', '-': ' − ', '=': ' = ', '<': ' < ', '>': ' > ', le: ' ≤ ', ge: ' ≥ ',
+};
+const SUPERSCRIPTS: Record<string, string> = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻', '+': '⁺',
+};
+
+function formatPreviewNodes(nodes: MathNode[]): string {
+  if (nodes.length === 0) return '□';
+  return nodes.map((node) => {
+    switch (node.type) {
+      case 'symbol': return PREVIEW_SYMBOLS[node.value] ?? node.value;
+      case 'fraction': {
+        const num = formatPreviewNodes(node.numerator).trim();
+        const den = formatPreviewNodes(node.denominator).trim();
+        const wrapNum = node.numerator.length > 1 ? `(${num})` : num;
+        const wrapDen = node.denominator.length > 1 ? `(${den})` : den;
+        return `${wrapNum}/${wrapDen}`;
+      }
+      case 'power': {
+        const base = formatPreviewNodes(node.base).trim();
+        const groupedBase = mathPowerBaseNeedsGrouping(node.base) ? `(${base})` : base;
+        const expRaw = node.exponent.every((child) => child.type === 'symbol' && child.value in SUPERSCRIPTS)
+          ? node.exponent.map((child) => (child.type === 'symbol' ? SUPERSCRIPTS[child.value] : '')).join('')
+          : '';
+        if (expRaw) return `${groupedBase}${expRaw}`;
+        const exp = formatPreviewNodes(node.exponent).trim();
+        return `${groupedBase}^(${exp})`;
+      }
+      case 'root': {
+        const inner = formatPreviewNodes(node.radicand).trim();
+        return node.radicand.length > 1 ? `√(${inner})` : `√${inner}`;
+      }
+      case 'group':
+        return `(${formatPreviewNodes(node.content).trim()})`;
+    }
+  }).join('').replace(/\s{2,}/g, ' ').trim();
+}
+
+/** Compact single-line math preview for reference chips and accessibility. */
+export function formatMathPreview(document: MathDocument): string {
+  if (!isMathDocument(document) || document.nodes.length === 0) return '';
+  return formatPreviewNodes(document.nodes);
 }
 
 export function serializeMathDocument(document: MathDocument): string {
@@ -330,19 +375,25 @@ export function applyMathEditorCommand(state: MathEditorState, command: MathEdit
     nodes.splice(cursor.offset, 0, { type: 'symbol', value: command.value });
     nextCursor = { ...cursor, offset: cursor.offset + 1 };
   } else if (command.type === 'template') {
-    const previous = command.value === 'fraction' || command.value === 'power'
+    const previous = command.value === 'fraction' || command.value === 'power' || command.value === 'square'
       ? takePreviousOperand(nodes, cursor.offset) : { nodes: [], start: cursor.offset };
     const index = previous.start;
     let node: MathNode;
-    let slot: MathSlotName;
+    let slot: MathSlotName | null = null;
     switch (command.value) {
       case 'fraction': node = { type: 'fraction', numerator: previous.nodes, denominator: [] }; slot = previous.nodes.length ? 'denominator' : 'numerator'; break;
       case 'power': node = { type: 'power', base: previous.nodes, exponent: [] }; slot = previous.nodes.length ? 'exponent' : 'base'; break;
+      case 'square':
+        node = { type: 'power', base: previous.nodes, exponent: [{ type: 'symbol', value: '2' }] };
+        slot = previous.nodes.length ? null : 'base';
+        break;
       case 'root': node = { type: 'root', radicand: [] }; slot = 'radicand'; break;
       case 'group': node = { type: 'group', content: [] }; slot = 'content'; break;
     }
     nodes.splice(index, 0, node);
-    nextCursor = { path: [...cursor.path, { index, slot }], offset: 0 };
+    nextCursor = slot
+      ? { path: [...cursor.path, { index, slot }], offset: 0 }
+      : { path: cursor.path, offset: index + 1 };
   } else if (command.type === 'backspace') {
     if (cursor.offset > 0) {
       const previous = nodes[cursor.offset - 1];
