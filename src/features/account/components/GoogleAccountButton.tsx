@@ -33,6 +33,7 @@ export function GoogleAccountButton({ busy = false, disabled = false, note, onPr
       accessibilityLabel={busy ? 'Se conectează contul Google' : 'Continuă cu Google'}
       accessibilityState={{ busy, disabled: unavailable }}
       disabled={unavailable}
+      dimWhenDisabled={!busy}
       depth={shadows.md}
       radius={20}
       shadowColor={colors.ink}

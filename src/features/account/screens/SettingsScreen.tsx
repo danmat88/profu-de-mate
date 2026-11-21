@@ -4,15 +4,21 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  FadeOutDown,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { getAppVersionLabel } from '../../../shared/services/appInfo';
@@ -25,7 +31,6 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicSwitch } from '../../../shared/ui/ComicSwitch';
-import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -54,6 +59,7 @@ function ComicSheetModal({
   dismissable = true,
   alertRole = false,
   onClose,
+  onAfterClose,
   children,
 }: {
   visible: boolean;
@@ -61,6 +67,7 @@ function ComicSheetModal({
   dismissable?: boolean;
   alertRole?: boolean;
   onClose?: () => void;
+  onAfterClose?: () => void;
   children: ReactNode;
 }) {
   const reducedMotion = useReducedMotion();
@@ -68,6 +75,10 @@ function ComicSheetModal({
   const reveal = useSharedValue(visible ? 1 : 0);
   const mountedRef = useRef(visible);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onAfterCloseRef = useRef(onAfterClose);
+  useEffect(() => {
+    onAfterCloseRef.current = onAfterClose;
+  }, [onAfterClose]);
 
   useEffect(() => {
     if (closeTimer.current) {
@@ -88,12 +99,14 @@ function ComicSheetModal({
       mountedRef.current = false;
       setPresent(false);
       reveal.set(0);
+      onAfterCloseRef.current?.();
       return;
     }
     reveal.set(withTiming(0, { duration: 155, easing: Easing.in(Easing.quad) }));
     closeTimer.current = setTimeout(() => {
       mountedRef.current = false;
       setPresent(false);
+      onAfterCloseRef.current?.();
     }, 160);
   }, [reducedMotion, reveal, visible]);
 
@@ -109,6 +122,8 @@ function ComicSheetModal({
     transform: [{ translateY: (1 - reveal.get()) * 360 }],
   }));
 
+  const closingOrBusy = busy || !visible;
+
   return (
     <Modal
       visible={present}
@@ -116,12 +131,12 @@ function ComicSheetModal({
       animationType="none"
       statusBarTranslucent
       navigationBarTranslucent
-      onRequestClose={busy ? undefined : onClose}
+      onRequestClose={closingOrBusy ? undefined : onClose}
     >
-      <SafeAreaView style={styles.modalLayer} edges={[]}>
+      <View style={styles.modalLayer}>
         <Animated.View pointerEvents="none" style={[styles.scrim, scrimAnimated]} />
         {dismissable && onClose ? (
-          <Pressable accessible={false} disabled={busy} onPress={onClose} style={StyleSheet.absoluteFill} />
+          <Pressable accessible={false} disabled={closingOrBusy} onPress={onClose} style={StyleSheet.absoluteFill} />
         ) : null}
         <Animated.View
           accessibilityViewIsModal
@@ -130,28 +145,87 @@ function ComicSheetModal({
         >
           {children}
         </Animated.View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 export function SettingsScreen({ navigation }: Props) {
-  const { gutter } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteModalHadGoogle, setDeleteModalHadGoogle] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteFinishedInSheet, setDeleteFinishedInSheet] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleteComplete, setDeleteComplete] = useState(false);
   const [externalDeletionPending, setExternalDeletionPending] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
+  const [logoutFinishedInSheet, setLogoutFinishedInSheet] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
-  const { access, identity, loading: accessLoading, connectGoogle, disconnectGoogle, deleteAccount, refresh } = useCommercial();
+  const [statusNotice, setStatusNotice] = useState<{ label: string; tone: 'connected' | 'disconnected' } | null>(null);
+  const {
+    access,
+    identity,
+    loading: accessLoading,
+    identityTransitionBusy,
+    connectGoogle,
+    disconnectGoogle,
+    deleteAccount,
+    refresh,
+  } = useCommercial();
+  const googleSignInBusy = connectingGoogle || (identityTransitionBusy && !disconnectingGoogle && !deleting);
+  const accountBusy = connectingGoogle || disconnectingGoogle || deleting || identityTransitionBusy;
+  const deleteSheetBusy = deleting || deleteFinishedInSheet;
+  const logoutSheetBusy = disconnectingGoogle || logoutFinishedInSheet;
   const hasGoogleAccount = (access?.identity ?? identity) === 'google';
+  const [initialGoogleState] = useState(hasGoogleAccount);
+  const [hasSwappedAccount, setHasSwappedAccount] = useState(false);
+  const identityPulse = useSharedValue(1);
+  const previousGoogleState = useRef(hasGoogleAccount);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (previousGoogleState.current === hasGoogleAccount) return;
+    previousGoogleState.current = hasGoogleAccount;
+    setHasSwappedAccount(true);
+    if (reducedMotion) return;
+    identityPulse.set(withSequence(
+      withTiming(0.985, { duration: 70, easing: Easing.out(Easing.quad) }),
+      withSpring(1, springs.snappy),
+    ));
+  }, [hasGoogleAccount, identityPulse, reducedMotion]);
+
+  useEffect(() => () => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+  }, []);
+
+  const showStatusNotice = (label: string, tone: 'connected' | 'disconnected') => {
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setStatusNotice({ label, tone });
+    noticeTimer.current = setTimeout(() => setStatusNotice(null), 2_600);
+  };
+
+  const identityAnimated = useAnimatedStyle(() => ({
+    transform: [{ scale: identityPulse.get() }],
+  }));
+
+  const smoothLayout = reducedMotion ? undefined : LinearTransition.duration(260).easing(Easing.out(Easing.cubic));
+  const animateSwap = hasSwappedAccount || hasGoogleAccount !== initialGoogleState;
+  const enterAfterSwap = !reducedMotion && animateSwap ? FadeIn.duration(230).easing(Easing.out(Easing.cubic)) : undefined;
+  const exitSmooth = reducedMotion ? undefined : FadeOut.duration(150);
+  const busyStatusLabel = disconnectingGoogle
+    ? 'Deconectez contul Google…'
+    : deleting
+      ? 'Șterg datele…'
+      : 'Conectez contul Google…';
+  const showBusyPill = accountBusy && !confirmLogout && !confirmDelete && !deleteComplete;
   const deletionActionTitle = hasGoogleAccount ? 'Șterge contul și datele' : 'Șterge datele temporare';
   const deletionActionText = hasGoogleAccount
     ? 'Șterge definitiv contul Profu’ de mate, Caietul și raportările. Abonamentul Google Play se oprește separat.'
@@ -161,8 +235,12 @@ export function SettingsScreen({ navigation }: Props) {
     ? 'Contul Profu’ de mate, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește problemele disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
     : 'Profilul temporar, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
   const diagnosticsLocked = useRef(false);
+  const connectLocked = useRef(false);
   const deletionLocked = useRef(false);
   const logoutLocked = useRef(false);
+  const isInteractionLocked = () => (
+    accountBusy || connectLocked.current || logoutLocked.current || deletionLocked.current
+  );
   const accountLabel = access?.premium.active ? 'PROFU’ PREMIUM' : hasGoogleAccount ? 'CONT GOOGLE CONECTAT' : 'SPAȚIUL TĂU';
   const accountTitle = !access
     ? hasGoogleAccount ? 'Caietul tău, în contul tău' : 'Setările tale, într-un singur loc'
@@ -177,21 +255,46 @@ export function SettingsScreen({ navigation }: Props) {
       ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează Caietul și accesul Premium după reinstalare și pe alte telefoane.`
       : `Ai ${access.remaining} din ${access.limit} probleme gratuite astăzi. Conectează-te cu Google pentru a păstra Caietul în cloud și pentru a putea activa Premium.`;
 
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !accountBusy });
+  }, [accountBusy, navigation]);
+
+  useEffect(() => {
+    if (!accountBusy) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    const removeUnsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (event.data.action.type !== 'RESET') {
+        event.preventDefault();
+      }
+    });
+    return () => {
+      subscription.remove();
+      removeUnsubscribe();
+    };
+  }, [accountBusy, navigation]);
+
   const connectAccount = async () => {
-    if (connectingGoogle) return;
+    if (isInteractionLocked()) return;
+    connectLocked.current = true;
     setConnectingGoogle(true);
     setAccountError(null);
+    setStatusNotice(null);
     try {
-      await connectGoogle();
+      const next = await connectGoogle();
+      if (next?.identity === 'google') {
+        Haptics.notification(Haptics.NotificationFeedbackType.Success);
+        showStatusNotice('Contul Google este conectat.', 'connected');
+      }
     } catch {
       setAccountError('Conectarea nu a reușit. Verifică internetul și încearcă din nou.');
     } finally {
+      connectLocked.current = false;
       setConnectingGoogle(false);
     }
   };
 
   const toggleDiagnostics = async () => {
-    if (diagnosticsLocked.current) return;
+    if (isInteractionLocked() || diagnosticsLocked.current) return;
     diagnosticsLocked.current = true;
     const next = !diagnostics;
     setDiagnostics(next);
@@ -206,14 +309,13 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   const deleteData = async () => {
-    if (deletionLocked.current) return;
+    if (isInteractionLocked()) return;
     deletionLocked.current = true;
     setDeleting(true);
     setDeleteError(false);
-    let succeeded = false;
     try {
       const result = await deleteAccount();
-      succeeded = true;
+      setDeleteFinishedInSheet(true);
       setExternalDeletionPending(result.externalBillingProfilePending);
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
@@ -225,21 +327,22 @@ export function SettingsScreen({ navigation }: Props) {
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       deletionLocked.current = false;
-      if (!succeeded) setDeleting(false);
+      setDeleting(false);
     }
   };
 
   const disconnectAccount = async () => {
-    if (logoutLocked.current) return;
+    if (isInteractionLocked()) return;
     logoutLocked.current = true;
     setDisconnectingGoogle(true);
     setAccountError(null);
-    let succeeded = false;
+    setStatusNotice(null);
     try {
       await disconnectGoogle();
-      succeeded = true;
+      setLogoutFinishedInSheet(true);
       setConfirmLogout(false);
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
+      showStatusNotice('Te-ai deconectat din contul Google.', 'disconnected');
     } catch (error) {
       recordDiagnosticError('google_disconnect', error);
       setAccountError('Nu am putut închide sesiunea. Încearcă din nou.');
@@ -247,25 +350,38 @@ export function SettingsScreen({ navigation }: Props) {
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       logoutLocked.current = false;
-      if (!succeeded) setDisconnectingGoogle(false);
+      setDisconnectingGoogle(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
-      <ScreenHeader title="Setări" eyebrow="APLICAȚIA TA" onBack={() => navigation.goBack()} rightIcon="settings" />
+      <ScreenHeader
+        title="Setări"
+        eyebrow="APLICAȚIA TA"
+        backDisabled={accountBusy}
+        onBack={() => { if (!isInteractionLocked()) navigation.goBack(); }}
+        rightIcon="settings"
+      />
       <ScrollView
+        scrollEnabled={!accountBusy}
+        removeClippedSubviews={false}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 14) + 18 }]}
       >
-        <Enter delay={20} distance={14}>
+        <View collapsable={false} style={styles.contentInner}>
+        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={identityAnimated}>
           <ComicCard tone="paper" depth={5} radius={24} shine contentStyle={styles.identity}>
             <View style={styles.identityMascotWrap}>
-              <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active interactive />
+              <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active interactive={!accountBusy} />
             </View>
-            <View style={styles.identityCopy}>
+            <Animated.View
+              key={`${hasGoogleAccount ? 'google' : 'guest'}-${access?.premium.active ? 'premium' : 'free'}`}
+              entering={enterAfterSwap}
+              style={styles.identityCopy}
+            >
               <Chip
                 label={accountLabel}
                 tone={access?.premium.active ? 'lime' : hasGoogleAccount ? 'cyanSoft' : 'violetSoft'}
@@ -273,80 +389,100 @@ export function SettingsScreen({ navigation }: Props) {
               />
               <Text style={styles.identityTitle}>{accountTitle}</Text>
               <Text style={styles.identityText}>{accountText}</Text>
-            </View>
+            </Animated.View>
           </ComicCard>
-        </Enter>
+        </Animated.View>
 
-        <Enter delay={65} distance={14} style={styles.accountGroup}>
+        <Animated.View layout={smoothLayout} style={styles.accountGroup}>
           {!accessLoading && !access ? (
-            <PressableScale
-              accessibilityRole="button"
-              depth={shadows.sm}
-              radius={16}
-              shadowColor={colors.ink}
-              haptic="selection"
-              onPress={() => void refresh()}
-              contentStyle={styles.accountRetry}
-            >
-              <MiniGlyph name="spark" size={17} color={colors.ink} />
-              <Text style={styles.accountRetryText}>Verifică din nou</Text>
-            </PressableScale>
+            <Animated.View entering={enterAfterSwap} exiting={exitSmooth} layout={smoothLayout}>
+              <PressableScale
+                accessibilityRole="button"
+                disabled={accountBusy}
+                dimWhenDisabled={false}
+                depth={shadows.sm}
+                radius={16}
+                shadowColor={colors.ink}
+                haptic="selection"
+                onPress={() => { if (!isInteractionLocked()) void refresh(); }}
+                contentStyle={styles.accountRetry}
+              >
+                <MiniGlyph name="spark" size={17} color={colors.ink} />
+                <Text style={styles.accountRetryText}>Verifică din nou</Text>
+              </PressableScale>
+            </Animated.View>
           ) : null}
 
           {!hasGoogleAccount && identity === 'anonymous' ? (
-            <GoogleAccountButton
-              busy={connectingGoogle}
-              note="Păstrezi Caietul în cloud și poți activa Premium"
-              onPress={() => void connectAccount()}
-              style={styles.settingsGoogleButton}
-            />
+            <Animated.View entering={enterAfterSwap} exiting={exitSmooth} layout={smoothLayout}>
+              <GoogleAccountButton
+                busy={googleSignInBusy}
+                disabled={accountBusy && !googleSignInBusy}
+                note="Păstrezi Caietul în cloud și poți activa Premium"
+                onPress={() => void connectAccount()}
+                style={styles.settingsGoogleButton}
+              />
+            </Animated.View>
           ) : null}
 
-          <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
-            {hasGoogleAccount ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => { Haptics.selection(); setDisconnectingGoogle(false); setConfirmLogout(true); }}
-                style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
-              >
-                <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="profile" size={34} /></View>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>Deconectează contul Google</Text>
-                  <Text style={styles.rowText}>Caietul rămâne în contul tău. Limita zilnică gratuită continuă pe acest telefon fără resetare.</Text>
-                </View>
-                <MiniGlyph name="next" size={18} color={colors.violetDeep} />
-              </Pressable>
-            ) : null}
+          <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout}>
+            <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
+              {hasGoogleAccount ? (
+                <Animated.View entering={enterAfterSwap} exiting={exitSmooth} layout={smoothLayout}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={accountBusy}
+                    onPress={() => { if (isInteractionLocked()) return; Haptics.selection(); setLogoutFinishedInSheet(false); setConfirmLogout(true); }}
+                    style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
+                  >
+                    <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="profile" size={34} /></View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.rowTitle}>Deconectează contul Google</Text>
+                      <Text style={styles.rowText}>Caietul rămâne în contul tău. Limita zilnică gratuită continuă pe acest telefon fără resetare.</Text>
+                    </View>
+                    <MiniGlyph name="next" size={18} color={colors.violetDeep} />
+                  </Pressable>
+                </Animated.View>
+              ) : null}
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => { Haptics.selection(); navigation.navigate('Paywall', { source: 'settings', ...(access ? { access } : {}) }); }}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-            >
-              <View style={[styles.rowIcon, { backgroundColor: access?.premium.active ? colors.lime : colors.violetSoft }]}>
-                <AppIcon name="trophy" size={34} />
-              </View>
-              <View style={styles.rowCopy}>
-                <Text style={styles.rowTitle}>{access?.premium.active ? 'Administrează Premium' : 'Vezi Profu’ Premium'}</Text>
-                <Text style={styles.rowText}>
-                  {access?.premium.active
-                    ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
-                    : 'O limită zilnică mai mare, fără reclame și fără pachete de credite.'}
-                </Text>
-              </View>
-              <MiniGlyph name="next" size={18} color={colors.violetDeep} />
-            </Pressable>
-          </ComicCard>
-        </Enter>
+              <Animated.View layout={smoothLayout}>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={accountBusy}
+                  onPress={() => { if (isInteractionLocked()) return; Haptics.selection(); navigation.navigate('Paywall', { source: 'settings', ...(access ? { access } : {}) }); }}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                >
+                  <View style={[styles.rowIcon, { backgroundColor: access?.premium.active ? colors.lime : colors.violetSoft }]}>
+                    <AppIcon name="trophy" size={34} />
+                  </View>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.rowTitle}>{access?.premium.active ? 'Administrează Premium' : 'Vezi Profu’ Premium'}</Text>
+                    <Text style={styles.rowText}>
+                      {access?.premium.active
+                        ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
+                        : 'O limită zilnică mai mare, fără reclame și fără pachete de credite.'}
+                    </Text>
+                  </View>
+                  <MiniGlyph name="next" size={18} color={colors.violetDeep} />
+                </Pressable>
+              </Animated.View>
+            </ComicCard>
+          </Animated.View>
+        </Animated.View>
 
-        {accountError ? <Text accessibilityRole="alert" style={styles.accountError}>{accountError}</Text> : null}
+        {accountError ? (
+          <Animated.View entering={reducedMotion ? undefined : FadeIn.duration(180)} exiting={exitSmooth} layout={smoothLayout}>
+            <Text accessibilityRole="alert" style={styles.accountError}>{accountError}</Text>
+          </Animated.View>
+        ) : null}
 
-        <Enter delay={120} distance={14} style={styles.sectionBlock}>
+        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             <Pressable
               accessibilityRole="switch"
-              accessibilityState={{ checked: diagnostics }}
+              accessibilityState={{ checked: diagnostics, disabled: accountBusy }}
+              disabled={accountBusy}
               onPress={() => void toggleDiagnostics()}
               style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
             >
@@ -367,9 +503,9 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="check" size={18} color={colors.violetDeep} />
             </View>
           </ComicCard>
-        </Enter>
+        </Animated.View>
 
-        <Enter delay={155} distance={14} style={styles.sectionBlock}>
+        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             <View style={[styles.row, styles.rowBorder]}>
@@ -382,7 +518,8 @@ export function SettingsScreen({ navigation }: Props) {
 
             <Pressable
               accessibilityRole="button"
-              onPress={() => { Haptics.selection(); setDeleting(false); setDeleteError(false); setDeleteModalHadGoogle(hasGoogleAccount); setConfirmDelete(true); }}
+              disabled={accountBusy}
+              onPress={() => { if (isInteractionLocked()) return; Haptics.selection(); setDeleteFinishedInSheet(false); setDeleteError(false); setDeleteModalHadGoogle(hasGoogleAccount); setConfirmDelete(true); }}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
               <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
@@ -393,14 +530,15 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="next" size={18} color={colors.rose} />
             </Pressable>
           </ComicCard>
-        </Enter>
+        </Animated.View>
 
-        <Enter delay={190} distance={14} style={styles.sectionBlock}>
+        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.lime}>Despre aplicație</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => { Haptics.selection(); navigation.navigate('Legal'); }}
+              disabled={accountBusy}
+              onPress={() => { if (isInteractionLocked()) return; Haptics.selection(); navigation.navigate('Legal'); }}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
               <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="help" size={34} /></View>
@@ -411,12 +549,53 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="next" size={18} color={colors.violetDeep} />
             </Pressable>
           </ComicCard>
-        </Enter>
+        </Animated.View>
 
-        <View style={styles.versionRow}><Text style={styles.version}>{getAppVersionLabel()}</Text></View>
+        <Animated.View layout={smoothLayout} style={styles.versionRow}>
+          <Text style={styles.version}>{getAppVersionLabel()}</Text>
+        </Animated.View>
+        </View>
       </ScrollView>
 
-      <ComicSheetModal visible={confirmDelete} busy={deleting} onClose={() => setConfirmDelete(false)}>
+      {showBusyPill ? (
+        <View pointerEvents="auto" style={styles.lockOverlay}>
+          <Animated.View
+            entering={reducedMotion ? undefined : FadeInDown.duration(200).easing(Easing.out(Easing.cubic))}
+            exiting={reducedMotion ? undefined : FadeOutDown.duration(150)}
+            accessibilityLiveRegion="polite"
+            style={[styles.floatingDock, { bottom: Math.max(insets.bottom, 14) + 12 }]}
+          >
+            <View style={styles.busyPill}>
+              <PlayfulLoader micro inverse />
+              <Text style={styles.busyPillText}>{busyStatusLabel}</Text>
+            </View>
+          </Animated.View>
+        </View>
+      ) : null}
+
+      {!showBusyPill && statusNotice ? (
+        <Animated.View
+          pointerEvents="none"
+          entering={reducedMotion ? undefined : FadeInDown.duration(220).easing(Easing.out(Easing.cubic))}
+          exiting={reducedMotion ? undefined : FadeOutDown.duration(180)}
+          accessibilityLiveRegion="polite"
+          style={[styles.floatingDock, { bottom: Math.max(insets.bottom, 14) + 12 }]}
+        >
+          <View style={[styles.noticePill, statusNotice.tone === 'disconnected' && styles.noticePillCyan]}>
+            <View style={styles.noticeBadge}>
+              <MiniGlyph name="check" size={13} color={colors.ink} />
+            </View>
+            <Text style={styles.noticePillText}>{statusNotice.label}</Text>
+          </View>
+        </Animated.View>
+      ) : null}
+
+      <ComicSheetModal
+        visible={confirmDelete}
+        busy={deleteSheetBusy}
+        onClose={() => setConfirmDelete(false)}
+        onAfterClose={() => setDeleteFinishedInSheet(false)}
+      >
         <ScrollView
           bounces={false}
           showsVerticalScrollIndicator={false}
@@ -434,7 +613,7 @@ export function SettingsScreen({ navigation }: Props) {
           {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
           <PressableScale
             accessibilityRole="button"
-            disabled={deleting}
+            disabled={deleteSheetBusy}
             depth={shadows.sm}
             radius={17}
             shadowColor={colors.ink}
@@ -444,16 +623,21 @@ export function SettingsScreen({ navigation }: Props) {
             contentStyle={styles.confirmDelete}
           >
             <View pointerEvents="none" style={styles.sheetBtnShine} />
-            {deleting ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
-            <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : deleteModalHadGoogle ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
+            {deleteSheetBusy ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
+            <Text style={styles.confirmDeleteText}>{deleteSheetBusy ? 'Șterg datele…' : deleteModalHadGoogle ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
           </PressableScale>
-          <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
+          <Pressable accessibilityRole="button" disabled={deleteSheetBusy} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
             <Text style={styles.cancelText}>Păstrează datele</Text>
           </Pressable>
         </ScrollView>
       </ComicSheetModal>
 
-      <ComicSheetModal visible={confirmLogout} busy={disconnectingGoogle} onClose={() => setConfirmLogout(false)}>
+      <ComicSheetModal
+        visible={confirmLogout}
+        busy={logoutSheetBusy}
+        onClose={() => setConfirmLogout(false)}
+        onAfterClose={() => setLogoutFinishedInSheet(false)}
+      >
         <View style={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetMascotStage}>
@@ -465,7 +649,7 @@ export function SettingsScreen({ navigation }: Props) {
           <Text style={styles.confirmText}>Nu se șterge nimic și nu se resetează nicio limită. Caietul, problemele folosite azi și Premium rămân legate de contul Google și reapar când îl conectezi din nou.</Text>
           <PressableScale
             accessibilityRole="button"
-            disabled={disconnectingGoogle}
+            disabled={logoutSheetBusy}
             depth={shadows.sm}
             radius={17}
             shadowColor={colors.ink}
@@ -475,10 +659,10 @@ export function SettingsScreen({ navigation }: Props) {
             contentStyle={styles.confirmLogout}
           >
             <View pointerEvents="none" style={styles.sheetBtnShine} />
-            {disconnectingGoogle ? <PlayfulLoader micro /> : <MiniGlyph name="next" size={18} color={colors.ink} />}
-            <Text style={styles.confirmLogoutText}>{disconnectingGoogle ? 'Deconectez…' : 'Da, deconectează-mă'}</Text>
+            {logoutSheetBusy ? <PlayfulLoader micro /> : <MiniGlyph name="next" size={18} color={colors.ink} />}
+            <Text style={styles.confirmLogoutText}>{logoutSheetBusy ? 'Deconectez…' : 'Da, deconectează-mă'}</Text>
           </PressableScale>
-          <Pressable accessibilityRole="button" disabled={disconnectingGoogle} onPress={() => setConfirmLogout(false)} style={styles.cancel}>
+          <Pressable accessibilityRole="button" disabled={logoutSheetBusy} onPress={() => setConfirmLogout(false)} style={styles.cancel}>
             <Text style={styles.cancelText}>Rămân conectat</Text>
           </Pressable>
         </View>
@@ -524,15 +708,63 @@ export function SettingsScreen({ navigation }: Props) {
           </PressableScale>
         </ScrollView>
       </ComicSheetModal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  content: { gap: 12, paddingTop: 4 },
+  content: { paddingTop: 4 },
+  contentInner: { gap: 12 },
   accountGroup: { gap: 12 },
   sectionBlock: { gap: 8 },
+  lockOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 },
+  floatingDock: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 45,
+  },
+  busyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: borders.regular,
+    borderColor: colors.lime,
+    backgroundColor: colors.ink,
+    elevation: 6,
+  },
+  busyPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 18 },
+  noticePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    elevation: 5,
+  },
+  noticePillCyan: { backgroundColor: colors.cyanSoft },
+  noticeBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noticePillText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, lineHeight: 17 },
   identity: { minHeight: 156, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   identityMascotWrap: {
     width: 68,

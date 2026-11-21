@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borders, colors, fonts } from '../theme';
 import { Chip } from './Chip';
 import { ComicBackdrop } from './ComicBackdrop';
@@ -21,8 +21,9 @@ type Props = {
 
 /** An explicit preparation/error boundary, never a partially populated Home. */
 export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: Props) {
+  const insets = useSafeAreaInsets();
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0, paddingBottom: insets.bottom ?? 0 }]}>
       <ComicBackdrop />
       <View style={styles.content}>
         <Enter delay={0} distance={10}>
@@ -77,7 +78,7 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
           ) : null}
         </Enter>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

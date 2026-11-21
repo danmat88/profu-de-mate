@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { HomeSurface } from '../components/HomeSurface';
 import { ReadinessScreen } from '../../../shared/ui/ReadinessScreen';
 import { useCommercial } from '../../access/context/CommercialContext';
@@ -25,6 +25,7 @@ function readLatestLessonTitle(): string | null {
 export function HomeScreen() {
   const navigation = useNavigation<Navigation>();
   const {
+    authSessionKey,
     access,
     refresh: refreshCommercialAccess,
     status: commercialStatus,
@@ -38,14 +39,26 @@ export function HomeScreen() {
   const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
-  const alive = useRef(true);
+  const mounted = useRef(true);
+  const focused = useRef(true);
+
+  useEffect(() => () => {
+    mounted.current = false;
+  }, []);
+
+  useEffect(() => {
+    setLatestLessonTitle(readLatestLessonTitle());
+    setPendingAnalysis(getPreparedPendingAnalysis() ?? null);
+  }, [authSessionKey]);
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    alive.current = true;
+    focused.current = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
+    setGalleryBusy(false);
     setLatestLessonTitle(readLatestLessonTitle());
+    setPendingAnalysis(getPreparedPendingAnalysis() ?? null);
     const warmFrame = requestAnimationFrame(() => {
       if (!active) return;
       try { warmMathDrafts(captureSession()); } catch { /* Ignore when session is not yet ready. */ }
@@ -54,7 +67,7 @@ export function HomeScreen() {
       if (active) setPendingAnalysis(pending);
     });
     void refreshCommercialAccessIfStale();
-    return () => { active = false; alive.current = false; cancelAnimationFrame(warmFrame); };
+    return () => { active = false; focused.current = false; cancelAnimationFrame(warmFrame); };
   }, [refreshCommercialAccessIfStale]));
 
   const chooseMode = (next: FlowMode) => {
@@ -119,24 +132,31 @@ export function HomeScreen() {
         exif: false,
       });
       assertSessionActive(session);
-      if (!alive.current || result.canceled) return;
+      if (!focused.current || result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset?.uri || asset.width <= 0 || asset.height <= 0) throw new Error('invalid-image');
       const image = { uri: asset.uri, width: asset.width, height: asset.height, source: 'gallery' as const };
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
       navigation.navigate('Review', { mode, image });
     } catch {
-      if (alive.current) setGalleryError('Fotografia nu s-a deschis. Încearcă alta.');
+      if (mounted.current && focused.current) setGalleryError('Fotografia nu s-a deschis. Încearcă alta.');
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       galleryLocked.current = false;
-      if (alive.current) setGalleryBusy(false);
+      if (mounted.current) setGalleryBusy(false);
     }
   }, [mode, navigation, resume]);
 
   const activeMode = pendingAnalysis?.mode ?? mode;
   const openAllowance = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
     navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) });
+  };
+  const openSettings = () => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    navigation.navigate('Settings');
   };
 
   if (!access) {
@@ -160,14 +180,14 @@ export function HomeScreen() {
       allowance={allowance}
       premiumActive={Boolean(access?.premium.active)}
       latestLessonTitle={latestLessonTitle}
-      showGuide={!guideDismissed && !latestLessonTitle}
+      showGuide={!guideDismissed}
       onDismissGuide={dismissGuide}
       onMode={chooseMode}
       onCapture={openCapture}
       onGallery={() => void openGallery()}
       onMath={openMath}
       onNotebook={openNotebook}
-      onSettings={() => navigation.navigate('Settings')}
+      onSettings={openSettings}
       onAllowance={openAllowance}
     />
   );

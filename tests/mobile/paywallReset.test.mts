@@ -58,6 +58,7 @@ function render(contextAccess: CommercialAccess | null, loading: boolean, source
     'src/shared/ui/IconButton.tsx': { IconButton: 'IconButton' },
     'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
     'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'MiniGlyph' },
+    'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'PlayfulLoader' },
     'src/features/account/components/GoogleAccountButton.tsx': { GoogleAccountButton: 'GoogleAccountButton' },
     'assets/profu_mascot_v2.png': 0,
   }, { Date: { now: () => midnight } });

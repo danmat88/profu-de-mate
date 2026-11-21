@@ -11,6 +11,7 @@ type Props = {
   dark?: boolean;
   active?: boolean;
   disabled?: boolean;
+  dimWhenDisabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -23,6 +24,7 @@ export function IconButton({
   dark = false,
   active = false,
   disabled = false,
+  dimWhenDisabled = true,
   style,
 }: Props) {
   const isDisabled = disabled || !onPress;
@@ -34,6 +36,7 @@ export function IconButton({
       accessibilityLabel={label}
       accessibilityState={{ disabled: isDisabled, selected: active }}
       disabled={isDisabled}
+      dimWhenDisabled={dimWhenDisabled}
       hitSlop={6}
       depth={shadows.sm}
       radius={radius}

@@ -153,4 +153,9 @@ test('cancelling the gallery preserves Home, releases the launch lock and permit
   assert.equal(navigations[0][0], 'Review');
   assert.equal(navigations[0][1].mode, 'solve');
   assert.equal(navigations[0][1].image.uri, 'file://picked-photo.jpg');
+  assert.equal(
+    stateChanges.filter(change => change.index === 1).at(-1)?.value,
+    false,
+    'navigating to Review must still clear galleryBusy so Home tabs never return frozen',
+  );
 });

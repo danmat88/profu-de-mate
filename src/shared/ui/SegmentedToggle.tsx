@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, {
+  cancelAnimation,
   interpolateColor,
   useAnimatedStyle,
   useSharedValue,
@@ -90,6 +91,7 @@ function SegmentItem<T extends string>({
       accessibilityRole="tab"
       accessibilityState={{ selected: active, disabled }}
       disabled={disabled}
+      hitSlop={4}
       onPress={onSelect}
       style={[
         styles.tab,
@@ -146,12 +148,20 @@ export function SegmentedToggle<T extends string>({
   const activeIndex: 0 | 1 = value === options[1].value ? 1 : 0;
   const progress = useSharedValue<number>(activeIndex);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    cancelAnimation(progress);
     if (reducedMotion) {
       progress.set(activeIndex);
-    } else {
-      progress.set(withSpring(activeIndex, springs.snappy));
+      return undefined;
     }
+    progress.set(withSpring(activeIndex, springs.snappy));
+    const settle = setTimeout(() => {
+      progress.set(activeIndex);
+    }, 420);
+    return () => {
+      clearTimeout(settle);
+      cancelAnimation(progress);
+    };
   }, [activeIndex, progress, reducedMotion]);
 
   const innerWidth = trackWidth - borders.regular * 2 - TRACK_PADDING * 2;
@@ -220,8 +230,7 @@ export function SegmentedToggle<T extends string>({
               hasPill={pillWidth > 0}
               progress={progress}
               onSelect={() => {
-                if (option.value === value) return;
-                progress.set(reducedMotion ? index : withSpring(index, springs.snappy));
+                if (disabled || option.value === value) return;
                 onChange(option.value);
               }}
             />

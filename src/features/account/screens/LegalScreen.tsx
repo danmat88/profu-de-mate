@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { legalDocument } from '../../../shared/config/legal';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { borders, colors, fonts, typography } from '../../../shared/theme';
@@ -12,7 +12,6 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
-import { Enter } from '../../../shared/ui/Enter';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { TabPanel } from '../../../shared/ui/TabPanel';
@@ -55,7 +54,8 @@ function Bullet({ children }: { children: React.ReactNode }) {
 }
 
 export function LegalScreen({ navigation }: Props) {
-  const { gutter } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const [tabState, setTabState] = useState<{ tab: DocumentTab; direction: -1 | 0 | 1 }>({
     tab: 'overview',
@@ -73,14 +73,14 @@ export function LegalScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader title="Legal și siguranță" eyebrow="INFORMAȚII CLARE" onBack={() => navigation.goBack()} rightIcon="privacy" />
 
-      <Enter delay={30} distance={10} style={[styles.tabWrap, { marginHorizontal: gutter }]}>
+      <View style={[styles.tabWrap, { marginHorizontal: gutter }]}>
         <ComicTabBar options={tabs} value={tab} onChange={chooseTab} />
-      </Enter>
+      </View>
 
       <TabPanel key={tab} direction={direction} style={styles.tabStage}>
         <ScrollView
@@ -223,7 +223,7 @@ export function LegalScreen({ navigation }: Props) {
           ) : null}
         </ScrollView>
       </TabPanel>
-    </SafeAreaView>
+    </View>
   );
 }
 

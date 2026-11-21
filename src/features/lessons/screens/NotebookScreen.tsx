@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,7 +20,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -33,7 +34,6 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
-import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -41,6 +41,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text, TextInput } from '../../../shared/ui/Typography';
+import { beginLessonPresentation, forgetLessonPresentation, waitForLessonPresentation } from '../services/lessonPresentation';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
 import {
   filterNotebookLessons,
@@ -246,18 +247,18 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
       contentContainerStyle={styles.fullState}
       showsVerticalScrollIndicator={false}
     >
-      <Enter delay={20} distance={14} scaleFrom={0.9} style={styles.emptyMascotStage}>
+      <View style={styles.emptyMascotStage}>
         <View style={[styles.emptyHalo, error && styles.emptyHaloError]} />
         <Mascot pose={error ? 'oops' : 'wave'} size={142} active interactive />
-      </Enter>
-      <Enter delay={70} distance={12}>
+      </View>
+      <View>
         <Chip
           label={error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}
           tone={error ? 'peach' : 'lime'}
           tilt={-2}
         />
-      </Enter>
-      <Enter delay={105} distance={12} style={styles.emptyCopyWrap}>
+      </View>
+      <View style={styles.emptyCopyWrap}>
         <Text style={styles.fullStateTitle}>
           {error ? 'Caietul e încă pe raft' : 'Prima lecție merită un loc bun'}
         </Text>
@@ -266,8 +267,8 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
             ? 'Lecțiile tale rămân în siguranță. Verifică internetul și încearcă din nou.'
             : 'Rezolvă ori verifică o problemă, apoi salveaz-o. Revii oricând la enunț și la pașii explicați.'}
         </Text>
-      </Enter>
-      <Enter delay={145} distance={12} style={styles.emptyActions}>
+      </View>
+      <View style={styles.emptyActions}>
         <ComicButton
           compact
           title={error ? 'Reîncearcă' : 'Rezolvă prima problemă'}
@@ -287,7 +288,7 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
             <Text style={styles.secondaryEmptyText}>Sau verifică o rezolvare →</Text>
           </PressableScale>
         ) : null}
-      </Enter>
+      </View>
     </ScrollView>
   );
 }
@@ -354,6 +355,16 @@ export function NotebookScreen({ navigation }: Props) {
 
   const removeProgress = useSharedValue(0);
   const closeRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openingNoteRef = useRef(false);
+  const focusedRef = useRef(true);
+
+  useFocusEffect(useCallback(() => {
+    focusedRef.current = true;
+    openingNoteRef.current = false;
+    return () => {
+      focusedRef.current = false;
+    };
+  }, []));
 
   useEffect(() => () => {
     if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
@@ -431,7 +442,24 @@ export function NotebookScreen({ navigation }: Props) {
   }, []);
 
   const openNote = useCallback((lesson: StoredLesson) => {
-    navigation.navigate('Lesson', { lesson, lessonId: lesson.id, isFavorite: true, source: 'notebook' });
+    if (openingNoteRef.current) return;
+    openingNoteRef.current = true;
+    const params: RootStackParamList['Lesson'] = {
+      lesson,
+      lessonId: lesson.id,
+      isFavorite: true,
+      source: 'notebook',
+    };
+    beginLessonPresentation(lesson.id);
+    navigation.preload('Lesson', params);
+    void waitForLessonPresentation(lesson.id, 320).then(() => {
+      if (!focusedRef.current) {
+        forgetLessonPresentation(lesson.id);
+        openingNoteRef.current = false;
+        return;
+      }
+      navigation.navigate('Lesson', params);
+    });
   }, [navigation]);
 
   const requestRemove = useCallback((lesson: StoredLesson) => {
@@ -480,7 +508,11 @@ export function NotebookScreen({ navigation }: Props) {
     }
   }, [closeRemoval, pendingRemoval, removing]);
 
-  const startMode = useCallback((mode: FlowMode) => navigation.navigate('Capture', { mode }), [navigation]);
+  const startMode = useCallback((mode: FlowMode) => {
+    if (openingNoteRef.current) return;
+    openingNoteRef.current = true;
+    navigation.navigate('Capture', { mode });
+  }, [navigation]);
   const clearSearch = useCallback(() => setQueryText(''), []);
   const resetFilters = useCallback(() => {
     setQueryText('');
@@ -516,34 +548,34 @@ export function NotebookScreen({ navigation }: Props) {
 
   if (loading && notes.length === 0) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
         <NotebookLoading />
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (notes.length === 0) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
         <FullNotebookState kind={loadError ? 'error' : 'empty'} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader compact title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Enter delay={20} distance={10} style={[styles.controls, { paddingHorizontal: gutter }]}>
+        <View style={[styles.controls, { paddingHorizontal: gutter }]}>
           <View style={[styles.searchShadow, searchFocused && styles.searchShadowFocused]}>
             <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
               <View pointerEvents="none" style={styles.searchShine} />
@@ -574,7 +606,7 @@ export function NotebookScreen({ navigation }: Props) {
             value={filter}
             onChange={chooseFilter}
           />
-        </Enter>
+        </View>
 
         {loadError ? (
           <Pressable accessibilityRole="button" onPress={retrySubscription} style={[styles.syncWarning, { marginHorizontal: gutter }]}>
@@ -672,7 +704,7 @@ export function NotebookScreen({ navigation }: Props) {
           </Animated.View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

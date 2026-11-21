@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -252,7 +252,7 @@ export function SummaryScreen({ navigation, route }: Props) {
   const ribbonColor = activeTab === 'ideas' ? colors.cyan : isPositive ? colors.lime : colors.peach;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={[styles.main, { paddingHorizontal: gutter }]}>
@@ -416,7 +416,7 @@ export function SummaryScreen({ navigation, route }: Props) {
         </Animated.View>
       ) : null}
       <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
-    </SafeAreaView>
+    </View>
   );
 }
 

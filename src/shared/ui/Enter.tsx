@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -25,7 +26,9 @@ type Props = {
 /**
  * Staggered comic panel entrance. Stays cleanly hidden while `ready` is false
  * (unless reduced motion is enabled) and pops in with Reanimated spring physics
- * when its turn arrives.
+ * when its turn arrives. Includes a bounded watchdog so a paused/resumed Android
+ * Choreographer (e.g. returning from a system modal) can never leave content
+ * stuck invisible.
  */
 export function Enter({
   children,
@@ -43,22 +46,37 @@ export function Enter({
 
   useEffect(() => {
     if (reducedMotion) {
+      cancelAnimation(progress);
       progress.set(1);
       played.current = true;
-      return;
+      return undefined;
     }
     if (!ready) {
       if (!played.current) progress.set(0);
-      return;
+      return undefined;
     }
-    if (played.current) return;
+    if (played.current) {
+      progress.set(1);
+      return undefined;
+    }
     played.current = true;
     const springConfig = bouncy ? springs.bouncy : springs.snappy;
-    if (delay > 0) {
-      progress.set(withDelay(delay, withSpring(1, springConfig)));
-    } else {
-      progress.set(withSpring(1, springConfig));
-    }
+    const frame = requestAnimationFrame(() => {
+      if (delay > 0) {
+        progress.set(withDelay(delay, withSpring(1, springConfig)));
+      } else {
+        progress.set(withSpring(1, springConfig));
+      }
+    });
+    const watchdog = setTimeout(() => {
+      progress.set(1);
+    }, delay + 550);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(watchdog);
+      cancelAnimation(progress);
+    };
   }, [bouncy, delay, progress, ready, reducedMotion]);
 
   const animatedStyle = useAnimatedStyle(() => {

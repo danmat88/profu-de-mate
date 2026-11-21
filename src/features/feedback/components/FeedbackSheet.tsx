@@ -8,7 +8,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
@@ -140,7 +140,7 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
       onRequestClose={sending ? undefined : onClose}
     >
       <StatusBar style="light" />
-      <SafeAreaView style={styles.layer} edges={[]}>
+      <View style={styles.layer}>
         <Animated.View pointerEvents="none" style={[styles.scrim, scrimAnimated]} />
         <Pressable accessible={false} disabled={Boolean(sending)} onPress={onClose} style={StyleSheet.absoluteFill} />
         <Animated.View
@@ -212,7 +212,7 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
             )}
           </ScrollView>
         </Animated.View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }

@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
-import { Linking } from 'react-native';
+import { BackHandler, Linking } from 'react-native';
 import { useCommercial } from '../context/CommercialContext';
 import { PremiumSurface, type PremiumAction } from '../components/PremiumSurface';
 import {
@@ -34,7 +34,7 @@ function friendlyPurchaseError(error: unknown): string {
 }
 
 export function PaywallScreen({ navigation, route }: Props) {
-  const { authSessionKey, access: contextAccess, identity: sessionIdentity, loading: accessLoading, refresh, connectGoogle, applyServerAccess } = useCommercial();
+  const { authSessionKey, access: contextAccess, identity: sessionIdentity, loading: accessLoading, identityTransitionBusy, refresh, connectGoogle, applyServerAccess } = useCommercial();
   const [initialSessionKey] = useState(() => authSessionKey);
   const [allowRouteAccessFallback, setAllowRouteAccessFallback] = useState(true);
   // Route data makes the first paint immediate, but it belongs to the identity
@@ -54,6 +54,7 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual');
   const selectedPlan = offer && !offer[selected] ? offer.annual ? 'annual' : 'monthly' : selected;
   const [busy, setBusy] = useState<PremiumAction>(null);
+  const activeBusy: PremiumAction = busy ?? (identityTransitionBusy ? 'google' : null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [successLimit, setSuccessLimit] = useState(30);
@@ -61,6 +62,24 @@ export function PaywallScreen({ navigation, route }: Props) {
   const googleLinked = identity === 'google';
   const premium = access?.premium.active === true;
   const purchaseUserId = access?.purchaseUserId;
+
+  useEffect(() => {
+    navigation.setOptions?.({ gestureEnabled: !activeBusy });
+  }, [activeBusy, navigation]);
+
+  useEffect(() => {
+    if (!activeBusy) return undefined;
+    const subscription = BackHandler?.addEventListener?.('hardwareBackPress', () => true);
+    const removeUnsubscribe = navigation.addListener?.('beforeRemove', (event) => {
+      if (event.data.action.type !== 'RESET') {
+        event.preventDefault();
+      }
+    });
+    return () => {
+      subscription?.remove();
+      removeUnsubscribe?.();
+    };
+  }, [activeBusy, navigation]);
 
   const offerTask = useMemo(() => createLatestTask(
     async () => {
@@ -82,7 +101,7 @@ export function PaywallScreen({ navigation, route }: Props) {
   }, [googleLinked, premium, access?.purchaseUserId, offerTask]);
 
   const connect = async () => {
-    if (busy) return;
+    if (activeBusy) return;
     setAllowRouteAccessFallback(false);
     setBusy('google');
     setError(null);
@@ -97,7 +116,7 @@ export function PaywallScreen({ navigation, route }: Props) {
 
   const buy = async () => {
     const plan = offer?.[selectedPlan];
-    if (busy || !plan || !access || !googleLinked) return;
+    if (activeBusy || !plan || !access || !googleLinked) return;
     setBusy('purchase');
     setError(null);
     try {
@@ -115,7 +134,7 @@ export function PaywallScreen({ navigation, route }: Props) {
   };
 
   const restore = async () => {
-    if (busy) return;
+    if (activeBusy) return;
     setBusy('restore');
     setError(null);
     try {
@@ -136,7 +155,7 @@ export function PaywallScreen({ navigation, route }: Props) {
   };
 
   const manage = async () => {
-    if (busy) return;
+    if (activeBusy) return;
     setBusy('manage');
     setError(null);
     try {
@@ -161,19 +180,19 @@ export function PaywallScreen({ navigation, route }: Props) {
       offerLoading={offerState?.status === 'loading'}
       offerError={offerState?.status === 'error' ? friendlyPurchaseError(offerState.error) : null}
       selected={selectedPlan}
-      busy={busy}
+      busy={activeBusy}
       error={error}
       success={success}
       successLimit={successLimit}
-      onClose={() => navigation.goBack()}
+      onClose={() => { if (!activeBusy) navigation.goBack(); }}
       onConnect={() => void connect()}
       onBuy={() => void buy()}
       onRestore={() => void restore()}
       onManage={() => void manage()}
-      onRefresh={() => void refresh()}
-      onRetryOffer={() => void offerTask.run()}
-      onLegal={() => navigation.navigate('Legal')}
-      onSelect={setSelected}
+      onRefresh={() => { if (!activeBusy) void refresh(); }}
+      onRetryOffer={() => { if (!activeBusy) void offerTask.run(); }}
+      onLegal={() => { if (!activeBusy) navigation.navigate('Legal'); }}
+      onSelect={(plan) => { if (!activeBusy) setSelected(plan); }}
     />
   );
 }

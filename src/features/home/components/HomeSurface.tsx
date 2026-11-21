@@ -1070,7 +1070,7 @@ const styles = StyleSheet.create({
   },
   notebookIconCompact: { width: 38, height: 38, borderRadius: 12 },
   notebookCopy: { flex: 1, minWidth: 0, paddingVertical: 8 },
-  notebookHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  notebookHeaderRow: { height: 18, flexDirection: 'row', alignItems: 'center', gap: 6 },
   notebookKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 0.85 },
   latestBadge: {
     paddingHorizontal: 6,

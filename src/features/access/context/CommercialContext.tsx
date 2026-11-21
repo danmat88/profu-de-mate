@@ -28,6 +28,7 @@ type CommercialContextValue = {
   status: CommercialStatus;
   loading: boolean;
   refreshing: boolean;
+  identityTransitionBusy: boolean;
   refresh: () => Promise<CommercialAccess | null>;
   refreshIfStale: () => Promise<CommercialAccess | null>;
   applyServerAccess: (access: CommercialAccess) => void;
@@ -91,6 +92,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   const [startupReady, setStartupReady] = useState(Boolean(initialAccess));
   const [status, setStatus] = useState<CommercialStatus>(initialAccess ? 'ready' : initiallyOffline ? 'unavailable' : 'resolving');
   const [refreshing, setRefreshing] = useState(false);
+  const [identityTransitionBusy, setIdentityTransitionBusy] = useState(false);
   const accessRef = useRef<CommercialAccess | null>(initialAccess);
   const refreshInFlight = useRef<RefreshRequest | null>(null);
   const lastSuccessfulRefreshAt = useRef(initialAccess ? initialVerifiedAt : 0);
@@ -263,6 +265,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
+    setIdentityTransitionBusy(true);
     invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
@@ -296,6 +299,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         if (identityTransitionInFlight.current === operation) {
           identityTransitionInFlight.current = null;
           identityTransitionActive.current = false;
+          setIdentityTransitionBusy(false);
         }
       });
     identityTransitionInFlight.current = operation;
@@ -309,6 +313,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
+    setIdentityTransitionBusy(true);
     invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
@@ -346,6 +351,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         if (identityTransitionInFlight.current === operation) {
           identityTransitionInFlight.current = null;
           identityTransitionActive.current = false;
+          setIdentityTransitionBusy(false);
         }
       });
     identityTransitionInFlight.current = operation;
@@ -359,6 +365,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     }
     const previousSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     identityTransitionActive.current = true;
+    setIdentityTransitionBusy(true);
     invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
@@ -392,6 +399,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         if (accountDeletionInFlight.current === operation) {
           accountDeletionInFlight.current = null;
           identityTransitionActive.current = false;
+          setIdentityTransitionBusy(false);
         }
       });
     accountDeletionInFlight.current = operation;
@@ -407,6 +415,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       status,
       loading: status === 'resolving',
       refreshing,
+      identityTransitionBusy,
       refresh,
       refreshIfStale,
       applyServerAccess,
@@ -414,7 +423,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       disconnectGoogle,
       deleteAccount,
     }),
-    [access, applyServerAccess, authSessionKey, connectGoogle, deleteAccount, disconnectGoogle, identity, refresh, refreshIfStale, refreshing, startupReady, status],
+    [access, applyServerAccess, authSessionKey, connectGoogle, deleteAccount, disconnectGoogle, identity, identityTransitionBusy, refresh, refreshIfStale, refreshing, startupReady, status],
   );
   return <CommercialContext.Provider value={value}>{children}</CommercialContext.Provider>;
 }

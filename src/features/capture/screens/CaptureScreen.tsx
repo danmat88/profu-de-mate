@@ -56,11 +56,12 @@ export function CaptureScreen({ navigation, route }: Props) {
   const [captureError, setCaptureError] = useState<string | null>(null);
   const scan = useRef(new Animated.Value(0)).current;
   const shutterPulse = useRef(new Animated.Value(0)).current;
+  const shutterFlash = useRef(new Animated.Value(0)).current;
   const helpPop = useRef(new Animated.Value(0)).current;
   const cameraPreviewEntrance = useRef(new Animated.Value(0)).current;
-  const chromeEntrance = useRef(new Animated.Value(1)).current;
-  const finderEntrance = useRef(new Animated.Value(1)).current;
-  const controlsEntrance = useRef(new Animated.Value(1)).current;
+  const chromeEntrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const finderEntrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const controlsEntrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const cameraRef = useRef<CameraView | null>(null);
   const capturing = useRef(false);
   const galleryPickerLocked = useRef(false);
@@ -87,16 +88,33 @@ export function CaptureScreen({ navigation, route }: Props) {
     setCameraFailed(false);
     setIsFocused(true);
     cameraPreviewEntrance.setValue(0);
-    chromeEntrance.setValue(1);
-    finderEntrance.setValue(1);
-    controlsEntrance.setValue(1);
+    shutterFlash.setValue(0);
+    if (reducedMotion) {
+      chromeEntrance.setValue(1);
+      finderEntrance.setValue(1);
+      controlsEntrance.setValue(1);
+    } else {
+      chromeEntrance.setValue(0);
+      finderEntrance.setValue(0);
+      controlsEntrance.setValue(0);
+      Animated.parallel([
+        Animated.timing(chromeEntrance, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(finderEntrance, { toValue: 1, duration: 260, delay: 25, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(controlsEntrance, { toValue: 1, duration: 230, delay: 45, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    }
     return () => {
       setIsFocused(false);
       setCameraReady(false);
       cameraPreviewEntrance.stopAnimation();
+      chromeEntrance.stopAnimation();
+      finderEntrance.stopAnimation();
+      controlsEntrance.stopAnimation();
+      shutterFlash.stopAnimation();
       cameraPreviewEntrance.setValue(0);
+      shutterFlash.setValue(0);
     };
-  }, [cameraPreviewEntrance, chromeEntrance, controlsEntrance, finderEntrance]));
+  }, [cameraPreviewEntrance, chromeEntrance, controlsEntrance, finderEntrance, reducedMotion, shutterFlash]));
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('transitionEnd', (event) => {
@@ -107,7 +125,7 @@ export function CaptureScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (transitionSettled || !isFocused) return undefined;
-    const fallback = setTimeout(() => setTransitionSettled(true), 600);
+    const fallback = setTimeout(() => setTransitionSettled(true), 240);
     return () => clearTimeout(fallback);
   }, [isFocused, transitionSettled]);
 
@@ -140,7 +158,7 @@ export function CaptureScreen({ navigation, route }: Props) {
     }
     Animated.timing(cameraPreviewEntrance, {
       toValue: 1,
-      duration: 140,
+      duration: 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
@@ -186,6 +204,10 @@ export function CaptureScreen({ navigation, route }: Props) {
       setWorking(true);
       setCaptureError(null);
       Haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
+      if (!reducedMotion) {
+        shutterFlash.setValue(0.55);
+        Animated.timing(shutterFlash, { toValue: 0, duration: 150, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+      }
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false, shutterSound: true });
       try {
         await cameraRef.current.pausePreview();
@@ -261,7 +283,17 @@ export function CaptureScreen({ navigation, route }: Props) {
       <StatusBar style="light" />
 
       {permission?.granted && isFocused && transitionSettled ? (
-        <Animated.View style={[styles.cameraLayer, { opacity: cameraPreviewEntrance }]}>
+        <Animated.View
+          style={[
+            styles.cameraLayer,
+            {
+              opacity: cameraPreviewEntrance,
+              transform: [{
+                scale: cameraPreviewEntrance.interpolate({ inputRange: [0, 1], outputRange: [1.035, 1] }),
+              }],
+            },
+          ]}
+        >
           <CameraView
             key={cameraSessionKey}
             ref={cameraRef}
@@ -283,6 +315,25 @@ export function CaptureScreen({ navigation, route }: Props) {
           />
         </Animated.View>
       ) : null}
+
+      {permission?.granted && !cameraFailed ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.cameraWarmupLayer,
+            {
+              opacity: cameraPreviewEntrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+            },
+          ]}
+        >
+          <View style={styles.cameraWarmupGlow} />
+          <View style={[styles.cameraWarmupRing, isCheck && styles.cameraWarmupRingCheck]}>
+            <AppIcon name={isCheck ? 'verify' : 'camera'} size={42} />
+          </View>
+        </Animated.View>
+      ) : null}
+
+      <Animated.View pointerEvents="none" style={[styles.shutterFlash, { opacity: shutterFlash }]} />
 
       <Animated.View pointerEvents="none" style={[styles.cameraAtmosphere, { opacity: cameraPreviewEntrance }]}>
         <View style={styles.cameraTint} />
@@ -452,8 +503,47 @@ export function CaptureScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, width: '100%', backgroundColor: '#090817' },
+  safe: { flex: 1, width: '100%', backgroundColor: '#090817', overflow: 'hidden' },
   cameraLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#090817' },
+  cameraWarmupLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#120E29',
+  },
+  cameraWarmupGlow: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(139, 92, 246, 0.14)',
+  },
+  cameraWarmupRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(201, 255, 59, 0.5)',
+    backgroundColor: 'rgba(34, 26, 74, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraWarmupRingCheck: { borderColor: 'rgba(255, 184, 107, 0.6)' },
+  shutterFlash: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 30,
+    backgroundColor: colors.paper,
+  },
   cameraAtmosphere: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 2 },
   cameraTint: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(17,13,40,0.08)' },
   topGradient: { position: 'absolute', top: 0, left: 0, right: 0 },

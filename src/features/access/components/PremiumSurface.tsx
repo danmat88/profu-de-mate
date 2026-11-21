@@ -4,13 +4,17 @@ import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
 import Animated, {
+  Easing,
+  FadeInDown,
+  FadeOutDown,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -20,10 +24,10 @@ import type { CommercialAccess } from '../../../shared/types';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
-import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
+import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
 import { GoogleAccountButton } from '../../account/components/GoogleAccountButton';
 import type { PremiumOffer } from '../services/purchases';
@@ -124,6 +128,7 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
 export function PremiumSurface(props: Props) {
   const { gutter, isVeryShort } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit } = props;
   const premium = access?.premium.active === true;
   const googleLinked = identity === 'google';
@@ -133,9 +138,19 @@ export function PremiumSurface(props: Props) {
   const canBuy = googleLinked && Boolean(access && selectedPackage && configured);
   const waitingForAccess = !access && accessLoading;
   const showPlans = !premium && !success;
+  const smoothLayout = !reducedMotion && LinearTransition && Easing
+    ? LinearTransition.duration(240).easing(Easing.out(Easing.cubic))
+    : undefined;
+  const busyLabel = busy === 'google'
+    ? 'Conectez contul Google…'
+    : busy === 'purchase'
+      ? 'Confirmăm în Google Play…'
+      : busy === 'restore'
+        ? 'Caut abonamentul tău…'
+        : 'Deschid Google Play…';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={[styles.header, { paddingHorizontal: gutter }]}>
@@ -145,6 +160,7 @@ export function PremiumSurface(props: Props) {
         <IconButton
           label="Închide Premium"
           disabled={Boolean(busy)}
+          dimWhenDisabled={false}
           onPress={props.onClose}
           size={42}
         >
@@ -152,8 +168,14 @@ export function PremiumSurface(props: Props) {
         </IconButton>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <Enter delay={25} distance={14} style={[styles.heroOuter, { paddingHorizontal: gutter }]}>
+      <ScrollView
+        scrollEnabled={!busy}
+        removeClippedSubviews={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
+        <Animated.View collapsable={false} layout={smoothLayout} pointerEvents={busy ? 'none' : 'auto'}>
+        <View style={[styles.heroOuter, { paddingHorizontal: gutter }]}>
           <View style={styles.heroShadow}>
             <LinearGradient
               colors={['#8C52FF', '#6427E0', '#4A1BB8']}
@@ -189,10 +211,10 @@ export function PremiumSurface(props: Props) {
               </View>
             </LinearGradient>
           </View>
-        </Enter>
+        </View>
 
         <View style={{ paddingHorizontal: gutter }}>
-          <Enter delay={75} distance={12} style={styles.benefits}>
+          <View style={styles.benefits}>
             {['Rezolvi', 'Verifici', 'Păstrezi în Caiet'].map((label) => (
               <View key={label} style={styles.benefit}>
                 <View style={styles.benefitCheck}>
@@ -201,25 +223,25 @@ export function PremiumSurface(props: Props) {
                 <Text style={styles.benefitText}>{label}</Text>
               </View>
             ))}
-          </Enter>
+          </View>
 
           {success ? (
-            <Enter delay={0} distance={10} style={styles.activeSection}>
+            <View style={styles.activeSection}>
               <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
               <Text style={styles.sectionTitle}>Premium este activ.</Text>
               <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la problemă când ești pregătit.</Text>
-            </Enter>
+            </View>
           ) : premium ? (
-            <Enter delay={0} distance={10} style={styles.activeSection}>
+            <View style={styles.activeSection}>
               <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
               <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
               <Text style={styles.sectionTitle}>probleme disponibile</Text>
               <Text style={styles.body}>Limita se reînnoiește la miezul nopții. Abonamentul se administrează din Google Play.</Text>
-            </Enter>
+            </View>
           ) : null}
 
           {props.canContinue && !success ? (
-            <Enter delay={0} distance={10} style={styles.continueShadow}>
+            <View style={styles.continueShadow}>
               <View style={styles.continueRow}>
                 <View style={styles.continueCopy}>
                   <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
@@ -229,11 +251,11 @@ export function PremiumSurface(props: Props) {
                   <Text style={styles.continueLabel}>Continuă</Text>
                 </Pressable>
               </View>
-            </Enter>
+            </View>
           ) : null}
 
           {showPlans ? (
-            <Enter delay={120} distance={14} style={styles.plansSection}>
+            <View style={styles.plansSection}>
               <View style={styles.sectionHeading}>
                 <Text style={styles.sectionTitle}>Alege ritmul tău.</Text>
                 <Chip label="PREMIUM" tone="violetSoft" outlined={false} />
@@ -262,7 +284,7 @@ export function PremiumSurface(props: Props) {
                   <Text style={styles.bodySmall}>Prețul și perioada sunt confirmate în Google Play înainte de plată.</Text>
                 )}
               </View>
-            </Enter>
+            </View>
           ) : null}
 
           {!access && !success ? (
@@ -286,14 +308,15 @@ export function PremiumSurface(props: Props) {
                 Abonamentul se reînnoiește automat. Îl poți anula din Google Play înainte de următoarea reînnoire. Prețul și perioada de facturare sunt confirmate înainte de plată.
               </Text>
             ) : null}
-            <Pressable accessibilityRole="link" onPress={props.onLegal} style={styles.textAction}>
+            <Pressable accessibilityRole="link" disabled={Boolean(busy)} onPress={props.onLegal} style={styles.textAction}>
               <Text style={styles.legalLink}>Termeni și confidențialitate</Text>
             </Pressable>
           </View>
         </View>
+        </Animated.View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <Animated.View layout={smoothLayout} style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {success ? (
           <ComicButton title="Înapoi la matematică" icon="scan" onPress={props.onClose} compact />
         ) : premium ? (
@@ -327,13 +350,51 @@ export function PremiumSurface(props: Props) {
         ) : !success && !premium ? (
           <Text style={styles.footerNote}>Continui gratuit oricând. Fără obligații.</Text>
         ) : null}
-      </View>
-    </SafeAreaView>
+      </Animated.View>
+
+      {busy ? (
+        <View pointerEvents="auto" style={styles.lockOverlay}>
+          <Animated.View
+            entering={!reducedMotion && FadeInDown && Easing ? FadeInDown.duration(200).easing(Easing.out(Easing.cubic)) : undefined}
+            exiting={!reducedMotion && FadeOutDown ? FadeOutDown.duration(150) : undefined}
+            accessibilityLiveRegion="polite"
+            style={[styles.busyDock, { bottom: Math.max(insets.bottom, 14) + 14 }]}
+          >
+            <View style={styles.busyPill}>
+              <PlayfulLoader micro inverse />
+              <Text style={styles.busyPillText}>{busyLabel}</Text>
+            </View>
+          </Animated.View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  lockOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 },
+  busyDock: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 45,
+  },
+  busyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: borders.regular,
+    borderColor: colors.lime,
+    backgroundColor: colors.ink,
+    elevation: 6,
+  },
+  busyPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 18 },
   header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   brand: { flex: 1, fontFamily: fonts.display, fontSize: 19, color: colors.ink },
   brandAccent: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.violetDeep },

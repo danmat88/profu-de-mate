@@ -94,18 +94,25 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
             }}
           >
             <StatusBar style={darkSystemBars ? 'light' : 'dark'} />
-            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'slide_from_right' }}>
+            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'ios_from_right' }}>
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
-              <Stack.Screen name="MathInput" component={MathInputScreen} />
-              <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade', contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="MathInput" component={MathInputScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom' }} />
+              <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade_from_bottom', contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Notebook" component={NotebookScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Legal" component={LegalScreen} />
               <Stack.Screen name="Paywall" component={PaywallScreen} initialParams={{ source: 'settings' }} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
-              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: 'none', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending?.schemaVersion === 2 ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
-              <Stack.Screen name="Lesson" component={LessonScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false }} />
+              <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending?.schemaVersion === 2 ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
+              <Stack.Screen
+                name="Lesson"
+                component={LessonScreen}
+                options={({ route }) => ({
+                  animation: reducedMotion ? 'none' : route.params?.source === 'notebook' ? 'ios_from_right' : 'fade_from_bottom',
+                  gestureEnabled: route.params?.source === 'notebook',
+                })}
+              />
               <Stack.Screen name="Summary" component={SummaryScreen} />
             </Stack.Navigator>
         </NavigationContainer>

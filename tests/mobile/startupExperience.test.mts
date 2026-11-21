@@ -19,6 +19,11 @@ const deletionSource = await readFile(new URL('../../src/features/account/servic
 const homeSource = await readFile(new URL('../../src/features/home/screens/HomeScreen.tsx', import.meta.url), 'utf8');
 const homeSurfaceSource = await readFile(new URL('../../src/features/home/components/HomeSurface.tsx', import.meta.url), 'utf8');
 const paywallSource = await readFile(new URL('../../src/features/access/screens/PaywallScreen.tsx', import.meta.url), 'utf8');
+const premiumSurfaceSource = await readFile(new URL('../../src/features/access/components/PremiumSurface.tsx', import.meta.url), 'utf8');
+const settingsSource = await readFile(new URL('../../src/features/account/screens/SettingsScreen.tsx', import.meta.url), 'utf8');
+const legalSource = await readFile(new URL('../../src/features/account/screens/LegalScreen.tsx', import.meta.url), 'utf8');
+const notebookSource = await readFile(new URL('../../src/features/lessons/screens/NotebookScreen.tsx', import.meta.url), 'utf8');
+const enterSource = await readFile(new URL('../../src/shared/ui/Enter.tsx', import.meta.url), 'utf8');
 
 test('navigation receives verified launch data and stays covered until its first layout', () => {
   assert.match(appSource, /startup \? <CommercialProvider initialAccess=\{startup\.initialAccess\} initialVerifiedAt=\{startup\.verifiedAt\}/);
@@ -171,4 +176,34 @@ test('automatic commercial refresh is stale-while-revalidate and pauses during i
   }), false);
   assert.equal(isCurrentCommercialRefreshGeneration(4, 4), true);
   assert.equal(isCurrentCommercialRefreshGeneration(4, 5), false);
+});
+
+test('Settings, Paywall and Legal apply synchronous top insets and lock all interaction cleanly without ugly dimming', () => {
+  for (const source of [settingsSource, premiumSurfaceSource, legalSource]) {
+    assert.doesNotMatch(source, /<SafeAreaView/);
+    assert.doesNotMatch(source, /<Enter[\s>]/);
+    assert.match(source, /paddingTop: insets\.top \?\? 0/);
+  }
+  assert.doesNotMatch(settingsSource, /sectionLocked/);
+  assert.doesNotMatch(premiumSurfaceSource, /contentLocked/);
+  assert.match(settingsSource, /LinearTransition\.duration\(/);
+  assert.match(settingsSource, /styles\.busyPill/);
+  assert.match(settingsSource, /removeClippedSubviews=\{false\}/);
+  assert.match(settingsSource, /backDisabled=\{accountBusy\}/);
+  assert.match(settingsSource, /scrollEnabled=\{!accountBusy\}/);
+  assert.match(settingsSource, /BackHandler\.addEventListener\('hardwareBackPress'/);
+  assert.match(settingsSource, /navigation\.addListener\('beforeRemove'/);
+  assert.match(settingsSource, /style=\{styles\.lockOverlay\}/);
+  assert.match(settingsSource, /finally \{\s*logoutLocked\.current = false;\s*setDisconnectingGoogle\(false\);/);
+  assert.match(settingsSource, /finally \{\s*deletionLocked\.current = false;\s*setDeleting\(false\);/);
+  assert.match(paywallSource, /identityTransitionBusy/);
+  assert.match(paywallSource, /beforeRemove/);
+  assert.match(premiumSurfaceSource, /style=\{styles\.lockOverlay\}/);
+  assert.match(premiumSurfaceSource, /styles\.busyPill/);
+  assert.match(enterSource, /cancelAnimation\(progress\)/);
+  assert.match(enterSource, /clearTimeout\(watchdog\)/);
+  assert.match(homeSource, /showGuide=\{!guideDismissed\}/);
+  assert.match(homeSource, /setGalleryBusy\(false\)/);
+  assert.match(notebookSource, /navigation\.preload\('Lesson', params\)/);
+  assert.match(notebookSource, /waitForLessonPresentation\(lesson\.id/);
 });

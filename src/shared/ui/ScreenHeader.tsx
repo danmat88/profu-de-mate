@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts, typography } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
@@ -10,10 +11,12 @@ type Props = {
   title: string;
   eyebrow?: string;
   onBack: () => void;
+  backDisabled?: boolean;
   rightIcon?: AppIconName;
   rightLabel?: string;
   onRight?: () => void;
   rightActive?: boolean;
+  rightDisabled?: boolean;
   dark?: boolean;
   compact?: boolean;
 };
@@ -22,15 +25,18 @@ export function ScreenHeader({
   title,
   eyebrow,
   onBack,
+  backDisabled = false,
   rightIcon,
   rightLabel = 'Acțiune',
   onRight,
   rightActive = false,
+  rightDisabled = false,
   dark = false,
   compact = false,
 }: Props) {
   const color = dark ? colors.paper : colors.ink;
-  const { gutter, isNarrow, isLargeText } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter, isNarrow, isLargeText } = useResponsiveLayout(frame);
   const buttonSize = compact && !isLargeText ? 42 : 46;
 
   return (
@@ -43,7 +49,7 @@ export function ScreenHeader({
         isLargeText && styles.rowLargeText,
       ]}
     >
-      <IconButton label="Înapoi" onPress={onBack} dark={dark} size={buttonSize}>
+      <IconButton label="Înapoi" onPress={onBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
         <MiniGlyph name="back" size={compact && !isLargeText ? 22 : 25} color={color} />
       </IconButton>
       <View style={styles.copy}>
@@ -68,6 +74,7 @@ export function ScreenHeader({
         <IconButton
           label={rightLabel}
           onPress={onRight}
+          disabled={rightDisabled}
           dark={dark}
           active={rightActive}
           size={buttonSize}

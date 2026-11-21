@@ -168,7 +168,7 @@ test('Home renders a preparation boundary until access exists, then paints the r
   const Surface = () => {};
   const Boundary = () => {};
   const load = serviceLoader({
-    react: { useCallback: (callback: unknown) => callback, useRef: (current: unknown) => ({ current }),
+    react: { useCallback: (callback: unknown) => callback, useEffect() {}, useRef: (current: unknown) => ({ current }),
       useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}] },
     'react/jsx-runtime': { jsx: (type: unknown, props: unknown) => ({ type, props }) },
     '@react-navigation/native': { useNavigation: () => ({ navigate }), useFocusEffect() {} },
@@ -231,6 +231,7 @@ test('Google sign-in and sign-out commit identity, session key and access atomic
   const postLogoutAccess: CommercialAccess = { ...access, identity: 'anonymous', tier: 'guest', used: 2, remaining: 3 };
 
   let currentUser: typeof guestUser | null = guestUser;
+  let cancelNextConnect = false;
   let tokenListener!: (u: typeof guestUser | null) => void;
   let accessResponse = deferred<CommercialAccess>();
   const stateWrites: Array<{ slot: number; value: unknown }> = [];
@@ -275,6 +276,7 @@ test('Google sign-in and sign-out commit identity, session key and access atomic
         return accessResponse.promise;
       },
       connectWithGoogle: async () => {
+        if (cancelNextConnect) return null;
         currentUser = googleUser;
         tokenListener(googleUser);
         return googleUser;
@@ -295,7 +297,7 @@ test('Google sign-in and sign-out commit identity, session key and access atomic
     'src/features/access/services/purchases.ts': { resetPurchasesForSignedOutUser: async () => {} },
   });
 
-  // Slots in CommercialProvider: 0=authSessionKey, 1=identity, 2=access, 3=startupReady, 4=status, 5=refreshing
+  // Slots in CommercialProvider: 0=authSessionKey, 1=identity, 2=access, 3=startupReady, 4=status, 5=refreshing, 6=identityTransitionBusy
   const tree = load('src/features/access/context/CommercialContext.tsx').CommercialProvider({
     initialAccess: guestAccess,
     initialVerifiedAt: Date.now(),
@@ -305,30 +307,48 @@ test('Google sign-in and sign-out commit identity, session key and access atomic
   try {
     const context = tree.props.value;
     stateWrites.length = 0;
+    assert.equal(stateValues[6], false);
 
-    // 1. Google sign-in: mid-transition token event must not emit null access or early key swap.
+    // 1. Google sign-in: mid-transition token event must not emit null access or early key swap,
+    // and identityTransitionBusy must stay true until the transition settles.
     const signInPromise = context.connectGoogle();
     await flush();
+    assert.equal(stateValues[6], true);
     assert.equal(stateWrites.some((w) => w.slot === 0 || w.slot === 1 || w.slot === 2), false);
     accessResponse.resolve(googleAccess);
     assert.equal(await signInPromise, googleAccess);
     assert.equal(stateValues[0], 'google-1|google');
     assert.equal(stateValues[1], 'google');
     assert.equal(stateValues[2], googleAccess);
+    assert.equal(stateValues[6], false);
     assert.equal(stateWrites.some((w) => w.slot === 2 && w.value === null), false);
 
-    // 2. Google sign-out: null token + replacement anonymous token must not flash signed-out state.
+    // 2. Google sign-out: null token + replacement anonymous token must not flash signed-out state,
+    // and identityTransitionBusy must lock while in flight and unlock on completion.
     stateWrites.length = 0;
     accessResponse = deferred<CommercialAccess>();
     const signOutPromise = context.disconnectGoogle();
     await flush();
+    assert.equal(stateValues[6], true);
     assert.equal(stateWrites.some((w) => w.slot === 0 || w.slot === 1 || w.slot === 2), false);
     accessResponse.resolve(postLogoutAccess);
     assert.equal(await signOutPromise, postLogoutAccess);
     assert.equal(stateValues[0], 'guest-2|anon');
     assert.equal(stateValues[1], 'anonymous');
     assert.equal(stateValues[2], postLogoutAccess);
+    assert.equal(stateValues[6], false);
     assert.equal(stateWrites.some((w) => (w.slot === 0 || w.slot === 1 || w.slot === 2) && w.value === null), false);
+
+    // 3. Cancelled Google sign-in must also unlock identityTransitionBusy cleanly without changing account state.
+    stateWrites.length = 0;
+    cancelNextConnect = true;
+    const cancelledSignIn = context.connectGoogle();
+    assert.equal(stateValues[6], true);
+    assert.equal(await cancelledSignIn, null);
+    assert.equal(stateValues[6], false);
+    assert.equal(stateValues[0], 'guest-2|anon');
+    assert.equal(stateValues[1], 'anonymous');
+    assert.equal(stateWrites.some((w) => w.slot === 0 || w.slot === 1 || w.slot === 2), false);
   } finally {
     cleanup.forEach((fn) => { if (typeof fn === 'function') fn(); });
   }

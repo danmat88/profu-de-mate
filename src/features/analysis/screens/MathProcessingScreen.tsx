@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
@@ -53,7 +53,10 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       return draft && serializeMathDocument(draft.problem) === math.problemLatex ? draft.problem : null;
     } catch { return null; }
   });
-  const goHome = () => navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  const goHome = () => {
+    if (state.kind !== 'working') clearPendingAnalysis(requestId);
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
 
   useFocusEffect(useCallback(() => {
     if (returningFromPaywall.current) { returningFromPaywall.current = false; setAttempt((value) => value + 1); }
@@ -119,7 +122,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
     : state.kind === 'commercial' ? 'point' : 'oops';
 
   return (
-    <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
+    <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.header}>
@@ -233,7 +236,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
         ) : null}
       </View>
       <FeedbackSheet visible={feedback} requestId={requestId} onClose={() => setFeedback(false)} />
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
@@ -259,7 +259,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
     const message = rejected ? contentToAccessibleText(screenState.result.summary) : screenState.message;
 
     return (
-      <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
+      <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
         <StatusBar style="light" />
         <ComicBackdrop dark />
         <Enter delay={0} distance={8} style={styles.top}>
@@ -354,12 +354,12 @@ export function ProcessingScreen({ navigation, route }: Props) {
           </Pressable>
         </Enter>
         <FeedbackSheet visible={feedbackVisible} requestId={route.params.requestId} onClose={() => setFeedbackVisible(false)} />
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
+    <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.sceneContent}>
@@ -424,7 +424,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           </View>
         </ScrollView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

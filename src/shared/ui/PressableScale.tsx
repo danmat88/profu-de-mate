@@ -32,6 +32,8 @@ type Props = Omit<PressableProps, 'style' | 'children'> & {
   /** Scale factor when pressed in flat mode (depth === 0). */
   pressedScale?: number;
   haptic?: PressHaptic;
+  /** Dim control opacity when disabled (default true). Set false for crisp transient locks. */
+  dimWhenDisabled?: boolean;
 };
 
 function triggerHaptic(kind: PressHaptic) {
@@ -54,6 +56,7 @@ export function PressableScale({
   shadowColor = colors.ink,
   pressedScale = 0.96,
   haptic = 'none',
+  dimWhenDisabled = true,
   disabled,
   onPress,
   onPressIn,
@@ -104,7 +107,7 @@ export function PressableScale({
       style={[
         styles.wrap,
         depth > 0 && { paddingBottom: depth },
-        disabled && styles.disabled,
+        disabled && dimWhenDisabled && styles.disabled,
         style,
       ]}
     >
