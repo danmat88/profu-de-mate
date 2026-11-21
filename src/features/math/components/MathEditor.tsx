@@ -539,6 +539,8 @@ const KeypadGrid = memo(function KeypadGrid({
 
 export type MathEditorProps = {
   document: MathDocument;
+  /** Change this key when switching fields/modes to reset cursor & undo without remounting the keypad. */
+  documentKey?: string;
   onChange: (document: MathDocument) => void;
   accessibilityLabel?: string;
   disabled?: boolean;
@@ -553,6 +555,7 @@ export type MathEditorProps = {
 /** Native formula studio: notebook spine, 2D bounded scrolling, auto-scaling, zero Reanimated churn. */
 export function MathEditor({
   document,
+  documentKey,
   onChange,
   accessibilityLabel = 'Editor matematic',
   disabled = false,
@@ -567,11 +570,22 @@ export function MathEditor({
   const compact = isVeryShort || isShort;
   const [showRelations, setShowRelations] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [activeKey, setActiveKey] = useState(documentKey);
   const [state, setState] = useState(() => createMathEditorState(document));
   const [alertEmptySlots, setAlertEmptySlots] = useState(false);
   const [clearedToast, setClearedToast] = useState(false);
+
+  if (activeKey !== documentKey) {
+    setActiveKey(documentKey);
+    setState(createMathEditorState(document));
+    setAlertEmptySlots(false);
+    setClearedToast(false);
+    setExpanded(false);
+  }
+
   const stateRef = useRef(state);
   const lastDocument = useRef(document);
+  const lastKey = useRef(documentKey);
   const onChangeRef = useRef(onChange);
   const disabledRef = useRef(disabled);
   const clearedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -643,6 +657,16 @@ export function MathEditor({
   }, [revealCursor]);
 
   useLayoutEffect(() => {
+    if (documentKey !== lastKey.current) {
+      lastKey.current = documentKey;
+      lastDocument.current = document;
+      stateRef.current = state;
+      hViewport.current.offset = 0;
+      vViewport.current.offset = 0;
+      hScroll.current?.scrollTo({ x: 0, animated: false });
+      vScroll.current?.scrollTo({ y: 0, animated: false });
+      return;
+    }
     if (document !== lastDocument.current) {
       const next = synchronizeMathEditorDocument(stateRef.current, document);
       lastDocument.current = document;
@@ -651,7 +675,7 @@ export function MathEditor({
       setAlertEmptySlots(false);
       setClearedToast(false);
     }
-  }, [document]);
+  }, [document, documentKey, state]);
 
   useEffect(() => {
     if (errorSignal <= 0) return;

@@ -117,8 +117,9 @@ export function HomeSurface({
   const focused = useIsFocused();
   const motionReady = useContext(HomeMotionReadyContext);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
-  const [cheerIndex, setCheerIndex] = useState<number | null>(null);
+  const [cheer, setCheer] = useState<{ index: number; scope: string } | null>(null);
   const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousMode = useRef(mode);
 
   const stagePop = useSharedValue(1);
   const beamProgress = useSharedValue(0.5);
@@ -127,6 +128,8 @@ export function HomeSurface({
 
   const isSolve = mode === 'solve';
   const hasPendingAnalysis = pending;
+  const cheerScope = `${mode}:${hasPendingAnalysis}:${galleryError ?? ''}`;
+  const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index : null;
   const motionActive = motionReady && focused && foreground && !reducedMotion;
 
   useEffect(() => {
@@ -139,12 +142,11 @@ export function HomeSurface({
   }, []);
 
   useEffect(() => {
-    setCheerIndex(null);
     if (cheerTimer.current) {
       clearTimeout(cheerTimer.current);
       cheerTimer.current = null;
     }
-  }, [mode, hasPendingAnalysis, galleryError]);
+  }, [cheerScope]);
 
   useEffect(() => {
     if (!motionActive || hasPendingAnalysis) {
@@ -195,19 +197,28 @@ export function HomeSurface({
   }, [arrowNudge, beamProgress, hasPendingAnalysis, motionActive, sparkPulse]);
 
   useEffect(() => {
+    if (previousMode.current === mode) return;
+    previousMode.current = mode;
     if (reducedMotion || !motionReady || !focused) {
       stagePop.set(1);
       return;
     }
-    stagePop.set(0.97);
-    stagePop.set(withSpring(1, springs.bouncy));
+    stagePop.set(withSequence(
+      withTiming(0.985, { duration: 60, easing: Easing.out(Easing.quad) }),
+      withSpring(1, springs.snappy),
+    ));
   }, [focused, mode, motionReady, reducedMotion, stagePop]);
 
   const cycleEncouragement = () => {
     if (hasPendingAnalysis || galleryError) return;
     if (cheerTimer.current) clearTimeout(cheerTimer.current);
-    setCheerIndex((current) => (current === null ? 0 : (current + 1) % CHEER_MESSAGES.length));
-    cheerTimer.current = setTimeout(() => setCheerIndex(null), 3200);
+    setCheer((current) => {
+      const nextIndex = current && current.scope === cheerScope
+        ? (current.index + 1) % CHEER_MESSAGES.length
+        : 0;
+      return { index: nextIndex, scope: cheerScope };
+    });
+    cheerTimer.current = setTimeout(() => setCheer(null), 3200);
   };
 
   const stageAnimated = useAnimatedStyle(() => ({

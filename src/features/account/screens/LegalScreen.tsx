@@ -1,13 +1,11 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { legalDocument } from '../../../shared/config/legal';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { borders, colors, fonts, springs, typography } from '../../../shared/theme';
+import { borders, colors, fonts, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -17,10 +15,13 @@ import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar
 import { Enter } from '../../../shared/ui/Enter';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
+import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text } from '../../../shared/ui/Typography';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Legal'>;
 type DocumentTab = 'overview' | 'privacy' | 'terms';
+
+const TAB_ORDER: Record<DocumentTab, number> = { overview: 0, privacy: 1, terms: 2 };
 
 const tabs: readonly ComicTabOption<DocumentTab>[] = [
   { value: 'overview', label: 'Pe scurt', activeFill: colors.violet, activeText: colors.paper },
@@ -56,31 +57,20 @@ function Bullet({ children }: { children: React.ReactNode }) {
 export function LegalScreen({ navigation }: Props) {
   const { gutter } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
-  const scrollRef = useRef<ScrollView>(null);
-  const [tab, setTab] = useState<DocumentTab>('overview');
-  const contentShift = useSharedValue(0);
-  const contentOpacity = useSharedValue(1);
+  const [tabState, setTabState] = useState<{ tab: DocumentTab; direction: -1 | 0 | 1 }>({
+    tab: 'overview',
+    direction: 0,
+  });
+  const { tab, direction } = tabState;
   const operatorLine = legalDocument.operatorName
     ? `Operatorul aplicației este ${legalDocument.operatorName}.`
     : 'Această politică explică simplu ce folosește aplicația și ce poți controla.';
 
   const chooseTab = (next: DocumentTab) => {
-    if (next === tab) return;
-    setTab(next);
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
-    if (!reducedMotion) {
-      contentShift.set(12);
-      contentOpacity.set(0.45);
-      contentShift.set(withSpring(0, springs.snappy));
-      contentOpacity.set(withSpring(1, springs.snappy));
-    }
+    setTabState((current) => (current.tab === next
+      ? current
+      : { tab: next, direction: TAB_ORDER[next] > TAB_ORDER[current.tab] ? 1 : -1 }));
   };
-
-  const contentAnimated = useAnimatedStyle(() => ({
-    opacity: contentOpacity.get(),
-    transform: [{ translateY: contentShift.get() }],
-  }));
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -92,12 +82,11 @@ export function LegalScreen({ navigation }: Props) {
         <ComicTabBar options={tabs} value={tab} onChange={chooseTab} />
       </Enter>
 
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 20 }]}
-      >
-        <Animated.View style={[styles.tabBody, contentAnimated]}>
+      <TabPanel key={tab} direction={direction} style={styles.tabStage}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.content, styles.tabBody, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 20 }]}
+        >
           {tab === 'overview' ? (
             <>
               <ComicCard tone="paper" depth={5} radius={26} borderWidth={borders.thick} shine contentStyle={styles.hero}>
@@ -233,8 +222,8 @@ export function LegalScreen({ navigation }: Props) {
               </ComicCard>
             </>
           ) : null}
-        </Animated.View>
-      </ScrollView>
+        </ScrollView>
+      </TabPanel>
     </SafeAreaView>
   );
 }
@@ -242,6 +231,7 @@ export function LegalScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   tabWrap: { marginBottom: 10 },
+  tabStage: { flex: 1, minHeight: 0 },
   content: { paddingTop: 4 },
   tabBody: { gap: 14 },
   hero: { alignItems: 'center', paddingHorizontal: 18, paddingVertical: 20 },

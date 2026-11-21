@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -49,12 +52,14 @@ export function SpeechBubble({
     if (!messageKey || previousKey.current === messageKey) return;
     previousKey.current = messageKey;
     if (reducedMotion) return;
-    scale.value = 0.95;
-    scale.value = withSpring(1, springs.pop);
+    scale.set(withSequence(
+      withTiming(1.028, { duration: 80, easing: Easing.out(Easing.quad) }),
+      withSpring(1, springs.snappy),
+    ));
   }, [messageKey, reducedMotion, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+    transform: [{ scale: scale.get() }],
   }));
 
   return (

@@ -63,7 +63,11 @@ export function LessonScreen({ navigation, route }: Props) {
   const sourceImage = route.params.sourceImage;
   const isCheck = lesson.mode === 'check';
   const isFromNotebook = route.params.source === 'notebook';
-  const [step, setStep] = useState(0);
+  const [stepState, setStepState] = useState<{ step: number; direction: -1 | 0 | 1 }>({
+    step: 0,
+    direction: 0,
+  });
+  const step = stepState.step;
   const [alternate, setAlternate] = useState(false);
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemView, setProblemView] = useState<ProblemView>('statement');
@@ -71,13 +75,11 @@ export function LessonScreen({ navigation, route }: Props) {
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
-  const cardShift = useSharedValue(0);
-  const cardScale = useSharedValue(1);
   const alternateReveal = useSharedValue(0);
   const problemReveal = useSharedValue(0);
+  const problemTabProgress = useSharedValue(0);
   const savedReveal = useSharedValue(0);
 
-  const previousStep = useRef(0);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeAlternateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeProblemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,17 +121,7 @@ export function LessonScreen({ navigation, route }: Props) {
   useEffect(() => {
     setAlternate(false);
     alternateReveal.set(0);
-    if (previousStep.current !== step) {
-      const direction = step > previousStep.current ? 1 : -1;
-      previousStep.current = step;
-      if (!reducedMotion) {
-        cardShift.set(direction * 26);
-        cardScale.set(0.98);
-        cardShift.set(withSpring(0, springs.snappy));
-        cardScale.set(withSpring(1, springs.snappy));
-      }
-    }
-  }, [alternateReveal, cardScale, cardShift, reducedMotion, step]);
+  }, [alternateReveal, step]);
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
@@ -163,14 +155,14 @@ export function LessonScreen({ navigation, route }: Props) {
   const jumpToStep = useCallback((target: number) => {
     if (target < 0 || target >= lesson.steps.length || target === step) return;
     if (!lockPaging()) return;
-    setStep(target);
+    setStepState({ step: target, direction: target > step ? 1 : -1 });
   }, [lesson.steps.length, lockPaging, step]);
 
   const next = useCallback(() => {
     if (!lockPaging()) return;
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     if (step < lesson.steps.length - 1) {
-      setStep((value) => value + 1);
+      setStepState((current) => ({ step: current.step + 1, direction: 1 }));
       return;
     }
     if (isFromNotebook) {
@@ -190,7 +182,7 @@ export function LessonScreen({ navigation, route }: Props) {
     if (!lockPaging()) return;
     Haptics.selection();
     if (step > 0) {
-      setStep((value) => value - 1);
+      setStepState((current) => ({ step: current.step - 1, direction: -1 }));
       return;
     }
     if (isFromNotebook) navigation.goBack();
@@ -259,10 +251,18 @@ export function LessonScreen({ navigation, route }: Props) {
     }
     if (closeProblemTimer.current) clearTimeout(closeProblemTimer.current);
     setProblemView('statement');
+    problemTabProgress.set(0);
     setProblemOpen(true);
     problemReveal.set(0);
     if (reducedMotion) problemReveal.set(1);
     else problemReveal.set(withSpring(1, springs.snappy));
+  };
+
+  const chooseProblemView = (next: ProblemView) => {
+    if (next === problemView) return;
+    setProblemView(next);
+    const target = next === 'photo' ? 1 : 0;
+    problemTabProgress.set(reducedMotion ? target : withSpring(target, springs.snappy));
   };
 
   const toggleSaved = async () => {
@@ -290,10 +290,6 @@ export function LessonScreen({ navigation, route }: Props) {
     }
   };
 
-  const cardAnimated = useAnimatedStyle(() => ({
-    transform: [{ translateX: cardShift.get() }, { scale: cardScale.get() }],
-  }));
-
   const toastAnimated = useAnimatedStyle(() => {
     const p = savedReveal.get();
     return {
@@ -317,6 +313,22 @@ export function LessonScreen({ navigation, route }: Props) {
     return {
       opacity: Math.min(1, p * 1.3),
       transform: [{ translateY: (1 - p) * 60 }],
+    };
+  });
+
+  const statementPaneStyle = useAnimatedStyle(() => {
+    const p = Math.max(0, Math.min(1, problemTabProgress.get()));
+    return {
+      opacity: 1 - p,
+      transform: [{ translateX: -p * 18 }],
+    };
+  });
+
+  const photoPaneStyle = useAnimatedStyle(() => {
+    const p = Math.max(0, Math.min(1, problemTabProgress.get()));
+    return {
+      opacity: p,
+      transform: [{ translateX: (1 - p) * 18 }],
     };
   });
 
@@ -372,7 +384,7 @@ export function LessonScreen({ navigation, route }: Props) {
         </PressableScale>
 
         <GestureDetector gesture={swipeGesture}>
-          <Animated.View style={[styles.cardWrap, cardAnimated]}>
+          <View style={styles.cardWrap}>
             <View pointerEvents="none" style={styles.cardShadow} />
             <View style={styles.cardFace}>
               <View style={[styles.cardRibbon, { backgroundColor: ribbonColors[tone] }]}>
@@ -380,12 +392,13 @@ export function LessonScreen({ navigation, route }: Props) {
               </View>
               <View style={styles.documentFrame}>
                 <MathDocumentView definition={lessonDocument}
+                  transitionDirection={stepState.direction}
                   testID="lesson-math-document"
                   onReady={() => markLessonPresentationReady(route.params.lessonId)}
                 />
               </View>
             </View>
-          </Animated.View>
+          </View>
         </GestureDetector>
       </View>
 
@@ -495,18 +508,31 @@ export function LessonScreen({ navigation, route }: Props) {
                   compact
                   options={problemViewTabs}
                   value={problemView}
-                  onChange={setProblemView}
+                  onChange={chooseProblemView}
                   style={styles.problemTabs}
                 />
               ) : null}
               <View style={styles.problemContent}>
-                {problemView === 'photo' && sourceImage ? (
-                  <View accessible accessibilityRole="image" accessibilityLabel="Fotografia originală a problemei" style={styles.sourceImageCard}>
-                    <Image accessible={false} source={{ uri: sourceImage.uri }} resizeMode="contain" style={styles.sourceImage} />
-                  </View>
-                ) : (
+                <Animated.View
+                  pointerEvents={problemView === 'statement' ? 'auto' : 'none'}
+                  accessibilityElementsHidden={problemView !== 'statement'}
+                  importantForAccessibility={problemView === 'statement' ? 'yes' : 'no-hide-descendants'}
+                  style={[styles.problemPane, statementPaneStyle]}
+                >
                   <MathDocumentView definition={problemDocument} testID="problem-math-document" />
-                )}
+                </Animated.View>
+                {sourceImage ? (
+                  <Animated.View
+                    pointerEvents={problemView === 'photo' ? 'auto' : 'none'}
+                    accessibilityElementsHidden={problemView !== 'photo'}
+                    importantForAccessibility={problemView === 'photo' ? 'yes' : 'no-hide-descendants'}
+                    style={[styles.problemPaneOverlay, photoPaneStyle]}
+                  >
+                    <View accessible accessibilityRole="image" accessibilityLabel="Fotografia originală a problemei" style={styles.sourceImageCard}>
+                      <Image accessible={false} source={{ uri: sourceImage.uri }} resizeMode="contain" style={styles.sourceImage} />
+                    </View>
+                  </Animated.View>
+                ) : null}
               </View>
             </Animated.View>
           </View>
@@ -708,7 +734,9 @@ const styles = StyleSheet.create({
   sheetTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18, lineHeight: 22, marginTop: 1 },
   sheetDocument: { marginBottom: 10 },
   problemTabs: { marginBottom: 10 },
-  problemContent: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
+  problemContent: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper, position: 'relative' },
+  problemPane: { flex: 1 },
+  problemPaneOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   sourceImageCard: { flex: 1, padding: 8, borderRadius: 16, borderWidth: borders.thin, borderColor: colors.line, backgroundColor: '#F4EEFF' },
   sourceImage: { width: '100%', height: '100%', borderRadius: 12 },
 });

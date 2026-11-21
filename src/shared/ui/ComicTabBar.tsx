@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -12,11 +12,14 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
 import { borders, colors, fonts, shadows, springs } from '../theme';
 import { Text } from './Typography';
+
+const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export type ComicTabOption<T extends string> = {
   value: T;
@@ -39,9 +42,103 @@ type Props<T extends string> = {
 
 const TRACK_PADDING = 3;
 
+type TabItemProps<T extends string> = {
+  option: ComicTabOption<T>;
+  index: number;
+  active: boolean;
+  disabled: boolean;
+  compact: boolean;
+  hasPill: boolean;
+  progress: SharedValue<number>;
+  onSelect: () => void;
+};
+
+function ComicTabItem<T extends string>({
+  option,
+  index,
+  active,
+  disabled,
+  compact,
+  hasPill,
+  progress,
+  onSelect,
+}: TabItemProps<T>) {
+  const activeFill = option.activeFill ?? colors.violet;
+  const activeText = option.activeText ?? colors.paper;
+  const badgeFill = option.badgeFill ?? colors.lime;
+  const badgeText = option.badgeText ?? colors.ink;
+
+  const labelAnimated = useAnimatedStyle(() => {
+    const distance = Math.min(1, Math.abs(progress.get() - index));
+    return {
+      color: interpolateColor(distance, [0, 1], [activeText, colors.inkSoft]),
+    };
+  }, [activeText, index]);
+
+  const badgeAnimated = useAnimatedStyle(() => {
+    const distance = Math.min(1, Math.abs(progress.get() - index));
+    return {
+      backgroundColor: interpolateColor(distance, [0, 1], [badgeFill, colors.violetSoft]),
+      borderColor: interpolateColor(distance, [0, 1], [colors.ink, 'rgba(23,19,55,0)']),
+    };
+  }, [badgeFill, index]);
+
+  const badgeTextAnimated = useAnimatedStyle(() => {
+    const distance = Math.min(1, Math.abs(progress.get() - index));
+    return {
+      color: interpolateColor(distance, [0, 1], [badgeText, colors.violetDeep]),
+    };
+  }, [badgeText, index]);
+
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active, disabled }}
+      disabled={disabled}
+      onPress={onSelect}
+      style={[
+        styles.tab,
+        !hasPill && active && {
+          backgroundColor: activeFill,
+          borderRadius: compact ? 10 : 12,
+          borderWidth: 1.5,
+          borderColor: colors.ink,
+        },
+      ]}
+    >
+      <AnimatedText
+        maxFontSizeMultiplier={1.2}
+        numberOfLines={1}
+        style={[
+          styles.label,
+          compact && styles.labelCompact,
+          labelAnimated,
+        ]}
+      >
+        {option.label}
+      </AnimatedText>
+      {option.badge !== undefined ? (
+        <Animated.View style={[styles.badge, compact && styles.badgeCompact, badgeAnimated]}>
+          <AnimatedText
+            maxFontSizeMultiplier={1.15}
+            style={[
+              styles.badgeText,
+              compact && styles.badgeTextCompact,
+              badgeTextAnimated,
+            ]}
+          >
+            {option.badge}
+          </AnimatedText>
+        </Animated.View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 /**
- * Bouncy Reanimated comic tab bar supporting 2 or more segments with a
- * spring-sliding glossy pill and optional count badges.
+ * Snappy Reanimated comic tab bar supporting 2 or more segments with a
+ * spring-sliding glossy pill whose label & badge colors stay locked in sync
+ * with the pill position on the UI thread (zero white-on-white flash).
  */
 export function ComicTabBar<T extends string>({
   options,
@@ -56,11 +153,11 @@ export function ComicTabBar<T extends string>({
   const activeIndex = Math.max(0, options.findIndex((item) => item.value === value));
   const progress = useSharedValue(activeIndex);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (reducedMotion) {
       progress.set(activeIndex);
     } else {
-      progress.set(withSpring(activeIndex, springs.bouncy));
+      progress.set(withSpring(activeIndex, springs.snappy));
     }
   }, [activeIndex, progress, reducedMotion]);
 
@@ -78,7 +175,7 @@ export function ComicTabBar<T extends string>({
   }, [colorsKey]);
 
   const pillStyle = useAnimatedStyle(() => {
-    const p = progress.get();
+    const p = Math.max(0, Math.min(count - 1, progress.get()));
     const bg = count > 1
       ? interpolateColor(p, inputRange, outputRange)
       : outputRange[0];
@@ -121,70 +218,24 @@ export function ComicTabBar<T extends string>({
           </Animated.View>
         ) : null}
 
-        {options.map((option, index) => {
-          const active = index === activeIndex;
-          const activeFill = option.activeFill ?? colors.violet;
-          const activeText = option.activeText ?? colors.paper;
-          const badgeFill = option.badgeFill ?? colors.lime;
-          const badgeText = option.badgeText ?? colors.ink;
-
-          return (
-            <Pressable
-              key={option.value}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active, disabled }}
-              disabled={disabled}
-              onPress={() => {
-                if (option.value === value) return;
-                Haptics.selection();
-                onChange(option.value);
-              }}
-              style={[
-                styles.tab,
-                pillWidth === 0 && active && {
-                  backgroundColor: activeFill,
-                  borderRadius: compact ? 11 : 12,
-                  borderWidth: 1.5,
-                  borderColor: colors.ink,
-                },
-              ]}
-            >
-              <Text
-                maxFontSizeMultiplier={1.25}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-                style={[
-                  styles.label,
-                  compact && styles.labelCompact,
-                  active && { color: activeText },
-                ]}
-              >
-                {option.label}
-              </Text>
-              {option.badge !== undefined ? (
-                <View
-                  style={[
-                    styles.badge,
-                    compact && styles.badgeCompact,
-                    active && { backgroundColor: badgeFill, borderColor: colors.ink },
-                  ]}
-                >
-                  <Text
-                    maxFontSizeMultiplier={1.2}
-                    style={[
-                      styles.badgeText,
-                      compact && styles.badgeTextCompact,
-                      active && { color: badgeText },
-                    ]}
-                  >
-                    {option.badge}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })}
+        {options.map((option, index) => (
+          <ComicTabItem
+            key={option.value}
+            option={option}
+            index={index}
+            active={index === activeIndex}
+            disabled={disabled}
+            compact={compact}
+            hasPill={pillWidth > 0}
+            progress={progress}
+            onSelect={() => {
+              if (option.value === value) return;
+              Haptics.selection();
+              progress.set(reducedMotion ? index : withSpring(index, springs.snappy));
+              onChange(option.value);
+            }}
+          />
+        ))}
       </View>
     </View>
   );

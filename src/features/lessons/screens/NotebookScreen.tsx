@@ -39,6 +39,7 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
+import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
 import {
@@ -50,6 +51,8 @@ import {
 } from '../utils/notebookPresentation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notebook'>;
+
+const FILTER_ORDER: Record<NotebookFilter, number> = { all: 0, solve: 1, check: 2 };
 
 const verdictTones = {
   correct: { backgroundColor: colors.lime, color: colors.ink },
@@ -85,13 +88,12 @@ function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
 
 type LessonRowProps = {
   lesson: StoredLesson;
-  index: number;
   newest: boolean;
   onOpen: (lesson: StoredLesson) => void;
   onRemove: (lesson: StoredLesson) => void;
 };
 
-const LessonRow = memo(function LessonRow({ lesson, index, newest, onOpen, onRemove }: LessonRowProps) {
+const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: LessonRowProps) {
   const presentation = notebookProblemPresentation(lesson);
   const verdict = notebookVerdictPresentation(lesson);
   const checked = lesson.mode === 'check';
@@ -107,18 +109,17 @@ const LessonRow = memo(function LessonRow({ lesson, index, newest, onOpen, onRem
   const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : undefined;
 
   return (
-    <Enter delay={Math.min(index, 5) * 42} distance={14} scaleFrom={0.96} bouncy={false}>
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
-        accessibilityHint={actionLabel}
-        depth={5}
-        radius={22}
-        shadowColor={colors.ink}
-        haptic="light"
-        onPress={() => onOpen(lesson)}
-        contentStyle={styles.lessonCard}
-      >
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
+      accessibilityHint={actionLabel}
+      depth={5}
+      radius={22}
+      shadowColor={colors.ink}
+      haptic="light"
+      onPress={() => onOpen(lesson)}
+      contentStyle={styles.lessonCard}
+    >
         <View style={[styles.lessonRail, { backgroundColor: spineTone }]}>
           <View pointerEvents="none" style={styles.railShine} />
           {[0, 1, 2].map((dot) => (
@@ -200,7 +201,6 @@ const LessonRow = memo(function LessonRow({ lesson, index, newest, onOpen, onRem
           </View>
         </View>
       </PressableScale>
-    </Enter>
   );
 }, (previous, next) => (
   previous.lesson.id === next.lesson.id
@@ -208,7 +208,6 @@ const LessonRow = memo(function LessonRow({ lesson, index, newest, onOpen, onRem
   && previous.lesson.mode === next.lesson.mode
   && previous.lesson.steps.length === next.lesson.steps.length
   && previous.lesson.createdAt?.toDate?.().getTime() === next.lesson.createdAt?.toDate?.().getTime()
-  && previous.index === next.index
   && previous.newest === next.newest
   && previous.onOpen === next.onOpen
   && previous.onRemove === next.onRemove
@@ -337,7 +336,11 @@ export function NotebookScreen({ navigation }: Props) {
   const { gutter, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const [filter, setFilter] = useState<NotebookFilter>('all');
+  const [filterState, setFilterState] = useState<{ filter: NotebookFilter; direction: -1 | 0 | 1 }>({
+    filter: 'all',
+    direction: 0,
+  });
+  const { filter, direction } = filterState;
   const [queryText, setQueryText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const deferredQueryText = useDeferredValue(queryText);
@@ -349,8 +352,6 @@ export function NotebookScreen({ navigation }: Props) {
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
 
-  const listOpacity = useSharedValue(1);
-  const listShift = useSharedValue(0);
   const removeProgress = useSharedValue(0);
   const closeRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -424,17 +425,10 @@ export function NotebookScreen({ navigation }: Props) {
   ], [counts.all, counts.check, counts.solve]);
 
   const chooseFilter = useCallback((next: NotebookFilter) => {
-    setFilter((current) => {
-      if (current === next) return current;
-      if (!reducedMotion) {
-        listOpacity.set(0.65);
-        listShift.set(10);
-        listOpacity.set(withSpring(1, springs.snappy));
-        listShift.set(withSpring(0, springs.snappy));
-      }
-      return next;
-    });
-  }, [listOpacity, listShift, reducedMotion]);
+    setFilterState((current) => (current.filter === next
+      ? current
+      : { filter: next, direction: FILTER_ORDER[next] > FILTER_ORDER[current.filter] ? 1 : -1 }));
+  }, []);
 
   const openNote = useCallback((lesson: StoredLesson) => {
     navigation.navigate('Lesson', { lesson, lessonId: lesson.id, isFavorite: true, source: 'notebook' });
@@ -498,11 +492,6 @@ export function NotebookScreen({ navigation }: Props) {
     setSubscriptionAttempt((attempt) => attempt + 1);
   }, [notes.length]);
 
-  const listAnimated = useAnimatedStyle(() => ({
-    opacity: listOpacity.get(),
-    transform: [{ translateY: listShift.get() }],
-  }));
-
   const removeScrimStyle = useAnimatedStyle(() => ({
     opacity: removeProgress.get(),
   }));
@@ -516,8 +505,8 @@ export function NotebookScreen({ navigation }: Props) {
   });
 
   const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
-  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item, index }) => (
-    <LessonRow lesson={item} index={index} newest={item.id === newestNoteId} onOpen={openNote} onRemove={requestRemove} />
+  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item }) => (
+    <LessonRow lesson={item} newest={item.id === newestNoteId} onOpen={openNote} onRemove={requestRemove} />
   ), [newestNoteId, openNote, requestRemove]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
   const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
@@ -613,7 +602,7 @@ export function NotebookScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <Animated.View style={[styles.listMotion, listAnimated]}>
+        <TabPanel key={filter} direction={direction} style={styles.listMotion}>
           <FlatList
             data={visibleNotes}
             renderItem={renderLesson}
@@ -630,7 +619,7 @@ export function NotebookScreen({ navigation }: Props) {
             windowSize={7}
             contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 18 }]}
           />
-        </Animated.View>
+        </TabPanel>
       </KeyboardAvoidingView>
 
       <Modal

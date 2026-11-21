@@ -50,10 +50,13 @@ export function SummaryScreen({ navigation, route }: Props) {
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [showSaveCoach, setShowSaveCoach] = useState(false);
-  const [activeTab, setActiveTab] = useState<SummaryTab>('answer');
+  const [tabState, setTabState] = useState<{ tab: SummaryTab; direction: -1 | 0 | 1 }>({
+    tab: 'answer',
+    direction: 0,
+  });
+  const activeTab = tabState.tab;
 
   const heroPop = useSharedValue(reducedMotion ? 1 : 0.88);
-  const cardShift = useSharedValue(0);
   const saveStamp = useSharedValue(1);
   const coachReveal = useSharedValue(0);
 
@@ -95,16 +98,10 @@ export function SummaryScreen({ navigation, route }: Props) {
   ], [lesson.takeaways.length]);
 
   const switchTab = useCallback((next: SummaryTab) => {
-    setActiveTab((current) => {
-      if (current === next) return current;
-      const direction = next === 'ideas' ? 1 : -1;
-      if (!reducedMotion) {
-        cardShift.set(direction * 22);
-        cardShift.set(withSpring(0, springs.snappy));
-      }
-      return next;
-    });
-  }, [cardShift, reducedMotion]);
+    setTabState((current) => (current.tab === next
+      ? current
+      : { tab: next, direction: next === 'ideas' ? 1 : -1 }));
+  }, []);
 
   const swipeToIdeas = useCallback(() => {
     if (!hasTakeaways || activeTab === 'ideas') return;
@@ -240,10 +237,6 @@ export function SummaryScreen({ navigation, route }: Props) {
     transform: [{ scale: heroPop.get() }],
   }));
 
-  const cardAnimated = useAnimatedStyle(() => ({
-    transform: [{ translateX: cardShift.get() }],
-  }));
-
   const saveStampAnimated = useAnimatedStyle(() => ({
     transform: [{ scale: saveStamp.get() }],
   }));
@@ -308,17 +301,17 @@ export function SummaryScreen({ navigation, route }: Props) {
 
         <Enter delay={105} distance={14} style={styles.documentCardWrap}>
           <GestureDetector gesture={swipeGesture}>
-            <Animated.View style={[styles.cardMotion, cardAnimated]}>
+            <View style={styles.cardMotion}>
               <View pointerEvents="none" style={styles.documentCardShadow} />
               <View style={styles.documentFrame}>
                 <View style={[styles.cardRibbon, { backgroundColor: ribbonColor }]}>
                   <View pointerEvents="none" style={styles.cardRibbonShine} />
                 </View>
                 <View style={styles.documentInner}>
-                  <MathDocumentView definition={summaryDocument} testID="summary-math-document" />
+                  <MathDocumentView definition={summaryDocument} transitionDirection={tabState.direction} testID="summary-math-document" />
                 </View>
               </View>
-            </Animated.View>
+            </View>
           </GestureDetector>
         </Enter>
       </View>

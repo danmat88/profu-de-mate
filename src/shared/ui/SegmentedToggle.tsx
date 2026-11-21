@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -12,11 +12,14 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { borders, colors, fonts, radii, shadows, springs } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
 import { Text } from './Typography';
+
+const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export type SegmentedOption<T extends string> = {
   value: T;
@@ -39,9 +42,96 @@ type Props<T extends string> = {
 
 const TRACK_PADDING = 4;
 
+type SegmentItemProps<T extends string> = {
+  option: SegmentedOption<T>;
+  index: 0 | 1;
+  active: boolean;
+  disabled: boolean;
+  compact: boolean;
+  hasPill: boolean;
+  progress: SharedValue<number>;
+  onSelect: () => void;
+};
+
+function SegmentItem<T extends string>({
+  option,
+  index,
+  active,
+  disabled,
+  compact,
+  hasPill,
+  progress,
+  onSelect,
+}: SegmentItemProps<T>) {
+  const labelAnimated = useAnimatedStyle(() => {
+    const distance = Math.min(1, Math.abs(progress.get() - index));
+    return {
+      color: interpolateColor(distance, [0, 1], [option.activeText, colors.ink]),
+    };
+  }, [index, option.activeText]);
+
+  const badgeAnimated = useAnimatedStyle(() => {
+    const distance = Math.min(1, Math.abs(progress.get() - index));
+    return {
+      backgroundColor: interpolateColor(distance, [0, 1], [colors.paper, colors.canvasDeep]),
+    };
+  }, [index]);
+
+  const dotAnimated = useAnimatedStyle(() => {
+    const closeness = Math.max(0, 1 - Math.abs(progress.get() - index) * 1.4);
+    return {
+      opacity: closeness,
+      transform: [{ scale: 0.65 + closeness * 0.35 }],
+    };
+  }, [index]);
+
+  return (
+    <Pressable
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active, disabled }}
+      disabled={disabled}
+      onPress={onSelect}
+      style={[
+        styles.tab,
+        !hasPill && active && {
+          backgroundColor: option.activeFill,
+          borderRadius: compact ? 12 : 15,
+          borderWidth: borders.thin,
+          borderColor: colors.ink,
+        },
+      ]}
+    >
+      <View style={styles.iconWrap}>
+        <Animated.View style={[styles.iconBadge, compact && styles.iconBadgeCompact, badgeAnimated]}>
+          <AppIcon name={option.icon} size={compact ? 24 : 30} />
+        </Animated.View>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.cornerDot, { backgroundColor: option.dotFill }, dotAnimated]}
+        >
+          <Text maxFontSizeMultiplier={1.1} style={[styles.dotText, { color: option.dotText }]}>
+            ✓
+          </Text>
+        </Animated.View>
+      </View>
+      <AnimatedText
+        maxFontSizeMultiplier={1.25}
+        numberOfLines={1}
+        style={[
+          styles.label,
+          compact && styles.labelCompact,
+          labelAnimated,
+        ]}
+      >
+        {option.label}
+      </AnimatedText>
+    </Pressable>
+  );
+}
+
 /**
- * Bouncy comic two-segment control with a Reanimated spring-sliding pill
- * that smoothly morphs its accent color between the two options.
+ * Snappy comic two-segment control with a Reanimated spring-sliding pill,
+ * smooth color-morphing labels, and zero horizontal layout jump on toggle.
  */
 export function SegmentedToggle<T extends string>({
   options,
@@ -53,14 +143,14 @@ export function SegmentedToggle<T extends string>({
 }: Props<T>) {
   const reducedMotion = useReducedMotion();
   const [trackWidth, setTrackWidth] = useState(0);
-  const activeIndex = value === options[1].value ? 1 : 0;
-  const progress = useSharedValue(activeIndex);
+  const activeIndex: 0 | 1 = value === options[1].value ? 1 : 0;
+  const progress = useSharedValue<number>(activeIndex);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (reducedMotion) {
-      progress.value = activeIndex;
+      progress.set(activeIndex);
     } else {
-      progress.value = withSpring(activeIndex, springs.bouncy);
+      progress.set(withSpring(activeIndex, springs.snappy));
     }
   }, [activeIndex, progress, reducedMotion]);
 
@@ -69,10 +159,20 @@ export function SegmentedToggle<T extends string>({
   const firstColor = options[0].activeFill;
   const secondColor = options[1].activeFill;
 
-  const pillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: progress.value * pillWidth }],
-    backgroundColor: interpolateColor(progress.value, [0, 1], [firstColor, secondColor]),
-  }), [firstColor, pillWidth, secondColor]);
+  const pillStyle = useAnimatedStyle(() => {
+    const p = Math.max(0, Math.min(1, progress.get()));
+    return {
+      transform: [{ translateX: p * pillWidth }],
+      backgroundColor: interpolateColor(p, [0, 1], [firstColor, secondColor]),
+    };
+  }, [firstColor, pillWidth, secondColor]);
+
+  const shadowStyle = useAnimatedStyle(() => {
+    const p = Math.max(0, Math.min(1, progress.get()));
+    return {
+      backgroundColor: interpolateColor(p, [0, 1], [colors.violetShadow, colors.peachShadow]),
+    };
+  });
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const nextWidth = event.nativeEvent.layout.width;
@@ -91,13 +191,7 @@ export function SegmentedToggle<T extends string>({
         style,
       ]}
     >
-      <View
-        pointerEvents="none"
-        style={[
-          styles.shadow,
-          activeIndex === 0 ? styles.shadowFirst : styles.shadowSecond,
-        ]}
-      />
+      <Animated.View pointerEvents="none" style={[styles.shadow, shadowStyle]} />
       <View onLayout={handleLayout} style={[styles.track, compact && styles.trackCompact]}>
         {pillWidth > 0 ? (
           <Animated.View
@@ -113,49 +207,24 @@ export function SegmentedToggle<T extends string>({
           </Animated.View>
         ) : null}
 
-        {options.map((option, index) => {
-          const active = index === activeIndex;
+        {options.map((option, idx) => {
+          const index = idx as 0 | 1;
           return (
-            <Pressable
+            <SegmentItem
               key={option.value}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: active, disabled }}
+              option={option}
+              index={index}
+              active={index === activeIndex}
               disabled={disabled}
-              onPress={() => onChange(option.value)}
-              style={[
-                styles.tab,
-                pillWidth === 0 && active && {
-                  backgroundColor: option.activeFill,
-                  borderRadius: compact ? 13 : 15,
-                  borderWidth: borders.thin,
-                  borderColor: colors.ink,
-                },
-              ]}
-            >
-              <View style={[styles.iconBadge, compact && styles.iconBadgeCompact, active && styles.iconBadgeActive]}>
-                <AppIcon name={option.icon} size={compact ? 24 : 30} />
-              </View>
-              <Text
-                maxFontSizeMultiplier={1.3}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-                style={[
-                  styles.label,
-                  compact && styles.labelCompact,
-                  active && { color: option.activeText },
-                ]}
-              >
-                {option.label}
-              </Text>
-              {active ? (
-                <View style={[styles.dot, { backgroundColor: option.dotFill }]}>
-                  <Text maxFontSizeMultiplier={1.3} style={[styles.dotText, { color: option.dotText }]}>
-                    ✓
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
+              compact={compact}
+              hasPill={pillWidth > 0}
+              progress={progress}
+              onSelect={() => {
+                if (option.value === value) return;
+                progress.set(reducedMotion ? index : withSpring(index, springs.snappy));
+                onChange(option.value);
+              }}
+            />
           );
         })}
       </View>
@@ -180,13 +249,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: radii.lg,
-    backgroundColor: colors.ink,
-  },
-  shadowFirst: {
     backgroundColor: colors.violetShadow,
-  },
-  shadowSecond: {
-    backgroundColor: colors.peachShadow,
   },
   track: {
     flex: 1,
@@ -231,9 +294,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 8,
     paddingHorizontal: 8,
     zIndex: 1,
+  },
+  iconWrap: {
+    position: 'relative',
   },
   iconBadge: {
     width: 34,
@@ -249,8 +315,22 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 9,
   },
-  iconBadgeActive: {
-    backgroundColor: colors.paper,
+  cornerDot: {
+    position: 'absolute',
+    top: -4,
+    right: -5,
+    width: 15,
+    height: 15,
+    borderRadius: 6,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dotText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    lineHeight: 11,
   },
   label: {
     flexShrink: 1,
@@ -262,18 +342,6 @@ const styles = StyleSheet.create({
   labelCompact: {
     fontSize: 15,
     lineHeight: 19,
-  },
-  dot: {
-    width: 18,
-    height: 18,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    lineHeight: 13,
   },
   disabled: {
     opacity: 0.5,

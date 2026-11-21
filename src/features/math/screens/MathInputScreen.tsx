@@ -388,7 +388,7 @@ export function MathInputScreen({ navigation, route }: Props) {
 
         <View style={styles.editor}>
           <MathEditor
-            key={`${activeMode}:${field}`}
+            documentKey={`${activeMode}:${field}`}
             document={draft[field]}
             accessibilityLabel={fieldLabel}
             disabled={busy}

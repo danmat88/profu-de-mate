@@ -90,8 +90,10 @@ export function Mascot({
     if (previousPose.current === pose) return;
     previousPose.current = pose;
     if (reducedMotion) return;
-    pop.set(0.88);
-    pop.set(withSpring(1, springs.pop));
+    pop.set(withSequence(
+      withTiming(1.06, { duration: 85, easing: Easing.out(Easing.quad) }),
+      withSpring(1, springs.bouncy),
+    ));
   }, [pop, pose, reducedMotion]);
 
   const animatedStyle = useAnimatedStyle(() => ({
