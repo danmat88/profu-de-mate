@@ -92,6 +92,7 @@ function ComicTabItem<T extends string>({
 
   return (
     <Pressable
+      collapsable={false}
       accessibilityRole="tab"
       accessibilityState={{ selected: active, disabled }}
       disabled={disabled}
@@ -106,31 +107,33 @@ function ComicTabItem<T extends string>({
         },
       ]}
     >
-      <AnimatedText
-        maxFontSizeMultiplier={1.2}
-        numberOfLines={1}
-        style={[
-          styles.label,
-          compact && styles.labelCompact,
-          labelAnimated,
-        ]}
-      >
-        {option.label}
-      </AnimatedText>
-      {option.badge !== undefined ? (
-        <Animated.View style={[styles.badge, compact && styles.badgeCompact, badgeAnimated]}>
-          <AnimatedText
-            maxFontSizeMultiplier={1.15}
-            style={[
-              styles.badgeText,
-              compact && styles.badgeTextCompact,
-              badgeTextAnimated,
-            ]}
-          >
-            {option.badge}
-          </AnimatedText>
-        </Animated.View>
-      ) : null}
+      <View pointerEvents="none" style={styles.tabContent}>
+        <AnimatedText
+          maxFontSizeMultiplier={1.2}
+          numberOfLines={1}
+          style={[
+            styles.label,
+            compact && styles.labelCompact,
+            labelAnimated,
+          ]}
+        >
+          {option.label}
+        </AnimatedText>
+        {option.badge !== undefined ? (
+          <Animated.View style={[styles.badge, compact && styles.badgeCompact, badgeAnimated]}>
+            <AnimatedText
+              maxFontSizeMultiplier={1.15}
+              style={[
+                styles.badgeText,
+                compact && styles.badgeTextCompact,
+                badgeTextAnimated,
+              ]}
+            >
+              {option.badge}
+            </AnimatedText>
+          </Animated.View>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -300,12 +303,16 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
     paddingHorizontal: 6,
-    zIndex: 1,
   },
   label: {
     flexShrink: 1,

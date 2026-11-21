@@ -34,6 +34,7 @@ import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { MathDocumentView } from '../../math/components/MathDocumentView';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import type { MathDocumentDefinition, MathDocumentTone } from '../../math/utils/mathDocument';
+import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { setLessonFavorite } from '../services/lessons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Summary'>;
@@ -49,7 +50,11 @@ export function SummaryScreen({ navigation, route }: Props) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removingFromNotebook, setRemovingFromNotebook] = useState(false);
+  const [removeError, setRemoveError] = useState(false);
   const [showSaveCoach, setShowSaveCoach] = useState(false);
+  const [celebrationReady, setCelebrationReady] = useState(reducedMotion);
   const [tabState, setTabState] = useState<{ tab: SummaryTab; direction: -1 | 0 | 1 }>({
     tab: 'answer',
     direction: 0,
@@ -169,6 +174,35 @@ export function SummaryScreen({ navigation, route }: Props) {
   }, [activeTab, hasTakeaways, isCheck, lesson.finalAnswer, lesson.summary, lesson.takeaways]);
 
   useEffect(() => {
+    if (reducedMotion) {
+      setCelebrationReady(true);
+      return undefined;
+    }
+    let settled = false;
+    let raf1 = 0;
+    let raf2 = 0;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setCelebrationReady(true));
+      });
+    };
+    const unsubscribe = navigation.addListener('transitionEnd', (event) => {
+      if (!event.data.closing) settle();
+    });
+    const fallback = setTimeout(settle, 460);
+    return () => {
+      settled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      clearTimeout(fallback);
+      unsubscribe();
+    };
+  }, [navigation, reducedMotion]);
+
+  useEffect(() => {
+    if (!celebrationReady) return;
     Haptics.notification(isPositive
       ? Haptics.NotificationFeedbackType.Success
       : Haptics.NotificationFeedbackType.Warning);
@@ -177,17 +211,17 @@ export function SummaryScreen({ navigation, route }: Props) {
       return;
     }
     heroPop.set(withSpring(1, springs.bouncy));
-  }, [heroPop, isPositive, reducedMotion]);
+  }, [celebrationReady, heroPop, isPositive, reducedMotion]);
 
   useEffect(() => {
-    if (saved || hasSeenSaveCoach()) return;
+    if (!celebrationReady || saved || hasSeenSaveCoach()) return;
     const timer = setTimeout(() => {
       setShowSaveCoach(true);
       if (reducedMotion) coachReveal.set(1);
       else coachReveal.set(withSpring(1, springs.bouncy));
-    }, 650);
+    }, 700);
     return () => clearTimeout(timer);
-  }, [coachReveal, reducedMotion, saved]);
+  }, [celebrationReady, coachReveal, reducedMotion, saved]);
 
   useEffect(() => () => {
     if (coachCloseTimer.current) clearTimeout(coachCloseTimer.current);
@@ -206,30 +240,50 @@ export function SummaryScreen({ navigation, route }: Props) {
   };
 
   const toggleSaved = async () => {
-    if (saveLocked.current) return;
+    if (saveLocked.current || removingFromNotebook) return;
+    if (saved) {
+      Haptics.selection();
+      setRemoveError(false);
+      setRemoveConfirmOpen(true);
+      return;
+    }
     saveLocked.current = true;
-    const nextSaved = !saved;
-    setSaved(nextSaved);
+    setSaved(true);
     setSaveBusy(true);
-    if (nextSaved && !reducedMotion) {
+    if (!reducedMotion) {
       saveStamp.set(withSequence(
         withTiming(1.06, { duration: 95 }),
         withSpring(1, springs.bouncy),
       ));
     }
     if (showSaveCoach) dismissSaveCoach();
-    if (nextSaved) markSaveCoachSeen();
+    markSaveCoachSeen();
     try {
-      await setLessonFavorite(route.params.lessonId, nextSaved);
-      Haptics.notification(nextSaved
-        ? Haptics.NotificationFeedbackType.Success
-        : Haptics.NotificationFeedbackType.Warning);
+      await setLessonFavorite(route.params.lessonId, true);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
     } catch {
-      setSaved(!nextSaved);
+      setSaved(false);
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       saveLocked.current = false;
       setSaveBusy(false);
+    }
+  };
+
+  const confirmRemoveFromNotebook = async () => {
+    if (removingFromNotebook || saveLocked.current) return;
+    setRemovingFromNotebook(true);
+    setRemoveError(false);
+    try {
+      await setLessonFavorite(route.params.lessonId, false);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
+      setSaved(false);
+      setRemovingFromNotebook(false);
+      setRemoveConfirmOpen(false);
+    } catch {
+      setRemoveError(true);
+      setRemovingFromNotebook(false);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -258,7 +312,7 @@ export function SummaryScreen({ navigation, route }: Props) {
       <View style={[styles.main, { paddingHorizontal: gutter }]}>
         <View style={[styles.hero, isShort && styles.heroShort]}>
           <Animated.View style={[styles.celebration, isShort && styles.celebrationShort, celebrationAnimated]}>
-            {isPositive ? <ConfettiBurst /> : null}
+            {isPositive && celebrationReady ? <ConfettiBurst /> : null}
             <View style={[styles.burstOuter, !isPositive && styles.burstOuterReview, isShort && styles.burstOuterShort]}>
               <View pointerEvents="none" style={styles.burstShine} />
             </View>
@@ -322,7 +376,8 @@ export function SummaryScreen({ navigation, route }: Props) {
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={saved ? 'Scoate lecția din Caiet' : 'Salvează lecția în Caiet'}
-              disabled={saveBusy}
+              disabled={saveBusy || removingFromNotebook}
+              dimWhenDisabled={false}
               depth={shadows.sm}
               radius={15}
               shadowColor={colors.ink}
@@ -415,6 +470,19 @@ export function SummaryScreen({ navigation, route }: Props) {
           </Pressable>
         </Animated.View>
       ) : null}
+      <RemoveFromNotebookModal
+        visible={removeConfirmOpen}
+        lessonTitle={lesson.title}
+        description="Lecția va dispărea din Caietul tău. O poți salva din nou oricând cât ești aici."
+        removing={removingFromNotebook}
+        error={removeError}
+        onConfirm={() => void confirmRemoveFromNotebook()}
+        onCancel={() => {
+          if (removingFromNotebook) return;
+          setRemoveConfirmOpen(false);
+        }}
+        onAfterClose={() => setRemoveError(false)}
+      />
       <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
     </View>
   );

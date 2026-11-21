@@ -16,19 +16,43 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
 
 /** The provider exposes no intermediate progress. Only a received result changes this state. */
-export function AnalysisActivity({ preparing = false, check = false }: { preparing?: boolean; check?: boolean }) {
+export function AnalysisActivity({
+  preparing = false,
+  check = false,
+  active = true,
+}: {
+  preparing?: boolean;
+  check?: boolean;
+  active?: boolean;
+}) {
   const reducedMotion = useReducedMotion();
   const [trackWidth, setTrackWidth] = useState(0);
   const sweep = useSharedValue(0);
   const pulse = useSharedValue(1);
+  const readyFill = useSharedValue(preparing ? 1 : 0);
   const accent = check ? colors.peach : colors.lime;
   const label = preparing ? 'Pregătesc lecția' : 'Analiză în curs';
 
   useEffect(() => {
-    if (reducedMotion) {
+    if (preparing) {
       cancelAnimation(sweep);
       cancelAnimation(pulse);
-      sweep.set(0.5);
+      pulse.set(1);
+      readyFill.set(
+        reducedMotion
+          ? 1
+          : withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }),
+      );
+      return () => {
+        cancelAnimation(readyFill);
+      };
+    }
+
+    readyFill.set(0);
+    if (reducedMotion || !active) {
+      cancelAnimation(sweep);
+      cancelAnimation(pulse);
+      sweep.set(reducedMotion ? 0.5 : 0);
       pulse.set(1);
       return;
     }
@@ -53,12 +77,21 @@ export function AnalysisActivity({ preparing = false, check = false }: { prepari
       cancelAnimation(sweep);
       cancelAnimation(pulse);
     };
-  }, [pulse, reducedMotion, sweep]);
+  }, [active, preparing, pulse, readyFill, reducedMotion, sweep]);
 
   const sweepStyle = useAnimatedStyle(() => {
     const barWidth = trackWidth * 0.38;
     return {
+      opacity: Math.max(0, 1 - readyFill.get() * 2),
       transform: [{ translateX: -barWidth + sweep.get() * (trackWidth + barWidth) }],
+    };
+  }, [trackWidth]);
+
+  const readyFillStyle = useAnimatedStyle(() => {
+    const p = readyFill.get();
+    return {
+      opacity: p <= 0.01 ? 0 : 1,
+      width: Math.max(0, trackWidth * p),
     };
   }, [trackWidth]);
 
@@ -84,16 +117,31 @@ export function AnalysisActivity({ preparing = false, check = false }: { prepari
           </Animated.View>
           <View style={styles.headingCopy}>
             <View style={styles.labelRow}>
-              <Text style={styles.label}>{label}</Text>
-              <View style={[styles.livePill, preparing && styles.livePillReady, check && !preparing && styles.livePillCheck]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.84}
+                style={styles.label}
+              >
+                {label}
+              </Text>
+              <View
+                style={[
+                  styles.livePill,
+                  check && !preparing && styles.livePillCheck,
+                  preparing && { borderColor: colors.ink, backgroundColor: accent },
+                ]}
+              >
                 <View style={[styles.liveDot, { backgroundColor: preparing ? colors.ink : accent }]} />
                 <Text style={[styles.livePillText, preparing && styles.livePillTextReady]}>
                   {preparing ? 'GATA' : 'LUCREZ'}
                 </Text>
               </View>
             </View>
-            <Text style={styles.note}>
-              {preparing ? 'Rezultatul este gata. Îl așez în pagină.' : 'Poți reveni acasă. Analiza poate fi reluată de acolo.'}
+            <Text numberOfLines={2} style={styles.note}>
+              {preparing
+                ? 'Rezultatul este gata. Îl așez acum frumos în pagină.'
+                : 'Poți reveni acasă. Analiza poate fi reluată de acolo.'}
             </Text>
           </View>
         </View>
@@ -101,23 +149,20 @@ export function AnalysisActivity({ preparing = false, check = false }: { prepari
           onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
           style={styles.track}
         >
-          {preparing ? (
-            <View style={[styles.readyFill, { backgroundColor: accent }]}>
-              <View style={styles.sweepShine} />
-            </View>
-          ) : (
-            <Animated.View style={[styles.sweep, sweepStyle]}>
-              <LinearGradient
-                colors={check
-                  ? ['rgba(255,184,107,0.18)', colors.peach, '#FFE0B8', colors.peach, 'rgba(255,184,107,0.18)']
-                  : ['rgba(201,255,59,0.16)', colors.lime, '#E9FF9E', colors.lime, 'rgba(201,255,59,0.16)']}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={styles.sweepGradient}
-              />
-              <View style={styles.sweepShine} />
-            </Animated.View>
-          )}
+          <Animated.View style={[styles.sweep, sweepStyle]}>
+            <LinearGradient
+              colors={check
+                ? ['rgba(255,184,107,0.18)', colors.peach, '#FFE0B8', colors.peach, 'rgba(255,184,107,0.18)']
+                : ['rgba(201,255,59,0.16)', colors.lime, '#E9FF9E', colors.lime, 'rgba(201,255,59,0.16)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.sweepGradient}
+            />
+            <View style={styles.sweepShine} />
+          </Animated.View>
+          <Animated.View style={[styles.readyFill, { backgroundColor: accent }, readyFillStyle]}>
+            <View style={styles.sweepShine} />
+          </Animated.View>
         </View>
         <View style={styles.pillsRow}>
           {(check ? ['Enunț', 'Pașii tăi', 'Feedback clar'] : ['Enunț', 'Metodă', 'Pași clari']).map((item) => (
@@ -129,7 +174,7 @@ export function AnalysisActivity({ preparing = false, check = false }: { prepari
               ]}
             >
               <View style={[styles.phaseDot, { backgroundColor: preparing ? colors.ink : accent }]} />
-              <Text style={[styles.phaseText, preparing && styles.phaseTextReady]}>{item}</Text>
+              <Text numberOfLines={1} style={[styles.phaseText, preparing && styles.phaseTextReady]}>{item}</Text>
             </View>
           ))}
         </View>
@@ -182,33 +227,55 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headingCopy: { flex: 1, minWidth: 0 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  label: { flexShrink: 1, fontFamily: fonts.displaySemi, fontSize: 16.5, lineHeight: 20, color: colors.paper },
-  livePill: {
+  labelRow: {
+    height: 22,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  label: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.displaySemi,
+    fontSize: 16.5,
+    lineHeight: 20,
+    color: colors.paper,
+  },
+  livePill: {
+    minWidth: 68,
+    height: 21,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 5,
     paddingHorizontal: 8,
-    paddingVertical: 2.5,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(201,255,59,0.45)',
     backgroundColor: 'rgba(20,14,48,0.85)',
   },
   livePillCheck: { borderColor: 'rgba(255,184,107,0.52)' },
-  livePillReady: { borderColor: colors.ink, backgroundColor: colors.lime },
   liveDot: { width: 6, height: 6, borderRadius: 3 },
   livePillText: { fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 0.7, color: '#EAE5F7' },
   livePillTextReady: { color: colors.ink },
-  note: { marginTop: 2, fontFamily: fonts.body, fontSize: 12, lineHeight: 16.5, color: '#CFC8EB' },
+  note: {
+    marginTop: 3,
+    height: 34,
+    fontFamily: fonts.body,
+    fontSize: 12,
+    lineHeight: 16.5,
+    color: '#CFC8EB',
+  },
   track: {
     height: 11,
-    marginTop: 12,
+    marginTop: 11,
     borderRadius: radii.pill,
     borderWidth: 1.5,
     borderColor: '#120D2B',
     backgroundColor: '#140F32',
     overflow: 'hidden',
+    position: 'relative',
   },
   sweep: {
     width: '38%',
@@ -230,8 +297,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.55)',
   },
   readyFill: {
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
     borderRadius: radii.pill,
     overflow: 'hidden',
   },
@@ -244,7 +313,7 @@ const styles = StyleSheet.create({
   },
   phasePill: {
     flex: 1,
-    minHeight: 28,
+    height: 28,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',

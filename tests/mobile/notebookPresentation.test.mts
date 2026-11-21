@@ -125,10 +125,12 @@ test('presents verification outcomes consistently for every math domain', () => 
 
 test('keeps notebook rows formula-free and exposes direct removal with an in-app confirmation', async () => {
   const source = await readFile(new URL('../../src/features/lessons/screens/NotebookScreen.tsx', import.meta.url), 'utf8');
+  const modalSource = await readFile(new URL('../../src/features/lessons/components/RemoveFromNotebookModal.tsx', import.meta.url), 'utf8');
 
   assert.doesNotMatch(source, /MathFormula|InlineMathFormula|MathDocumentView/);
   assert.match(source, /Scoate .* din Caiet/);
   assert.match(source, /setLessonFavorite\(lesson\.id, false\)/);
-  assert.match(source, /visible=\{Boolean\(pendingRemoval\)\}/);
-  assert.match(source, /Păstreaz-o în Caiet/);
+  assert.match(source, /<RemoveFromNotebookModal[\s\S]*visible=\{removeVisible && Boolean\(pendingRemoval\)\}/);
+  assert.match(modalSource, /Scoți problema din Caiet\?/);
+  assert.match(modalSource, /Păstreaz-o în Caiet/);
 });

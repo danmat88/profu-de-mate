@@ -51,18 +51,16 @@ export function CaptureScreen({ navigation, route }: Props) {
   const [finderHeight, setFinderHeight] = useState(isShort ? 250 : 280);
   const [isFocused, setIsFocused] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
+  const [previewSettled, setPreviewSettled] = useState(false);
   const [cameraFailed, setCameraFailed] = useState(false);
   const [cameraSessionKey, setCameraSessionKey] = useState(0);
   const [working, setWorking] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const scan = useRef(new Animated.Value(0)).current;
+  const scan = useRef(new Animated.Value(0.5)).current;
   const shutterPulse = useRef(new Animated.Value(0)).current;
-  const shutterFlash = useRef(new Animated.Value(0)).current;
   const helpPop = useRef(new Animated.Value(0)).current;
   const cameraPreviewEntrance = useRef(new Animated.Value(0)).current;
-  const chromeEntrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const finderEntrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const controlsEntrance = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const scanOpacity = useRef(new Animated.Value(0)).current;
   const cameraRef = useRef<CameraView | null>(null);
   const capturing = useRef(false);
   const galleryPickerLocked = useRef(false);
@@ -87,67 +85,89 @@ export function CaptureScreen({ navigation, route }: Props) {
     setWorking(false);
     setCaptureError(null);
     setCameraFailed(false);
+    setPreviewSettled(false);
     setIsFocused(true);
     cameraPreviewEntrance.setValue(0);
-    shutterFlash.setValue(0);
-    if (reducedMotion) {
-      chromeEntrance.setValue(1);
-      finderEntrance.setValue(1);
-      controlsEntrance.setValue(1);
-    } else {
-      chromeEntrance.setValue(0);
-      finderEntrance.setValue(0);
-      controlsEntrance.setValue(0);
-      Animated.parallel([
-        Animated.timing(chromeEntrance, { toValue: 1, duration: 210, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(finderEntrance, { toValue: 1, duration: 260, delay: 25, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(controlsEntrance, { toValue: 1, duration: 230, delay: 45, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      ]).start();
-    }
+    scanOpacity.setValue(0);
+    scan.setValue(0.5);
     return () => {
       setIsFocused(false);
       setCameraReady(false);
+      setPreviewSettled(false);
       cameraPreviewEntrance.stopAnimation();
-      chromeEntrance.stopAnimation();
-      finderEntrance.stopAnimation();
-      controlsEntrance.stopAnimation();
-      shutterFlash.stopAnimation();
+      scanOpacity.stopAnimation();
       cameraPreviewEntrance.setValue(0);
-      shutterFlash.setValue(0);
+      scanOpacity.setValue(0);
     };
-  }, [cameraPreviewEntrance, chromeEntrance, controlsEntrance, finderEntrance, reducedMotion, shutterFlash]));
+  }, [cameraPreviewEntrance, scan, scanOpacity]));
 
   useEffect(() => {
+    let active = true;
+    let raf1 = 0;
+    let raf2 = 0;
+    const settleAfterFrame = () => {
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          if (active) setTransitionSettled(true);
+        });
+      });
+    };
     const unsubscribe = navigation.addListener('transitionEnd', (event) => {
-      if (!event.data.closing) setTransitionSettled(true);
+      if (!event.data.closing) settleAfterFrame();
     });
-    return unsubscribe;
+    return () => {
+      active = false;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      unsubscribe();
+    };
   }, [navigation]);
 
   useEffect(() => {
     if (transitionSettled || !isFocused) return undefined;
-    const fallback = setTimeout(() => setTransitionSettled(true), 240);
+    const fallback = setTimeout(() => setTransitionSettled(true), 460);
     return () => clearTimeout(fallback);
   }, [isFocused, transitionSettled]);
 
   useEffect(() => {
-    if (reducedMotion || !isFocused) {
-      scan.setValue(0.5);
+    if (reducedMotion || !isFocused || !previewSettled) {
       shutterPulse.setValue(0);
       return;
     }
-    const scanning = Animated.loop(Animated.sequence([
-      Animated.timing(scan, { toValue: 1, duration: 2100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(scan, { toValue: 0, duration: 2100, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-    ]));
     const breathing = Animated.loop(Animated.sequence([
-      Animated.timing(shutterPulse, { toValue: 1, duration: 1150, useNativeDriver: true }),
-      Animated.timing(shutterPulse, { toValue: 0, duration: 1150, useNativeDriver: true }),
+      Animated.timing(shutterPulse, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(shutterPulse, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    breathing.start();
+    return () => { breathing.stop(); };
+  }, [isFocused, previewSettled, reducedMotion, shutterPulse]);
+
+  useEffect(() => {
+    if (!isFocused || !previewSettled) {
+      scan.setValue(0.5);
+      scanOpacity.setValue(0);
+      return;
+    }
+    if (reducedMotion) {
+      scan.setValue(0.5);
+      scanOpacity.setValue(0.92);
+      return;
+    }
+    scan.setValue(0.5);
+    Animated.timing(scanOpacity, {
+      toValue: 0.96,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    const scanning = Animated.loop(Animated.sequence([
+      Animated.timing(scan, { toValue: 0, duration: 1150, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(scan, { toValue: 1, duration: 2300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(scan, { toValue: 0.5, duration: 1150, easing: Easing.in(Easing.quad), useNativeDriver: true }),
     ]));
     scanning.start();
-    breathing.start();
-    return () => { scanning.stop(); breathing.stop(); };
-  }, [isFocused, reducedMotion, scan, shutterPulse]);
+    return () => { scanning.stop(); };
+  }, [isFocused, previewSettled, reducedMotion, scan, scanOpacity]);
 
   const revealCamera = useCallback(() => {
     setCameraReady(true);
@@ -155,14 +175,17 @@ export function CaptureScreen({ navigation, route }: Props) {
     setCaptureError(null);
     if (reducedMotion) {
       cameraPreviewEntrance.setValue(1);
+      setPreviewSettled(true);
       return;
     }
     Animated.timing(cameraPreviewEntrance, {
       toValue: 1,
-      duration: 220,
+      duration: 320,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) setPreviewSettled(true);
+    });
   }, [cameraPreviewEntrance, reducedMotion]);
 
   const resumePreviewAfterFailure = useCallback(() => {
@@ -205,10 +228,6 @@ export function CaptureScreen({ navigation, route }: Props) {
       setWorking(true);
       setCaptureError(null);
       Haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
-      if (!reducedMotion) {
-        shutterFlash.setValue(0.55);
-        Animated.timing(shutterFlash, { toValue: 0, duration: 150, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-      }
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false, shutterSound: true });
       try {
         await cameraRef.current.pausePreview();
@@ -284,17 +303,7 @@ export function CaptureScreen({ navigation, route }: Props) {
       <StatusBar style="light" />
 
       {permission?.granted && isFocused && transitionSettled ? (
-        <Animated.View
-          style={[
-            styles.cameraLayer,
-            {
-              opacity: cameraPreviewEntrance,
-              transform: [{
-                scale: cameraPreviewEntrance.interpolate({ inputRange: [0, 1], outputRange: [1.035, 1] }),
-              }],
-            },
-          ]}
-        >
+        <Animated.View style={[styles.cameraLayer, { opacity: cameraPreviewEntrance }]}>
           <CameraView
             key={cameraSessionKey}
             ref={cameraRef}
@@ -307,9 +316,6 @@ export function CaptureScreen({ navigation, route }: Props) {
             onMountError={(event) => {
               setCameraReady(false);
               setCameraFailed(true);
-              chromeEntrance.setValue(1);
-              finderEntrance.setValue(1);
-              controlsEntrance.setValue(1);
               setCaptureError('Camera nu a putut porni. Apasă declanșatorul ca să încerci din nou.');
               recordDiagnosticError('camera_mount', event);
             }}
@@ -317,20 +323,13 @@ export function CaptureScreen({ navigation, route }: Props) {
         </Animated.View>
       ) : null}
 
-      <Animated.View pointerEvents="none" style={[styles.shutterFlash, { opacity: shutterFlash }]} />
-
       <Animated.View pointerEvents="none" style={[styles.cameraAtmosphere, { opacity: cameraPreviewEntrance }]}>
         <View style={styles.cameraTint} />
         <LinearGradient colors={['rgba(12,9,31,0.9)', 'rgba(12,9,31,0.34)', 'rgba(12,9,31,0)']} style={[styles.topGradient, { height: topSpace + 140 }]} />
         <LinearGradient colors={['rgba(12,9,31,0)', 'rgba(12,9,31,0.68)', 'rgba(12,9,31,0.96)', '#120D2A']} style={[styles.bottomGradient, { height: bottomSpace + (isCompact ? 240 : 262) }]} />
       </Animated.View>
 
-      <Animated.View style={[styles.topBar, {
-        top: topSpace + 4,
-        paddingHorizontal: gutter,
-        opacity: permission?.granted ? chromeEntrance : 1,
-        transform: [{ translateY: permission?.granted ? chromeEntrance.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) : 0 }],
-      }]}>
+      <View style={[styles.topBar, { top: topSpace + 4, paddingHorizontal: gutter }]}>
         <IconButton label="Închide camera" disabled={working} dimWhenDisabled={false} onPress={() => navigation.goBack()} dark size={46}>
           <CloseGlyph />
         </IconButton>
@@ -353,54 +352,24 @@ export function CaptureScreen({ navigation, route }: Props) {
         >
           <AppIcon name="flash" size={30} />
         </IconButton>
-      </Animated.View>
+      </View>
 
       {permission?.granted ? (
-        <Animated.View
+        <View
           pointerEvents="box-none"
           style={[styles.finderArea, {
             top: topSpace + (isVeryShort ? 74 : 88),
             bottom: bottomSpace + (isCompact ? 164 : 182),
             paddingHorizontal: gutter + 6,
-            opacity: finderEntrance,
-            transform: [{ scale: finderEntrance.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
           }]}
         >
           <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finder, isCheck && styles.finderCheck]}>
-            <View pointerEvents="none" style={styles.finderGrid}>
-              <View style={[styles.finderGridLine, styles.finderGridV1]} />
-              <View style={[styles.finderGridLine, styles.finderGridV2]} />
-              <View style={[styles.finderGridLine, styles.finderGridH1]} />
-              <View style={[styles.finderGridLine, styles.finderGridH2]} />
-              <View style={styles.finderCrosshairH} />
-              <View style={styles.finderCrosshairV} />
-            </View>
-
-            {!cameraFailed ? (
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.finderWarmup,
-                  {
-                    opacity: cameraPreviewEntrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
-                    transform: [{ scale: cameraPreviewEntrance.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] }) }],
-                  },
-                ]}
-              >
-                <View style={[styles.finderWarmupAura, isCheck && styles.finderWarmupAuraCheck]} />
-                <View style={[styles.finderWarmupRing, isCheck && styles.finderWarmupRingCheck]}>
-                  <AppIcon name={isCheck ? 'verify' : 'camera'} size={40} />
-                </View>
-                <Text style={styles.finderWarmupText}>Deschid obiectivul…</Text>
-              </Animated.View>
-            ) : null}
-
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.scanBeamWrap,
                 {
-                  opacity: cameraReady ? 0.96 : 0,
+                  opacity: scanOpacity,
                   transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-scanTravel, scanTravel] }) }],
                 },
               ]}
@@ -419,7 +388,7 @@ export function CaptureScreen({ navigation, route }: Props) {
             <View style={[styles.corner, styles.cornerBL, isCheck && styles.cornerCheck]} />
             <View style={[styles.corner, styles.cornerBR, isCheck && styles.cornerCheck]} />
           </View>
-        </Animated.View>
+        </View>
       ) : (
         <View style={[styles.permissionPanel, { paddingTop: topSpace + 80, paddingBottom: bottomSpace + 24, paddingHorizontal: gutter + 18 }]}>
           {permission === null ? (
@@ -448,6 +417,7 @@ export function CaptureScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel="Alege o fotografie din galerie"
                 disabled={working}
+                dimWhenDisabled={false}
                 haptic="selection"
                 onPress={() => void pickFromGallery()}
                 style={styles.permissionGalleryWrap}
@@ -462,17 +432,18 @@ export function CaptureScreen({ navigation, route }: Props) {
       )}
 
       {permission?.granted ? (
-        <Animated.View style={[styles.bottomChrome, { bottom: bottomSpace + 12, paddingHorizontal: gutter + 14, opacity: controlsEntrance, transform: [{ translateY: controlsEntrance.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}>
+        <View style={[styles.bottomChrome, { bottom: bottomSpace + 12, paddingHorizontal: gutter + 14 }]}>
           <View style={styles.captureGuide}>
             <View style={[styles.captureGuideDot, isCheck && styles.captureGuideDotCheck]} />
             <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.captureHint}>{isCheck ? 'Prinde enunțul și toți pașii' : 'Prinde tot exercițiul în cadru'}</Text>
           </View>
           <View style={styles.controls}>
-            <View style={[styles.sideControl, working && styles.controlDisabled]}>
+            <View style={styles.sideControl}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Alege din galerie"
                 disabled={working}
+                dimWhenDisabled={false}
                 depth={shadows.sm}
                 radius={18}
                 shadowColor="#04030A"
@@ -534,7 +505,7 @@ export function CaptureScreen({ navigation, route }: Props) {
               <Text style={styles.sideLabel}>Ajutor</Text>
             </View>
           </View>
-        </Animated.View>
+        </View>
       ) : null}
 
       {captureError ? <View accessibilityRole="alert" style={[styles.errorBanner, { bottom: bottomSpace + (isCompact ? 151 : 169), left: gutter, right: gutter }]}><Text style={styles.errorText}>{captureError}</Text></View> : null}
@@ -553,15 +524,6 @@ export function CaptureScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, width: '100%', backgroundColor: '#0C091F', overflow: 'hidden' },
   cameraLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#0C091F' },
-  shutterFlash: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    zIndex: 30,
-    backgroundColor: colors.paper,
-  },
   cameraAtmosphere: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 2 },
   cameraTint: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(14,10,36,0.06)' },
   topGradient: { position: 'absolute', top: 0, left: 0, right: 0 },
@@ -595,73 +557,10 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.24)',
-    backgroundColor: 'rgba(12,9,31,0.16)',
+    backgroundColor: 'rgba(12,9,31,0.06)',
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   finderCheck: { aspectRatio: 1.08, borderColor: 'rgba(255,184,107,0.34)' },
-  finderGrid: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  finderGridLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.11)' },
-  finderGridV1: { top: 14, bottom: 14, left: '33.333%', width: 1 },
-  finderGridV2: { top: 14, bottom: 14, left: '66.666%', width: 1 },
-  finderGridH1: { left: 14, right: 14, top: '33.333%', height: 1 },
-  finderGridH2: { left: 14, right: 14, top: '66.666%', height: 1 },
-  finderCrosshairH: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 18,
-    height: 1.5,
-    marginLeft: -9,
-    marginTop: -0.75,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-  },
-  finderCrosshairV: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 1.5,
-    height: 18,
-    marginLeft: -0.75,
-    marginTop: -9,
-    borderRadius: 1,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-  },
-  finderWarmup: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  finderWarmupAura: {
-    position: 'absolute',
-    width: 168,
-    height: 168,
-    borderRadius: 84,
-    backgroundColor: 'rgba(139, 92, 246, 0.16)',
-  },
-  finderWarmupAuraCheck: {
-    backgroundColor: 'rgba(255, 184, 107, 0.14)',
-  },
-  finderWarmupRing: {
-    width: 78,
-    height: 78,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(201, 255, 59, 0.65)',
-    backgroundColor: 'rgba(27, 20, 61, 0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  finderWarmupRingCheck: { borderColor: 'rgba(255, 184, 107, 0.72)' },
-  finderWarmupText: {
-    fontFamily: fonts.bodyBold,
-    color: '#DDD6FA',
-    fontSize: 12,
-    letterSpacing: 0.3,
-  },
   scanBeamWrap: {
     position: 'absolute',
     top: '50%',
@@ -764,7 +663,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.shine,
   },
   shutterPressed: { transform: [{ scale: 0.91 }] },
-  controlDisabled: { opacity: 0.45 },
   permissionPanel: { flex: 1, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#17132E' },
   permissionMascot: { width: 146, height: 146, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   permissionHalo: { position: 'absolute', width: 126, height: 126, borderRadius: 63, backgroundColor: '#2B2259', borderWidth: 2.5, borderStyle: 'dashed', borderColor: '#6D5EB0' },

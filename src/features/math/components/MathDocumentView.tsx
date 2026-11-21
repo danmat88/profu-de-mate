@@ -52,6 +52,7 @@ export function MathDocumentView({
   const lastInjectedMarkup = useRef<string | undefined>(undefined);
   const revision = useRef(0);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [fontsReady, setFontsReady] = useState<MathDocumentFonts | undefined>(getCachedDocumentFonts);
   const [documentReady, setDocumentReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -75,12 +76,13 @@ export function MathDocumentView({
       stageShiftX.set(0);
       return;
     }
-    stageOpacity.set(withTiming(1, { duration: 155, easing: Easing.out(Easing.quad) }));
+    stageOpacity.set(withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) }));
     stageShiftX.set(withSpring(0, springs.snappy));
   }, [reducedMotion, stageOpacity, stageShiftX]);
 
   useEffect(() => () => {
     if (revealTimer.current) clearTimeout(revealTimer.current);
+    if (swapTimer.current) clearTimeout(swapTimer.current);
   }, []);
 
   useEffect(() => {
@@ -121,17 +123,40 @@ export function MathDocumentView({
     if (lastInjectedMarkup.current === markup) return;
     lastInjectedMarkup.current = markup;
     revision.current += 1;
+    const targetRevision = String(revision.current);
+    if (swapTimer.current) {
+      clearTimeout(swapTimer.current);
+      swapTimer.current = null;
+    }
+    if (revealTimer.current) {
+      clearTimeout(revealTimer.current);
+      revealTimer.current = null;
+    }
     cancelAnimation(stageOpacity);
     cancelAnimation(stageShiftX);
-    // Mask the previous WebView surface synchronously on the UI thread before
-    // injecting new HTML so the old tab/step never flashes or slides across.
-    stageOpacity.set(0);
-    stageShiftX.set(reducedMotion ? 0 : transitionDirection * 18);
-    webViewRef.current?.injectJavaScript(
-      buildMathDocumentUpdateScript(definition, String(revision.current)),
-    );
-    if (revealTimer.current) clearTimeout(revealTimer.current);
-    revealTimer.current = setTimeout(revealDocument, 420);
+
+    const injectUpdatedDocument = () => {
+      stageOpacity.set(0);
+      stageShiftX.set(reducedMotion ? 0 : transitionDirection * 18);
+      webViewRef.current?.injectJavaScript(
+        buildMathDocumentUpdateScript(definition, targetRevision),
+      );
+      revealTimer.current = setTimeout(revealDocument, 460);
+    };
+
+    if (reducedMotion || transitionDirection === 0) {
+      injectUpdatedDocument();
+      return;
+    }
+
+    // Phase 1: glide outgoing step smoothly out before swapping HTML, then
+    // let the incoming step glide cleanly in once painted.
+    stageOpacity.set(withTiming(0, { duration: 115, easing: Easing.in(Easing.quad) }));
+    stageShiftX.set(withTiming(-transitionDirection * 14, { duration: 115, easing: Easing.in(Easing.quad) }));
+    swapTimer.current = setTimeout(() => {
+      swapTimer.current = null;
+      injectUpdatedDocument();
+    }, 120);
   }, [definition, failed, fontsReady, markup, reducedMotion, revealDocument, stageOpacity, stageShiftX, transitionDirection]);
 
   const stageAnimated = useAnimatedStyle(() => ({
@@ -140,6 +165,10 @@ export function MathDocumentView({
   }));
 
   const retry = () => {
+    if (swapTimer.current) {
+      clearTimeout(swapTimer.current);
+      swapTimer.current = null;
+    }
     if (revealTimer.current) {
       clearTimeout(revealTimer.current);
       revealTimer.current = null;

@@ -6,7 +6,7 @@ import { ImageCropEditor } from '../components/ImageCropEditor';
 import { commercialGateFromError, preflightAnalysisAccess } from '../../access/services/commercial';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
-import { savePendingAnalysis } from '../../analysis/services/pendingAnalysis';
+import { clearPendingAnalysis, getPreparedPendingAnalysis, savePendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { deleteCapturedImageFiles } from '../services/temporaryImages';
 import { colors } from '../../../shared/theme';
@@ -24,6 +24,13 @@ export function ReviewScreen({ navigation, route }: Props) {
   }, []));
 
   useEffect(() => navigation.addListener('beforeRemove', () => {
+    const pending = getPreparedPendingAnalysis();
+    if (
+      pending?.schemaVersion === 2
+      && (pending.image.uri === route.params.image.uri || pending.image.uri === currentImage.uri)
+    ) {
+      clearPendingAnalysis(pending.requestId);
+    }
     deleteCapturedImageFiles([route.params.image.uri, currentImage.uri]);
   }), [currentImage.uri, navigation, route.params.image.uri]);
 

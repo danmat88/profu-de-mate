@@ -2,8 +2,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
@@ -40,11 +41,13 @@ export function MathProcessingScreen({ route, navigation }: Props) {
   const frame = useSafeAreaFrame();
   const { gutter, isVeryShort, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const [state, setState] = useState<State>({ kind: 'working' });
   const [attempt, setAttempt] = useState(0);
   const [slow, setSlow] = useState(false);
   const [feedback, setFeedback] = useState(false);
   const [preparingLesson, setPreparingLesson] = useState(false);
+  const [sceneReady, setSceneReady] = useState(reducedMotion);
   const returningFromPaywall = useRef(false);
   const { mode, math, requestId, userId, origin } = route.params;
   const [preview] = useState(() => {
@@ -59,9 +62,63 @@ export function MathProcessingScreen({ route, navigation }: Props) {
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
+  useEffect(() => {
+    if (reducedMotion) {
+      setSceneReady(true);
+      return undefined;
+    }
+    setSceneReady(false);
+    let settled = false;
+    let raf1 = 0;
+    let raf2 = 0;
+    const markReady = () => {
+      if (settled) return;
+      settled = true;
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setSceneReady(true));
+      });
+    };
+    const unsubscribe = navigation.addListener('transitionEnd', (event) => {
+      if (!event.data.closing) markReady();
+    });
+    const fallback = setTimeout(markReady, 550);
+    return () => {
+      settled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      clearTimeout(fallback);
+      unsubscribe();
+    };
+  }, [navigation, reducedMotion]);
+
+  const hardwareBackRef = useRef(() => {
+    if (state.kind === 'working') {
+      goHome();
+      return;
+    }
+    clearPendingAnalysis(requestId);
+    if (origin === 'editor' && navigation.canGoBack()) navigation.goBack();
+    else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  });
+  hardwareBackRef.current = () => {
+    if (state.kind === 'working') {
+      goHome();
+      return;
+    }
+    clearPendingAnalysis(requestId);
+    if (origin === 'editor' && navigation.canGoBack()) navigation.goBack();
+    else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
   useFocusEffect(useCallback(() => {
     if (returningFromPaywall.current) { returningFromPaywall.current = false; setAttempt((value) => value + 1); }
-  }, []));
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (feedback) return false;
+      hardwareBackRef.current();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [feedback]));
 
   useEffect(() => {
     let mounted = true;
@@ -80,7 +137,9 @@ export function MathProcessingScreen({ route, navigation }: Props) {
           const params: RootStackParamList['Lesson'] = { lesson: result, lessonId, source: 'flow' };
           beginLessonPresentation(lessonId);
           navigation.preload('Lesson', params);
+          const celebrationBeat = new Promise<void>((resolve) => { setTimeout(resolve, 520); });
           await waitForLessonPresentation(lessonId);
+          await celebrationBeat;
           if (!active()) return;
           clearPendingAnalysis(requestId);
           navigation.replace('Lesson', params);
@@ -115,7 +174,9 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       ? 'Mai avem ceva de clarificat.'
       : state.kind === 'commercial' ? 'Accesul tău' : 'Nu am terminat analiza.';
   const message = working
-    ? slow ? 'Încă lucrez. Unele probleme au nevoie de mai mult timp.' : 'Problema ta, explicată pas cu pas. Poate dura puțin.'
+    ? preparingLesson
+      ? 'Așez pașii și formulele frumos în pagină.'
+      : slow ? 'Încă lucrez. Unele probleme au nevoie de mai mult timp.' : 'Problema ta, explicată pas cu pas. Poate dura puțin.'
     : state.kind === 'rejected' ? contentToAccessibleText(state.result.summary) : state.message;
 
   const mascotPose = working
@@ -167,18 +228,25 @@ export function MathProcessingScreen({ route, navigation }: Props) {
 
           <View pointerEvents="none" style={[styles.mascotWrap, !working && styles.messageMascotWrap]}>
             {working ? (
-              <View style={[styles.bubble, isCheck && styles.bubbleCheck]}>
-                <Text style={styles.bubbleText}>{preparingLesson ? 'Gata!' : 'Hai să vedem!'}</Text>
+              <View style={[styles.bubble, isCheck && styles.bubbleCheck, preparingLesson && styles.bubbleReady]}>
+                <Text numberOfLines={1} style={styles.bubbleText}>{preparingLesson ? 'Gata! O așez…' : 'Hai să vedem!'}</Text>
               </View>
             ) : null}
-            <Mascot pose={mascotPose} size={working ? (isVeryShort ? 124 : 146) : 148} active />
+            <Mascot pose={mascotPose} size={working ? (isVeryShort ? 124 : 146) : 148} active={working ? sceneReady : true} />
           </View>
         </View>
 
         {working ? (
-          <View>
-            <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{title}</Text>
-            <Text accessibilityLiveRegion="polite" style={styles.copy}>{message}</Text>
+          <View style={styles.workingCopy}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.74}
+              style={[styles.title, styles.workingTitle, isNarrow && styles.titleNarrow, isNarrow && styles.workingTitleNarrow]}
+            >
+              {title}
+            </Text>
+            <Text accessibilityLiveRegion="polite" numberOfLines={2} style={[styles.copy, styles.workingSubtitle]}>{message}</Text>
           </View>
         ) : (
           <Enter delay={60} distance={14}>
@@ -205,7 +273,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       </ScrollView>
 
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {working ? <AnalysisActivity preparing={preparingLesson} check={isCheck} /> : null}
+        {working ? <AnalysisActivity preparing={preparingLesson} check={isCheck} active={sceneReady} /> : null}
         {state.kind === 'error' ? (
           <ComicButton
             compact
@@ -292,7 +360,9 @@ const styles = StyleSheet.create({
     marginBottom: -10,
     marginRight: 6,
     zIndex: 2,
-    minHeight: 32,
+    minWidth: 108,
+    height: 32,
+    alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 11,
     borderRadius: 13,
@@ -302,10 +372,15 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '4deg' }],
   },
   bubbleCheck: { backgroundColor: colors.peach },
+  bubbleReady: { backgroundColor: colors.lime },
   bubbleText: { fontFamily: fonts.bodyBold, fontSize: 11.5, color: colors.ink },
+  workingCopy: { alignItems: 'center' },
   title: { fontFamily: fonts.display, fontSize: 30, lineHeight: 35, color: colors.paper, textAlign: 'center' },
+  workingTitle: { height: 35 },
   titleNarrow: { fontSize: 26, lineHeight: 30 },
+  workingTitleNarrow: { height: 30 },
   copy: { marginTop: 8, paddingHorizontal: 5, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: '#CEC7E8', textAlign: 'center' },
+  workingSubtitle: { height: 42 },
   actions: { paddingTop: 8, gap: 6 },
   report: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
   reportText: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#CEC7E8' },

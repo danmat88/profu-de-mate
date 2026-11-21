@@ -419,6 +419,7 @@ export function MathInputScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityState={{ disabled: busy, busy }}
             disabled={busy}
+            dimWhenDisabled={false}
             depth={compact ? shadows.sm + 1 : shadows.md}
             radius={18}
             shadowColor={colors.ink}

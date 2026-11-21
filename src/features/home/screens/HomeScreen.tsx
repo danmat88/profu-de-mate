@@ -70,8 +70,10 @@ export function HomeScreen() {
     return () => { active = false; focused.current = false; cancelAnimationFrame(warmFrame); };
   }, [refreshCommercialAccessIfStale]));
 
+  const activeMode = pendingAnalysis?.mode ?? mode;
+
   const chooseMode = (next: FlowMode) => {
-    if (next === mode || pendingAnalysis) return;
+    if (next === activeMode || pendingAnalysis || galleryLocked.current) return;
     Haptics.selection();
     setGalleryError(null);
     setMode(next);
@@ -147,7 +149,6 @@ export function HomeScreen() {
     }
   }, [mode, navigation, resume]);
 
-  const activeMode = pendingAnalysis?.mode ?? mode;
   const openAllowance = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;

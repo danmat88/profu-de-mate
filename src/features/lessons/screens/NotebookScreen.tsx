@@ -5,7 +5,6 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import {
   FlatList,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,21 +12,13 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, shadows, springs, typography } from '../../../shared/theme';
+import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -41,6 +32,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text, TextInput } from '../../../shared/ui/Typography';
+import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { beginLessonPresentation, forgetLessonPresentation, waitForLessonPresentation } from '../services/lessonPresentation';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
 import {
@@ -90,11 +82,12 @@ function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
 type LessonRowProps = {
   lesson: StoredLesson;
   newest: boolean;
+  opening: boolean;
   onOpen: (lesson: StoredLesson) => void;
   onRemove: (lesson: StoredLesson) => void;
 };
 
-const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: LessonRowProps) {
+const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onRemove }: LessonRowProps) {
   const presentation = notebookProblemPresentation(lesson);
   const verdict = notebookVerdictPresentation(lesson);
   const checked = lesson.mode === 'check';
@@ -195,8 +188,14 @@ const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: 
                 <Text style={styles.removeText}>Scoate</Text>
               </Pressable>
               <View style={styles.openPill}>
-                <Text style={styles.openPillText}>Deschide</Text>
-                <MiniGlyph name="next" size={14} color={colors.paper} />
+                {opening ? (
+                  <PlayfulLoader micro inverse />
+                ) : (
+                  <>
+                    <Text style={styles.openPillText}>Deschide</Text>
+                    <MiniGlyph name="next" size={14} color={colors.paper} />
+                  </>
+                )}
               </View>
             </View>
           </View>
@@ -210,6 +209,7 @@ const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: 
   && previous.lesson.steps.length === next.lesson.steps.length
   && previous.lesson.createdAt?.toDate?.().getTime() === next.lesson.createdAt?.toDate?.().getTime()
   && previous.newest === next.newest
+  && previous.opening === next.opening
   && previous.onOpen === next.onOpen
   && previous.onRemove === next.onRemove
   && sameProblemPreview(previous.lesson, next.lesson)
@@ -336,7 +336,6 @@ function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
 export function NotebookScreen({ navigation }: Props) {
   const { gutter, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
   const [filterState, setFilterState] = useState<{ filter: NotebookFilter; direction: -1 | 0 | 1 }>({
     filter: 'all',
     direction: 0,
@@ -350,25 +349,22 @@ export function NotebookScreen({ navigation }: Props) {
   const [loadError, setLoadError] = useState(false);
   const [subscriptionAttempt, setSubscriptionAttempt] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<StoredLesson>();
+  const [removeVisible, setRemoveVisible] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
+  const [openingNoteId, setOpeningNoteId] = useState<string | null>(null);
 
-  const removeProgress = useSharedValue(0);
-  const closeRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openingNoteRef = useRef(false);
   const focusedRef = useRef(true);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
     openingNoteRef.current = false;
+    setOpeningNoteId(null);
     return () => {
       focusedRef.current = false;
     };
   }, []));
-
-  useEffect(() => () => {
-    if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -444,6 +440,7 @@ export function NotebookScreen({ navigation }: Props) {
   const openNote = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
     openingNoteRef.current = true;
+    setOpeningNoteId(lesson.id);
     const params: RootStackParamList['Lesson'] = {
       lesson,
       lessonId: lesson.id,
@@ -452,10 +449,11 @@ export function NotebookScreen({ navigation }: Props) {
     };
     beginLessonPresentation(lesson.id);
     navigation.preload('Lesson', params);
-    void waitForLessonPresentation(lesson.id, 320).then(() => {
+    void waitForLessonPresentation(lesson.id, 900).then(() => {
       if (!focusedRef.current) {
         forgetLessonPresentation(lesson.id);
         openingNoteRef.current = false;
+        setOpeningNoteId(null);
         return;
       }
       navigation.navigate('Lesson', params);
@@ -463,31 +461,21 @@ export function NotebookScreen({ navigation }: Props) {
   }, [navigation]);
 
   const requestRemove = useCallback((lesson: StoredLesson) => {
-    if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
     Haptics.selection();
     setRemoveError(false);
     setPendingRemoval(lesson);
-    removeProgress.set(reducedMotion ? 1 : 0);
-    if (!reducedMotion) {
-      removeProgress.set(withSpring(1, springs.snappy));
-    }
-  }, [reducedMotion, removeProgress]);
+    setRemoveVisible(true);
+  }, []);
 
   const closeRemoval = useCallback((force = false) => {
     if (removing && !force) return;
-    if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
-    const finish = () => {
-      setPendingRemoval(undefined);
-      setRemoveError(false);
-      removeProgress.set(0);
-    };
-    if (reducedMotion) {
-      finish();
-      return;
-    }
-    removeProgress.set(withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }));
-    closeRemoveTimer.current = setTimeout(finish, 155);
-  }, [reducedMotion, removeProgress, removing]);
+    setRemoveVisible(false);
+  }, [removing]);
+
+  const handleRemovalClosed = useCallback(() => {
+    setPendingRemoval(undefined);
+    setRemoveError(false);
+  }, []);
 
   const confirmRemoval = useCallback(async () => {
     const lesson = pendingRemoval;
@@ -499,14 +487,14 @@ export function NotebookScreen({ navigation }: Props) {
       setNotes((current) => current.filter((note) => note.id !== lesson.id));
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
       setRemoving(false);
-      closeRemoval(true);
+      setRemoveVisible(false);
     } catch (error) {
       recordDiagnosticError('notebook_update', error);
       setRemoveError(true);
       setRemoving(false);
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     }
-  }, [closeRemoval, pendingRemoval, removing]);
+  }, [pendingRemoval, removing]);
 
   const startMode = useCallback((mode: FlowMode) => {
     if (openingNoteRef.current) return;
@@ -524,22 +512,10 @@ export function NotebookScreen({ navigation }: Props) {
     setSubscriptionAttempt((attempt) => attempt + 1);
   }, [notes.length]);
 
-  const removeScrimStyle = useAnimatedStyle(() => ({
-    opacity: removeProgress.get(),
-  }));
-
-  const removeSheetStyle = useAnimatedStyle(() => {
-    const p = removeProgress.get();
-    return {
-      opacity: Math.min(1, p * 1.25),
-      transform: [{ translateY: (1 - p) * 280 }],
-    };
-  });
-
   const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
   const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item }) => (
-    <LessonRow lesson={item} newest={item.id === newestNoteId} onOpen={openNote} onRemove={requestRemove} />
-  ), [newestNoteId, openNote, requestRemove]);
+    <LessonRow lesson={item} newest={item.id === newestNoteId} opening={item.id === openingNoteId} onOpen={openNote} onRemove={requestRemove} />
+  ), [newestNoteId, openNote, openingNoteId, requestRemove]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
   const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
   const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTabLabel;
@@ -654,56 +630,16 @@ export function NotebookScreen({ navigation }: Props) {
         </TabPanel>
       </KeyboardAvoidingView>
 
-      <Modal
-        visible={Boolean(pendingRemoval)}
-        transparent
-        animationType="none"
-        statusBarTranslucent
-        navigationBarTranslucent
-        onRequestClose={removing ? undefined : () => closeRemoval()}
-      >
-        <View style={styles.removeModalLayer}>
-          <Animated.View pointerEvents="none" style={[styles.removeScrim, removeScrimStyle]} />
-          <Pressable accessible={false} disabled={removing} onPress={() => closeRemoval()} style={StyleSheet.absoluteFill} />
-          <Animated.View
-            accessibilityViewIsModal
-            style={[
-              styles.removeSheet,
-              { paddingBottom: Math.max(insets.bottom, 14) + 10 },
-              removeSheetStyle,
-            ]}
-          >
-            <View style={styles.removeHandle} />
-            <View style={styles.removeMascotStage}>
-              <View style={styles.removeMascotHalo} />
-              <Mascot pose="oops" size={90} active />
-            </View>
-            <Chip label="GESTIONEAZĂ CAIETUL" tone="roseSoft" tilt={-2} />
-            <Text style={styles.removeTitle}>Scoți problema din Caiet?</Text>
-            <Text numberOfLines={2} style={styles.removeLessonTitle}>{pendingRemovalTitle}</Text>
-            <Text style={styles.removeDescription}>Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet.</Text>
-            {removeError ? <Text accessibilityRole="alert" style={styles.removeError}>Nu am putut actualiza Caietul. Verifică internetul și încearcă din nou.</Text> : null}
-            <PressableScale
-              accessibilityRole="button"
-              disabled={removing}
-              depth={shadows.sm}
-              radius={17}
-              shadowColor={colors.ink}
-              haptic="medium"
-              onPress={() => void confirmRemoval()}
-              style={styles.confirmRemoveWrap}
-              contentStyle={styles.confirmRemove}
-            >
-              <View pointerEvents="none" style={styles.removeBtnShine} />
-              {removing ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
-              <Text style={styles.confirmRemoveText}>{removing ? 'Actualizez Caietul…' : 'Da, scoate problema'}</Text>
-            </PressableScale>
-            <Pressable accessibilityRole="button" disabled={removing} onPress={() => closeRemoval()} style={({ pressed }) => [styles.keepLesson, pressed && styles.actionPressed]}>
-              <Text style={styles.keepLessonText}>Păstreaz-o în Caiet</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
-      </Modal>
+      <RemoveFromNotebookModal
+        visible={removeVisible && Boolean(pendingRemoval)}
+        lessonTitle={pendingRemovalTitle}
+        description="Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet."
+        removing={removing}
+        error={removeError}
+        onConfirm={() => void confirmRemoval()}
+        onCancel={() => closeRemoval()}
+        onAfterClose={handleRemovalClosed}
+      />
     </View>
   );
 }
@@ -960,6 +896,7 @@ const styles = StyleSheet.create({
   },
   removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
   openPill: {
+    minWidth: 88,
     height: 32,
     paddingHorizontal: 10,
     borderRadius: 11,
@@ -1018,63 +955,4 @@ const styles = StyleSheet.create({
 
   listFooter: { height: 10 },
   actionPressed: { opacity: 0.72 },
-
-  removeModalLayer: { flex: 1, justifyContent: 'flex-end' },
-  removeScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(16, 12, 38, 0.66)' },
-  removeSheet: {
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderWidth: borders.thick,
-    borderBottomWidth: 0,
-    borderColor: colors.ink,
-    backgroundColor: colors.canvas,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    alignItems: 'center',
-  },
-  removeHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 12 },
-  removeMascotStage: { width: 102, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  removeMascotHalo: {
-    position: 'absolute',
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: colors.rose,
-    backgroundColor: colors.roseSoft,
-  },
-  removeTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center', marginTop: 10 },
-  removeLessonTitle: { maxWidth: 330, marginTop: 5, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 14, lineHeight: 19, textAlign: 'center' },
-  removeDescription: { maxWidth: 330, marginTop: 5, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18.5, textAlign: 'center' },
-  removeError: { marginTop: 8, fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
-  confirmRemoveWrap: { width: '100%', marginTop: 16 },
-  confirmRemove: {
-    width: '100%',
-    minHeight: 52,
-    borderRadius: 17,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.rose,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    overflow: 'hidden',
-  },
-  removeBtnShine: {
-    position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
-  },
-  confirmRemoveText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16.5 },
-  keepLesson: { minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 6 },
-  keepLessonText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 13.5 },
 });

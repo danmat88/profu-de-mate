@@ -159,3 +159,21 @@ test('cancelling the gallery preserves Home, releases the launch lock and permit
     'navigating to Review must still clear galleryBusy so Home tabs never return frozen',
   );
 });
+
+test('opening the gallery keeps Home controls crisp without dimming them gray', () => {
+  const fixture = surfaceFixture();
+  const busyTree = fixture.render(true);
+  const toggle = find(busyTree, node => node.type === 'SegmentedToggle');
+  const capture = find(busyTree, node => node.props?.accessibilityLabel === 'Fotografiază o problemă de rezolvat');
+  const gallery = find(busyTree, node => node.props?.accessibilityLabel === 'Alege o fotografie din galerie');
+  const math = find(busyTree, node => node.props?.accessibilityLabel === 'Scrie o problemă sau o rezolvare');
+
+  assert.equal(toggle.props.disabled, true);
+  assert.equal(toggle.props.dimWhenDisabled, false);
+  assert.equal(capture.props.disabled, true);
+  assert.equal(capture.props.dimWhenDisabled, false);
+  assert.equal(gallery.props.disabled, true);
+  assert.equal(gallery.props.dimWhenDisabled, false);
+  assert.equal(math.props.disabled, true);
+  assert.equal(math.props.dimWhenDisabled, false);
+});

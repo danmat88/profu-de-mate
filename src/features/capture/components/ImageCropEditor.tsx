@@ -116,7 +116,6 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   const [workingImage, setWorkingImage] = useState(image);
   const [busy, setBusy] = useState(false);
   const [imageReady, setImageReady] = useState(false);
-  const [hasAdjusted, setHasAdjusted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const imageRect = useMemo(() => getImageRect(workspace, workingImage), [workspace, workingImage]);
   const isCheck = mode === 'check';
@@ -131,11 +130,11 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   const startWidth = useSharedValue(0);
   const startHeight = useSharedValue(0);
   const interacting = useSharedValue(0);
-  const frameEntrance = useSharedValue(reducedMotion ? 1 : 0);
+  const frameEntrance = useSharedValue(1);
+  const isInitialImage = useRef(true);
 
   const commitCrop = useCallback((x: number, y: number, width: number, cropHeightValue: number) => {
     cropRef.current = { x, y, width, height: cropHeightValue };
-    setHasAdjusted(true);
   }, []);
 
   const hapticTick = useCallback(() => {
@@ -143,7 +142,12 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   }, []);
 
   useEffect(() => {
-    frameEntrance.set(reducedMotion ? 1 : 0);
+    if (isInitialImage.current) {
+      isInitialImage.current = false;
+      frameEntrance.set(1);
+    } else {
+      frameEntrance.set(reducedMotion ? 1 : 0);
+    }
     setImageReady(false);
   }, [frameEntrance, reducedMotion, workingImage.uri]);
 
@@ -459,29 +463,29 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
     <View style={[styles.safe, { height, paddingTop: topSpace }]}>
       <StatusBar style="light" />
       <View accessibilityViewIsModal style={styles.screen}>
-        <Animated.View style={[styles.header, isLargeText && styles.headerLargeText, { paddingHorizontal: gutter }]}>
-          <IconButton label="Renunță la fotografie" disabled={busy} dimWhenDisabled={false} onPress={cancelEditing} dark size={46}>
+        <View style={[styles.header, isLargeText && styles.headerLargeText, { paddingHorizontal: gutter }]}>
+          <IconButton label="Renunță la fotografie" disabled={busy} dimWhenDisabled={false} onPress={cancelEditing} dark size={42}>
             <CloseGlyph />
           </IconButton>
           <View style={styles.headerCopy}>
-            <View style={[styles.modePill, isCheck && styles.modePillCheck]}>
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>Încadrează {isCheck ? 'rezolvarea' : 'problema'}</Text>
+            <View style={styles.headerSubtitleRow}>
               <View style={[styles.headerSubtitleDot, isCheck && styles.headerSubtitleDotCheck]} />
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.modePillText}>
-                {isCheck ? 'VERIFICARE' : 'REZOLVARE'}
+              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.headerSubtitle}>
+                Trage de colțuri ca să păstrezi doar exercițiul
               </Text>
             </View>
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>Încadrează {isCheck ? 'rezolvarea' : 'problema'}</Text>
           </View>
           <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.headerBadgeWrap}>
             <View pointerEvents="none" style={styles.headerBadgeShadow} />
             <View style={[styles.headerBadge, isCheck && styles.headerBadgeCheck]}>
               <View pointerEvents="none" style={styles.toolShine} />
-              <AppIcon name="crop" size={32} />
+              <AppIcon name="crop" size={28} />
             </View>
           </View>
-        </Animated.View>
+        </View>
 
-        <Animated.View
+        <View
           style={[styles.workspace, isVeryShort && styles.workspaceShort]}
           onLayout={(event) => {
             const next = { width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height };
@@ -563,63 +567,62 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               <View style={[styles.workspaceHintDot, styles.workspaceHintDotError]} />
               <Text numberOfLines={2} maxFontSizeMultiplier={1.2} style={[styles.workspaceHintText, styles.workspaceErrorText]}>{visibleError}</Text>
             </View>
-          ) : !hasAdjusted && imageReady && !isVeryShort ? (
-            <View pointerEvents="none" style={styles.workspaceHint}>
-              <View style={[styles.workspaceHintDot, isCheck && styles.headerSubtitleDotCheck]} />
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.workspaceHintText}>
-                Trage de colțuri ca să păstrezi doar exercițiul
-              </Text>
-            </View>
           ) : null}
 
-        </Animated.View>
+        </View>
 
-        <Animated.View style={[styles.dock, isLargeText && styles.dockLargeText, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
+        <View style={[styles.dock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
           <View pointerEvents="none" style={styles.dockTopHighlight} />
-          <View style={[styles.actionRow, isLargeText && styles.actionRowLargeText]}>
-            <View style={[styles.toolButton, isLargeText && styles.toolButtonLargeText]}>
+          <View style={styles.dockInner}>
+            <View style={styles.toolsRow}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Rotește fotografia"
                 disabled={busy}
                 dimWhenDisabled={false}
                 depth={shadows.sm}
-                radius={18}
+                radius={16}
                 shadowColor="#04030A"
                 haptic="selection"
                 onPress={() => void rotate()}
-                contentStyle={styles.toolIcon}
+                style={styles.toolPillWrap}
+                contentStyle={styles.toolPill}
               >
                 <View pointerEvents="none" style={styles.toolShine} />
-                <AppIcon name="retake" size={34} />
+                <AppIcon name="retake" size={24} />
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.2} style={styles.toolPillText}>
+                  Rotește
+                </Text>
               </PressableScale>
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.toolText}>Rotește</Text>
-            </View>
-            <View style={[styles.toolButton, isLargeText && styles.toolButtonLargeText]}>
+
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Extinde selecția la toată fotografia"
                 disabled={busy}
                 dimWhenDisabled={false}
                 depth={shadows.sm}
-                radius={18}
+                radius={16}
                 shadowColor="#04030A"
                 haptic="selection"
                 onPress={resetCrop}
-                contentStyle={styles.toolIcon}
+                style={styles.toolPillWrap}
+                contentStyle={styles.toolPill}
               >
                 <View pointerEvents="none" style={styles.toolShine} />
-                <AppIcon name="crop" size={34} />
+                <AppIcon name="crop" size={24} />
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.2} style={styles.toolPillText}>
+                  Tot cadrul
+                </Text>
               </PressableScale>
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.toolText}>Tot cadrul</Text>
             </View>
+
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={isCheck ? 'Verifică rezolvarea încadrată' : 'Rezolvă problema încadrată'}
               disabled={busy || !imageReady}
               dimWhenDisabled={!busy}
               depth={shadows.md}
-              radius={22}
+              radius={20}
               shadowColor="#04030A"
               haptic="medium"
               onPress={() => void applyCrop()}
@@ -627,16 +630,26 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               contentStyle={[styles.applyButton, isLargeText && styles.buttonLargeText, isCheck && styles.applyButtonCheck]}
             >
               <View pointerEvents="none" style={styles.applyShine} />
-              <View style={styles.applyIcon}>{busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={34} />}</View>
-              <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.applyText}>{busy ? 'Pregătesc…' : isCheck ? 'Verifică' : 'Rezolvă'}</Text>
+              <View style={styles.applyIcon}>
+                {busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={30} />}
+              </View>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                maxFontSizeMultiplier={1.2}
+                style={styles.applyText}
+              >
+                {busy ? 'Pregătesc fotografia…' : isCheck ? 'Verifică rezolvarea' : 'Rezolvă problema'}
+              </Text>
               {!busy ? (
                 <View style={styles.applyArrow}>
-                  <MiniGlyph name="next" size={17} color={colors.paper} />
+                  <MiniGlyph name="next" size={18} color={colors.paper} />
                 </View>
               ) : null}
             </PressableScale>
           </View>
-        </Animated.View>
+        </View>
       </View>
     </View>
   );
@@ -645,31 +658,20 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
 const styles = StyleSheet.create({
   safe: { width: '100%', flexGrow: 0, flexShrink: 0, backgroundColor: '#110C29' },
   screen: { flex: 1, backgroundColor: '#110C29' },
-  header: { minHeight: 74, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 11, backgroundColor: '#110C29', paddingVertical: 4 },
-  headerLargeText: { minHeight: 88 },
-  headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 3 },
-  modePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 2.5,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(201,255,59,0.4)',
-    backgroundColor: 'rgba(34,26,74,0.9)',
-  },
-  modePillCheck: { borderColor: 'rgba(255,184,107,0.45)' },
-  modePillText: { fontFamily: fonts.bodyBold, color: '#EAE5F7', fontSize: 9.5, letterSpacing: 0.85 },
-  headerTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 18, lineHeight: 21, textAlign: 'center' },
-  headerSubtitleDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.lime },
+  header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, backgroundColor: '#110C29', paddingVertical: 4 },
+  headerLargeText: { minHeight: 74 },
+  headerCopy: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 18, lineHeight: 22, textAlign: 'center' },
+  headerSubtitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 2 },
+  headerSubtitleDot: { width: 6.5, height: 6.5, borderRadius: 4, backgroundColor: colors.lime, flexShrink: 0 },
   headerSubtitleDotCheck: { backgroundColor: colors.peach },
-  headerBadgeWrap: { width: 46, height: 49, paddingBottom: 3, position: 'relative', flexShrink: 0 },
-  headerBadgeShadow: { position: 'absolute', top: 3, left: 0, right: 0, bottom: 0, borderRadius: 15, backgroundColor: '#04030A' },
+  headerSubtitle: { flexShrink: 1, fontFamily: fonts.bodyMedium, color: '#C6BEE0', fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
+  headerBadgeWrap: { width: 42, height: 45, paddingBottom: 3, position: 'relative', flexShrink: 0 },
+  headerBadgeShadow: { position: 'absolute', top: 3, left: 0, right: 0, bottom: 0, borderRadius: 14, backgroundColor: '#04030A' },
   headerBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: '#7A68C8',
     backgroundColor: '#251D4F',
@@ -739,8 +741,7 @@ const styles = StyleSheet.create({
   workspaceError: { backgroundColor: 'rgba(110,27,48,0.96)', borderColor: colors.rose },
   workspaceErrorText: { color: '#FFE1E5' },
   dock: {
-    minHeight: 122,
-    paddingTop: 14,
+    paddingTop: 12,
     backgroundColor: '#150F33',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
@@ -756,20 +757,29 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
-  dockLargeText: { minHeight: 134, paddingTop: 14 },
-  actionRow: { maxWidth: 430, width: '100%', height: 92, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  actionRowLargeText: { height: 102 },
-  toolButton: { width: 68, height: 84, alignItems: 'center', justifyContent: 'center', gap: 5 },
-  toolButtonLargeText: { width: 74, height: 94 },
-  toolIcon: {
-    width: 56,
-    height: 54,
-    borderRadius: 18,
+  dockInner: {
+    maxWidth: 440,
+    width: '100%',
+    alignSelf: 'center',
+    gap: 10,
+  },
+  toolsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  toolPillWrap: { flex: 1, minWidth: 0 },
+  toolPill: {
+    height: 44,
+    borderRadius: 16,
     borderWidth: borders.thin,
     borderColor: '#7A68C8',
     backgroundColor: '#251D4F',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
     overflow: 'hidden',
   },
   toolShine: {
@@ -781,12 +791,12 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.shineSoft,
   },
-  toolText: { fontFamily: fonts.bodyBold, color: '#EAE5F7', fontSize: 11, lineHeight: 14, textAlign: 'center' },
-  applyWrap: { flex: 1, minWidth: 0 },
+  toolPillText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 17 },
+  applyWrap: { width: '100%' },
   applyButton: {
     width: '100%',
-    height: 68,
-    borderRadius: 22,
+    height: 58,
+    borderRadius: 20,
     borderWidth: borders.thick,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
@@ -794,10 +804,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 10,
     overflow: 'hidden',
   },
-  buttonLargeText: { height: 78, borderRadius: 24 },
+  buttonLargeText: { height: 64, borderRadius: 22 },
   applyButtonCheck: { backgroundColor: colors.peach },
   applyShine: {
     position: 'absolute',
@@ -809,9 +819,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.shine,
   },
   applyIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.paper,
@@ -819,10 +829,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 22, textAlign: 'center' },
+  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23, textAlign: 'center' },
   applyArrow: {
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     backgroundColor: colors.ink,
     alignItems: 'center',

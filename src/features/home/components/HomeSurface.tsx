@@ -397,6 +397,7 @@ export function HomeSurface({
               value={mode}
               onChange={onMode}
               disabled={pending || galleryBusy}
+              dimWhenDisabled={!galleryBusy}
               compact={compact}
             />
           </Enter>
@@ -489,6 +490,7 @@ export function HomeSurface({
                           : 'Fotografiază o rezolvare de verificat'
                     }
                     disabled={galleryBusy}
+                    dimWhenDisabled={false}
                     depth={compact ? 4 : shadows.md}
                     radius={18}
                     shadowColor={colors.ink}
@@ -530,6 +532,7 @@ export function HomeSurface({
                   accessibilityLabel="Alege o fotografie din galerie"
                   accessibilityState={{ disabled: galleryBusy, busy: galleryBusy }}
                   disabled={galleryBusy}
+                  dimWhenDisabled={false}
                   depth={compact ? 4 : shadows.md}
                   radius={20}
                   shadowColor={colors.ink}
@@ -564,6 +567,7 @@ export function HomeSurface({
                   accessibilityLabel="Scrie o problemă sau o rezolvare"
                   accessibilityState={{ disabled: galleryBusy }}
                   disabled={galleryBusy}
+                  dimWhenDisabled={false}
                   depth={compact ? 4 : shadows.md}
                   radius={20}
                   shadowColor={colors.ink}

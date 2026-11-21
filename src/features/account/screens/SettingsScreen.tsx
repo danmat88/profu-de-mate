@@ -190,6 +190,8 @@ export function SettingsScreen({ navigation }: Props) {
   const identityPulse = useSharedValue(1);
   const previousGoogleState = useRef(hasGoogleAccount);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const noticeDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingLogoutNotice = useRef(false);
 
   useEffect(() => {
     if (previousGoogleState.current === hasGoogleAccount) return;
@@ -197,29 +199,38 @@ export function SettingsScreen({ navigation }: Props) {
     setHasSwappedAccount(true);
     if (reducedMotion) return;
     identityPulse.set(withSequence(
-      withTiming(0.985, { duration: 70, easing: Easing.out(Easing.quad) }),
+      withTiming(0.985, { duration: 90, easing: Easing.out(Easing.quad) }),
       withSpring(1, springs.snappy),
     ));
   }, [hasGoogleAccount, identityPulse, reducedMotion]);
 
   useEffect(() => () => {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    if (noticeDelayTimer.current) clearTimeout(noticeDelayTimer.current);
   }, []);
 
-  const showStatusNotice = (label: string, tone: 'connected' | 'disconnected') => {
+  const showStatusNotice = (label: string, tone: 'connected' | 'disconnected', delayMs = 0) => {
     if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    setStatusNotice({ label, tone });
-    noticeTimer.current = setTimeout(() => setStatusNotice(null), 2_600);
+    if (noticeDelayTimer.current) clearTimeout(noticeDelayTimer.current);
+    const present = () => {
+      setStatusNotice({ label, tone });
+      noticeTimer.current = setTimeout(() => setStatusNotice(null), 2_800);
+    };
+    if (delayMs > 0 && !reducedMotion) {
+      noticeDelayTimer.current = setTimeout(present, delayMs);
+    } else {
+      present();
+    }
   };
 
   const identityAnimated = useAnimatedStyle(() => ({
     transform: [{ scale: identityPulse.get() }],
   }));
 
-  const smoothLayout = reducedMotion ? undefined : LinearTransition.duration(260).easing(Easing.out(Easing.cubic));
+  const smoothLayout = reducedMotion ? undefined : LinearTransition.duration(300).easing(Easing.out(Easing.cubic));
   const animateSwap = hasSwappedAccount || hasGoogleAccount !== initialGoogleState;
-  const enterAfterSwap = !reducedMotion && animateSwap ? FadeIn.duration(230).easing(Easing.out(Easing.cubic)) : undefined;
-  const exitSmooth = reducedMotion ? undefined : FadeOut.duration(150);
+  const enterAfterSwap = !reducedMotion && animateSwap ? FadeIn.duration(260).easing(Easing.out(Easing.cubic)) : undefined;
+  const exitSmooth = reducedMotion ? undefined : FadeOut.duration(170);
   const busyStatusLabel = disconnectingGoogle
     ? 'Deconectez contul Google…'
     : deleting
@@ -283,7 +294,7 @@ export function SettingsScreen({ navigation }: Props) {
       const next = await connectGoogle();
       if (next?.identity === 'google') {
         Haptics.notification(Haptics.NotificationFeedbackType.Success);
-        showStatusNotice('Contul Google este conectat.', 'connected');
+        showStatusNotice('Contul Google este conectat.', 'connected', 200);
       }
     } catch {
       setAccountError('Conectarea nu a reușit. Verifică internetul și încearcă din nou.');
@@ -339,10 +350,10 @@ export function SettingsScreen({ navigation }: Props) {
     setStatusNotice(null);
     try {
       await disconnectGoogle();
+      pendingLogoutNotice.current = true;
       setLogoutFinishedInSheet(true);
       setConfirmLogout(false);
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
-      showStatusNotice('Te-ai deconectat din contul Google.', 'disconnected');
     } catch (error) {
       recordDiagnosticError('google_disconnect', error);
       setAccountError('Nu am putut închide sesiunea. Încearcă din nou.');
@@ -636,7 +647,13 @@ export function SettingsScreen({ navigation }: Props) {
         visible={confirmLogout}
         busy={logoutSheetBusy}
         onClose={() => setConfirmLogout(false)}
-        onAfterClose={() => setLogoutFinishedInSheet(false)}
+        onAfterClose={() => {
+          setLogoutFinishedInSheet(false);
+          if (pendingLogoutNotice.current) {
+            pendingLogoutNotice.current = false;
+            showStatusNotice('Te-ai deconectat din contul Google.', 'disconnected', 60);
+          }
+        }}
       >
         <View style={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
           <View style={styles.sheetHandle} />

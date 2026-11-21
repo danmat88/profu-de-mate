@@ -34,6 +34,7 @@ import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { MathDocumentView } from '../../math/components/MathDocumentView';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import type { MathDocumentDefinition, MathDocumentTone } from '../../math/utils/mathDocument';
+import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { forgetLessonPresentation, markLessonPresentationReady } from '../services/lessonPresentation';
 import { setLessonFavorite } from '../services/lessons';
 
@@ -73,7 +74,10 @@ export function LessonScreen({ navigation, route }: Props) {
   const [problemOpen, setProblemOpen] = useState(false);
   const [problemView, setProblemView] = useState<ProblemView>('statement');
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
-  const [showSavedToast, setShowSavedToast] = useState(false);
+  const [saveToast, setSaveToast] = useState<'saved' | 'removed' | null>(null);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removingFromNotebook, setRemovingFromNotebook] = useState(false);
+  const [removeError, setRemoveError] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const alternateReveal = useSharedValue(0);
@@ -85,6 +89,7 @@ export function LessonScreen({ navigation, route }: Props) {
   const closeAlternateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeProblemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveLocked = useRef(false);
+  const removedToastPending = useRef(false);
   const pagingLocked = useRef(false);
   const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -266,30 +271,62 @@ export function LessonScreen({ navigation, route }: Props) {
     problemTabProgress.set(reducedMotion ? target : withSpring(target, springs.snappy));
   };
 
-  const toggleSaved = async () => {
-    if (saveLocked.current) return;
-    saveLocked.current = true;
-    const nextSaved = !saved;
-    setSaved(nextSaved);
+  const showNotebookToast = useCallback((kind: 'saved' | 'removed') => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
-    if (!nextSaved) {
-      setShowSavedToast(false);
-    } else {
-      setShowSavedToast(true);
-      savedReveal.set(0);
-      if (reducedMotion) savedReveal.set(1);
-      else savedReveal.set(withSpring(1, springs.bouncy));
-      savedTimer.current = setTimeout(() => setShowSavedToast(false), 1750);
+    setSaveToast(kind);
+    savedReveal.set(0);
+    if (reducedMotion) savedReveal.set(1);
+    else savedReveal.set(withSpring(1, springs.bouncy));
+    savedTimer.current = setTimeout(() => setSaveToast(null), 1750);
+  }, [reducedMotion, savedReveal]);
+
+  const toggleSaved = async () => {
+    if (saveLocked.current || removingFromNotebook) return;
+    if (saved) {
+      Haptics.selection();
+      setRemoveError(false);
+      setRemoveConfirmOpen(true);
+      return;
     }
+    saveLocked.current = true;
+    setSaved(true);
+    showNotebookToast('saved');
     try {
-      await setLessonFavorite(route.params.lessonId, nextSaved);
+      await setLessonFavorite(route.params.lessonId, true);
     } catch {
-      setSaved(!nextSaved);
-      setShowSavedToast(false);
+      setSaved(false);
+      setSaveToast(null);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       saveLocked.current = false;
     }
   };
+
+  const confirmRemoveFromNotebook = async () => {
+    if (removingFromNotebook || saveLocked.current) return;
+    setRemovingFromNotebook(true);
+    setRemoveError(false);
+    try {
+      await setLessonFavorite(route.params.lessonId, false);
+      Haptics.notification(Haptics.NotificationFeedbackType.Success);
+      setSaved(false);
+      removedToastPending.current = true;
+      setRemovingFromNotebook(false);
+      setRemoveConfirmOpen(false);
+    } catch {
+      setRemoveError(true);
+      setRemovingFromNotebook(false);
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
+    }
+  };
+
+  const handleRemoveModalClosed = useCallback(() => {
+    setRemoveError(false);
+    if (removedToastPending.current) {
+      removedToastPending.current = false;
+      showNotebookToast('removed');
+    }
+  }, [showNotebookToast]);
 
   const toastAnimated = useAnimatedStyle(() => {
     const p = savedReveal.get();
@@ -348,10 +385,19 @@ export function LessonScreen({ navigation, route }: Props) {
         onRight={toggleSaved}
       />
 
-      {showSavedToast ? (
-        <Animated.View pointerEvents="none" style={[styles.savedToast, toastAnimated]}>
-          <MiniGlyph name="check" size={16} color={colors.ink} />
-          <Text style={styles.savedText}>Lecție salvată</Text>
+      {saveToast ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.savedToast,
+            saveToast === 'removed' && styles.removedToast,
+            toastAnimated,
+          ]}
+        >
+          <MiniGlyph name={saveToast === 'saved' ? 'check' : 'wrong'} size={15} color={colors.ink} />
+          <Text style={styles.savedText}>
+            {saveToast === 'saved' ? 'Lecție salvată' : 'Scoasă din Caiet'}
+          </Text>
         </Animated.View>
       ) : null}
 
@@ -539,6 +585,19 @@ export function LessonScreen({ navigation, route }: Props) {
           </View>
         </Modal>
       ) : null}
+      <RemoveFromNotebookModal
+        visible={removeConfirmOpen}
+        lessonTitle={lesson.title}
+        description="Lecția va dispărea din Caietul tău. O poți salva din nou oricând cât ești aici."
+        removing={removingFromNotebook}
+        error={removeError}
+        onConfirm={() => void confirmRemoveFromNotebook()}
+        onCancel={() => {
+          if (removingFromNotebook) return;
+          setRemoveConfirmOpen(false);
+        }}
+        onAfterClose={handleRemoveModalClosed}
+      />
       <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
     </View>
   );
@@ -566,6 +625,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 0,
     elevation: 6,
+  },
+  removedToast: {
+    backgroundColor: colors.peachSoft,
   },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
   stage: { flex: 1, minHeight: 0, gap: 7, paddingBottom: 2 },

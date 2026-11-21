@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Pressable,
   StyleSheet,
   View,
@@ -7,20 +8,10 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  type SharedValue,
-} from 'react-native-reanimated';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows, springs } from '../theme';
+import { borders, colors, fonts, radii, shadows } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
 import { Text } from './Typography';
-
-const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export type SegmentedOption<T extends string> = {
   value: T;
@@ -37,61 +28,65 @@ type Props<T extends string> = {
   value: T;
   onChange: (value: T) => void;
   disabled?: boolean;
+  /** Dim opacity when disabled (default true). Pass false for crisp transient locks. */
+  dimWhenDisabled?: boolean;
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
 const TRACK_PADDING = 4;
+const PRESS_RETENTION = { top: 28, bottom: 28, left: 28, right: 28 };
 
 type SegmentItemProps<T extends string> = {
   option: SegmentedOption<T>;
-  index: 0 | 1;
   active: boolean;
   disabled: boolean;
   compact: boolean;
   hasPill: boolean;
-  progress: SharedValue<number>;
+  reducedMotion: boolean;
   onSelect: () => void;
 };
 
 function SegmentItem<T extends string>({
   option,
-  index,
   active,
   disabled,
   compact,
   hasPill,
-  progress,
+  reducedMotion,
   onSelect,
 }: SegmentItemProps<T>) {
-  const labelAnimated = useAnimatedStyle(() => {
-    const distance = Math.min(1, Math.abs(progress.get() - index));
-    return {
-      color: interpolateColor(distance, [0, 1], [option.activeText, colors.ink]),
-    };
-  }, [index, option.activeText]);
+  const dotAnim = useRef(new Animated.Value(active ? 1 : 0)).current;
 
-  const badgeAnimated = useAnimatedStyle(() => {
-    const distance = Math.min(1, Math.abs(progress.get() - index));
-    return {
-      backgroundColor: interpolateColor(distance, [0, 1], [colors.paper, colors.canvasDeep]),
+  useEffect(() => {
+    dotAnim.stopAnimation();
+    if (reducedMotion) {
+      dotAnim.setValue(active ? 1 : 0);
+      return;
+    }
+    Animated.spring(dotAnim, {
+      toValue: active ? 1 : 0,
+      tension: 320,
+      friction: 22,
+      useNativeDriver: true,
+    }).start();
+    return () => {
+      dotAnim.stopAnimation();
     };
-  }, [index]);
+  }, [active, dotAnim, reducedMotion]);
 
-  const dotAnimated = useAnimatedStyle(() => {
-    const closeness = Math.max(0, 1 - Math.abs(progress.get() - index) * 1.4);
-    return {
-      opacity: closeness,
-      transform: [{ scale: 0.65 + closeness * 0.35 }],
-    };
-  }, [index]);
+  const dotScale = dotAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.65, 1],
+  });
 
   return (
     <Pressable
+      collapsable={false}
       accessibilityRole="tab"
       accessibilityState={{ selected: active, disabled }}
       disabled={disabled}
-      hitSlop={4}
+      pressRetentionOffset={PRESS_RETENTION}
       onPress={onSelect}
       style={[
         styles.tab,
@@ -103,86 +98,97 @@ function SegmentItem<T extends string>({
         },
       ]}
     >
-      <View style={styles.iconWrap}>
-        <Animated.View style={[styles.iconBadge, compact && styles.iconBadgeCompact, badgeAnimated]}>
-          <AppIcon name={option.icon} size={compact ? 24 : 30} />
-        </Animated.View>
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.cornerDot, { backgroundColor: option.dotFill }, dotAnimated]}
+      <View pointerEvents="none" style={styles.tabContent}>
+        <View style={styles.iconWrap}>
+          <View
+            style={[
+              styles.iconBadge,
+              compact && styles.iconBadgeCompact,
+              { backgroundColor: active ? colors.paper : colors.canvasDeep },
+            ]}
+          >
+            <AppIcon name={option.icon} size={compact ? 24 : 30} />
+          </View>
+          <Animated.View
+            style={[
+              styles.cornerDot,
+              {
+                backgroundColor: option.dotFill,
+                opacity: dotAnim,
+                transform: [{ scale: dotScale }],
+              },
+            ]}
+          >
+            <Text maxFontSizeMultiplier={1.1} style={[styles.dotText, { color: option.dotText }]}>
+              ✓
+            </Text>
+          </Animated.View>
+        </View>
+        <Text
+          maxFontSizeMultiplier={1.25}
+          numberOfLines={1}
+          style={[
+            styles.label,
+            compact && styles.labelCompact,
+            { color: active ? option.activeText : colors.ink },
+          ]}
         >
-          <Text maxFontSizeMultiplier={1.1} style={[styles.dotText, { color: option.dotText }]}>
-            ✓
-          </Text>
-        </Animated.View>
+          {option.label}
+        </Text>
       </View>
-      <AnimatedText
-        maxFontSizeMultiplier={1.25}
-        numberOfLines={1}
-        style={[
-          styles.label,
-          compact && styles.labelCompact,
-          labelAnimated,
-        ]}
-      >
-        {option.label}
-      </AnimatedText>
     </Pressable>
   );
 }
 
 /**
- * Snappy comic two-segment control with a Reanimated spring-sliding pill,
- * smooth color-morphing labels, and zero horizontal layout jump on toggle.
+ * Snappy comic two-segment control driven by React state and native-driver
+ * spring motion so screen detaches on Android Fabric can never freeze tabs
+ * or desync active colors.
  */
 export function SegmentedToggle<T extends string>({
   options,
   value,
   onChange,
   disabled = false,
+  dimWhenDisabled = true,
   compact = false,
   style,
 }: Props<T>) {
   const reducedMotion = useReducedMotion();
   const [trackWidth, setTrackWidth] = useState(0);
   const activeIndex: 0 | 1 = value === options[1].value ? 1 : 0;
-  const progress = useSharedValue<number>(activeIndex);
-
-  useEffect(() => {
-    cancelAnimation(progress);
-    if (reducedMotion) {
-      progress.set(activeIndex);
-      return undefined;
-    }
-    progress.set(withSpring(activeIndex, springs.snappy));
-    const settle = setTimeout(() => {
-      progress.set(activeIndex);
-    }, 420);
-    return () => {
-      clearTimeout(settle);
-      cancelAnimation(progress);
-    };
-  }, [activeIndex, progress, reducedMotion]);
-
+  const activeOption = options[activeIndex];
   const innerWidth = trackWidth - borders.regular * 2 - TRACK_PADDING * 2;
   const pillWidth = innerWidth > 0 ? innerWidth / 2 : 0;
-  const firstColor = options[0].activeFill;
-  const secondColor = options[1].activeFill;
 
-  const pillStyle = useAnimatedStyle(() => {
-    const p = Math.max(0, Math.min(1, progress.get()));
-    return {
-      transform: [{ translateX: p * pillWidth }],
-      backgroundColor: interpolateColor(p, [0, 1], [firstColor, secondColor]),
-    };
-  }, [firstColor, pillWidth, secondColor]);
+  const slideX = useRef(new Animated.Value(0)).current;
+  const measuredWidthRef = useRef(0);
+  const lastAnimatedIndexRef = useRef<0 | 1>(activeIndex);
 
-  const shadowStyle = useAnimatedStyle(() => {
-    const p = Math.max(0, Math.min(1, progress.get()));
-    return {
-      backgroundColor: interpolateColor(p, [0, 1], [colors.violetShadow, colors.peachShadow]),
+  useEffect(() => {
+    if (pillWidth <= 0) return;
+    const target = activeIndex * pillWidth;
+    const widthChanged = Math.abs(measuredWidthRef.current - pillWidth) > 0.5;
+    const indexChanged = lastAnimatedIndexRef.current !== activeIndex;
+    measuredWidthRef.current = pillWidth;
+    lastAnimatedIndexRef.current = activeIndex;
+
+    slideX.stopAnimation();
+    if (reducedMotion || (widthChanged && !indexChanged)) {
+      slideX.setValue(target);
+      return;
+    }
+    Animated.spring(slideX, {
+      toValue: target,
+      tension: 260,
+      friction: 24,
+      useNativeDriver: true,
+    }).start();
+
+    return () => {
+      slideX.stopAnimation();
     };
-  });
+  }, [activeIndex, pillWidth, reducedMotion, slideX]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const nextWidth = event.nativeEvent.layout.width;
@@ -193,49 +199,64 @@ export function SegmentedToggle<T extends string>({
 
   return (
     <View
+      collapsable={false}
       accessibilityRole="tablist"
       style={[
         styles.outer,
         compact && styles.outerCompact,
-        disabled && styles.disabled,
+        disabled && dimWhenDisabled && styles.disabled,
         style,
       ]}
     >
-      <Animated.View pointerEvents="none" style={[styles.shadow, shadowStyle]} />
-      <View onLayout={handleLayout} style={[styles.track, compact && styles.trackCompact]}>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.shadow,
+          { backgroundColor: activeIndex === 0 ? colors.violetShadow : colors.peachShadow },
+        ]}
+      />
+      <View
+        collapsable={false}
+        onLayout={handleLayout}
+        style={[styles.track, compact && styles.trackCompact]}
+      >
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.pill,
               compact && styles.pillCompact,
-              { width: pillWidth },
-              pillStyle,
+              {
+                width: pillWidth,
+                backgroundColor: activeOption.activeFill,
+                transform: [{ translateX: slideX }],
+              },
             ]}
           >
-            <View style={styles.pillShine} />
+            <View pointerEvents="none" style={styles.pillShine} />
           </Animated.View>
         ) : null}
 
-        {options.map((option, idx) => {
-          const index = idx as 0 | 1;
-          return (
-            <SegmentItem
-              key={option.value}
-              option={option}
-              index={index}
-              active={index === activeIndex}
-              disabled={disabled}
-              compact={compact}
-              hasPill={pillWidth > 0}
-              progress={progress}
-              onSelect={() => {
-                if (disabled || option.value === value) return;
-                onChange(option.value);
-              }}
-            />
-          );
-        })}
+        <View collapsable={false} style={styles.tabsRow}>
+          {options.map((option, idx) => {
+            const index = idx as 0 | 1;
+            return (
+              <SegmentItem
+                key={option.value}
+                option={option}
+                active={index === activeIndex}
+                disabled={disabled}
+                compact={compact}
+                hasPill={pillWidth > 0}
+                reducedMotion={reducedMotion}
+                onSelect={() => {
+                  if (disabled || option.value === value) return;
+                  onChange(option.value);
+                }}
+              />
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -262,8 +283,6 @@ const styles = StyleSheet.create({
   },
   track: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'stretch',
     padding: TRACK_PADDING,
     borderRadius: radii.lg,
     borderWidth: borders.regular,
@@ -297,15 +316,23 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.shine,
   },
+  tabsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
   tab: {
     flex: 1,
     minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingHorizontal: 8,
-    zIndex: 1,
   },
   iconWrap: {
     position: 'relative',

@@ -51,6 +51,26 @@ const appSource = await readFile(
   new URL('../../src/app/App.tsx', import.meta.url),
   'utf8',
 );
+const segmentedToggleSource = await readFile(
+  new URL('../../src/shared/ui/SegmentedToggle.tsx', import.meta.url),
+  'utf8',
+);
+const analysisActivitySource = await readFile(
+  new URL('../../src/features/analysis/components/AnalysisActivity.tsx', import.meta.url),
+  'utf8',
+);
+const mathProcessingSource = await readFile(
+  new URL('../../src/features/analysis/screens/MathProcessingScreen.tsx', import.meta.url),
+  'utf8',
+);
+const summarySource = await readFile(
+  new URL('../../src/features/lessons/screens/SummaryScreen.tsx', import.meta.url),
+  'utf8',
+);
+const notebookSource = await readFile(
+  new URL('../../src/features/lessons/screens/NotebookScreen.tsx', import.meta.url),
+  'utf8',
+);
 
 test('raw camera and picker cache copies remain visible through finalization and are released by the flow owner', () => {
   assert.doesNotMatch(imagePipelineSource, /deleteTransientCapturedSource/);
@@ -201,4 +221,32 @@ test('camera mount failures have a safe retry and crop waits for the image', () 
   assert.match(captureSource, /setCameraSessionKey\(\(value\) => value \+ 1\)/);
   assert.match(cropSource, /disabled=\{busy \|\| !imageReady\}/);
   assert.match(cropSource, /operationLocked\.current \|\| !imageReady \|\| !imageRect\.width/);
+});
+
+test('Home segmented tabs stay immune to Fabric worklet freezes and stale pending locks', () => {
+  assert.doesNotMatch(segmentedToggleSource, /react-native-reanimated|AnimatedText/);
+  assert.match(segmentedToggleSource, /pointerEvents="none" style=\{styles\.tabContent\}/);
+  assert.match(segmentedToggleSource, /pressRetentionOffset=\{PRESS_RETENTION\}/);
+  assert.match(segmentedToggleSource, /dimWhenDisabled\?: boolean/);
+  assert.match(processingSource, /BackHandler\.addEventListener\('hardwareBackPress'/);
+  assert.match(mathProcessingSource, /BackHandler\.addEventListener\('hardwareBackPress'/);
+  assert.match(reviewSource, /clearPendingAnalysis\(pending\.requestId\)/);
+});
+
+test('preparingLesson keeps locked heights across Processing, MathProcessing, and AnalysisActivity', () => {
+  assert.match(analysisActivitySource, /note:\s*\{[^}]*height:\s*34/);
+  assert.match(analysisActivitySource, /labelRow:\s*\{[^}]*height:\s*22/);
+  assert.match(processingSource, /tutorBanner:\s*\{[^}]*height:\s*108/);
+  assert.match(processingSource, /title:\s*\{[^}]*height:\s*28/);
+  assert.match(processingSource, /subtitle:\s*\{[^}]*height:\s*36/);
+  assert.match(mathProcessingSource, /workingTitle:\s*\{\s*height:\s*35\s*\}/);
+  assert.match(mathProcessingSource, /workingSubtitle:\s*\{\s*height:\s*42\s*\}/);
+});
+
+test('removing a saved problem asks confirmation via RemoveFromNotebookModal across Lesson, Summary, and Notebook', () => {
+  assert.match(lessonSource, /if \(saved\) \{\s*Haptics\.selection\(\);\s*setRemoveError\(false\);\s*setRemoveConfirmOpen\(true\);\s*return;\s*\}/);
+  assert.match(lessonSource, /<RemoveFromNotebookModal/);
+  assert.match(summarySource, /if \(saved\) \{\s*Haptics\.selection\(\);\s*setRemoveError\(false\);\s*setRemoveConfirmOpen\(true\);\s*return;\s*\}/);
+  assert.match(summarySource, /<RemoveFromNotebookModal/);
+  assert.match(notebookSource, /<RemoveFromNotebookModal/);
 });

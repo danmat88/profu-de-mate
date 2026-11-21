@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, BackHandler, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -116,6 +116,24 @@ export function ProcessingScreen({ navigation, route }: Props) {
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
+  const hardwareBackRef = useRef(() => {
+    if (screenState.kind === 'analyzing') continueInBackground();
+    else returnToPhotoOrHome();
+  });
+  hardwareBackRef.current = () => {
+    if (screenState.kind === 'analyzing') continueInBackground();
+    else returnToPhotoOrHome();
+  };
+
+  useFocusEffect(useCallback(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (feedbackVisible) return false;
+      hardwareBackRef.current();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [feedbackVisible]));
+
   useEffect(() => {
     if (reducedMotion) {
       setSceneReady(true);
@@ -123,17 +141,25 @@ export function ProcessingScreen({ navigation, route }: Props) {
     }
     setSceneReady(false);
     let settled = false;
+    let raf1 = 0;
+    let raf2 = 0;
     const markReady = () => {
       if (settled) return;
       settled = true;
-      setSceneReady(true);
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          setSceneReady(true);
+        });
+      });
     };
     const unsubscribe = navigation.addListener('transitionEnd', (event) => {
       if (!event.data.closing) markReady();
     });
-    const fallback = setTimeout(markReady, 200);
+    const fallback = setTimeout(markReady, 550);
     return () => {
       settled = true;
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
       clearTimeout(fallback);
       unsubscribe();
     };
@@ -147,8 +173,8 @@ export function ProcessingScreen({ navigation, route }: Props) {
     }
     orbit.setValue(0);
     const orbiting = Animated.loop(Animated.sequence([
-      Animated.timing(orbit, { toValue: 1, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(orbit, { toValue: 0, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(orbit, { toValue: 1, duration: 1_950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(orbit, { toValue: 0, duration: 1_950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ]));
     orbiting.start();
     return () => { orbiting.stop(); };
@@ -204,7 +230,8 @@ export function ProcessingScreen({ navigation, route }: Props) {
           orbit.stopAnimation();
           Animated.timing(scanVisibility, {
             toValue: 0,
-            duration: reducedMotion ? 0 : 150,
+            duration: reducedMotion ? 0 : 220,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: true,
           }).start();
           lessonParams = {
@@ -220,7 +247,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
         const finish = async () => {
           if (!isActive()) return;
           if (result.status === 'ready' && lessonId && lessonParams && lessonPresentation) {
+            const celebrationBeat = reducedMotion
+              ? Promise.resolve()
+              : new Promise<void>((resolve) => { setTimeout(resolve, 520); });
             await lessonPresentation;
+            await celebrationBeat;
             if (!isActive()) return;
             clearPendingAnalysis(route.params.requestId);
             navigation.replace('Lesson', lessonParams);
@@ -420,29 +451,36 @@ export function ProcessingScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <View style={styles.tutorBanner}>
-            <View style={styles.tutorMascotStage}>
-              <View style={[styles.tutorHalo, isCheck && styles.tutorHaloCheck, preparingLesson && styles.tutorHaloReady]} />
+          <View style={[styles.tutorBanner, isVeryShort && styles.tutorBannerShort]}>
+            <View style={[styles.tutorMascotStage, isVeryShort && styles.tutorMascotStageShort]}>
+              <View style={[styles.tutorHalo, isVeryShort && styles.tutorHaloShort, isCheck && styles.tutorHaloCheck, preparingLesson && styles.tutorHaloReady]} />
               <Mascot pose={preparingLesson ? 'cheer' : 'thinking'} size={isVeryShort ? 74 : 88} active={sceneReady} />
             </View>
             <View style={styles.tutorCopy}>
               <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck, preparingLesson && styles.guideBubbleReady]}>
-                <Text style={styles.guideText}>
+                <Text numberOfLines={1} style={styles.guideText}>
                   {preparingLesson ? 'Gata! O așez…' : isCheck ? 'Verific atent…' : 'Citesc atent…'}
                 </Text>
               </View>
-              <Text style={[styles.title, isNarrow && styles.titleNarrow]}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.76}
+                style={[styles.title, isNarrow && styles.titleNarrow]}
+              >
                 {preparingLesson ? 'Lecția ta e gata!' : isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}
               </Text>
               <Text accessibilityLiveRegion="polite" numberOfLines={2} style={styles.subtitle}>
-                {takingLong
-                  ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.'
-                  : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
+                {preparingLesson
+                  ? 'Așez pașii și formulele frumos în pagină.'
+                  : takingLong
+                    ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.'
+                    : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
               </Text>
             </View>
           </View>
 
-          <AnalysisActivity preparing={preparingLesson} check={isCheck} />
+          <AnalysisActivity preparing={preparingLesson} check={isCheck} active={sceneReady} />
         </View>
       </View>
     </View>
@@ -511,10 +549,14 @@ const styles = StyleSheet.create({
   cornerBL: { left: 13, bottom: 13, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 9 },
   cornerBR: { right: 13, bottom: 13, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 9 },
   tutorBanner: {
+    height: 108,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 4,
+  },
+  tutorBannerShort: {
+    height: 94,
   },
   tutorMascotStage: {
     width: 92,
@@ -522,6 +564,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  tutorMascotStageShort: {
+    width: 78,
+    height: 78,
   },
   tutorHalo: {
     position: 'absolute',
@@ -533,25 +579,31 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: '#7A68C8',
   },
+  tutorHaloShort: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+  },
   tutorHaloCheck: { borderColor: 'rgba(255,184,107,0.7)' },
   tutorHaloReady: { borderColor: colors.lime, backgroundColor: '#253257' },
-  tutorCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
+  tutorCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start', justifyContent: 'center' },
   guideBubble: {
+    height: 24,
+    justifyContent: 'center',
     borderRadius: 12,
     borderWidth: borders.thin,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
     paddingHorizontal: 10,
-    paddingVertical: 4,
     transform: [{ rotate: '-2deg' }],
     marginBottom: 5,
   },
   guideBubbleCheck: { backgroundColor: colors.peach },
   guideBubbleReady: { backgroundColor: colors.lime },
   guideText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11, lineHeight: 14 },
-  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 24, lineHeight: 28 },
-  titleNarrow: { fontSize: 21, lineHeight: 25 },
-  subtitle: { fontFamily: fonts.body, color: '#CCC4E6', fontSize: 12.5, lineHeight: 17.5, marginTop: 3 },
+  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 22, lineHeight: 28, height: 28 },
+  titleNarrow: { fontSize: 20, lineHeight: 25, height: 25 },
+  subtitle: { fontFamily: fonts.body, color: '#CCC4E6', fontSize: 12.5, lineHeight: 17.5, height: 36, marginTop: 3 },
   messageScroll: { flex: 1 },
   messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 12, gap: 6 },
   messageAreaShort: { paddingTop: 6 },
