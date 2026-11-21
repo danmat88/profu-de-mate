@@ -1,9 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from '../../../shared/services/haptics';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Animated,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -14,21 +12,33 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { AppIcon } from '../../../shared/ui/AppIcon';
-import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
-import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
-import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
-import { Text, TextInput } from '../../../shared/ui/Typography';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
-import { colors, fonts, motion } from '../../../shared/theme';
+import * as Haptics from '../../../shared/services/haptics';
+import { borders, colors, fonts, radii, shadows, springs, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
+import { AppIcon } from '../../../shared/ui/AppIcon';
+import { Chip } from '../../../shared/ui/Chip';
+import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
+import { ComicButton } from '../../../shared/ui/ComicButton';
+import { Mascot } from '../../../shared/ui/Mascot';
+import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
+import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
+import { PressableScale } from '../../../shared/ui/PressableScale';
+import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
+import { Text, TextInput } from '../../../shared/ui/Typography';
+import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
 import {
   filterNotebookLessons,
   notebookFilterCounts,
@@ -47,11 +57,11 @@ const tabs: { value: NotebookFilter; label: string }[] = [
 
 const verdictTones = {
   correct: { backgroundColor: colors.limeSoft, color: colors.ink },
-  partial: { backgroundColor: '#FFE3B8', color: colors.ink },
-  incorrect: { backgroundColor: colors.rose, color: colors.paper },
+  partial: { backgroundColor: colors.goldSoft, color: colors.ink },
+  incorrect: { backgroundColor: colors.roseSoft, color: colors.berryDeep },
 } as const;
 
-function TrashGlyph({ size = 19, color = colors.inkSoft }: { size?: number; color?: string }) {
+function TrashGlyph({ size = 18, color = colors.inkSoft }: { size?: number; color?: string }) {
   return (
     <Svg accessible={false} width={size} height={size} viewBox="0 0 24 24">
       <Path d="M4 7h16M9 7V4.8h6V7M6.7 7l.9 13h8.8l.9-13M10 10.2v6.6M14 10.2v6.6" fill="none" stroke={color} strokeWidth={2.15} strokeLinecap="round" strokeLinejoin="round" />
@@ -99,68 +109,79 @@ const LessonRow = memo(function LessonRow({ lesson, newest, onOpen, onRemove }: 
   const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : undefined;
 
   return (
-    <View style={styles.lessonShadow}>
-      <View style={styles.lessonCard}>
-        <View style={[styles.lessonRail, { backgroundColor: tone }]}>
-          {[0, 1, 2].map((dot) => <View key={dot} style={styles.railDot} />)}
-        </View>
-        <View style={styles.lessonBody}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
-            accessibilityHint={actionLabel}
-            onPress={() => onOpen(lesson)}
-            style={({ pressed }) => [styles.lessonMain, pressed && styles.lessonMainPressed]}
-          >
-            <View style={styles.lessonMeta}>
-              <View style={styles.metaLeft}>
-                <View style={[styles.modeDot, { backgroundColor: tone }]} />
-                <Text style={styles.modeText}>{modeLabel}</Text>
-                {newest ? <View style={styles.newDot}><Text style={styles.newDotText}>NOUĂ</Text></View> : null}
-              </View>
-              <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
-            </View>
-            <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
-            <View style={styles.topicRow}>
-              <View style={[styles.topicMarker, { backgroundColor: tone }]} />
-              <Text numberOfLines={1} style={styles.topicText}>{lesson.topic}</Text>
-              {verdict ? (
-                <View style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].backgroundColor }]}>
-                  <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>{verdict.label}</Text>
-                </View>
-              ) : null}
-            </View>
-          </Pressable>
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
+      accessibilityHint={actionLabel}
+      depth={4}
+      radius={20}
+      shadowColor={colors.ink}
+      haptic="light"
+      onPress={() => onOpen(lesson)}
+      contentStyle={styles.lessonCard}
+    >
+      <View style={[styles.lessonRail, { backgroundColor: tone }]}>
+        {[0, 1, 2].map((dot) => <View key={dot} style={styles.railDot} />)}
+      </View>
 
-          <View style={styles.lessonFooter}>
-            <View style={styles.detailCluster}>
-              <Text style={styles.detailText}>{stepLabel}</Text>
-              {requestLabel ? <><View style={styles.detailDot} /><Text style={styles.detailText}>{requestLabel}</Text></> : null}
+      <View style={styles.lessonBody}>
+        <View style={styles.lessonMeta}>
+          <View style={styles.metaLeft}>
+            <View style={[styles.modeDot, { backgroundColor: tone }]} />
+            <Text style={styles.modeText}>{modeLabel}</Text>
+            {newest ? (
+              <View style={styles.newDot}>
+                <Text style={styles.newDotText}>NOUĂ</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
+        </View>
+
+        <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
+
+        <View style={styles.topicRow}>
+          <View style={[styles.topicMarker, { backgroundColor: tone }]} />
+          <Text numberOfLines={1} style={styles.topicText}>{lesson.topic}</Text>
+          {verdict ? (
+            <View style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].backgroundColor }]}>
+              <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>{verdict.label}</Text>
             </View>
-            <View style={styles.rowActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Scoate ${presentation.title} din Caiet`}
-                onPress={() => onRemove(lesson)}
-                style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
-              >
-                <TrashGlyph />
-                <Text style={styles.removeText}>Scoate</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={actionLabel}
-                onPress={() => onOpen(lesson)}
-                style={({ pressed }) => [styles.openAction, pressed && styles.actionPressed]}
-              >
-                <Text style={styles.openText}>Deschide</Text>
-                <View style={styles.openArrow}><MiniGlyph name="next" size={15} color={colors.paper} /></View>
-              </Pressable>
+          ) : null}
+        </View>
+
+        <View style={styles.lessonFooter}>
+          <View style={styles.detailCluster}>
+            <Text style={styles.detailText}>{stepLabel}</Text>
+            {requestLabel ? (
+              <>
+                <View style={styles.detailDot} />
+                <Text style={styles.detailText}>{requestLabel}</Text>
+              </>
+            ) : null}
+          </View>
+
+          <View style={styles.rowActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Scoate ${presentation.title} din Caiet`}
+              hitSlop={8}
+              onPress={(event) => {
+                event.stopPropagation();
+                onRemove(lesson);
+              }}
+              style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
+            >
+              <TrashGlyph size={16} color={colors.inkSoft} />
+              <Text style={styles.removeText}>Scoate</Text>
+            </Pressable>
+            <View style={styles.openChevron}>
+              <MiniGlyph name="next" size={16} color={colors.paper} />
             </View>
           </View>
         </View>
       </View>
-    </View>
+    </PressableScale>
   );
 }, (previous, next) => (
   previous.lesson.id === next.lesson.id
@@ -178,34 +199,12 @@ function LessonSeparator() {
   return <View style={styles.lessonSeparator} />;
 }
 
-function NotebookIllustration({ error = false }: { error?: boolean }) {
-  return (
-    <View style={styles.emptyIllustration}>
-      <View style={styles.emptyDeskSpot} />
-      <View style={styles.emptyPageBack} />
-      <View style={styles.emptyPage}>
-        <View style={styles.emptyBinding}>
-          {[0, 1, 2, 3].map((ring) => <View key={ring} style={styles.emptyRing} />)}
-        </View>
-        <View style={styles.emptyPageCopy}>
-          <View style={styles.emptyLineLong} />
-          <View style={styles.emptyLineShort} />
-          <View style={styles.emptyFormula}><Text style={styles.emptyFormulaText}>x + ?</Text></View>
-        </View>
-        <View style={styles.emptyBookmark} />
-      </View>
-      <View style={styles.emptyIcon}><AppIcon name={error ? 'help' : 'notebook'} size={66} /></View>
-      <View style={styles.emptySpark}><MiniGlyph name="spark" size={18} color={colors.violetDeep} /></View>
-    </View>
-  );
-}
-
 function NotebookLoading() {
   const showProgress = useDelayedBusy(true, 300);
   return (
     <View style={styles.loadingState}>
-      <NotebookIllustration />
-      <Text style={styles.fullStateEyebrow}>CAIETUL TĂU</Text>
+      <Mascot pose="thinking" size={132} active />
+      <Chip label="CAIETUL TĂU" tone="violetSoft" outlined={false} style={styles.stateChip} />
       <Text style={styles.loadingTitle}>Lecțiile tale, la un loc.</Text>
       <View style={styles.notebookProgress}>
         {showProgress ? <PlayfulLoader compact label="Sincronizez lecțiile" style={styles.notebookLoader} /> : null}
@@ -228,35 +227,44 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
       contentContainerStyle={styles.fullState}
       showsVerticalScrollIndicator={false}
     >
-      <NotebookIllustration error={error} />
-      <Text style={styles.fullStateEyebrow}>{error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}</Text>
-      <Text style={styles.fullStateTitle}>{error ? 'Caietul e încă pe raft' : 'Prima lecție merită un loc bun'}</Text>
-      <Text style={styles.fullStateText}>{error
-        ? 'Lecțiile tale rămân în siguranță. Verifică internetul și încearcă din nou.'
-        : 'Rezolvă ori verifică o problemă, apoi salveaz-o. Revii oricând la enunț și la pașii explicați.'}</Text>
-      {!error ? (
-        <View style={styles.emptyJourney}>
-          {['Rezolvă', 'Salvează', 'Revino'].map((label, index) => (
-            <View key={label} style={styles.emptyJourneyItem}>
-              <View style={[styles.emptyJourneyDot, index === 1 && styles.emptyJourneyDotPeach, index === 2 && styles.emptyJourneyDotCyan]}>
-                <Text style={styles.emptyJourneyNumber}>{index + 1}</Text>
-              </View>
-              <Text style={styles.emptyJourneyText}>{label}</Text>
-              {index < 2 ? <View style={styles.emptyJourneyLine} /> : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <Pressable accessibilityRole="button" onPress={onPrimary} style={({ pressed }) => [styles.primaryEmptyAction, pressed && styles.actionPressed]}>
-        <Text style={styles.primaryEmptyText}>{error ? 'Reîncearcă' : 'Rezolvă prima problemă'}</Text>
-        <MiniGlyph name={error ? 'spark' : 'next'} size={18} color={colors.ink} />
-      </Pressable>
-      {!error && onSecondary ? (
-        <Pressable accessibilityRole="button" onPress={onSecondary} style={({ pressed }) => [styles.secondaryEmptyAction, pressed && styles.actionPressed]}>
-          <Text style={styles.secondaryEmptyText}>Sau verifică o rezolvare</Text>
-          <MiniGlyph name="next" size={15} color={colors.violetDeep} />
-        </Pressable>
-      ) : null}
+      <View style={styles.emptyMascotStage}>
+        <View style={[styles.emptyHalo, error && styles.emptyHaloError]} />
+        <Mascot pose={error ? 'oops' : 'wave'} size={142} active interactive />
+      </View>
+      <Chip
+        label={error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}
+        tone={error ? 'peach' : 'lime'}
+        tilt={-2}
+      />
+      <Text style={styles.fullStateTitle}>
+        {error ? 'Caietul e încă pe raft' : 'Prima lecție merită un loc bun'}
+      </Text>
+      <Text style={styles.fullStateText}>
+        {error
+          ? 'Lecțiile tale rămân în siguranță. Verifică internetul și încearcă din nou.'
+          : 'Rezolvă ori verifică o problemă, apoi salveaz-o. Revii oricând la enunț și la pașii explicați.'}
+      </Text>
+      <View style={styles.emptyActions}>
+        <ComicButton
+          compact
+          title={error ? 'Reîncearcă' : 'Rezolvă prima problemă'}
+          icon={error ? 'scan' : 'camera'}
+          tone="lime"
+          onPress={onPrimary}
+        />
+        {!error && onSecondary ? (
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Sau verifică o rezolvare"
+            haptic="selection"
+            onPress={onSecondary}
+            style={styles.secondaryEmptyWrap}
+            contentStyle={styles.secondaryEmptyAction}
+          >
+            <Text style={styles.secondaryEmptyText}>Sau verifică o rezolvare →</Text>
+          </PressableScale>
+        ) : null}
+      </View>
     </ScrollView>
   );
 }
@@ -280,12 +288,23 @@ function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
 
   return (
     <View style={styles.filterEmpty}>
-      <View style={styles.filterEmptyIcon}><AppIcon name={searching ? 'search' : check ? 'verify' : 'practice'} size={50} /></View>
+      <Mascot pose="thinking" size={108} active />
       <Text style={styles.filterEmptyTitle}>{title}</Text>
       <Text style={styles.filterEmptyText}>{description}</Text>
-      <Pressable accessibilityRole="button" onPress={searching ? onReset : () => onStart(check ? 'check' : 'solve')} style={({ pressed }) => [styles.filterEmptyAction, pressed && styles.actionPressed]}>
-        <Text style={styles.filterEmptyActionText}>{searching ? 'Șterge căutarea' : check ? 'Verifică o rezolvare' : 'Rezolvă o problemă'}</Text>
-      </Pressable>
+      <PressableScale
+        accessibilityRole="button"
+        depth={shadows.sm}
+        radius={14}
+        shadowColor={colors.ink}
+        haptic="selection"
+        onPress={searching ? onReset : () => onStart(check ? 'check' : 'solve')}
+        style={styles.filterEmptyActionWrap}
+        contentStyle={styles.filterEmptyAction}
+      >
+        <Text style={styles.filterEmptyActionText}>
+          {searching ? 'Șterge căutarea' : check ? 'Verifică o rezolvare' : 'Rezolvă o problemă'}
+        </Text>
+      </PressableScale>
     </View>
   );
 }
@@ -304,19 +323,14 @@ export function NotebookScreen({ navigation }: Props) {
   const [pendingRemoval, setPendingRemoval] = useState<StoredLesson>();
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
-  const controlsReveal = useRef(new Animated.Value(1)).current;
-  const listReveal = useRef(new Animated.Value(1)).current;
-  const removeProgress = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (reducedMotion) {
-      controlsReveal.setValue(1);
-      return;
-    }
-    const animation = Animated.timing(controlsReveal, { toValue: 1, duration: motion.fast, useNativeDriver: true });
-    animation.start();
-    return () => animation.stop();
-  }, [controlsReveal, reducedMotion]);
+  const listOpacity = useSharedValue(1);
+  const removeProgress = useSharedValue(0);
+  const closeRemoveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -353,52 +367,47 @@ export function NotebookScreen({ navigation }: Props) {
   );
   const counts = useMemo(() => notebookFilterCounts(notes), [notes]);
 
-  const animateListChange = useCallback(() => {
-    if (reducedMotion) return;
-    listReveal.stopAnimation();
-    listReveal.setValue(0.94);
-    Animated.timing(listReveal, { toValue: 1, duration: motion.fast, useNativeDriver: true }).start();
-  }, [listReveal, reducedMotion]);
-
   const chooseFilter = useCallback((next: NotebookFilter) => {
     setFilter((current) => {
       if (current === next) return current;
       Haptics.selection();
-      animateListChange();
+      if (!reducedMotion) {
+        listOpacity.set(0.86);
+        listOpacity.set(withSpring(1, springs.snappy));
+      }
       return next;
     });
-  }, [animateListChange]);
-
+  }, [listOpacity, reducedMotion]);
 
   const openNote = useCallback((lesson: StoredLesson) => {
-    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('Lesson', { lesson, lessonId: lesson.id, isFavorite: true, source: 'notebook' });
   }, [navigation]);
 
   const requestRemove = useCallback((lesson: StoredLesson) => {
+    if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
     Haptics.selection();
     setRemoveError(false);
     setPendingRemoval(lesson);
-    removeProgress.setValue(reducedMotion ? 1 : 0);
+    removeProgress.set(reducedMotion ? 1 : 0);
     if (!reducedMotion) {
-      Animated.timing(removeProgress, { toValue: 1, duration: motion.sheet, useNativeDriver: true }).start();
+      removeProgress.set(withSpring(1, springs.snappy));
     }
   }, [reducedMotion, removeProgress]);
 
   const closeRemoval = useCallback((force = false) => {
     if (removing && !force) return;
+    if (closeRemoveTimer.current) clearTimeout(closeRemoveTimer.current);
     const finish = () => {
       setPendingRemoval(undefined);
       setRemoveError(false);
-      removeProgress.setValue(0);
+      removeProgress.set(0);
     };
     if (reducedMotion) {
       finish();
       return;
     }
-    Animated.timing(removeProgress, { toValue: 0, duration: 150, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) finish();
-    });
+    removeProgress.set(withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }));
+    closeRemoveTimer.current = setTimeout(finish, 155);
   }, [reducedMotion, removeProgress, removing]);
 
   const confirmRemoval = useCallback(async () => {
@@ -431,6 +440,22 @@ export function NotebookScreen({ navigation }: Props) {
     setLoading(notes.length === 0);
     setSubscriptionAttempt((attempt) => attempt + 1);
   }, [notes.length]);
+
+  const listAnimated = useAnimatedStyle(() => ({
+    opacity: listOpacity.get(),
+  }));
+
+  const removeScrimStyle = useAnimatedStyle(() => ({
+    opacity: removeProgress.get(),
+  }));
+
+  const removeSheetStyle = useAnimatedStyle(() => {
+    const p = removeProgress.get();
+    return {
+      opacity: Math.min(1, p * 1.25),
+      transform: [{ translateY: (1 - p) * 280 }],
+    };
+  });
 
   const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
   const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item }) => (
@@ -471,24 +496,26 @@ export function NotebookScreen({ navigation }: Props) {
       <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Animated.View style={[styles.controls, { paddingHorizontal: gutter, opacity: controlsReveal, transform: [{ translateY: controlsReveal.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] }]}>
-          <View style={styles.searchBox}>
-            <AppIcon name="search" size={28} />
-            <TextInput
-              autoCorrect={false}
-              returnKeyType="search"
-              value={queryText}
-              onChangeText={setQueryText}
-              placeholder={isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole'}
-              placeholderTextColor={colors.inkSoft}
-              selectionColor={colors.violet}
-              style={styles.searchInput}
-            />
-            {queryText ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
-                <MiniGlyph name="close" size={15} />
-              </Pressable>
-            ) : null}
+        <View style={[styles.controls, { paddingHorizontal: gutter }]}>
+          <View style={styles.searchShadow}>
+            <View style={styles.searchBox}>
+              <AppIcon name="search" size={28} />
+              <TextInput
+                autoCorrect={false}
+                returnKeyType="search"
+                value={queryText}
+                onChangeText={setQueryText}
+                placeholder={isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole'}
+                placeholderTextColor={colors.inkSoft}
+                selectionColor={colors.violet}
+                style={styles.searchInput}
+              />
+              {queryText ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
+                  <MiniGlyph name="close" size={15} color={colors.ink} />
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.tabBar} accessibilityRole="tablist">
@@ -503,12 +530,14 @@ export function NotebookScreen({ navigation }: Props) {
                   style={({ pressed }) => [styles.tab, active && styles.tabActive, pressed && styles.tabPressed]}
                 >
                   <Text numberOfLines={1} style={[styles.tabText, active && styles.tabTextActive]}>{tab.label}</Text>
-                  <View style={[styles.tabCount, active && styles.tabCountActive]}><Text style={[styles.tabCountText, active && styles.tabCountTextActive]}>{counts[tab.value]}</Text></View>
+                  <View style={[styles.tabCount, active && styles.tabCountActive]}>
+                    <Text style={[styles.tabCountText, active && styles.tabCountTextActive]}>{counts[tab.value]}</Text>
+                  </View>
                 </Pressable>
               );
             })}
           </View>
-        </Animated.View>
+        </View>
 
         {loadError ? (
           <Pressable accessibilityRole="button" onPress={retrySubscription} style={[styles.syncWarning, { marginHorizontal: gutter }]}>
@@ -525,7 +554,7 @@ export function NotebookScreen({ navigation }: Props) {
           <Text style={styles.visibleCount}>{visibleNotes.length} {visibleNotes.length === 1 ? 'problemă' : 'probleme'}</Text>
         </View>
 
-        <Animated.View style={[styles.listMotion, { opacity: listReveal, transform: [{ translateY: listReveal.interpolate({ inputRange: [0.72, 1], outputRange: [4, 0] }) }] }]}>
+        <Animated.View style={[styles.listMotion, listAnimated]}>
           <FlatList
             data={visibleNotes}
             renderItem={renderLesson}
@@ -554,27 +583,37 @@ export function NotebookScreen({ navigation }: Props) {
         onRequestClose={removing ? undefined : () => closeRemoval()}
       >
         <View style={styles.removeModalLayer}>
-          <Animated.View pointerEvents="none" style={[styles.removeScrim, { opacity: removeProgress }]} />
+          <Animated.View pointerEvents="none" style={[styles.removeScrim, removeScrimStyle]} />
           <Pressable accessible={false} disabled={removing} onPress={() => closeRemoval()} style={StyleSheet.absoluteFill} />
           <Animated.View
             accessibilityViewIsModal
-            style={[styles.removeSheet, {
-              paddingBottom: Math.max(insets.bottom, 14) + 8,
-              opacity: removeProgress,
-              transform: [{ translateY: removeProgress.interpolate({ inputRange: [0, 1], outputRange: [320, 0] }) }],
-            }]}
+            style={[
+              styles.removeSheet,
+              { paddingBottom: Math.max(insets.bottom, 14) + 10 },
+              removeSheetStyle,
+            ]}
           >
             <View style={styles.removeHandle} />
-            <View style={styles.removeSheetIcon}><TrashGlyph size={34} color={colors.ink} /></View>
+            <View style={styles.removeSheetIcon}><TrashGlyph size={32} color={colors.ink} /></View>
             <Text style={styles.removeEyebrow}>GESTIONEAZĂ CAIETUL</Text>
             <Text style={styles.removeTitle}>Scoți problema din Caiet?</Text>
             <Text numberOfLines={2} style={styles.removeLessonTitle}>{pendingRemovalTitle}</Text>
             <Text style={styles.removeDescription}>Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet.</Text>
             {removeError ? <Text accessibilityRole="alert" style={styles.removeError}>Nu am putut actualiza Caietul. Verifică internetul și încearcă din nou.</Text> : null}
-            <Pressable accessibilityRole="button" disabled={removing} onPress={() => void confirmRemoval()} style={({ pressed }) => [styles.confirmRemove, pressed && styles.actionPressed]}>
+            <PressableScale
+              accessibilityRole="button"
+              disabled={removing}
+              depth={shadows.sm}
+              radius={17}
+              shadowColor={colors.ink}
+              haptic="medium"
+              onPress={() => void confirmRemoval()}
+              style={styles.confirmRemoveWrap}
+              contentStyle={styles.confirmRemove}
+            >
               {removing ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
               <Text style={styles.confirmRemoveText}>{removing ? 'Actualizez Caietul…' : 'Da, scoate problema'}</Text>
-            </Pressable>
+            </PressableScale>
             <Pressable accessibilityRole="button" disabled={removing} onPress={() => closeRemoval()} style={({ pressed }) => [styles.keepLesson, pressed && styles.actionPressed]}>
               <Text style={styles.keepLessonText}>Păstreaz-o în Caiet</Text>
             </Pressable>
@@ -588,113 +627,242 @@ export function NotebookScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1, minHeight: 0 },
-  controls: { paddingTop: 5 },
-  searchBox: { height: 48, borderWidth: 1.5, borderColor: colors.line, borderRadius: 15, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, gap: 5 },
-  searchInput: { flex: 1, height: 45, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 12.5 },
-  clearSearch: { width: 29, height: 29, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
-  tabBar: { height: 47, marginTop: 5, borderBottomWidth: 1, borderBottomColor: colors.line, flexDirection: 'row' },
-  tab: { flex: 1, minWidth: 0, borderBottomWidth: 3, borderBottomColor: 'transparent', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 3 },
-  tabActive: { borderBottomColor: colors.violet },
-  tabPressed: { opacity: 0.62, transform: [{ translateY: 1 }] },
-  tabText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
-  tabTextActive: { color: colors.violetDeep },
-  tabCount: { minWidth: 21, height: 21, borderRadius: 7, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  tabCountActive: { backgroundColor: colors.violet },
-  tabCountText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8.5 },
-  tabCountTextActive: { color: colors.paper },
-  syncWarning: { minHeight: 40, marginTop: 6, borderRadius: 12, backgroundColor: '#FFE9E2', paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  syncWarningText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10.5, lineHeight: 14 },
-  listHeading: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  listEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 1.1 },
-  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 18, lineHeight: 21, marginTop: 1 },
-  visibleCount: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 10.5 },
+  controls: { paddingTop: 4, gap: 9 },
+
+  searchShadow: { borderRadius: 17, backgroundColor: colors.ink, paddingBottom: 3 },
+  searchBox: {
+    height: 48,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    borderRadius: 16,
+    backgroundColor: colors.paper,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    gap: 6,
+  },
+  searchInput: { flex: 1, height: 44, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
+  clearSearch: { width: 30, height: 30, borderRadius: 10, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center' },
+
+  tabBar: {
+    height: 46,
+    borderRadius: 16,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    flexDirection: 'row',
+    padding: 3,
+    gap: 3,
+  },
+  tab: { flex: 1, minWidth: 0, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 4 },
+  tabActive: { backgroundColor: colors.violet, borderWidth: 1.5, borderColor: colors.ink },
+  tabPressed: { opacity: 0.78 },
+  tabText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
+  tabTextActive: { color: colors.paper },
+  tabCount: { minWidth: 22, height: 22, borderRadius: 8, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  tabCountActive: { backgroundColor: colors.lime },
+  tabCountText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11 },
+  tabCountTextActive: { color: colors.ink },
+
+  syncWarning: {
+    minHeight: 40,
+    marginTop: 8,
+    borderRadius: 13,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.peachSoft,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  syncWarningText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 15 },
+
+  listHeading: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingTop: 4 },
+  listEyebrow: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
+  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23, marginTop: 1 },
+  visibleCount: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12 },
+
   listMotion: { flex: 1, minHeight: 0 },
   listContent: { flexGrow: 1 },
   lessonSeparator: { height: 12 },
-  lessonShadow: { borderRadius: 20, backgroundColor: colors.ink, paddingBottom: 4 },
-  lessonCard: { minHeight: 151, overflow: 'hidden', borderRadius: 19, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row' },
-  lessonRail: { width: 12, borderRightWidth: 1.5, borderRightColor: colors.ink, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 20 },
-  railDot: { width: 5, height: 5, borderRadius: 3, borderWidth: 1, borderColor: colors.ink, backgroundColor: colors.paper },
-  lessonBody: { flex: 1, minWidth: 0 },
-  lessonMain: { minHeight: 101, paddingHorizontal: 13, paddingTop: 10, paddingBottom: 8 },
-  lessonMainPressed: { backgroundColor: '#FCFAFF' },
-  lessonMeta: { height: 23, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
+
+  lessonCard: {
+    overflow: 'hidden',
+    borderRadius: 20,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    flexDirection: 'row',
+  },
+  lessonRail: {
+    width: 12,
+    borderRightWidth: borders.thin,
+    borderRightColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    paddingVertical: 18,
+  },
+  railDot: { width: 6, height: 6, borderRadius: 3, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.paper },
+  lessonBody: { flex: 1, minWidth: 0, paddingHorizontal: 13, paddingTop: 11, paddingBottom: 10 },
+  lessonMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
   metaLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modeDot: { width: 8, height: 8, borderRadius: 3 },
-  modeText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 7, letterSpacing: 0.8 },
-  newDot: { borderRadius: 6, backgroundColor: colors.lime, paddingHorizontal: 5, paddingVertical: 2, transform: [{ rotate: '2deg' }] },
-  newDotText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 6.5, letterSpacing: 0.6 },
-  timeText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 9.5 },
-  problemIdentity: { marginTop: 3, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 21 },
-  topicRow: { minHeight: 19, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  topicMarker: { width: 13, height: 4, borderRadius: 3 },
-  topicText: { flex: 1, minWidth: 0, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 10.5 },
-  verdictBadge: { flexShrink: 0, minHeight: 19, borderRadius: 7, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
-  verdictText: { fontFamily: fonts.bodyBold, fontSize: 6.5, letterSpacing: 0.55 },
-  lessonFooter: { minHeight: 48, borderTopWidth: 1.5, borderTopColor: colors.line, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
-  detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  detailText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 9.5 },
-  detailDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.line },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  removeAction: { minHeight: 38, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 5 },
-  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 9.5 },
-  openAction: { minHeight: 38, borderRadius: 12, backgroundColor: colors.violet, flexDirection: 'row', alignItems: 'center', gap: 5, paddingLeft: 10, paddingRight: 5 },
-  openText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10 },
-  openArrow: { width: 25, height: 25, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)', alignItems: 'center', justifyContent: 'center' },
+  modeDot: { width: 9, height: 9, borderRadius: 3, borderWidth: 1, borderColor: colors.ink },
+  modeText: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
+  newDot: {
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    transform: [{ rotate: '2deg' }],
+  },
+  newDotText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, letterSpacing: 0.5 },
+  timeText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5 },
+  problemIdentity: { marginTop: 5, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18, lineHeight: 22 },
+  topicRow: { minHeight: 22, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  topicMarker: { width: 12, height: 4, borderRadius: 3 },
+  topicText: { flex: 1, minWidth: 0, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12.5 },
+  verdictBadge: {
+    flexShrink: 0,
+    minHeight: 22,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    paddingHorizontal: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verdictText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.45 },
+
+  lessonFooter: {
+    marginTop: 10,
+    paddingTop: 9,
+    borderTopWidth: 1.5,
+    borderTopColor: '#EFEAF8',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  detailText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12 },
+  detailDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  removeAction: {
+    minHeight: 34,
+    borderRadius: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    backgroundColor: colors.paperTint,
+  },
+  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5 },
+  openChevron: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.violet,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   loadingState: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 34 },
+  stateChip: { marginTop: 12 },
   notebookProgress: { minHeight: 54, alignItems: 'center', justifyContent: 'center' },
-  loadingTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 28, textAlign: 'center' },
-  notebookLoader: { marginTop: 17 },
-  fullState: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 25, paddingTop: 16, paddingBottom: 32 },
-  emptyIllustration: { width: 224, height: 172, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  emptyDeskSpot: { position: 'absolute', bottom: 5, width: 195, height: 42, borderRadius: 22, backgroundColor: colors.violetSoft, opacity: 0.75 },
-  emptyPageBack: { position: 'absolute', width: 139, height: 135, borderRadius: 19, backgroundColor: colors.cyan, transform: [{ rotate: '8deg' }, { translateX: 6 }] },
-  emptyPage: { width: 144, height: 139, borderRadius: 19, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', overflow: 'hidden', transform: [{ rotate: '-4deg' }, { translateX: -5 }] },
-  emptyBinding: { width: 28, borderRightWidth: 1.5, borderRightColor: colors.line, alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 9 },
-  emptyRing: { width: 18, height: 6, borderRadius: 4, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.peach, transform: [{ translateX: -8 }] },
-  emptyPageCopy: { flex: 1, paddingHorizontal: 12, paddingTop: 20 },
-  emptyLineLong: { height: 7, borderRadius: 4, backgroundColor: colors.cyan },
-  emptyLineShort: { width: '67%', height: 6, borderRadius: 3, backgroundColor: colors.line, marginTop: 11 },
-  emptyFormula: { width: '88%', height: 37, borderRadius: 10, backgroundColor: colors.violetSoft, marginTop: 16, alignItems: 'center', justifyContent: 'center' },
-  emptyFormulaText: { fontFamily: fonts.displaySemi, color: colors.violetDeep, fontSize: 17 },
-  emptyBookmark: { position: 'absolute', top: -2, right: 15, width: 19, height: 34, borderWidth: 1.5, borderTopWidth: 0, borderColor: colors.ink, borderBottomLeftRadius: 7, borderBottomRightRadius: 7, backgroundColor: colors.peach },
-  emptyIcon: { position: 'absolute', right: 1, bottom: 7, width: 80, height: 80, borderRadius: 26, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '5deg' }] },
-  emptySpark: { position: 'absolute', left: 9, top: 12, width: 34, height: 34, borderRadius: 12, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.peach, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-9deg' }] },
-  fullStateEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.25 },
-  fullStateTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 27, textAlign: 'center' },
-  fullStateText: { maxWidth: 342, marginTop: 5, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 17, textAlign: 'center' },
-  emptyJourney: { width: '100%', maxWidth: 350, marginTop: 15, flexDirection: 'row', justifyContent: 'center' },
-  emptyJourneyItem: { flex: 1, alignItems: 'center', position: 'relative' },
-  emptyJourneyDot: { zIndex: 1, width: 29, height: 29, borderRadius: 10, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
-  emptyJourneyDotPeach: { backgroundColor: colors.peach, transform: [{ rotate: '3deg' }] },
-  emptyJourneyDotCyan: { backgroundColor: colors.cyan, transform: [{ rotate: '-2deg' }] },
-  emptyJourneyNumber: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10 },
-  emptyJourneyText: { marginTop: 4, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 9.5 },
-  emptyJourneyLine: { position: 'absolute', top: 14, left: '66%', width: '68%', height: 2, backgroundColor: colors.line },
-  primaryEmptyAction: { width: '100%', maxWidth: 360, minHeight: 54, marginTop: 15, borderRadius: 17, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  primaryEmptyText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16 },
-  secondaryEmptyAction: { minHeight: 42, marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12 },
-  secondaryEmptyText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
-  actionPressed: { opacity: 0.68, transform: [{ translateY: 2 }] },
-  filterEmpty: { minHeight: 330, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 30 },
-  filterEmptyIcon: { width: 68, height: 68, borderRadius: 22, backgroundColor: colors.violetSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
-  filterEmptyTitle: { marginTop: 9, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, textAlign: 'center' },
-  filterEmptyText: { maxWidth: 310, marginTop: 3, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  filterEmptyAction: { minHeight: 45, marginTop: 12, borderRadius: 13, backgroundColor: colors.ink, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
-  filterEmptyActionText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12 },
+  loadingTitle: { marginTop: 8, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 28, textAlign: 'center' },
+  notebookLoader: { marginTop: 16 },
+
+  fullState: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingTop: 14, paddingBottom: 32 },
+  emptyMascotStage: { width: 170, height: 158, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  emptyHalo: {
+    position: 'absolute',
+    width: 132,
+    height: 132,
+    borderRadius: 66,
+    backgroundColor: colors.violetSoft,
+    borderWidth: 2.5,
+    borderStyle: 'dashed',
+    borderColor: colors.violet,
+  },
+  emptyHaloError: { backgroundColor: colors.peachSoft, borderColor: colors.peach },
+  fullStateTitle: { marginTop: 10, fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center' },
+  fullStateText: { maxWidth: 330, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
+  emptyActions: { width: '100%', maxWidth: 340, marginTop: 22, gap: 6 },
+  secondaryEmptyWrap: { alignSelf: 'center' },
+  secondaryEmptyAction: { minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  secondaryEmptyText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
+
+  actionPressed: { opacity: 0.72 },
+  filterEmpty: { minHeight: 310, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  filterEmptyTitle: { marginTop: 10, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, textAlign: 'center' },
+  filterEmptyText: { maxWidth: 310, marginTop: 4, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  filterEmptyActionWrap: { marginTop: 14 },
+  filterEmptyAction: {
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterEmptyActionText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13 },
+
   removeModalLayer: { flex: 1, justifyContent: 'flex-end' },
   removeScrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(16, 12, 38, 0.68)' },
-  removeSheet: { width: '100%', maxWidth: 640, alignSelf: 'center', alignItems: 'center', borderTopLeftRadius: 30, borderTopRightRadius: 30, borderWidth: 3, borderBottomWidth: 0, borderColor: colors.ink, backgroundColor: colors.canvas, paddingHorizontal: 22, paddingTop: 9 },
-  removeHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 9 },
-  removeSheetIcon: { width: 63, height: 63, borderRadius: 21, borderWidth: 2, borderColor: colors.ink, backgroundColor: '#FFD9DE', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
-  removeEyebrow: { marginTop: 10, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.15 },
-  removeTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 23, lineHeight: 27, textAlign: 'center' },
-  removeLessonTitle: { maxWidth: 430, marginTop: 6, fontFamily: fonts.displaySemi, color: colors.violetDeep, fontSize: 15, lineHeight: 19, textAlign: 'center' },
-  removeDescription: { maxWidth: 430, marginTop: 7, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 17, textAlign: 'center' },
-  removeError: { width: '100%', marginTop: 9, borderRadius: 12, backgroundColor: '#FFE5E8', padding: 9, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11, lineHeight: 15, textAlign: 'center' },
-  confirmRemove: { width: '100%', maxWidth: 430, minHeight: 52, marginTop: 14, borderRadius: 17, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.rose, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  confirmRemoveText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16 },
-  keepLesson: { minHeight: 47, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 4 },
-  keepLessonText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12 },
-  listFooter: { height: 5 },
+  removeSheet: {
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+    alignItems: 'center',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    borderWidth: borders.thick,
+    borderBottomWidth: 0,
+    borderColor: colors.ink,
+    backgroundColor: colors.canvas,
+    paddingHorizontal: 22,
+    paddingTop: 10,
+  },
+  removeHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, marginBottom: 10 },
+  removeSheetIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.roseSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-3deg' }],
+  },
+  removeEyebrow: { marginTop: 12, ...typography.kicker, color: colors.violetDeep },
+  removeTitle: { marginTop: 4, fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center' },
+  removeLessonTitle: { maxWidth: 430, marginTop: 6, fontFamily: fonts.displaySemi, color: colors.violetDeep, fontSize: 15.5, lineHeight: 20, textAlign: 'center' },
+  removeDescription: { maxWidth: 430, marginTop: 7, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18.5, textAlign: 'center' },
+  removeError: { width: '100%', marginTop: 10, borderRadius: radii.sm, backgroundColor: colors.roseSoft, padding: 10, fontFamily: fonts.bodyBold, color: colors.berryDeep, fontSize: 12, lineHeight: 16, textAlign: 'center' },
+  confirmRemoveWrap: { width: '100%', maxWidth: 430, marginTop: 16 },
+  confirmRemove: {
+    width: '100%',
+    minHeight: 52,
+    borderRadius: 17,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.rose,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  confirmRemoveText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16.5 },
+  keepLesson: { minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 6 },
+  keepLessonText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
+  listFooter: { height: 6 },
 });

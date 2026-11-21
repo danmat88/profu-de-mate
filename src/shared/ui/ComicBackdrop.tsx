@@ -1,40 +1,83 @@
 import { StyleSheet, View } from 'react-native';
-import { Text } from './Typography';
 import { colors, fonts } from '../theme';
+import { Text } from './Typography';
 
+/**
+ * Ambient cartoon notebook backdrop. All accents sit strictly in peripheral
+ * corner margins so foreground typography and cards stay crisp and unobstructed.
+ */
 export function ComicBackdrop({ dark = false }: { dark?: boolean }) {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <View style={[styles.blobA, dark && styles.blobADark]} />
-      <View style={[styles.blobB, dark && styles.blobBDark]} />
-      <View style={[styles.dotCloud, dark && styles.dotCloudDark]}>
-        {Array.from({ length: 12 }).map((_, index) => <View key={index} style={styles.dot} />)}
+      <View style={[styles.blobTopRight, dark && styles.blobTopRightDark]} />
+      <View style={[styles.blobBottomLeft, dark && styles.blobBottomLeftDark]} />
+      <View style={[styles.blobMidLeft, dark && styles.blobMidLeftDark]} />
+
+      <View style={[styles.dotClusterTop, dark && styles.dotClusterDark]}>
+        {Array.from({ length: 9 }).map((_, index) => (
+          <View key={index} style={[styles.dot, dark && styles.dotDark]} />
+        ))}
       </View>
-      <Text style={[styles.symbol, styles.symbolA, dark && styles.symbolDark]}>×</Text>
-      <Text style={[styles.symbol, styles.symbolB, dark && styles.symbolDark]}>√</Text>
-      {!dark ? (
-        <>
-          <View style={[styles.spark, styles.sparkA]} />
-          <View style={[styles.spark, styles.sparkB]} />
-        </>
-      ) : null}
+
+      <Text style={[styles.symbol, styles.symbolTopLeft, dark && styles.symbolDark]}>+</Text>
+      <Text style={[styles.symbol, styles.symbolMidRight, dark && styles.symbolDark]}>×</Text>
+      <Text style={[styles.symbol, styles.symbolBottomRight, dark && styles.symbolDark]}>√</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  blobA: { position: 'absolute', width: 210, height: 120, borderRadius: 100, backgroundColor: colors.violetSoft, top: -55, right: -72, transform: [{ rotate: '-18deg' }] },
-  blobADark: { backgroundColor: '#342271' },
-  blobB: { position: 'absolute', width: 160, height: 160, borderRadius: 80, borderWidth: 24, borderColor: colors.limeSoft, bottom: -86, left: -71 },
-  blobBDark: { borderColor: '#4C2DA1', opacity: 0.72 },
-  dotCloud: { position: 'absolute', top: 148, right: 12, width: 52, flexDirection: 'row', flexWrap: 'wrap', gap: 6, opacity: 0.24 },
-  dotCloudDark: { opacity: 0.35 },
+  blobTopRight: {
+    position: 'absolute',
+    width: 230,
+    height: 150,
+    borderRadius: 115,
+    backgroundColor: colors.violetSoft,
+    top: -64,
+    right: -76,
+    opacity: 0.78,
+    transform: [{ rotate: '-18deg' }],
+  },
+  blobTopRightDark: { backgroundColor: '#342271', opacity: 0.85 },
+  blobBottomLeft: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 22,
+    borderColor: colors.limeSoft,
+    bottom: -94,
+    left: -82,
+    opacity: 0.85,
+  },
+  blobBottomLeftDark: { borderColor: '#4C2DA1', opacity: 0.65 },
+  blobMidLeft: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: colors.peachSoft,
+    top: '36%',
+    left: -68,
+    opacity: 0.52,
+  },
+  blobMidLeftDark: { backgroundColor: '#3B1E66', opacity: 0.45 },
+  dotClusterTop: {
+    position: 'absolute',
+    top: 86,
+    right: -4,
+    width: 38,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    opacity: 0.2,
+  },
+  dotClusterDark: { opacity: 0.3 },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.violet },
-  symbol: { position: 'absolute', fontFamily: fonts.display, color: colors.violet, opacity: 0.12 },
-  symbolA: { left: 16, top: 177, fontSize: 38, transform: [{ rotate: '-12deg' }] },
-  symbolB: { right: 25, bottom: 120, fontSize: 42, transform: [{ rotate: '8deg' }] },
-  symbolDark: { color: colors.lime, opacity: 0.17 },
-  spark: { position: 'absolute', width: 12, height: 34, borderRadius: 8, backgroundColor: colors.peach },
-  sparkA: { top: 105, left: 30, transform: [{ rotate: '43deg' }] },
-  sparkB: { top: 121, left: 45, transform: [{ rotate: '-42deg' }] },
+  dotDark: { backgroundColor: colors.lime },
+  symbol: { position: 'absolute', fontFamily: fonts.display, color: colors.violet, opacity: 0.09 },
+  symbolTopLeft: { left: 6, top: 82, fontSize: 32, transform: [{ rotate: '-14deg' }] },
+  symbolMidRight: { right: 6, top: '48%', fontSize: 34, transform: [{ rotate: '14deg' }] },
+  symbolBottomRight: { right: 14, bottom: 26, fontSize: 36, transform: [{ rotate: '-10deg' }] },
+  symbolDark: { color: colors.lime, opacity: 0.14 },
 });

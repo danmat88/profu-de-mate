@@ -1,8 +1,9 @@
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { colors, fonts } from '../../../shared/theme';
+import { borders, colors, fonts, shadows } from '../../../shared/theme';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
+import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
 
 type Props = {
@@ -27,36 +28,77 @@ function GoogleGlyph() {
 export function GoogleAccountButton({ busy = false, disabled = false, note, onPress, style }: Props) {
   const unavailable = busy || disabled;
   return (
-    <View style={[styles.shadow, style]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={busy ? 'Se conectează contul Google' : 'Continuă cu Google'}
-        accessibilityState={{ busy, disabled: unavailable }}
-        disabled={unavailable}
-        onPress={onPress}
-        style={({ pressed }) => [styles.button, pressed && styles.pressed, unavailable && styles.disabled]}
-      >
-        <View style={styles.googleMark}><GoogleGlyph /></View>
-        <View style={styles.copy}>
-          <Text style={styles.title}>{busy ? 'Conectez contul…' : 'Continuă cu Google'}</Text>
-          {note ? <Text numberOfLines={2} style={styles.note}>{note}</Text> : null}
-        </View>
-        {busy
-          ? <PlayfulLoader micro />
-          : <View style={styles.arrow}><MiniGlyph name="next" size={18} color={colors.paper} /></View>}
-      </Pressable>
-    </View>
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={busy ? 'Se conectează contul Google' : 'Continuă cu Google'}
+      accessibilityState={{ busy, disabled: unavailable }}
+      disabled={unavailable}
+      depth={shadows.md}
+      radius={20}
+      shadowColor={colors.ink}
+      haptic="medium"
+      onPress={onPress}
+      style={style}
+      contentStyle={styles.button}
+    >
+      <View pointerEvents="none" style={styles.shine} />
+      <View style={styles.googleMark}><GoogleGlyph /></View>
+      <View style={styles.copy}>
+        <Text style={styles.title}>{busy ? 'Conectez contul…' : 'Continuă cu Google'}</Text>
+        {note ? <Text numberOfLines={2} style={styles.note}>{note}</Text> : null}
+      </View>
+      {busy
+        ? <PlayfulLoader micro />
+        : <View style={styles.arrow}><MiniGlyph name="next" size={18} color={colors.paper} /></View>}
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
-  shadow: { minHeight: 68, borderRadius: 20, backgroundColor: colors.ink, paddingBottom: 5 },
-  button: { minHeight: 63, borderWidth: 2.5, borderColor: colors.ink, borderRadius: 19, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 11, paddingVertical: 8 },
-  pressed: { transform: [{ translateY: 1 }], opacity: 0.94 },
-  disabled: { opacity: 0.68 },
-  googleMark: { width: 42, height: 42, borderRadius: 14, borderWidth: 1.5, borderColor: '#D8D4E2', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-2deg' }] },
+  button: {
+    minHeight: 64,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    borderRadius: 20,
+    backgroundColor: colors.paper,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    overflow: 'hidden',
+  },
+  shine: {
+    position: 'absolute',
+    top: 3,
+    left: 12,
+    right: 12,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
+  },
+  googleMark: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-2deg' }],
+  },
   copy: { flex: 1, minWidth: 0 },
-  title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16, lineHeight: 19 },
-  note: { marginTop: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 10.5, lineHeight: 14 },
-  arrow: { width: 35, height: 35, borderRadius: 12, backgroundColor: colors.violet, alignItems: 'center', justifyContent: 'center' },
+  title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 20 },
+  note: { marginTop: 2, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 16 },
+  arrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.violet,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

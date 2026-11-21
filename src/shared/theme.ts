@@ -1,19 +1,62 @@
 export const colors = {
+  // Surfaces
   canvas: '#FFF8EC',
-  canvasDeep: '#F0E7FF',
+  canvasWarm: '#FFF2DC',
+  canvasDeep: '#EFE5FF',
   paper: '#FFFFFF',
+  paperTint: '#FAF6FF',
+
+  // Ink & text
   ink: '#171337',
-  inkSoft: '#655F79',
+  inkSoft: '#5A5372',
+  inkMuted: '#7E7796',
+
+  // Brand violet
   violet: '#7C3CFF',
-  violetDeep: '#4D22B8',
-  violetSoft: '#E9DEFF',
+  violetBright: '#9158FF',
+  violetDeep: '#4B1FB8',
+  violetSoft: '#ECE2FF',
+  violetShadow: '#32107C',
+
+  // Signature lime
   lime: '#D8FF3E',
-  limeSoft: '#EEFFAD',
-  cyan: '#48D9E8',
-  peach: '#FF9273',
-  rose: '#FF5F72',
-  mint: '#59D98E',
-  line: '#D8CFE6',
+  limeBright: '#E4FF6B',
+  limeSoft: '#F0FFBA',
+  limeDeep: '#567800',
+
+  // Expressive accents
+  cyan: '#43D6E6',
+  cyanSoft: '#D2F7FA',
+  cyanDeep: '#127D8C',
+  peach: '#FF8D6B',
+  peachBright: '#FFA88C',
+  peachSoft: '#FFE4DA',
+  peachDeep: '#B33B22',
+  peachShadow: '#7A2313',
+  berry: '#D63D73',
+  berryDeep: '#8E1E4E',
+  gold: '#FFD447',
+  goldSoft: '#FFF2BF',
+  rose: '#FF576D',
+  roseSoft: '#FFE0E5',
+  mint: '#4ED686',
+  mintSoft: '#DCF8E7',
+  mintDeep: '#177A43',
+
+  // Lines & cel-shading highlights
+  line: '#DACFE8',
+  shine: 'rgba(255, 255, 255, 0.48)',
+  shineSoft: 'rgba(255, 255, 255, 0.16)',
+
+  // Semantic aliases
+  success: '#4ED686',
+  successSoft: '#DCF8E7',
+  warning: '#FFD447',
+  warningSoft: '#FFF2BF',
+  danger: '#FF576D',
+  dangerSoft: '#FFE0E5',
+  info: '#43D6E6',
+  infoSoft: '#D2F7FA',
 } as const;
 
 export const fonts = {
@@ -23,6 +66,45 @@ export const fonts = {
   body: 'FiraSans_400Regular',
   bodyBold: 'FiraSans_600SemiBold',
   bodyMedium: 'FiraSans_500Medium',
+} as const;
+
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+} as const;
+
+export const radii = {
+  sm: 12,
+  md: 16,
+  lg: 22,
+  xl: 28,
+  pill: 999,
+} as const;
+
+export const borders = {
+  thin: 2,
+  regular: 2.5,
+  thick: 3,
+} as const;
+
+export const shadows = {
+  sm: 3,
+  md: 5,
+  lg: 7,
+} as const;
+
+export const typography = {
+  kicker: { fontFamily: fonts.bodyBold, fontSize: 11, lineHeight: 14, letterSpacing: 0.9 },
+  caption: { fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 16 },
+  body: { fontFamily: fonts.body, fontSize: 14, lineHeight: 20 },
+  bodyBold: { fontFamily: fonts.bodyBold, fontSize: 14, lineHeight: 20 },
+  cardTitle: { fontFamily: fonts.display, fontSize: 17, lineHeight: 21 },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24 },
+  display: { fontFamily: fonts.display, fontSize: 26, lineHeight: 30, letterSpacing: -0.3 },
 } as const;
 
 export const layout = {
@@ -42,6 +124,14 @@ export const motion = {
   entranceDistance: 18,
   springSpeed: 9,
   springBounce: 7,
+} as const;
+
+export const springs = {
+  press: { damping: 20, stiffness: 520, mass: 0.7 },
+  bouncy: { damping: 14, stiffness: 360, mass: 0.85 },
+  snappy: { damping: 22, stiffness: 420, mass: 0.8 },
+  gentle: { damping: 20, stiffness: 220, mass: 0.95 },
+  pop: { damping: 12, stiffness: 420, mass: 0.75 },
 } as const;
 
 export const hardShadow = {

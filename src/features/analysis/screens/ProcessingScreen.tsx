@@ -1,30 +1,35 @@
-import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Text } from '../../../shared/ui/Typography';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { recordDiagnosticError } from '../../../shared/services/diagnostics';
+import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
+import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import type { CapturedImage, CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
+import { AppIcon } from '../../../shared/ui/AppIcon';
+import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
-import { AppIcon } from '../../../shared/ui/AppIcon';
+import { ComicCard } from '../../../shared/ui/ComicCard';
+import { Enter } from '../../../shared/ui/Enter';
+import { IconButton } from '../../../shared/ui/IconButton';
+import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
-import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
-import { AnalysisActivity } from '../components/AnalysisActivity';
-import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { PressableScale } from '../../../shared/ui/PressableScale';
+import { Text } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { commercialGateFromError } from '../../access/services/commercial';
-import { analyzeOrResumeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
-import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
-import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
-import { beginLessonPresentation, waitForLessonPresentation } from '../../lessons/services/lessonPresentation';
 import { deleteTemporaryCapturedImages } from '../../capture/services/temporaryImages';
-import { colors, fonts } from '../../../shared/theme';
-import type { CapturedImage, CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
+import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
+import { beginLessonPresentation, waitForLessonPresentation } from '../../lessons/services/lessonPresentation';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
+import { AnalysisActivity } from '../components/AnalysisActivity';
+import { analyzeOrResumeMathImage, friendlyAnalysisError } from '../services/mathAnalysis';
+import { clearPendingAnalysis, savePendingAnalysis } from '../services/pendingAnalysis';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Processing'>;
 type ScreenState =
@@ -64,20 +69,12 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [screenState, setScreenState] = useState<ScreenState>({ kind: 'analyzing' });
   const [sceneReady, setSceneReady] = useState(reducedMotion);
-  const headerEntrance = useRef(new Animated.Value(1)).current;
-  const stageEntrance = useRef(new Animated.Value(1)).current;
-  const copyEntrance = useRef(new Animated.Value(1)).current;
-  const messageHeaderEntrance = useRef(new Animated.Value(0)).current;
-  const messageVisualEntrance = useRef(new Animated.Value(0)).current;
-  const messageCardEntrance = useRef(new Animated.Value(0)).current;
-  const messageActionsEntrance = useRef(new Animated.Value(0)).current;
   const orbit = useRef(new Animated.Value(0)).current;
   const scanVisibility = useRef(new Animated.Value(1)).current;
-  const bob = useRef(new Animated.Value(0)).current;
   const resumeAfterPaywall = useRef(false);
   const isCheck = route.params.mode === 'check';
-  const stageHeight = Math.max(isVeryShort ? 184 : 240, Math.min(330, height * (isVeryShort ? 0.32 : 0.39)));
-  const analysisFrameHeight = Math.max(isVeryShort ? 166 : 198, Math.min(236, stageHeight - 54));
+  const stageHeight = Math.max(isVeryShort ? 190 : 244, Math.min(330, height * (isVeryShort ? 0.33 : 0.39)));
+  const analysisFrameHeight = Math.max(isVeryShort ? 168 : 204, Math.min(242, stageHeight - 44));
   const analysisFrameWidth = Math.min(440, Math.max(220, contentWidth - 8));
   const analysisImageRect = containedImageRect(analysisFrameWidth, analysisFrameHeight, route.params.image);
   const analysisImageStyle = {
@@ -144,7 +141,6 @@ export function ProcessingScreen({ navigation, route }: Props) {
     if (!sceneReady || screenState.kind !== 'analyzing') return undefined;
     if (reducedMotion) {
       orbit.setValue(0.48);
-      bob.setValue(0.5);
       return undefined;
     }
     orbit.setValue(0);
@@ -152,40 +148,9 @@ export function ProcessingScreen({ navigation, route }: Props) {
       Animated.timing(orbit, { toValue: 1, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
       Animated.timing(orbit, { toValue: 0, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
     ]));
-    const floating = Animated.loop(Animated.sequence([
-      Animated.timing(bob, { toValue: 1, duration: 900, useNativeDriver: true }),
-      Animated.timing(bob, { toValue: 0, duration: 900, useNativeDriver: true }),
-    ]));
     orbiting.start();
-    floating.start();
-    return () => { orbiting.stop(); floating.stop(); };
-  }, [bob, orbit, reducedMotion, sceneReady, screenState.kind]);
-
-  useEffect(() => {
-    if (screenState.kind === 'analyzing') {
-      messageHeaderEntrance.setValue(0);
-      messageVisualEntrance.setValue(0);
-      messageCardEntrance.setValue(0);
-      messageActionsEntrance.setValue(0);
-      return undefined;
-    }
-    if (reducedMotion) {
-      messageHeaderEntrance.setValue(1);
-      messageVisualEntrance.setValue(1);
-      messageCardEntrance.setValue(1);
-      messageActionsEntrance.setValue(1);
-      return undefined;
-    }
-    const easing = Easing.out(Easing.cubic);
-    const entrance = Animated.parallel([
-      Animated.timing(messageHeaderEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
-      Animated.timing(messageVisualEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
-      Animated.timing(messageCardEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
-      Animated.timing(messageActionsEntrance, { toValue: 1, duration: 180, easing, useNativeDriver: true }),
-    ]);
-    entrance.start();
-    return () => entrance.stop();
-  }, [messageActionsEntrance, messageCardEntrance, messageHeaderEntrance, messageVisualEntrance, reducedMotion, screenState.kind]);
+    return () => { orbiting.stop(); };
+  }, [orbit, reducedMotion, sceneReady, screenState.kind]);
 
   useFocusEffect(useCallback(() => {
     if (resumeAfterPaywall.current && commercialAccess?.canAnalyze) {
@@ -297,15 +262,18 @@ export function ProcessingScreen({ navigation, route }: Props) {
       <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
         <StatusBar style="light" />
         <ComicBackdrop dark />
-        <Animated.View style={[styles.top, {
-          opacity: messageHeaderEntrance,
-          transform: [{ translateY: messageHeaderEntrance.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
-        }]}>
+        <Enter delay={0} distance={8} style={styles.top}>
           <Text style={styles.brand}>Profu’ de mate</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={canReturnToPhoto ? 'Înapoi la fotografie' : 'Înapoi acasă'} onPress={returnToPhotoOrHome} style={styles.closeButton}>
+          <IconButton
+            label={canReturnToPhoto ? 'Înapoi la fotografie' : 'Înapoi acasă'}
+            onPress={returnToPhotoOrHome}
+            dark
+            size={44}
+          >
             <MiniGlyph name="close" size={20} color={colors.paper} />
-          </Pressable>
-        </Animated.View>
+          </IconButton>
+        </Enter>
+
         <ScrollView
           style={styles.messageScroll}
           bounces={false}
@@ -313,47 +281,78 @@ export function ProcessingScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.messageArea, isVeryShort && styles.messageAreaShort]}
         >
-          <Animated.View style={[styles.messageMascotWrap, {
-            opacity: messageVisualEntrance,
-            transform: [
-              { translateY: messageVisualEntrance.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
-              { scale: messageVisualEntrance.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
-            ],
-          }]}>
+          <Enter delay={40} distance={14} style={styles.messageMascotWrap}>
             <View style={styles.messageHalo} />
-            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={styles.messageMascot} />
-            <View style={styles.messageGlyph}>{rejected ? <AppIcon name="camera" size={40} /> : <MiniGlyph name="spark" size={26} />}</View>
-          </Animated.View>
-          <Animated.View style={[styles.messageCardWrap, {
-            opacity: messageCardEntrance,
-            transform: [{ translateY: messageCardEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-          }]}>
-            <View style={styles.messageCardShadow} />
-            <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.messageCard}>
-              <Text style={styles.messageEyebrow}>{rejected ? 'HAI SĂ MAI ÎNCERCĂM' : commercialBlocked ? 'ACCESUL TĂU' : 'A APĂRUT O PROBLEMĂ'}</Text>
-              <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
-              <Text style={styles.messageText}>{message}</Text>
+            <Mascot pose={commercialBlocked ? 'point' : 'oops'} size={156} active />
+            <View style={[styles.messageGlyph, commercialBlocked && styles.messageGlyphGold]}>
+              {rejected ? <AppIcon name="camera" size={34} /> : <MiniGlyph name="spark" size={24} color={colors.ink} />}
             </View>
-          </Animated.View>
+          </Enter>
+
+          <Enter delay={90} distance={14}>
+            <ComicCard
+              tone="paper"
+              depth={6}
+              radius={25}
+              borderWidth={borders.thick}
+              shadowColor="#09061B"
+              shine
+              contentStyle={styles.messageCard}
+            >
+              <View accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                <Chip
+                  label={rejected ? 'HAI SĂ MAI ÎNCERCĂM' : commercialBlocked ? 'ACCESUL TĂU' : 'A APĂRUT O PROBLEMĂ'}
+                  tone={rejected ? 'peach' : commercialBlocked ? 'gold' : 'roseSoft'}
+                  outlined
+                />
+                <Text style={[styles.messageTitle, isNarrow && styles.messageTitleNarrow]}>{title}</Text>
+                <Text style={styles.messageText}>{message}</Text>
+              </View>
+            </ComicCard>
+          </Enter>
         </ScrollView>
-        <Animated.View style={[styles.messageActions, {
-          paddingBottom: bottomSpace,
-          opacity: messageActionsEntrance,
-          transform: [{ translateY: messageActionsEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-        }]}>
-          {commercialBlocked ? <ComicButton compact title="Vezi opțiunile" subtitle="Probleme gratuite sau Premium." icon="trophy" tone="lime" onPress={() => {
-            resumeAfterPaywall.current = true;
-            navigation.navigate('Paywall', { source: 'quota', ...(screenState.access ? { access: screenState.access } : {}) });
-          }} /> : null}
-          {!rejected && !commercialBlocked ? <ComicButton compact title="Încearcă din nou" icon="scan" tone="lime" onPress={() => setRequestKey((value) => value + 1)} /> : null}
-          {rejected ? <Pressable accessibilityRole="button" onPress={() => setFeedbackVisible(true)} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Raportează răspunsul</Text>
-          </Pressable> : null}
-          {!commercialBlocked ? <ComicButton compact title="Fotografiază din nou" icon="camera" tone={rejected ? 'lime' : 'violet'} onPress={retakePhoto} /> : null}
+
+        <Enter delay={130} distance={12} style={[styles.messageActions, { paddingBottom: bottomSpace }]}>
+          {commercialBlocked ? (
+            <ComicButton
+              compact
+              title="Vezi opțiunile"
+              subtitle="Probleme gratuite sau Premium."
+              icon="trophy"
+              tone="lime"
+              onPress={() => {
+                resumeAfterPaywall.current = true;
+                navigation.navigate('Paywall', { source: 'quota', ...(screenState.access ? { access: screenState.access } : {}) });
+              }}
+            />
+          ) : null}
+          {!rejected && !commercialBlocked ? (
+            <ComicButton
+              compact
+              title="Încearcă din nou"
+              icon="scan"
+              tone="lime"
+              onPress={() => setRequestKey((value) => value + 1)}
+            />
+          ) : null}
+          {rejected ? (
+            <Pressable accessibilityRole="button" onPress={() => setFeedbackVisible(true)} style={styles.backLink}>
+              <Text style={styles.backLinkText}>Raportează răspunsul</Text>
+            </Pressable>
+          ) : null}
+          {!commercialBlocked ? (
+            <ComicButton
+              compact
+              title="Fotografiază din nou"
+              icon="camera"
+              tone={rejected ? 'lime' : 'violet'}
+              onPress={retakePhoto}
+            />
+          ) : null}
           <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
             <Text style={styles.backLinkText}>{canReturnToPhoto ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>
           </Pressable>
-        </Animated.View>
+        </Enter>
         <FeedbackSheet visible={feedbackVisible} requestId={route.params.requestId} onClose={() => setFeedbackVisible(false)} />
       </SafeAreaView>
     );
@@ -364,56 +363,65 @@ export function ProcessingScreen({ navigation, route }: Props) {
       <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.sceneContent}>
-        <Animated.View style={[styles.top, {
-          opacity: headerEntrance,
-          transform: [{ translateY: headerEntrance.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
-        }]}>
+        <View style={styles.top}>
           <Text style={styles.brand}>Profu’ lucrează</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Continuă analiza în fundal și revino acasă" onPress={continueInBackground} style={styles.stopButton}>
-            <MiniGlyph name="back" size={15} color={colors.paper} />
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Continuă analiza în fundal și revino acasă"
+            depth={shadows.sm}
+            radius={15}
+            shadowColor="#09061B"
+            haptic="selection"
+            onPress={continueInBackground}
+            contentStyle={styles.stopButton}
+          >
+            <MiniGlyph name="back" size={16} color={colors.paper} />
             <Text style={styles.stopText}>ACASĂ</Text>
-          </Pressable>
-        </Animated.View>
-        <ScrollView style={styles.analysisScroll} contentContainerStyle={styles.analysisContent} bounces={false} showsVerticalScrollIndicator={false}>
-        <Animated.View style={[styles.stage, { height: stageHeight, opacity: stageEntrance, transform: [
-          { translateY: stageEntrance.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
-          { scale: stageEntrance.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) },
-        ] }]}>
-          <View pointerEvents="none" style={[styles.analysisFrame, isCheck && styles.analysisFrameCheck, { width: analysisFrameWidth, height: analysisFrameHeight }]}>
-            <Image accessible={false} source={{ uri: route.params.image.uri }} resizeMode="contain" style={[styles.analysisPhoto, analysisImageStyle]} />
-            <View style={[styles.analysisVeil, analysisImageStyle]} />
-            <Animated.View style={[styles.analysisScan, {
-              left: analysisImageRect.x + 12,
-              width: Math.max(24, analysisImageRect.width - 24),
-              opacity: scanOpacity,
-              transform: [{ translateY: orbit.interpolate({ inputRange: [0, 1], outputRange: [scanStart, scanEnd] }) }],
-            }]}>
-              <View style={[styles.analysisScanCore, isCheck && styles.analysisScanCoreCheck]} />
-            </Animated.View>
-            <View style={[styles.corner, styles.cornerTL, { left: analysisImageRect.x, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
-            <View style={[styles.corner, styles.cornerTR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
-            <View style={[styles.corner, styles.cornerBL, { left: analysisImageRect.x, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
-            <View style={[styles.corner, styles.cornerBR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
-          </View>
-          <Animated.View pointerEvents="none" style={[styles.guide, { transform: [{ translateY: bob.interpolate({ inputRange: [0, 1], outputRange: [3, -5] }) }] }]}>
-            <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck]}>
-              <Text style={styles.guideText}>{isCheck ? 'Verific atent.' : 'Citesc atent.'}</Text>
-            </View>
-            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={styles.guideMascot} />
-          </Animated.View>
-        </Animated.View>
-        <View style={[styles.statusArea, isVeryShort && styles.statusAreaShort, { paddingBottom: bottomSpace }]}>
-          <Animated.View style={{
-            opacity: copyEntrance,
-            transform: [{ translateY: copyEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
-          }}>
-            <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}</Text>
-            <Text accessibilityLiveRegion="polite" style={styles.subtitle}>
-              {takingLong ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.' : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
-            </Text>
-          </Animated.View>
-          <AnalysisActivity preparing={preparingLesson} check={isCheck} />
+          </PressableScale>
         </View>
+
+        <ScrollView style={styles.analysisScroll} contentContainerStyle={styles.analysisContent} bounces={false} showsVerticalScrollIndicator={false}>
+          <View style={[styles.stage, { height: stageHeight }]}>
+            <View pointerEvents="none" style={[styles.analysisFrame, isCheck && styles.analysisFrameCheck, { width: analysisFrameWidth, height: analysisFrameHeight }]}>
+              <Image accessible={false} source={{ uri: route.params.image.uri }} resizeMode="contain" style={[styles.analysisPhoto, analysisImageStyle]} />
+              <View style={[styles.analysisVeil, analysisImageStyle]} />
+              <Animated.View style={[styles.analysisScan, {
+                left: analysisImageRect.x + 12,
+                width: Math.max(24, analysisImageRect.width - 24),
+                opacity: scanOpacity,
+                transform: [{ translateY: orbit.interpolate({ inputRange: [0, 1], outputRange: [scanStart, scanEnd] }) }],
+              }]}>
+                <View style={[styles.analysisScanCore, isCheck && styles.analysisScanCoreCheck]} />
+              </Animated.View>
+              <View style={[styles.corner, styles.cornerTL, { left: analysisImageRect.x, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
+              <View style={[styles.corner, styles.cornerTR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, top: analysisImageRect.y }, isCheck && styles.cornerCheck]} />
+              <View style={[styles.corner, styles.cornerBL, { left: analysisImageRect.x, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+              <View style={[styles.corner, styles.cornerBR, { right: analysisFrameWidth - analysisImageRect.x - analysisImageRect.width, bottom: analysisFrameHeight - analysisImageRect.y - analysisImageRect.height }, isCheck && styles.cornerCheck]} />
+            </View>
+
+            <View pointerEvents="none" style={styles.guide}>
+              <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck]}>
+                <Text style={styles.guideText}>
+                  {preparingLesson ? 'Gata! O așez…' : isCheck ? 'Verific atent…' : 'Citesc atent…'}
+                </Text>
+              </View>
+              <Mascot pose={preparingLesson ? 'cheer' : 'thinking'} size={isVeryShort ? 82 : 96} active={sceneReady} />
+            </View>
+          </View>
+
+          <View style={[styles.statusArea, isVeryShort && styles.statusAreaShort, { paddingBottom: bottomSpace }]}>
+            <View>
+              <Text style={[styles.title, isNarrow && styles.titleNarrow]}>
+                {preparingLesson ? 'Lecția ta e gata!' : isCheck ? 'Verific fiecare pas.' : 'Pregătesc rezolvarea.'}
+              </Text>
+              <Text accessibilityLiveRegion="polite" style={styles.subtitle}>
+                {takingLong
+                  ? 'Încă lucrez. Problemele mai lungi pot avea nevoie de puțin timp.'
+                  : 'Poate dura puțin, în funcție de problemă și de conexiune.'}
+              </Text>
+            </View>
+            <AnalysisActivity preparing={preparingLesson} check={isCheck} />
+          </View>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -426,17 +434,41 @@ const styles = StyleSheet.create({
   analysisScroll: { flex: 1 },
   analysisContent: { flexGrow: 1 },
   top: { height: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18 },
-  closeButton: { width: 48, height: 48, borderRadius: 15, borderWidth: 2, borderColor: '#6557A1', backgroundColor: '#2C2457', alignItems: 'center', justifyContent: 'center' },
-  stopButton: { minWidth: 88, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderColor: '#6557A1', backgroundColor: '#2C2457', borderRadius: 15, paddingHorizontal: 10 },
+  brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
+  stopButton: {
+    minWidth: 92,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: borders.thin,
+    borderColor: '#6D5EB0',
+    backgroundColor: '#2B2259',
+    borderRadius: 15,
+    paddingHorizontal: 12,
+  },
   stopText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
-  stage: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  analysisFrame: { width: '100%', maxWidth: 440, borderRadius: 25, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)', backgroundColor: '#05040C', overflow: 'hidden', shadowColor: '#070512', shadowOpacity: 0.7, shadowRadius: 0, shadowOffset: { width: 0, height: 7 }, elevation: 8 },
-  analysisFrameCheck: { borderColor: 'rgba(255,178,139,0.52)' },
+  stage: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, position: 'relative' },
+  analysisFrame: {
+    width: '100%',
+    maxWidth: 440,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: '#070514',
+    overflow: 'hidden',
+    shadowColor: '#070512',
+    shadowOpacity: 0.7,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 8,
+  },
+  analysisFrameCheck: { borderColor: 'rgba(255,168,140,0.56)' },
   analysisPhoto: { position: 'absolute', borderRadius: 18 },
   analysisVeil: { position: 'absolute', borderRadius: 18, backgroundColor: 'rgba(12,9,28,0.12)' },
-  analysisScan: { position: 'absolute', top: 0, height: 2 },
-  analysisScanCore: { width: '100%', height: 2, borderRadius: 2, backgroundColor: colors.lime },
+  analysisScan: { position: 'absolute', top: 0, height: 3 },
+  analysisScanCore: { width: '100%', height: 3, borderRadius: 2, backgroundColor: colors.lime },
   analysisScanCoreCheck: { backgroundColor: colors.peach },
   corner: { position: 'absolute', width: 32, height: 32, borderColor: colors.lime },
   cornerCheck: { borderColor: colors.peach },
@@ -444,31 +476,60 @@ const styles = StyleSheet.create({
   cornerTR: { right: 13, top: 13, borderRightWidth: 5, borderTopWidth: 5, borderTopRightRadius: 9 },
   cornerBL: { left: 13, bottom: 13, borderLeftWidth: 5, borderBottomWidth: 5, borderBottomLeftRadius: 9 },
   cornerBR: { right: 13, bottom: 13, borderRightWidth: 5, borderBottomWidth: 5, borderBottomRightRadius: 9 },
-  guide: { position: 'absolute', zIndex: 5, right: -2, bottom: 2, width: 104, height: 106, alignItems: 'flex-end', justifyContent: 'flex-end' },
-  guideMascot: { width: 80, height: 84 },
-  guideBubble: { position: 'absolute', right: 48, top: 0, minWidth: 92, borderRadius: 15, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, paddingHorizontal: 9, paddingVertical: 6, transform: [{ rotate: '-2deg' }] },
+  guide: { position: 'absolute', zIndex: 5, right: -4, bottom: 0, alignItems: 'flex-end', justifyContent: 'flex-end' },
+  guideBubble: {
+    marginRight: 44,
+    marginBottom: -14,
+    zIndex: 2,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    transform: [{ rotate: '-3deg' }],
+  },
   guideBubbleCheck: { backgroundColor: colors.peach },
-  guideText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 10.5, lineHeight: 13, textAlign: 'center' },
-  statusArea: { flex: 1, minHeight: 0, justifyContent: 'space-evenly' },
-  statusAreaShort: { justifyContent: 'space-between', paddingTop: 4 },
-  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 31, lineHeight: 34, textAlign: 'center' },
-  titleNarrow: { fontSize: 27, lineHeight: 30 },
-  subtitle: { minHeight: 36, paddingHorizontal: 8, fontFamily: fonts.body, color: '#B9B0D2', fontSize: 13, lineHeight: 17, textAlign: 'center', marginTop: 3 },
+  guideText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
+  statusArea: { flex: 1, minHeight: 0, justifyContent: 'space-evenly', gap: 12 },
+  statusAreaShort: { justifyContent: 'space-between', paddingTop: 6 },
+  title: { fontFamily: fonts.display, color: colors.paper, fontSize: 29, lineHeight: 33, textAlign: 'center' },
+  titleNarrow: { fontSize: 25, lineHeight: 29 },
+  subtitle: { paddingHorizontal: 8, fontFamily: fonts.body, color: '#CCC4E6', fontSize: 13.5, lineHeight: 19, textAlign: 'center', marginTop: 5 },
   messageScroll: { flex: 1 },
-  messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 10 },
-  messageAreaShort: { paddingTop: 8 },
-  messageMascotWrap: { height: 205, alignItems: 'center', justifyContent: 'center' },
-  messageHalo: { position: 'absolute', width: 172, height: 172, borderRadius: 86, backgroundColor: '#302368', borderWidth: 3, borderStyle: 'dashed', borderColor: '#6557A1' },
-  messageMascot: { width: 180, height: 190 },
-  messageGlyph: { position: 'absolute', right: '20%', bottom: 13, width: 48, height: 48, borderRadius: 16, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '6deg' }] },
-  messageCardWrap: { position: 'relative' },
-  messageCardShadow: { position: 'absolute', left: 7, right: -7, top: 8, bottom: -8, borderRadius: 25, backgroundColor: '#09071A' },
-  messageCard: { minHeight: 190, borderWidth: 3, borderColor: colors.ink, borderRadius: 25, backgroundColor: colors.paper, padding: 20, justifyContent: 'center' },
-  messageEyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8, letterSpacing: 1.2 },
-  messageTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 28, lineHeight: 31, marginTop: 5 },
-  messageTitleNarrow: { fontSize: 25, lineHeight: 28 },
-  messageText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 20, marginTop: 8 },
-  messageActions: { gap: 9 },
-  backLink: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  backLinkText: { fontFamily: fonts.bodyBold, color: '#B9B0D2', fontSize: 12 },
+  messageArea: { flexGrow: 1, justifyContent: 'center', paddingBottom: 12, gap: 6 },
+  messageAreaShort: { paddingTop: 6 },
+  messageMascotWrap: { height: 184, alignItems: 'center', justifyContent: 'center' },
+  messageHalo: {
+    position: 'absolute',
+    width: 158,
+    height: 158,
+    borderRadius: 79,
+    backgroundColor: '#2E2266',
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    borderColor: '#7566BD',
+  },
+  messageGlyph: {
+    position: 'absolute',
+    right: '21%',
+    bottom: 10,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '6deg' }],
+  },
+  messageGlyphGold: { backgroundColor: colors.gold },
+  messageCard: { minHeight: 168, padding: 20 },
+  messageTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 25, lineHeight: 29, marginTop: 10 },
+  messageTitleNarrow: { fontSize: 22, lineHeight: 26 },
+  messageText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  messageActions: { gap: 8, paddingTop: 6 },
+  backLink: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  backLinkText: { fontFamily: fonts.bodyBold, color: '#CEC7E8', fontSize: 13 },
 });

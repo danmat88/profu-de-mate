@@ -20,13 +20,24 @@ function surfaceFixture() {
   const window = { width: 360, height: 802, fontScale: 1 };
   const frame = { x: 0, y: 0, width: 360, height: 802 };
   const insets = { top: 42, right: 0, bottom: 0, left: 0 };
-  class Value { value: number; constructor(value: number) { this.value = value; } interpolate() { return this.value; } }
+  const sharedValue = (initial: number) => ({ value: initial, get: () => initial, set() {} });
   const load = serviceLoader({
     react: hooks, 'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': {
-      Animated: { Value, View: 'View' }, AppState: { currentState: 'active' }, Easing: {},
+      AppState: { currentState: 'active' },
       View: 'View', Image: 'Image', Pressable: 'Pressable', StyleSheet: { create: (s: unknown) => s },
       useWindowDimensions: () => window,
+    },
+    'react-native-reanimated': {
+      default: { View: 'View' },
+      cancelAnimation() {},
+      Easing: { inOut: (fn: unknown) => fn, quad: (v: number) => v },
+      useAnimatedStyle: (fn: () => unknown) => fn(),
+      useSharedValue: sharedValue,
+      withRepeat: (v: unknown) => v,
+      withSequence: (v: unknown) => v,
+      withSpring: (v: unknown) => v,
+      withTiming: (v: unknown) => v,
     },
     '@react-navigation/native': { useIsFocused: () => true },
     'react-native-safe-area-context': { useSafeAreaFrame: () => frame, useSafeAreaInsets: () => insets },
@@ -34,8 +45,13 @@ function surfaceFixture() {
     'src/features/home/context/HomeMotionContext.ts': { HomeMotionReadyContext: {} },
     'src/shared/hooks/useReducedMotion.ts': { useReducedMotion: () => true },
     'src/shared/services/bundledImages.ts': { bundledImageSource: (id: number) => id },
-    'src/shared/ui/AppIcon.tsx': { AppIcon: 'AppIcon' }, 'src/shared/ui/ComicBackdrop.tsx': { ComicBackdrop: 'Backdrop' },
+    'src/shared/ui/AppIcon.tsx': { AppIcon: 'AppIcon' }, 'src/shared/ui/Chip.tsx': { Chip: 'Chip' },
+    'src/shared/ui/ComicBackdrop.tsx': { ComicBackdrop: 'Backdrop' }, 'src/shared/ui/Enter.tsx': { Enter: 'Enter' },
+    'src/shared/ui/IconButton.tsx': { IconButton: 'IconButton' }, 'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
     'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'Glyph' }, 'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'Loader' },
+    'src/shared/ui/PressableScale.tsx': { PressableScale: 'PressableScale' },
+    'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
+    'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
     'src/shared/ui/Typography.tsx': { Text: 'Text' },
     'assets/brand/profu_mark_v2.png': 1, 'assets/profu_mascot_v2.png': 2,
   });
@@ -59,12 +75,14 @@ function geometry(root: any) {
   const page = root.props.children[2].props.children;
   const sections = page.props.children;
   const gallery = find(root, node => node.props?.accessibilityLabel === 'Alege o fotografie din galerie');
+  const galleryIcon = gallery.props.children[1];
+  const galleryCopy = gallery.props.children[2];
   return JSON.parse(JSON.stringify({
     root: flatten(root.props.style), page: flatten(page.props.style),
-    header: flatten(sections[0].props.style), intro: flatten(sections[1].props.style),
+    header: flatten(sections[0].props.style), tutor: flatten(sections[1].props.style),
     modes: flatten(sections[2].props.style), camera: flatten(sections[3].props.style),
-    galleryIcon: flatten(gallery.props.children[0].props.style),
-    galleryLabel: gallery.props.children[1].props.children,
+    galleryIcon: flatten(galleryIcon.props.style),
+    galleryLabel: galleryCopy.props.children[0].props.children,
   }));
 }
 
@@ -113,6 +131,8 @@ test('cancelling the gallery preserves Home, releases the launch lock and permit
     'src/shared/ui/ReadinessScreen.tsx': {},
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access, status: 'ready', refreshIfStale: async () => {} }) },
     'src/features/analysis/services/pendingAnalysis.ts': { getPreparedPendingAnalysis: () => null },
+    'src/features/lessons/services/lessons.ts': { getCachedFavoriteLessons: () => undefined },
+    'src/shared/storage/localPreferences.ts': { hasSeenHomeGuide: () => true, markHomeGuideSeen() {} },
     'src/shared/services/sessionGuard.ts': { captureSession: () => ({}), assertSessionActive() {} },
     'src/shared/services/haptics.ts': { impact() {}, notification() {}, ImpactFeedbackStyle: { Light: 'light' }, NotificationFeedbackType: { Success: 'success', Error: 'error' } },
   });

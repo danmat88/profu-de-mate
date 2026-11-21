@@ -54,6 +54,7 @@ test('all icon artwork and UI/document fonts must finish before visual preparati
     'expo-font': { loadAsync: (map: object) => { fontNames = Object.keys(map); return fonts; } },
     'src/shared/services/bundledImages.ts': { prepareBundledImages: (modules: number[]) => { requestedArtwork = Array.from(modules); return images; } },
     'src/shared/ui/AppIcon.tsx': { iconAssets: { camera: 10, gallery: 11, notebook: 12, practice: 13, scan: 14, settings: 15, verify: 16, trophy: 17 } },
+    'src/shared/ui/Mascot.tsx': { mascotAssets: { default: 3, wave: 30, thinking: 31, cheer: 32, oops: 33, point: 34 } },
     'src/features/math/services/documentFonts.ts': { preloadDocumentFonts: () => documents },
     'assets/brand/splash_mark_v2.png': 1,
     'assets/brand/profu_mark_v2.png': 2,
@@ -66,7 +67,7 @@ test('all icon artwork and UI/document fonts must finish before visual preparati
   await Promise.resolve(); await Promise.resolve();
   assert.equal(ready, false, 'document fonts are also required before entering the app');
   finishDocumentFonts(); await prepared;
-  assert.deepEqual(requestedArtwork, [1, 2, 3, 10, 11, 12, 13, 14, 15, 16, 17]);
+  assert.deepEqual(requestedArtwork, [1, 2, 3, 3, 30, 31, 32, 33, 34, 10, 11, 12, 13, 14, 15, 16, 17]);
   assert.equal(fontNames.length, 5);
 });
 

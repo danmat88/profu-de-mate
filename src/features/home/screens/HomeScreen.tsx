@@ -7,11 +7,19 @@ import { ReadinessScreen } from '../../../shared/ui/ReadinessScreen';
 import { useCommercial } from '../../access/context/CommercialContext';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
+import { getCachedFavoriteLessons } from '../../lessons/services/lessons';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
+import { hasSeenHomeGuide, markHomeGuideSeen } from '../../../shared/storage/localPreferences';
 import type { FlowMode, RootStackParamList } from '../../../shared/types';
 import { allowancePresentation } from '../../access/utils/commercialPresentation';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
+
+function readLatestLessonTitle(): string | null {
+  const first = getCachedFavoriteLessons()?.[0];
+  if (!first) return null;
+  return first.title.trim() || first.topic.trim() || null;
+}
 
 export function HomeScreen() {
   const navigation = useNavigation<Navigation>();
@@ -25,6 +33,8 @@ export function HomeScreen() {
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
+  const [latestLessonTitle, setLatestLessonTitle] = useState<string | null>(() => readLatestLessonTitle());
+  const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
   const alive = useRef(true);
@@ -34,6 +44,7 @@ export function HomeScreen() {
     alive.current = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
+    setLatestLessonTitle(readLatestLessonTitle());
     void preparePendingAnalysisOnStartup().then((pending) => {
       if (active) setPendingAnalysis(pending);
     });
@@ -46,6 +57,12 @@ export function HomeScreen() {
     Haptics.selection();
     setGalleryError(null);
     setMode(next);
+  };
+
+  const dismissGuide = () => {
+    Haptics.selection();
+    markHomeGuideSeen();
+    setGuideDismissed(true);
   };
 
   const resume = useCallback(() => {
@@ -137,6 +154,9 @@ export function HomeScreen() {
       galleryError={galleryError}
       allowance={allowance}
       premiumActive={Boolean(access?.premium.active)}
+      latestLessonTitle={latestLessonTitle}
+      showGuide={!guideDismissed && !latestLessonTitle}
+      onDismissGuide={dismissGuide}
       onMode={chooseMode}
       onCapture={openCapture}
       onGallery={() => void openGallery()}

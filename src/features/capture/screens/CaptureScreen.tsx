@@ -10,6 +10,7 @@ import { Animated, BackHandler, Easing, Linking, Pressable, StyleSheet, View } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
@@ -330,7 +331,10 @@ export function CaptureScreen({ navigation, route }: Props) {
             <PlayfulLoader inverse label="Deschid camera" />
           ) : (
             <>
-              <View style={styles.permissionIcon}><AppIcon name="camera" size={62} /></View>
+              <View style={styles.permissionMascot}>
+                <View style={styles.permissionHalo} />
+                <Mascot pose="point" size={126} active />
+              </View>
               <Text style={styles.permissionTitle}>Activează camera</Text>
               <Text style={styles.permissionText}>Avem nevoie de ea numai când fotografiezi un exercițiu.</Text>
               <Pressable accessibilityRole="button" onPress={() => permission.canAskAgain ? void requestPermission() : void Linking.openSettings()} style={({ pressed }) => [styles.permissionButton, pressed && styles.primaryPressed]}>
@@ -399,7 +403,7 @@ const styles = StyleSheet.create({
   modeChipNarrow: { maxWidth: 198, paddingHorizontal: 10 },
   modeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   modeDotCheck: { backgroundColor: colors.peach },
-  modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10.5, letterSpacing: 0.7 },
+  modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, letterSpacing: 0.7 },
   finderArea: { position: 'absolute', zIndex: 4, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
   finder: { width: '100%', aspectRatio: 4 / 3, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)', backgroundColor: 'rgba(8,7,18,0.04)' },
   finderCheck: { aspectRatio: 1.08 },
@@ -418,7 +422,7 @@ const styles = StyleSheet.create({
   sideControl: { width: 72, minHeight: 76, alignItems: 'center', justifyContent: 'center', gap: 4 },
   sideIcon: { width: 52, height: 52, borderRadius: 20, backgroundColor: 'rgba(35,28,73,0.9)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
   sideIconActive: { backgroundColor: colors.lime, borderColor: colors.lime },
-  sideLabel: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 10.5 },
+  sideLabel: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
   shutterOuter: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: colors.paper, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   shutterOuterCompact: { width: 78, height: 78, borderRadius: 39 },
   shutterInner: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.lime, borderWidth: 2, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
@@ -429,7 +433,8 @@ const styles = StyleSheet.create({
   primaryPressed: { transform: [{ translateY: 2 }], opacity: 0.9 },
   controlDisabled: { opacity: 0.45 },
   permissionPanel: { flex: 1, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#17132E' },
-  permissionIcon: { width: 86, height: 86, borderRadius: 28, backgroundColor: '#2A2351', borderWidth: 1.5, borderColor: '#6E668A', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  permissionMascot: { width: 146, height: 146, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  permissionHalo: { position: 'absolute', width: 126, height: 126, borderRadius: 63, backgroundColor: '#2B2259', borderWidth: 2.5, borderStyle: 'dashed', borderColor: '#6D5EB0' },
   permissionTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 27, lineHeight: 31, textAlign: 'center' },
   permissionText: { maxWidth: 300, marginTop: 5, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 13, lineHeight: 18, textAlign: 'center' },
   permissionButton: { width: '100%', maxWidth: 330, minHeight: 56, marginTop: 20, borderRadius: 18, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.lime, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#090817', shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
@@ -438,10 +443,10 @@ const styles = StyleSheet.create({
   permissionGalleryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13 },
   errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: 1.5, borderColor: colors.paper, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 82, borderRadius: 22, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 10, shadowColor: '#000', shadowOpacity: 0.32, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
-  helpIcon: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
+  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 22, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
+  helpIcon: { width: 44, height: 44, borderRadius: 14, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
   helpCopy: { flex: 1, minWidth: 0 },
-  helpTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 13, lineHeight: 16 },
-  helpText: { marginTop: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 11.5, lineHeight: 15 },
+  helpTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18 },
+  helpText: { marginTop: 2, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 16.5 },
   helpClose: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
 });

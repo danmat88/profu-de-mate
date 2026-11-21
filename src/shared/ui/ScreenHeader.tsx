@@ -1,74 +1,96 @@
-import * as Haptics from '../services/haptics';
-import type { ReactNode } from 'react';
-import { useRef } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
-import { useReducedMotion } from '../hooks/useReducedMotion';
+import { StyleSheet, View } from 'react-native';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-import { colors, fonts, motion } from '../theme';
-import { AppIcon, AppIconName } from './AppIcon';
+import { colors, fonts, typography } from '../theme';
+import { AppIcon, type AppIconName } from './AppIcon';
+import { IconButton } from './IconButton';
 import { MiniGlyph } from './MiniGlyph';
 import { Text } from './Typography';
 
-type Props = { title: string; eyebrow?: string; onBack: () => void; rightIcon?: AppIconName; rightLabel?: string; onRight?: () => void; rightActive?: boolean; dark?: boolean };
+type Props = {
+  title: string;
+  eyebrow?: string;
+  onBack: () => void;
+  rightIcon?: AppIconName;
+  rightLabel?: string;
+  onRight?: () => void;
+  rightActive?: boolean;
+  dark?: boolean;
+};
 
-function HeaderButton({ label, onPress, dark, active, children }: { label: string; onPress?: () => void; dark?: boolean; active?: boolean; children: ReactNode }) {
-  const press = useRef(new Animated.Value(0)).current;
-  const reducedMotion = useReducedMotion();
-  const move = (value: number) => {
-    if (reducedMotion) return;
-    Animated.timing(press, { toValue: value, duration: motion.press, useNativeDriver: true }).start();
-  };
-  return (
-    <Animated.View style={{ opacity: onPress ? 1 : 0.66, transform: [{ translateY: press.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }) }, { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, 0.97] }) }] }}>
-      <Pressable
-        accessibilityLabel={label}
-        accessibilityRole="button"
-        disabled={!onPress}
-        hitSlop={6}
-        onPressIn={() => move(1)}
-        onPressOut={() => move(0)}
-        onPress={() => { Haptics.selection(); onPress?.(); }}
-        style={[styles.button, dark && styles.buttonDark, active && styles.buttonActive]}
-      >
-        {children}
-      </Pressable>
-    </Animated.View>
-  );
-}
-
-export function ScreenHeader({ title, eyebrow, onBack, rightIcon, rightLabel = 'Acțiune', onRight, rightActive = false, dark = false }: Props) {
+export function ScreenHeader({
+  title,
+  eyebrow,
+  onBack,
+  rightIcon,
+  rightLabel = 'Acțiune',
+  onRight,
+  rightActive = false,
+  dark = false,
+}: Props) {
   const color = dark ? colors.paper : colors.ink;
   const { gutter, isNarrow, isLargeText } = useResponsiveLayout();
+
   return (
-    <View style={[styles.row, { paddingHorizontal: gutter }, isNarrow && !isLargeText && styles.rowNarrow, isLargeText && styles.rowLargeText]}>
-      <HeaderButton label="Înapoi" onPress={onBack} dark={dark}>
-        <MiniGlyph name="back" size={27} color={color} />
-      </HeaderButton>
+    <View
+      style={[
+        styles.row,
+        { paddingHorizontal: gutter },
+        isNarrow && !isLargeText && styles.rowNarrow,
+        isLargeText && styles.rowLargeText,
+      ]}
+    >
+      <IconButton label="Înapoi" onPress={onBack} dark={dark} size={46}>
+        <MiniGlyph name="back" size={25} color={color} />
+      </IconButton>
       <View style={styles.copy}>
-        {eyebrow ? <Text style={[styles.eyebrow, dark && styles.eyebrowDark]}>{eyebrow}</Text> : null}
-        <Text numberOfLines={isLargeText ? 2 : 1} style={[styles.title, isNarrow && !isLargeText && styles.titleNarrow, dark && styles.titleDark]}>{title}</Text>
+        {eyebrow ? (
+          <Text numberOfLines={1} style={[styles.eyebrow, dark && styles.eyebrowDark]}>
+            {eyebrow}
+          </Text>
+        ) : null}
+        <Text
+          numberOfLines={isLargeText ? 2 : 1}
+          style={[styles.title, isNarrow && !isLargeText && styles.titleNarrow, dark && styles.titleDark]}
+        >
+          {title}
+        </Text>
       </View>
       {rightIcon ? (
-        <HeaderButton label={rightLabel} onPress={onRight} dark={dark} active={rightActive}>
-          <AppIcon name={rightIcon} size={43} />
-        </HeaderButton>
-      ) : <View style={styles.spacer} />}
+        <IconButton
+          label={rightLabel}
+          onPress={onRight}
+          dark={dark}
+          active={rightActive}
+          size={46}
+        >
+          <AppIcon name={rightIcon} size={36} />
+        </IconButton>
+      ) : (
+        <View style={styles.spacer} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 8, gap: 13 },
-  rowNarrow: { minHeight: 66, gap: 9 },
-  rowLargeText: { minHeight: 96, paddingVertical: 10 },
-  button: { width: 48, height: 48, borderRadius: 16, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
-  buttonDark: { backgroundColor: '#292052', borderColor: colors.paper },
-  buttonActive: { backgroundColor: colors.lime, transform: [{ rotate: '3deg' }] },
+  row: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    gap: 12,
+  },
+  rowNarrow: { minHeight: 64, gap: 9 },
+  rowLargeText: { minHeight: 94, paddingVertical: 10 },
   copy: { flex: 1, minWidth: 0 },
-  eyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9, letterSpacing: 1.5 },
+  eyebrow: {
+    ...typography.kicker,
+    color: colors.violetDeep,
+  },
   eyebrowDark: { color: colors.lime },
-  title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 19, lineHeight: 22 },
-  titleNarrow: { fontSize: 17, lineHeight: 20 },
+  title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 24 },
+  titleNarrow: { fontSize: 18, lineHeight: 22 },
   titleDark: { color: colors.paper },
-  spacer: { width: 48 },
+  spacer: { width: 46 },
 });

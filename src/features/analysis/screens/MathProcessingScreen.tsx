@@ -1,31 +1,34 @@
-import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AnalysisActivity } from '../components/AnalysisActivity';
+import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { recordDiagnosticError } from '../../../shared/services/diagnostics';
+import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
+import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
-import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
-import { MathExpression } from '../../math/components/MathEditor';
+import { ComicCard } from '../../../shared/ui/ComicCard';
+import { Enter } from '../../../shared/ui/Enter';
+import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
+import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { commercialGateFromError } from '../../access/services/commercial';
-import { analyzeOrResumeWrittenMath } from '../services/mathAnalysis';
-import { readMathDraft } from '../../math/services/mathDraft';
-import { clearPendingAnalysis } from '../services/pendingAnalysis';
-import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
+import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { beginLessonPresentation, waitForLessonPresentation } from '../../lessons/services/lessonPresentation';
-import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { colors, fonts } from '../../../shared/theme';
-import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
+import { MathExpression } from '../../math/components/MathEditor';
+import { readMathDraft } from '../../math/services/mathDraft';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import { serializeMathDocument } from '../../math/utils/mathEditor';
+import { AnalysisActivity } from '../components/AnalysisActivity';
+import { analyzeOrResumeWrittenMath } from '../services/mathAnalysis';
+import { clearPendingAnalysis } from '../services/pendingAnalysis';
 import { friendlyWrittenMathError } from '../utils/writtenMathErrors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MathProcessing'>;
@@ -36,13 +39,11 @@ type State = { kind: 'working' } | { kind: 'error'; message: string; canEdit?: b
 export function MathProcessingScreen({ route, navigation }: Props) {
   const { gutter, isVeryShort, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
   const [state, setState] = useState<State>({ kind: 'working' });
   const [attempt, setAttempt] = useState(0);
   const [slow, setSlow] = useState(false);
   const [feedback, setFeedback] = useState(false);
   const [preparingLesson, setPreparingLesson] = useState(false);
-  const float = useRef(new Animated.Value(0)).current;
   const returningFromPaywall = useRef(false);
   const { mode, math, requestId, userId, origin } = route.params;
   const [preview] = useState(() => {
@@ -53,20 +54,10 @@ export function MathProcessingScreen({ route, navigation }: Props) {
     } catch { return null; }
   });
   const goHome = () => navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+
   useFocusEffect(useCallback(() => {
     if (returningFromPaywall.current) { returningFromPaywall.current = false; setAttempt((value) => value + 1); }
   }, []));
-
-  useEffect(() => {
-    float.setValue(0);
-    if (reducedMotion || state.kind !== 'working') return;
-    const animation = Animated.loop(Animated.sequence([
-      Animated.timing(float, { toValue: 1, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(float, { toValue: 0, duration: 1_650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-    ]));
-    animation.start();
-    return () => animation.stop();
-  }, [float, reducedMotion, state.kind]);
 
   useEffect(() => {
     let mounted = true;
@@ -109,53 +100,137 @@ export function MathProcessingScreen({ route, navigation }: Props) {
     if (origin === 'editor' && navigation.canGoBack()) navigation.goBack();
     else navigation.reset({ index: 1, routes: [{ name: 'Home' }, { name: 'MathInput', params: { mode } }] });
   };
+
   const working = state.kind === 'working';
-  const title = working ? mode === 'check' ? 'Verific rezolvarea ta.' : 'Pregătesc explicația.'
-    : state.kind === 'rejected' ? 'Mai avem ceva de clarificat.' : state.kind === 'commercial' ? 'Accesul tău' : 'Nu am terminat analiza.';
+  const isCheck = mode === 'check';
+  const title = working
+    ? preparingLesson
+      ? 'Lecția ta e gata!'
+      : isCheck ? 'Verific rezolvarea ta.' : 'Pregătesc explicația.'
+    : state.kind === 'rejected'
+      ? 'Mai avem ceva de clarificat.'
+      : state.kind === 'commercial' ? 'Accesul tău' : 'Nu am terminat analiza.';
   const message = working
     ? slow ? 'Încă lucrez. Unele probleme au nevoie de mai mult timp.' : 'Problema ta, explicată pas cu pas. Poate dura puțin.'
     : state.kind === 'rejected' ? contentToAccessibleText(state.result.summary) : state.message;
+
+  const mascotPose = working
+    ? preparingLesson ? 'cheer' : 'thinking'
+    : state.kind === 'commercial' ? 'point' : 'oops';
+
   return (
     <SafeAreaView style={[styles.safe, { paddingHorizontal: gutter }]} edges={['top']}>
       <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.header}>
         <Text style={styles.brand}>Profu’ de mate</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={working ? 'Continuă analiza în fundal și revino acasă' : 'Înapoi acasă'} onPress={goHome} style={({ pressed }) => [styles.home, pressed && styles.pressed]}>
-          <MiniGlyph name="back" size={15} color={colors.paper} /><Text style={styles.homeText}>ACASĂ</Text>
-        </Pressable>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={working ? 'Continuă analiza în fundal și revino acasă' : 'Înapoi acasă'}
+          depth={shadows.sm}
+          radius={15}
+          shadowColor="#09061B"
+          haptic="selection"
+          onPress={goHome}
+          contentStyle={styles.home}
+        >
+          <MiniGlyph name="back" size={16} color={colors.paper} />
+          <Text style={styles.homeText}>ACASĂ</Text>
+        </PressableScale>
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isVeryShort && styles.contentCompact]} bounces={false} showsVerticalScrollIndicator={false}>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, isVeryShort && styles.contentCompact]}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.stage, isVeryShort && styles.stageCompact, !working && styles.messageStage]}>
           <View style={[styles.halo, !working && styles.messageHalo]} />
-          {working ? <View style={[styles.paper, isVeryShort && styles.paperCompact]}>
-            <Text style={styles.paperLabel}>{mode === 'check' ? 'VERIFICĂM ÎMPREUNĂ' : 'PROBLEMA TA'}</Text>
-            <View style={styles.formula}>
-              {preview ? <MathExpression document={preview} accessibilityLabel="Problema trimisă spre analiză" /> : <AppIcon name="verify" size={68} />}
+          {working ? (
+            <View style={[styles.paper, isVeryShort && styles.paperCompact]}>
+              <View style={styles.paperTopBand}>
+                <View style={styles.paperDot} />
+                <View style={styles.paperDot} />
+                <Text style={styles.paperLabel}>{isCheck ? 'VERIFICĂM ÎMPREUNĂ' : 'PROBLEMA TA'}</Text>
+              </View>
+              <View style={styles.formula}>
+                {preview ? <MathExpression document={preview} accessibilityLabel="Problema trimisă spre analiză" /> : <AppIcon name="practice" size={62} />}
+              </View>
+              <View style={styles.paperRule} />
             </View>
-            <View style={styles.paperRule} />
-          </View> : null}
-          <Animated.View pointerEvents="none" style={[styles.mascotWrap, !working && styles.messageMascotWrap, {
-            transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) }],
-          }]}>
-            <Image accessible={false} source={bundledImageSource(require('../../../../assets/profu_mascot_v2.png'))} resizeMode="contain" style={[styles.mascot, isVeryShort && styles.mascotCompact]} />
-            {working ? <View style={[styles.bubble, mode === 'check' && styles.bubbleCheck]}><Text style={styles.bubbleText}>Hai să vedem!</Text></View> : null}
-          </Animated.View>
+          ) : null}
+
+          <View pointerEvents="none" style={[styles.mascotWrap, !working && styles.messageMascotWrap]}>
+            {working ? (
+              <View style={[styles.bubble, isCheck && styles.bubbleCheck]}>
+                <Text style={styles.bubbleText}>{preparingLesson ? 'Gata!' : 'Hai să vedem!'}</Text>
+              </View>
+            ) : null}
+            <Mascot pose={mascotPose} size={working ? (isVeryShort ? 124 : 146) : 148} active />
+          </View>
         </View>
-        <View accessibilityRole={working ? undefined : 'alert'} style={!working && styles.messageCard}>
-          {!working ? <Text style={styles.eyebrow}>{state.kind === 'rejected' ? 'HAI SĂ MAI ÎNCERCĂM' : state.kind === 'commercial' ? 'CONTINUĂ ÎN RITMUL TĂU' : 'MAI ÎNCERCĂM O DATĂ'}</Text> : null}
-          <Text style={[styles.title, isNarrow && styles.titleNarrow, !working && styles.messageTitle]}>{title}</Text>
-          <Text accessibilityLiveRegion="polite" style={[styles.copy, !working && styles.messageCopy]}>{message}</Text>
-        </View>
+
+        {working ? (
+          <View>
+            <Text style={[styles.title, isNarrow && styles.titleNarrow]}>{title}</Text>
+            <Text accessibilityLiveRegion="polite" style={styles.copy}>{message}</Text>
+          </View>
+        ) : (
+          <Enter delay={60} distance={14}>
+            <ComicCard
+              tone="paper"
+              depth={6}
+              radius={24}
+              borderWidth={borders.thick}
+              shadowColor="#09061B"
+              shine
+              contentStyle={styles.messageCard}
+            >
+              <View accessibilityRole="alert">
+                <Chip
+                  label={state.kind === 'rejected' ? 'HAI SĂ MAI ÎNCERCĂM' : state.kind === 'commercial' ? 'CONTINUĂ ÎN RITMUL TĂU' : 'MAI ÎNCERCĂM O DATĂ'}
+                  tone={state.kind === 'commercial' ? 'gold' : state.kind === 'rejected' ? 'peach' : 'roseSoft'}
+                />
+                <Text style={[styles.title, isNarrow && styles.titleNarrow, styles.messageTitle]}>{title}</Text>
+                <Text accessibilityLiveRegion="polite" style={[styles.copy, styles.messageCopy]}>{message}</Text>
+              </View>
+            </ComicCard>
+          </Enter>
+        )}
       </ScrollView>
+
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {working ? <AnalysisActivity preparing={preparingLesson} check={mode === 'check'} /> : null}
-        {state.kind === 'error' ? <ComicButton compact title={state.canEdit ? 'Editează problema' : 'Încearcă din nou'} icon="verify" onPress={state.canEdit ? edit : () => setAttempt((value) => value + 1)} /> : null}
-        {state.kind === 'commercial' ? <ComicButton compact title="Vezi opțiunile" icon="trophy" onPress={() => {
-          returningFromPaywall.current = true;
-          navigation.navigate('Paywall', { source: 'quota', ...(state.access ? { access: state.access } : {}) });
-        }} /> : null}
-        {state.kind === 'rejected' ? <><ComicButton compact title="Editează problema" icon="verify" onPress={edit} /><Pressable accessibilityRole="button" onPress={() => setFeedback(true)} style={styles.report}><Text style={styles.reportText}>Raportează răspunsul</Text></Pressable></> : null}
+        {working ? <AnalysisActivity preparing={preparingLesson} check={isCheck} /> : null}
+        {state.kind === 'error' ? (
+          <ComicButton
+            compact
+            title={state.canEdit ? 'Editează problema' : 'Încearcă din nou'}
+            icon="practice"
+            tone="lime"
+            onPress={state.canEdit ? edit : () => setAttempt((value) => value + 1)}
+          />
+        ) : null}
+        {state.kind === 'commercial' ? (
+          <ComicButton
+            compact
+            title="Vezi opțiunile"
+            icon="trophy"
+            tone="lime"
+            onPress={() => {
+              returningFromPaywall.current = true;
+              navigation.navigate('Paywall', { source: 'quota', ...(state.access ? { access: state.access } : {}) });
+            }}
+          />
+        ) : null}
+        {state.kind === 'rejected' ? (
+          <>
+            <ComicButton compact title="Editează problema" icon="practice" tone="lime" onPress={edit} />
+            <Pressable accessibilityRole="button" onPress={() => setFeedback(true)} style={styles.report}>
+              <Text style={styles.reportText}>Raportează răspunsul</Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
       <FeedbackSheet visible={feedback} requestId={requestId} onClose={() => setFeedback(false)} />
     </SafeAreaView>
@@ -165,38 +240,85 @@ export function MathProcessingScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.ink, overflow: 'hidden' },
   header: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  brand: { flex: 1, fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 18 },
-  home: { minHeight: 48, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderWidth: 1.5, borderColor: '#6557A1', backgroundColor: '#2C2457', borderRadius: 15 },
+  brand: { flex: 1, fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
+  home: {
+    height: 44,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: borders.thin,
+    borderColor: '#6D5EB0',
+    backgroundColor: '#2B2259',
+    borderRadius: 15,
+  },
   homeText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
-  pressed: { opacity: 0.76 },
   scroll: { flex: 1 },
-  content: { flexGrow: 1, paddingVertical: 20, justifyContent: 'center', gap: 28 },
-  contentCompact: { paddingVertical: 10, gap: 16 },
-  stage: { height: 250, justifyContent: 'center', alignItems: 'center' },
-  stageCompact: { height: 188 },
-  halo: { position: 'absolute', width: 228, height: 228, borderRadius: 114, backgroundColor: '#362275', right: 2, top: 5 },
-  paper: { width: '88%', alignSelf: 'flex-start', minHeight: 170, padding: 18, paddingRight: 75, borderRadius: 23, borderWidth: 3, borderColor: '#080615', backgroundColor: colors.canvas, transform: [{ rotate: '-4deg' }], shadowColor: '#080615', shadowOffset: { width: 0, height: 7 }, shadowOpacity: 1, shadowRadius: 0, elevation: 5 },
-  paperCompact: { minHeight: 145, paddingVertical: 12 },
-  paperLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 1 },
-  formula: { minHeight: 85, maxHeight: 110, justifyContent: 'center', overflow: 'hidden' },
+  content: { flexGrow: 1, paddingVertical: 18, justifyContent: 'center', gap: 24 },
+  contentCompact: { paddingVertical: 10, gap: 14 },
+  stage: { height: 244, justifyContent: 'center', alignItems: 'center' },
+  stageCompact: { height: 186 },
+  halo: { position: 'absolute', width: 224, height: 224, borderRadius: 112, backgroundColor: '#352275', right: 0, top: 6 },
+  paper: {
+    width: '86%',
+    alignSelf: 'flex-start',
+    minHeight: 172,
+    padding: 16,
+    paddingRight: 72,
+    borderRadius: 23,
+    borderWidth: borders.thick,
+    borderColor: '#080615',
+    backgroundColor: colors.canvas,
+    transform: [{ rotate: '-3.5deg' }],
+    shadowColor: '#080615',
+    shadowOffset: { width: 0, height: 7 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
+  paperCompact: { minHeight: 146, paddingVertical: 12 },
+  paperTopBand: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  paperDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.violetSoft, borderWidth: 1.5, borderColor: colors.ink },
+  paperLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11, letterSpacing: 0.8 },
+  formula: { minHeight: 82, maxHeight: 108, justifyContent: 'center', overflow: 'hidden' },
   paperRule: { height: 2, backgroundColor: colors.violetSoft },
-  mascotWrap: { position: 'absolute', bottom: -3, right: -3, alignItems: 'center' },
-  mascot: { width: 154, height: 180 },
-  mascotCompact: { width: 126, height: 148 },
-  bubble: { position: 'absolute', right: 6, top: -15, minHeight: 34, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 13, borderWidth: 2.5, borderColor: colors.ink, backgroundColor: colors.lime, transform: [{ rotate: '4deg' }] },
+  mascotWrap: { position: 'absolute', bottom: -6, right: -8, alignItems: 'center' },
+  bubble: {
+    marginBottom: -10,
+    marginRight: 6,
+    zIndex: 2,
+    minHeight: 32,
+    justifyContent: 'center',
+    paddingHorizontal: 11,
+    borderRadius: 13,
+    borderWidth: borders.thin,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    transform: [{ rotate: '4deg' }],
+  },
   bubbleCheck: { backgroundColor: colors.peach },
-  bubbleText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.ink },
-  title: { fontFamily: fonts.display, fontSize: 32, lineHeight: 37, color: colors.paper, textAlign: 'center' },
-  titleNarrow: { fontSize: 28, lineHeight: 32 },
-  copy: { marginTop: 10, paddingHorizontal: 5, fontFamily: fonts.body, fontSize: 14, lineHeight: 21, color: '#C5BCD9', textAlign: 'center' },
-  actions: { paddingTop: 8, gap: 5 },
-  report: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  reportText: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#C5BCD9' },
-  messageStage: { height: 156 },
-  messageHalo: { width: 150, height: 150, borderRadius: 75, right: undefined, top: 0 },
+  bubbleText: { fontFamily: fonts.bodyBold, fontSize: 11.5, color: colors.ink },
+  title: { fontFamily: fonts.display, fontSize: 30, lineHeight: 35, color: colors.paper, textAlign: 'center' },
+  titleNarrow: { fontSize: 26, lineHeight: 30 },
+  copy: { marginTop: 8, paddingHorizontal: 5, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: '#CEC7E8', textAlign: 'center' },
+  actions: { paddingTop: 8, gap: 6 },
+  report: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  reportText: { fontFamily: fonts.bodyBold, fontSize: 13, color: '#CEC7E8' },
+  messageStage: { height: 170 },
+  messageHalo: {
+    width: 152,
+    height: 152,
+    borderRadius: 76,
+    right: undefined,
+    top: 8,
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    borderColor: '#7566BD',
+    backgroundColor: '#2E2266',
+  },
   messageMascotWrap: { position: 'relative', right: 0, bottom: 0 },
-  messageCard: { padding: 20, borderWidth: 3, borderColor: '#080615', borderRadius: 24, backgroundColor: colors.canvas },
-  eyebrow: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 1, marginBottom: 8 },
-  messageTitle: { color: colors.ink, textAlign: 'left' },
+  messageCard: { padding: 20 },
+  messageTitle: { color: colors.ink, textAlign: 'left', marginTop: 10, fontSize: 25, lineHeight: 29 },
   messageCopy: { color: colors.inkSoft, textAlign: 'left', paddingHorizontal: 0 },
 });
