@@ -221,3 +221,115 @@ test('real access service deduplicates concurrent callers and rejects another id
   assert.equal((await second).remaining, 1);
   assert.deepEqual(cached, ['bob']);
 });
+
+test('Google sign-in and sign-out commit identity, session key and access atomically without intermediate null flashes', async () => {
+  const guestUser = { uid: 'guest-1', isAnonymous: true, providerData: [] as Array<{ providerId: string }> };
+  const googleUser = { uid: 'google-1', isAnonymous: false, providerData: [{ providerId: 'google.com' }] };
+  const replacementGuest = { uid: 'guest-2', isAnonymous: true, providerData: [] as Array<{ providerId: string }> };
+  const guestAccess: CommercialAccess = { ...access, identity: 'anonymous', tier: 'guest', used: 1, remaining: 4 };
+  const googleAccess: CommercialAccess = { ...access, identity: 'google', tier: 'free', used: 2, remaining: 3 };
+  const postLogoutAccess: CommercialAccess = { ...access, identity: 'anonymous', tier: 'guest', used: 2, remaining: 3 };
+
+  let currentUser: typeof guestUser | null = guestUser;
+  let tokenListener!: (u: typeof guestUser | null) => void;
+  let accessResponse = deferred<CommercialAccess>();
+  const stateWrites: Array<{ slot: number; value: unknown }> = [];
+  const stateValues: unknown[] = [];
+  let cursor = 0;
+  const effects: Array<() => unknown> = [];
+
+  const load = serviceLoader({
+    react: {
+      createContext: () => ({ Provider: 'Provider' }),
+      useCallback: (callback: unknown) => callback,
+      useMemo: (factory: () => unknown) => factory(),
+      useRef: (current: unknown) => ({ current }),
+      useState: (initial: any) => {
+        const slot = cursor++;
+        stateValues[slot] = typeof initial === 'function' ? initial() : initial;
+        const setter = (next: any) => {
+          stateValues[slot] = typeof next === 'function' ? next(stateValues[slot]) : next;
+          stateWrites.push({ slot, value: stateValues[slot] });
+        };
+        return [stateValues[slot], setter];
+      },
+      useEffect: (effect: () => unknown) => effects.push(effect),
+    },
+    'react/jsx-runtime': { jsx: (type: unknown, props: unknown) => ({ type, props }) },
+    'react-native': { AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) } },
+    '@react-native-firebase/app': { getApp() {} },
+    '@react-native-firebase/auth': {
+      getAuth: () => ({ currentUser }),
+      onIdTokenChanged: (_auth: unknown, callback: typeof tokenListener) => { tokenListener = callback; return () => {}; },
+    },
+    'src/shared/services/firebase.ts': {
+      firebaseUserSessionKey: (u: typeof guestUser | null) => (u ? `${u.uid}|${u.isAnonymous ? 'anon' : 'google'}` : null),
+      resetFirebaseInitialization() {},
+    },
+    'src/features/access/services/commercial.ts': {
+      getCommercialAccess: () => {
+        if (!currentUser) {
+          currentUser = replacementGuest;
+          tokenListener(currentUser);
+        }
+        return accessResponse.promise;
+      },
+      connectWithGoogle: async () => {
+        currentUser = googleUser;
+        tokenListener(googleUser);
+        return googleUser;
+      },
+      disconnectGoogleAccount: async () => {
+        currentUser = null;
+        tokenListener(null);
+        return null;
+      },
+    },
+    'src/shared/services/deviceIntegrity.ts': {},
+    'src/shared/services/diagnostics.ts': { recordDiagnosticError: assert.fail },
+    'src/features/account/services/dataManagement.ts': {},
+    'src/features/lessons/services/lessons.ts': { clearFavoriteLessonsCache() {}, prewarmFavoriteLessonsCache: async () => {} },
+    'src/features/analysis/services/pendingAnalysis.ts': { discardPendingAnalysis() {} },
+    'src/features/math/services/mathDraft.ts': { clearMathDrafts() {} },
+    'src/shared/services/sessionGuard.ts': { invalidateSessionOperations() {} },
+    'src/features/access/services/purchases.ts': { resetPurchasesForSignedOutUser: async () => {} },
+  });
+
+  // Slots in CommercialProvider: 0=authSessionKey, 1=identity, 2=access, 3=startupReady, 4=status, 5=refreshing
+  const tree = load('src/features/access/context/CommercialContext.tsx').CommercialProvider({
+    initialAccess: guestAccess,
+    initialVerifiedAt: Date.now(),
+    children: null,
+  });
+  const cleanup = effects.map((effect) => effect());
+  try {
+    const context = tree.props.value;
+    stateWrites.length = 0;
+
+    // 1. Google sign-in: mid-transition token event must not emit null access or early key swap.
+    const signInPromise = context.connectGoogle();
+    await flush();
+    assert.equal(stateWrites.some((w) => w.slot === 0 || w.slot === 1 || w.slot === 2), false);
+    accessResponse.resolve(googleAccess);
+    assert.equal(await signInPromise, googleAccess);
+    assert.equal(stateValues[0], 'google-1|google');
+    assert.equal(stateValues[1], 'google');
+    assert.equal(stateValues[2], googleAccess);
+    assert.equal(stateWrites.some((w) => w.slot === 2 && w.value === null), false);
+
+    // 2. Google sign-out: null token + replacement anonymous token must not flash signed-out state.
+    stateWrites.length = 0;
+    accessResponse = deferred<CommercialAccess>();
+    const signOutPromise = context.disconnectGoogle();
+    await flush();
+    assert.equal(stateWrites.some((w) => w.slot === 0 || w.slot === 1 || w.slot === 2), false);
+    accessResponse.resolve(postLogoutAccess);
+    assert.equal(await signOutPromise, postLogoutAccess);
+    assert.equal(stateValues[0], 'guest-2|anon');
+    assert.equal(stateValues[1], 'anonymous');
+    assert.equal(stateValues[2], postLogoutAccess);
+    assert.equal(stateWrites.some((w) => (w.slot === 0 || w.slot === 1 || w.slot === 2) && w.value === null), false);
+  } finally {
+    cleanup.forEach((fn) => { if (typeof fn === 'function') fn(); });
+  }
+});

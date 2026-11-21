@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getApp } from '@react-native-firebase/app';
-import { getAuth, onIdTokenChanged } from '@react-native-firebase/auth';
+import { getAuth, onIdTokenChanged, type User } from '@react-native-firebase/auth';
 import { AppState } from 'react-native';
 import type { CommercialAccess, CommercialStatus } from '../../../shared/types';
 import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess } from '../services/commercial';
@@ -43,6 +43,40 @@ type RefreshRequest = {
   promise: Promise<CommercialAccess | null>;
 };
 
+const DISCONNECT_SETTLE_WAIT_MS = 3_500;
+
+function identityFromUser(user: User | null): CommercialAccess['identity'] | null {
+  if (!user) return null;
+  return !user.isAnonymous && user.providerData.some((provider) => provider.providerId === 'google.com')
+    ? 'google'
+    : 'anonymous';
+}
+
+function settleWithin<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<{ done: true; value: T } | { done: false; value: null }> {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve({ done: false, value: null });
+    }, timeoutMs);
+    promise.then((value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ done: true, value });
+    }).catch(() => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ done: true, value: null as T });
+    });
+  });
+}
+
 export function CommercialProvider({ children, initialAccess = null, initialVerifiedAt = 0, initiallyOffline = false }: {
   children: ReactNode;
   initialAccess?: CommercialAccess | null;
@@ -50,10 +84,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   initiallyOffline?: boolean;
 }) {
   const [authSessionKey, setAuthSessionKey] = useState(() => firebaseUserSessionKey(getAuth(getApp()).currentUser));
-  const [identity, setIdentity] = useState<CommercialAccess['identity'] | null>(() => {
-    const user = getAuth(getApp()).currentUser;
-    return user ? (!user.isAnonymous && user.providerData.some((provider) => provider.providerId === 'google.com') ? 'google' : 'anonymous') : null;
-  });
+  const [identity, setIdentity] = useState<CommercialAccess['identity'] | null>(() => identityFromUser(getAuth(getApp()).currentUser));
   const observedSessionKey = useRef(authSessionKey);
   const observedUserId = useRef(getAuth(getApp()).currentUser?.uid);
   const [access, setAccess] = useState<CommercialAccess | null>(initialAccess);
@@ -71,6 +102,15 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
 
   const markStartupReady = useCallback(() => setStartupReady(true), []);
 
+  const syncAuthUiState = useCallback((user: User | null, overrideSessionKey?: string | null) => {
+    const nextSessionKey = overrideSessionKey !== undefined ? overrideSessionKey : firebaseUserSessionKey(user);
+    const nextIdentity = overrideSessionKey === null ? null : identityFromUser(user);
+    observedSessionKey.current = nextSessionKey;
+    observedUserId.current = user?.uid;
+    setIdentity(nextIdentity);
+    setAuthSessionKey(nextSessionKey);
+  }, []);
+
   const applyServerAccess = useCallback((next: CommercialAccess) => {
     // A request started just before midnight may arrive after its window ends.
     // Keep that exhausted snapshot out of the UI; the monitor asks the server
@@ -84,12 +124,12 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     markStartupReady();
   }, [markStartupReady]);
 
-  const clearAccessForIdentityChange = useCallback(() => {
+  const clearAccessForIdentityChange = useCallback((nextStatus: CommercialStatus = 'resolving') => {
     expiryMonitor.current?.reset();
     accessRef.current = null;
     lastSuccessfulRefreshAt.current = 0;
     setAccess(null);
-    setStatus('resolving');
+    setStatus(nextStatus);
   }, []);
 
   const refresh = useCallback((): Promise<CommercialAccess | null> => {
@@ -102,6 +142,9 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     const request = getCommercialAccess()
       .then((next) => {
         if (!isCurrentCommercialRefreshGeneration(generation, identityGeneration.current)) return null;
+        // Commit auth identity, session key and authoritative server access in
+        // one synchronous turn so React renders the transition atomically.
+        syncAuthUiState(getAuth(getApp()).currentUser);
         applyServerAccess(next);
         return next;
       })
@@ -121,7 +164,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       });
     refreshInFlight.current = { generation, promise: request };
     return request;
-  }, [applyServerAccess, markStartupReady]);
+  }, [applyServerAccess, markStartupReady, syncAuthUiState]);
 
   const refreshIfStale = useCallback((): Promise<CommercialAccess | null> => {
     if (initiallyOffline && !accessRef.current) return Promise.resolve(null);
@@ -159,29 +202,29 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   useEffect(() => onIdTokenChanged(getAuth(getApp()), (user) => {
     const nextSessionKey = firebaseUserSessionKey(user);
     if (nextSessionKey === observedSessionKey.current) return;
-    setIdentity(user ? (!user.isAnonymous && user.providerData.some((provider) => provider.providerId === 'google.com') ? 'google' : 'anonymous') : null);
     const previousUserId = observedUserId.current;
     observedSessionKey.current = nextSessionKey;
     observedUserId.current = user?.uid;
-    if (!identityTransitionActive.current) {
-      invalidateSessionOperations();
-      identityGeneration.current += 1;
-      refreshInFlight.current = null;
-      setRefreshing(false);
-    }
     clearFavoriteLessonsCache();
     if (previousUserId !== user?.uid) {
       discardPendingAnalysis();
       clearMathDrafts();
     }
-    if (!identityTransitionActive.current) {
-      void resetPurchasesForSignedOutUser().catch((error) => recordDiagnosticError('purchases_identity', error));
-      resetFirebaseInitialization();
-      clearAccessForIdentityChange();
+    if (identityTransitionActive.current) {
+      // An explicit connect/disconnect/delete transition is in flight and will
+      // commit identity, session key and server access atomically once ready.
+      return;
     }
-    setAuthSessionKey(nextSessionKey);
-    if (!identityTransitionActive.current) void refresh();
-  }), [clearAccessForIdentityChange, refresh]);
+    invalidateSessionOperations();
+    identityGeneration.current += 1;
+    refreshInFlight.current = null;
+    setRefreshing(false);
+    void resetPurchasesForSignedOutUser().catch((error) => recordDiagnosticError('purchases_identity', error));
+    resetFirebaseInitialization();
+    clearAccessForIdentityChange();
+    syncAuthUiState(user);
+    void refresh();
+  }), [clearAccessForIdentityChange, refresh, syncAuthUiState]);
 
   useEffect(() => {
     if (initiallyOffline) return;
@@ -226,16 +269,26 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     setRefreshing(false);
 
     const operation = connectWithGoogle()
-      .then((user) => {
+      .then(async (user) => {
         if (!user) return null;
-        if (firebaseUserSessionKey(user) !== previousSessionKey) clearAccessForIdentityChange();
-        return refresh();
+        const next = await refresh();
+        if (!next) {
+          const current = getAuth(getApp()).currentUser;
+          if (firebaseUserSessionKey(current) !== previousSessionKey) {
+            syncAuthUiState(current);
+            clearAccessForIdentityChange('unavailable');
+          }
+        }
+        return next;
       })
       .catch(async (error) => {
-        const currentSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
-        if (currentSessionKey !== previousSessionKey) {
-          clearAccessForIdentityChange();
-          await refresh();
+        const current = getAuth(getApp()).currentUser;
+        if (firebaseUserSessionKey(current) !== previousSessionKey) {
+          const next = await refresh();
+          if (!next) {
+            syncAuthUiState(getAuth(getApp()).currentUser);
+            clearAccessForIdentityChange('unavailable');
+          }
         }
         throw error;
       })
@@ -247,7 +300,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       });
     identityTransitionInFlight.current = operation;
     return operation;
-  }, [clearAccessForIdentityChange, refresh]);
+  }, [clearAccessForIdentityChange, refresh, syncAuthUiState]);
 
   const disconnectGoogle = useCallback((): Promise<CommercialAccess | null> => {
     if (identityTransitionInFlight.current) return identityTransitionInFlight.current;
@@ -262,16 +315,30 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     setRefreshing(false);
 
     const operation = disconnectGoogleAccount()
-      .then((user) => {
-        if (!user || firebaseUserSessionKey(user) !== previousSessionKey) clearAccessForIdentityChange();
-        void refresh();
+      .then(async (user) => {
+        // Local sign-out already succeeded. Wait briefly for the replacement
+        // anonymous session and fresh guest quota so the UI swaps atomically in
+        // one frame without trapping the user if the device is offline.
+        const guestRefresh = refresh();
+        const settled = await settleWithin(guestRefresh, DISCONNECT_SETTLE_WAIT_MS);
+        if (settled.done && settled.value) {
+          return settled.value;
+        }
+        const current = getAuth(getApp()).currentUser ?? user;
+        if (!current || firebaseUserSessionKey(current) !== previousSessionKey) {
+          syncAuthUiState(current);
+          clearAccessForIdentityChange(settled.done ? 'unavailable' : 'resolving');
+        }
         return null;
       })
       .catch(async (error) => {
-        const currentSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
-        if (currentSessionKey !== previousSessionKey) {
-          clearAccessForIdentityChange();
-          await refresh();
+        const current = getAuth(getApp()).currentUser;
+        if (firebaseUserSessionKey(current) !== previousSessionKey) {
+          const next = await refresh();
+          if (!next) {
+            syncAuthUiState(getAuth(getApp()).currentUser);
+            clearAccessForIdentityChange('unavailable');
+          }
         }
         throw error;
       })
@@ -283,7 +350,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       });
     identityTransitionInFlight.current = operation;
     return operation;
-  }, [clearAccessForIdentityChange, refresh]);
+  }, [clearAccessForIdentityChange, refresh, syncAuthUiState]);
 
   const deleteAccount = useCallback((): Promise<DataDeletionResult> => {
     if (accountDeletionInFlight.current) return accountDeletionInFlight.current;
@@ -302,16 +369,22 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         // The remote deletion is already definitive. Clear every trace of the
         // deleted identity immediately; a failed guest refresh is only an
         // offline/retry state and cannot turn deletion into a reported failure.
+        syncAuthUiState(
+          result.localSignOutPending ? null : getAuth(getApp()).currentUser,
+          result.localSignOutPending ? null : undefined,
+        );
         clearAccessForIdentityChange();
-        if (result.localSignOutPending) setAuthSessionKey(null);
         void refresh();
         return result;
       })
       .catch(async (error) => {
-        const currentSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
-        if (currentSessionKey !== previousSessionKey) {
-          clearAccessForIdentityChange();
-          await refresh();
+        const current = getAuth(getApp()).currentUser;
+        if (firebaseUserSessionKey(current) !== previousSessionKey) {
+          const next = await refresh();
+          if (!next) {
+            syncAuthUiState(getAuth(getApp()).currentUser);
+            clearAccessForIdentityChange('unavailable');
+          }
         }
         throw error;
       })
@@ -323,7 +396,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       });
     accountDeletionInFlight.current = operation;
     return operation;
-  }, [clearAccessForIdentityChange, refresh]);
+  }, [clearAccessForIdentityChange, refresh, syncAuthUiState]);
 
   const value = useMemo(
     () => ({

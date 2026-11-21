@@ -34,11 +34,13 @@ function friendlyPurchaseError(error: unknown): string {
 }
 
 export function PaywallScreen({ navigation, route }: Props) {
-  const { access: contextAccess, identity: sessionIdentity, loading: accessLoading, refresh, connectGoogle, applyServerAccess } = useCommercial();
+  const { authSessionKey, access: contextAccess, identity: sessionIdentity, loading: accessLoading, refresh, connectGoogle, applyServerAccess } = useCommercial();
+  const [initialSessionKey] = useState(() => authSessionKey);
   const [allowRouteAccessFallback, setAllowRouteAccessFallback] = useState(true);
   // Route data makes the first paint immediate, but it belongs to the identity
   // that opened this screen. Never reuse it after a Google identity operation.
-  const candidateAccess = contextAccess ?? (allowRouteAccessFallback ? route.params.access : null) ?? null;
+  const allowRouteAccess = allowRouteAccessFallback && authSessionKey === initialSessionKey;
+  const candidateAccess = contextAccess ?? (allowRouteAccess ? route.params.access : null) ?? null;
   // The provider triggers expiry renders. Read the clock here as a conservative
   // display guard: deferring this check to an effect would flash yesterday's quota.
   // eslint-disable-next-line react-hooks/purity

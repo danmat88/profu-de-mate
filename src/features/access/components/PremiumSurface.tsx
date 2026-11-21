@@ -204,13 +204,13 @@ export function PremiumSurface(props: Props) {
           </Enter>
 
           {success ? (
-            <Enter delay={110} distance={14} style={styles.activeSection}>
+            <Enter delay={0} distance={10} style={styles.activeSection}>
               <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
               <Text style={styles.sectionTitle}>Premium este activ.</Text>
               <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la problemă când ești pregătit.</Text>
             </Enter>
           ) : premium ? (
-            <Enter delay={110} distance={14} style={styles.activeSection}>
+            <Enter delay={0} distance={10} style={styles.activeSection}>
               <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
               <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
               <Text style={styles.sectionTitle}>probleme disponibile</Text>
@@ -219,7 +219,7 @@ export function PremiumSurface(props: Props) {
           ) : null}
 
           {props.canContinue && !success ? (
-            <Enter delay={100} distance={12} style={styles.continueShadow}>
+            <Enter delay={0} distance={10} style={styles.continueShadow}>
               <View style={styles.continueRow}>
                 <View style={styles.continueCopy}>
                   <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { serviceLoader } from '../helpers/loadService.mts';
 import type { CommercialAccess } from '../../src/shared/types/index.ts';
 import { isCommercialAccessExpired } from '../../src/features/access/services/commercialRefreshPolicy.ts';
-import { navigationAfterIdentityChange } from '../../src/app/navigation/sessionNavigation.ts';
+import { navigationAfterIdentityChange, navigationStateAfterIdentityChange } from '../../src/app/navigation/sessionNavigation.ts';
 
 const midnight = Date.parse('2026-09-20T21:00:00.000Z');
 const exhausted: CommercialAccess = {
@@ -121,6 +121,29 @@ test('identity changes retain a usable Premium back stack and discard old accoun
   for (const route of ['Lesson', 'Notebook', 'Processing', 'MathProcessing', 'MathInput'] as const) {
     assert.equal(navigationAfterIdentityChange(route), undefined, 'account-owned routes must not survive an identity reset');
   }
+
+  for (const safeStack of [
+    ['Home'] as const,
+    ['Home', 'Settings'] as const,
+    ['Home', 'Paywall'] as const,
+    ['Home', 'Settings', 'Paywall'] as const,
+    ['Home', 'Settings', 'Legal'] as const,
+  ]) {
+    assert.equal(
+      navigationStateAfterIdentityChange(safeStack, safeStack[safeStack.length - 1]),
+      null,
+      'session-safe stacks stay mounted without flicker or remounting the navigator',
+    );
+  }
+
+  assert.deepEqual(
+    navigationStateAfterIdentityChange(['Home', 'MathInput', 'Paywall'], 'Paywall'),
+    { index: 1, routes: [{ name: 'Home' }, { name: 'Paywall', params: { source: 'settings' } }] },
+  );
+  assert.deepEqual(
+    navigationStateAfterIdentityChange(['Home', 'Notebook'], 'Notebook'),
+    { index: 0, routes: [{ name: 'Home' }] },
+  );
 });
 
 test('an open quota screen offers Continue after the server restores free or Premium daily allowance', () => {

@@ -141,6 +141,7 @@ export function SettingsScreen({ navigation }: Props) {
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteModalHadGoogle, setDeleteModalHadGoogle] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   const [deleteComplete, setDeleteComplete] = useState(false);
@@ -155,12 +156,13 @@ export function SettingsScreen({ navigation }: Props) {
   const deletionActionText = hasGoogleAccount
     ? 'Șterge definitiv contul Profu’ de mate, Caietul și raportările. Abonamentul Google Play se oprește separat.'
     : 'Șterge profilul temporar, Caietul și raportările. Aplicația va porni apoi cu un spațiu temporar nou.';
-  const deletionConfirmTitle = hasGoogleAccount ? 'Ștergi contul și datele?' : 'Ștergi datele temporare?';
-  const deletionConfirmText = hasGoogleAccount
+  const deletionConfirmTitle = deleteModalHadGoogle ? 'Ștergi contul și datele?' : 'Ștergi datele temporare?';
+  const deletionConfirmText = deleteModalHadGoogle
     ? 'Contul Profu’ de mate, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește problemele disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
     : 'Profilul temporar, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
   const diagnosticsLocked = useRef(false);
   const deletionLocked = useRef(false);
+  const logoutLocked = useRef(false);
   const accountLabel = access?.premium.active ? 'PROFU’ PREMIUM' : hasGoogleAccount ? 'CONT GOOGLE CONECTAT' : 'SPAȚIUL TĂU';
   const accountTitle = !access
     ? hasGoogleAccount ? 'Caietul tău, în contul tău' : 'Setările tale, într-un singur loc'
@@ -208,8 +210,10 @@ export function SettingsScreen({ navigation }: Props) {
     deletionLocked.current = true;
     setDeleting(true);
     setDeleteError(false);
+    let succeeded = false;
     try {
       const result = await deleteAccount();
+      succeeded = true;
       setExternalDeletionPending(result.externalBillingProfilePending);
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
       setConfirmDelete(false);
@@ -221,16 +225,19 @@ export function SettingsScreen({ navigation }: Props) {
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       deletionLocked.current = false;
-      setDeleting(false);
+      if (!succeeded) setDeleting(false);
     }
   };
 
   const disconnectAccount = async () => {
-    if (disconnectingGoogle) return;
+    if (logoutLocked.current) return;
+    logoutLocked.current = true;
     setDisconnectingGoogle(true);
     setAccountError(null);
+    let succeeded = false;
     try {
       await disconnectGoogle();
+      succeeded = true;
       setConfirmLogout(false);
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
@@ -239,7 +246,8 @@ export function SettingsScreen({ navigation }: Props) {
       setConfirmLogout(false);
       Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setDisconnectingGoogle(false);
+      logoutLocked.current = false;
+      if (!succeeded) setDisconnectingGoogle(false);
     }
   };
 
@@ -269,8 +277,8 @@ export function SettingsScreen({ navigation }: Props) {
           </ComicCard>
         </Enter>
 
-        {!accessLoading && !access ? (
-          <Enter delay={55} distance={12}>
+        <Enter delay={65} distance={14} style={styles.accountGroup}>
+          {!accessLoading && !access ? (
             <PressableScale
               accessibilityRole="button"
               depth={shadows.sm}
@@ -283,26 +291,22 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="spark" size={17} color={colors.ink} />
               <Text style={styles.accountRetryText}>Verifică din nou</Text>
             </PressableScale>
-          </Enter>
-        ) : null}
+          ) : null}
 
-        {!hasGoogleAccount && identity === 'anonymous' ? (
-          <Enter delay={60} distance={12}>
+          {!hasGoogleAccount && identity === 'anonymous' ? (
             <GoogleAccountButton
               busy={connectingGoogle}
               note="Păstrezi Caietul în cloud și poți activa Premium"
               onPress={() => void connectAccount()}
               style={styles.settingsGoogleButton}
             />
-          </Enter>
-        ) : null}
+          ) : null}
 
-        <Enter delay={85} distance={14}>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             {hasGoogleAccount ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => { Haptics.selection(); setConfirmLogout(true); }}
+                onPress={() => { Haptics.selection(); setDisconnectingGoogle(false); setConfirmLogout(true); }}
                 style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
               >
                 <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="profile" size={34} /></View>
@@ -378,7 +382,7 @@ export function SettingsScreen({ navigation }: Props) {
 
             <Pressable
               accessibilityRole="button"
-              onPress={() => { Haptics.selection(); setDeleteError(false); setConfirmDelete(true); }}
+              onPress={() => { Haptics.selection(); setDeleting(false); setDeleteError(false); setDeleteModalHadGoogle(hasGoogleAccount); setConfirmDelete(true); }}
               style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
             >
               <View style={[styles.rowIcon, styles.deleteIcon]}><MiniGlyph name="wrong" size={20} color={colors.paper} /></View>
@@ -441,7 +445,7 @@ export function SettingsScreen({ navigation }: Props) {
           >
             <View pointerEvents="none" style={styles.sheetBtnShine} />
             {deleting ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
-            <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : hasGoogleAccount ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
+            <Text style={styles.confirmDeleteText}>{deleting ? 'Șterg datele…' : deleteModalHadGoogle ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
           </PressableScale>
           <Pressable accessibilityRole="button" disabled={deleting} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
             <Text style={styles.cancelText}>Păstrează datele</Text>
@@ -527,8 +531,9 @@ export function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { gap: 12, paddingTop: 4 },
+  accountGroup: { gap: 12 },
   sectionBlock: { gap: 8 },
-  identity: { minHeight: 118, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  identity: { minHeight: 156, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   identityMascotWrap: {
     width: 68,
     height: 68,

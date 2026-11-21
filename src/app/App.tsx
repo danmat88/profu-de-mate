@@ -1,9 +1,9 @@
-import { DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
@@ -29,7 +29,7 @@ import { getPreparedPendingAnalysis } from '../features/analysis/services/pendin
 import { preloadCriticalAppAssets } from './services/startupAssets';
 import { StartupError, type StartupSnapshot } from './services/startupBootstrap';
 import { currentStartupSession, prepareApplication } from './services/applicationStartup';
-import { navigationAfterIdentityChange } from './navigation/sessionNavigation';
+import { navigationStateAfterIdentityChange } from './navigation/sessionNavigation';
 import { ReadinessScreen } from '../shared/ui/ReadinessScreen';
 import { colors } from '../shared/theme';
 import type { RootStackParamList } from '../shared/types';
@@ -45,14 +45,34 @@ type AppStartup = (StartupSnapshot & { offline: false }) | {
 
 function AppExperience({ startup, interactive, revealReady, onReady }: { startup: AppStartup; interactive: boolean; revealReady: boolean; onReady: () => void }) {
   const { pendingAnalysis } = startup;
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home');
   const reducedMotion = useReducedMotion();
   const { authSessionKey } = useCommercial();
+  const previousSessionKey = useRef(authSessionKey);
   const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
   const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing' || activeRoute === 'MathProcessing';
-  const offlineEntry = startup.offline && authSessionKey === startup.sessionKey
-    ? { index: 1, routes: [{ name: 'Home' }, { name: 'Notebook' }] }
-    : undefined;
+  const initialState = useMemo(
+    () => (startup.offline ? { index: 1, routes: [{ name: 'Home' as const }, { name: 'Notebook' as const }] } : undefined),
+    [startup.offline],
+  );
+
+  useEffect(() => {
+    if (previousSessionKey.current === authSessionKey) return;
+    previousSessionKey.current = authSessionKey;
+    if (!navigationRef.isReady()) return;
+    const rootState = navigationRef.getRootState();
+    const routes = rootState?.routes ?? [];
+    const currentRoute = routes[rootState?.index ?? routes.length - 1]?.name as keyof RootStackParamList | undefined;
+    if (!currentRoute) return;
+    const nextState = navigationStateAfterIdentityChange(
+      routes.map((route) => route.name as keyof RootStackParamList),
+      currentRoute,
+    );
+    if (nextState) {
+      navigationRef.resetRoot(nextState);
+    }
+  }, [authSessionKey, navigationRef]);
 
   return (
     <View style={styles.app}>
@@ -64,8 +84,8 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
       >
         <HomeMotionReadyContext.Provider value={revealReady}>
         <NavigationContainer
-            key={authSessionKey ?? 'signed-out'}
-            initialState={offlineEntry ?? (activePending ? undefined : navigationAfterIdentityChange(activeRoute))}
+            ref={navigationRef}
+            initialState={initialState}
             theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
             onReady={() => requestAnimationFrame(() => requestAnimationFrame(onReady))}
             onStateChange={(state) => {
