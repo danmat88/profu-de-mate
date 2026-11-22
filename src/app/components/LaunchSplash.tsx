@@ -36,15 +36,20 @@ type StickerSpec = {
   bottom?: number;
   left?: number;
   right?: number;
+  burstX: number;
+  burstY: number;
   tilt: number;
   delay: number;
+  floatDuration: number;
 };
 
+const SUNBURST_ANGLES = [0, 30, 60, 90, 120, 150] as const;
+
 const floatingStickers: readonly StickerSpec[] = [
-  { symbol: '+', bg: colors.lime, fg: colors.ink, top: -12, left: -26, tilt: -14, delay: 90 },
-  { symbol: '×', bg: colors.peach, fg: colors.ink, top: 8, right: -28, tilt: 13, delay: 145 },
-  { symbol: '√', bg: colors.cyanSoft, fg: colors.ink, bottom: 16, left: -30, tilt: 10, delay: 200 },
-  { symbol: 'π', bg: colors.gold, fg: colors.ink, bottom: -6, right: -22, tilt: -11, delay: 255 },
+  { symbol: '+', bg: colors.lime, fg: colors.ink, top: -6, left: -18, burstX: 36, burstY: 28, tilt: -14, delay: 175, floatDuration: 1400 },
+  { symbol: '×', bg: colors.peach, fg: colors.ink, top: 10, right: -22, burstX: -36, burstY: 22, tilt: 13, delay: 220, floatDuration: 1580 },
+  { symbol: '√', bg: colors.cyanSoft, fg: colors.ink, bottom: 18, left: -24, burstX: 38, burstY: -22, tilt: 10, delay: 265, floatDuration: 1680 },
+  { symbol: 'π', bg: colors.gold, fg: colors.ink, bottom: -4, right: -16, burstX: -34, burstY: -28, tilt: -11, delay: 310, floatDuration: 1480 },
 ];
 
 function FloatingSticker({
@@ -68,30 +73,34 @@ function FloatingSticker({
     }
     pop.set(withDelay(spec.delay, withSpring(1, springs.pop)));
     drift.set(withDelay(
-      spec.delay + 180,
+      spec.delay + 240,
       withRepeat(
         withSequence(
-          withTiming(-5, { duration: 1350, easing: Easing.inOut(Easing.sin) }),
-          withTiming(3, { duration: 1350, easing: Easing.inOut(Easing.sin) }),
+          withTiming(-5.5, { duration: spec.floatDuration, easing: Easing.inOut(Easing.sin) }),
+          withTiming(3.5, { duration: spec.floatDuration, easing: Easing.inOut(Easing.sin) }),
         ),
         -1,
         true,
       ),
     ));
-    return () => cancelAnimation(drift);
-  }, [drift, entered, pop, reducedMotion, spec.delay]);
+    return () => {
+      cancelAnimation(pop);
+      cancelAnimation(drift);
+    };
+  }, [drift, entered, pop, reducedMotion, spec.delay, spec.floatDuration]);
 
   const animated = useAnimatedStyle(() => {
     const p = pop.get();
     return {
-      opacity: p <= 0.01 ? 0 : Math.min(1, p * 1.4),
+      opacity: p <= 0.01 ? 0 : Math.min(1, p * 1.45),
       transform: [
-        { translateY: (1 - p) * 18 + drift.get() },
-        { scale: 0.4 + p * 0.6 },
-        { rotate: `${spec.tilt + (1 - p) * 18}deg` },
+        { translateX: (1 - p) * spec.burstX },
+        { translateY: (1 - p) * spec.burstY + drift.get() },
+        { scale: 0.35 + p * 0.65 },
+        { rotate: `${spec.tilt + (1 - p) * 24}deg` },
       ],
     };
-  }, [spec.tilt]);
+  }, [spec.burstX, spec.burstY, spec.tilt]);
 
   return (
     <Animated.View
@@ -104,6 +113,7 @@ function FloatingSticker({
     >
       <View style={styles.stickerShadow} />
       <View style={[styles.stickerFace, { backgroundColor: spec.bg }]}>
+        <View pointerEvents="none" style={styles.stickerShine} />
         <Text maxFontSizeMultiplier={1.2} style={[styles.stickerText, { color: spec.fg }]}>
           {spec.symbol}
         </Text>
@@ -113,9 +123,10 @@ function FloatingSticker({
 }
 
 /**
- * Branded comic launch splash sharing Home's warm cream canvas and backdrop so
- * startup elements stagger in, display honest loading progress, and hand off
- * seamlessly into Home's comic cascade.
+ * Branded comic studio launch splash sharing the exact warm cream canvas of
+ * Android native splash and Home. Stages its entrance sequentially (owl burst,
+ * radial math stickers, wordmark with marker underline, and comic notebook
+ * milestone dock), then hands off cleanly to Home once startup is ready.
  */
 export function LaunchSplash({
   ready,
@@ -136,8 +147,16 @@ export function LaunchSplash({
 
   const heroEnter = useSharedValue(reducedMotion ? 1 : 0);
   const heroFloat = useSharedValue(0);
+  const heroTilt = useSharedValue(0);
+  const readyHop = useSharedValue(0);
+  const shockwave = useSharedValue(0);
+  const raysEnter = useSharedValue(reducedMotion ? 1 : 0);
+  const raysSpin = useSharedValue(0);
+  const orbitSpin = useSharedValue(0);
+  const crestSheen = useSharedValue(0);
   const chipEnter = useSharedValue(reducedMotion ? 1 : 0);
   const copyEnter = useSharedValue(reducedMotion ? 1 : 0);
+  const underlineReveal = useSharedValue(reducedMotion ? 1 : 0);
   const progressEnter = useSharedValue(reducedMotion ? 1 : 0);
   const progressFill = useSharedValue(reducedMotion ? 1 : 0.18);
   const shimmer = useSharedValue(0);
@@ -149,7 +168,7 @@ export function LaunchSplash({
   const revealed = useRef(false);
   const finished = useRef(false);
   const handleSceneLayout = useCallback(() => setSceneReady(true), []);
-  const visualScale = Math.max(0.84, Math.min(1.08, width / 390, height / 760));
+  const visualScale = Math.max(0.84, Math.min(1.06, width / 390, height / 760));
 
   revealStartRef.current = onRevealStart;
   finishRef.current = onFinish;
@@ -184,7 +203,7 @@ export function LaunchSplash({
         ? 'Verific contul și caietul…'
         : 'Pregătesc culorile și formulele…';
 
-  // Hide native splash once the branded scene & owl artwork are painted, then run staggered comic entrance.
+  // Hide native splash once the branded scene and owl artwork are painted, then run sequential entrance.
   useEffect(() => {
     if (!sceneReady || !imageReady || !visualsReady) return undefined;
     let active = true;
@@ -197,62 +216,116 @@ export function LaunchSplash({
       setIntroStarted(true);
       if (reducedMotion) {
         heroEnter.set(1);
+        raysEnter.set(1);
         chipEnter.set(1);
         copyEnter.set(1);
+        underlineReveal.set(1);
         progressEnter.set(1);
         setIntroComplete(true);
         return;
       }
 
+      // Beat 1: Hero owl medallion springs onto stage with comic shockwave and warm sunburst.
+      raysEnter.set(withTiming(1, { duration: 340, easing: Easing.out(Easing.cubic) }));
       heroEnter.set(withSpring(1, springs.pop));
-      chipEnter.set(withDelay(95, withSpring(1, springs.bouncy)));
-      copyEnter.set(withDelay(160, withSpring(1, springs.bouncy)));
-      progressEnter.set(withDelay(230, withSpring(1, springs.snappy)));
+      shockwave.set(0);
+      shockwave.set(withDelay(70, withTiming(1, { duration: 480, easing: Easing.out(Easing.cubic) })));
 
+      // Beat 2: Brand chip & wordmark follow smoothly after the owl settles.
+      chipEnter.set(withDelay(240, withSpring(1, springs.bouncy)));
+      copyEnter.set(withDelay(315, withSpring(1, springs.snappy)));
+      underlineReveal.set(withDelay(455, withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) })));
+
+      // Beat 3: Notebook progress dock arrives last so every element has its own turn.
+      progressEnter.set(withDelay(390, withSpring(1, springs.snappy)));
+
+      // Ambient studio loops start softly after the entrance beats settle.
+      raysSpin.set(withRepeat(
+        withTiming(360, { duration: 32_000, easing: Easing.linear }),
+        -1,
+        false,
+      ));
+      orbitSpin.set(withRepeat(
+        withTiming(-360, { duration: 22_000, easing: Easing.linear }),
+        -1,
+        false,
+      ));
       heroFloat.set(withDelay(
-        340,
+        460,
         withRepeat(
           withSequence(
-            withTiming(-5, { duration: 1200, easing: Easing.inOut(Easing.sin) }),
-            withTiming(3, { duration: 1200, easing: Easing.inOut(Easing.sin) }),
+            withTiming(-5.5, { duration: 1350, easing: Easing.inOut(Easing.sin) }),
+            withTiming(3, { duration: 1350, easing: Easing.inOut(Easing.sin) }),
           ),
           -1,
           true,
         ),
       ));
-
+      heroTilt.set(withDelay(
+        520,
+        withRepeat(
+          withSequence(
+            withTiming(-2.2, { duration: 1850, easing: Easing.inOut(Easing.sin) }),
+            withTiming(2.4, { duration: 1850, easing: Easing.inOut(Easing.sin) }),
+          ),
+          -1,
+          true,
+        ),
+      ));
+      crestSheen.set(withDelay(
+        540,
+        withRepeat(
+          withSequence(
+            withTiming(1, { duration: 760, easing: Easing.inOut(Easing.quad) }),
+            withDelay(2200, withTiming(0, { duration: 0 })),
+          ),
+          -1,
+          false,
+        ),
+      ));
       shimmer.set(withRepeat(
-        withTiming(1, { duration: 1250, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.quad) }),
         -1,
         false,
       ));
 
       introTimer = setTimeout(() => {
         if (active) setIntroComplete(true);
-      }, 540);
+      }, 680);
     });
     const introFallback = setTimeout(() => {
       if (active) setIntroComplete(true);
-    }, 900);
+    }, 1_050);
 
     return () => {
       active = false;
       cancelAnimationFrame(frame);
       if (introTimer) clearTimeout(introTimer);
       clearTimeout(introFallback);
+      cancelAnimation(raysSpin);
+      cancelAnimation(orbitSpin);
       cancelAnimation(heroFloat);
+      cancelAnimation(heroTilt);
+      cancelAnimation(crestSheen);
       cancelAnimation(shimmer);
     };
   }, [
     chipEnter,
     copyEnter,
+    crestSheen,
     heroEnter,
     heroFloat,
+    heroTilt,
     imageReady,
+    orbitSpin,
     progressEnter,
+    raysEnter,
+    raysSpin,
     reducedMotion,
     sceneReady,
     shimmer,
+    shockwave,
+    underlineReveal,
     visualsReady,
   ]);
 
@@ -265,7 +338,7 @@ export function LaunchSplash({
       return;
     }
     progressFill.set(withTiming(targetProgress, {
-      duration: ready ? 200 : 380,
+      duration: ready ? 220 : 380,
       easing: Easing.out(Easing.cubic),
     }));
   }, [progressFill, ready, reducedMotion, targetProgress]);
@@ -285,7 +358,7 @@ export function LaunchSplash({
     return () => clearInterval(interval);
   }, [introStarted, progressFill, ready, reducedMotion, startupReady]);
 
-  // Coordinated baton-pass exit into Home once intro + startup + navigation are all ready.
+  // Sequential baton-pass exit into Home once intro, startup, and navigation are all ready.
   useEffect(() => {
     if (!ready || !introComplete || !nativeSplashHidden) return undefined;
     setDisplayPercent(100);
@@ -293,21 +366,52 @@ export function LaunchSplash({
       finishOnce();
       return undefined;
     }
+    let revealTimer: ReturnType<typeof setTimeout> | undefined;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // Brief celebration hop on the owl right as the bar hits 100%.
+    readyHop.set(withSequence(
+      withTiming(-9, { duration: 100, easing: Easing.out(Easing.quad) }),
+      withSpring(0, springs.snappy),
+    ));
+
     const beatTimer = setTimeout(() => {
-      notifyRevealOnce();
       cancelAnimation(heroFloat);
+      cancelAnimation(heroTilt);
+      cancelAnimation(raysSpin);
+      cancelAnimation(orbitSpin);
+      cancelAnimation(crestSheen);
       cancelAnimation(shimmer);
+
+      // Splash foreground glides cleanly out FIRST, then canvas fades and hands baton to Home.
       exitProgress.set(withTiming(1, { duration: 240, easing: Easing.in(Easing.cubic) }));
-      backdropOpacity.set(withDelay(70, withTiming(0, { duration: 210, easing: Easing.out(Easing.quad) })));
-      exitTimer = setTimeout(finishOnce, 290);
-    }, 150);
+      backdropOpacity.set(withDelay(110, withTiming(0, { duration: 210, easing: Easing.out(Easing.quad) })));
+      revealTimer = setTimeout(notifyRevealOnce, 145);
+      exitTimer = setTimeout(finishOnce, 330);
+    }, 200);
 
     return () => {
       clearTimeout(beatTimer);
+      if (revealTimer) clearTimeout(revealTimer);
       if (exitTimer) clearTimeout(exitTimer);
     };
-  }, [backdropOpacity, exitProgress, finishOnce, heroFloat, introComplete, nativeSplashHidden, notifyRevealOnce, ready, reducedMotion, shimmer]);
+  }, [
+    backdropOpacity,
+    crestSheen,
+    exitProgress,
+    finishOnce,
+    heroFloat,
+    heroTilt,
+    introComplete,
+    nativeSplashHidden,
+    notifyRevealOnce,
+    orbitSpin,
+    raysSpin,
+    ready,
+    readyHop,
+    reducedMotion,
+    shimmer,
+  ]);
 
   // Bounded hard deadline guarantees the splash can never stall launch.
   useEffect(() => {
@@ -320,19 +424,63 @@ export function LaunchSplash({
     opacity: backdropOpacity.get(),
   }));
 
-  const heroAnimated = useAnimatedStyle(() => {
-    const enter = heroEnter.get();
+  const raysAnimated = useAnimatedStyle(() => {
+    const enter = raysEnter.get();
     const exit = exitProgress.get();
-    const opacity = enter <= 0.01 ? 0 : Math.min(1, enter * 1.4) * (1 - exit);
     return {
-      opacity,
+      opacity: enter * 0.9 * (1 - exit),
       transform: [
-        { translateY: (1 - enter) * 26 + heroFloat.get() - exit * 38 },
-        { scale: visualScale * (0.72 + enter * 0.28) * (1 - exit * 0.1) },
-        { rotate: `${(1 - enter) * -8 - exit * 4}deg` },
+        { scale: visualScale * (0.76 + enter * 0.24) * (1 + exit * 0.14) },
+        { rotate: `${raysSpin.get()}deg` },
       ],
     };
   }, [visualScale]);
+
+  const orbitAnimated = useAnimatedStyle(() => {
+    const enter = raysEnter.get();
+    const exit = exitProgress.get();
+    return {
+      opacity: enter * (1 - exit),
+      transform: [
+        { scale: visualScale * (0.82 + enter * 0.18) },
+        { rotate: `${orbitSpin.get()}deg` },
+      ],
+    };
+  }, [visualScale]);
+
+  const shockwaveAnimated = useAnimatedStyle(() => {
+    const p = shockwave.get();
+    const opacity = p <= 0.01 || p >= 0.99 ? 0 : (1 - p) * 0.55;
+    return {
+      opacity,
+      transform: [{ scale: visualScale * (0.72 + p * 0.68) }],
+    };
+  }, [visualScale]);
+
+  const heroAnimated = useAnimatedStyle(() => {
+    const enter = heroEnter.get();
+    const exit = exitProgress.get();
+    const opacity = enter <= 0.01 ? 0 : Math.min(1, enter * 1.45) * (1 - exit);
+    return {
+      opacity,
+      transform: [
+        { translateY: (1 - enter) * 28 + heroFloat.get() + readyHop.get() - exit * 42 },
+        { scale: visualScale * (0.64 + enter * 0.36) * (1 - exit * 0.1) },
+        { rotate: `${(1 - enter) * -10 + heroTilt.get() - exit * 4}deg` },
+      ],
+    };
+  }, [visualScale]);
+
+  const crestSheenAnimated = useAnimatedStyle(() => {
+    const p = crestSheen.get();
+    return {
+      opacity: p > 0.02 && p < 0.98 ? 0.42 : 0,
+      transform: [
+        { translateX: -120 + p * 310 },
+        { skewX: '-22deg' },
+      ],
+    };
+  });
 
   const chipAnimated = useAnimatedStyle(() => {
     const enter = chipEnter.get();
@@ -340,8 +488,8 @@ export function LaunchSplash({
     return {
       opacity: (enter <= 0.01 ? 0 : Math.min(1, enter * 1.4)) * (1 - exit),
       transform: [
-        { translateY: (1 - enter) * 16 - exit * 26 },
-        { scale: (0.8 + enter * 0.2) * (1 - exit * 0.06) },
+        { translateY: (1 - enter) * 18 - exit * 26 },
+        { scale: (0.82 + enter * 0.18) * (1 - exit * 0.06) },
       ],
     };
   });
@@ -353,10 +501,15 @@ export function LaunchSplash({
       opacity: (enter <= 0.01 ? 0 : Math.min(1, enter * 1.4)) * (1 - exit),
       transform: [
         { translateY: (1 - enter) * 20 - exit * 20 },
-        { scale: (0.9 + enter * 0.1) * (1 - exit * 0.05) },
+        { scale: (0.92 + enter * 0.08) * (1 - exit * 0.05) },
       ],
     };
   });
+
+  const underlineAnimated = useAnimatedStyle(() => ({
+    opacity: underlineReveal.get(),
+    transform: [{ scaleX: Math.max(0.02, underlineReveal.get()) }],
+  }));
 
   const progressCardAnimated = useAnimatedStyle(() => {
     const enter = progressEnter.get();
@@ -364,8 +517,8 @@ export function LaunchSplash({
     return {
       opacity: (enter <= 0.01 ? 0 : Math.min(1, enter * 1.4)) * (1 - exit),
       transform: [
-        { translateY: (1 - enter) * 24 + exit * 26 },
-        { scale: (0.92 + enter * 0.08) * (1 - exit * 0.04) },
+        { translateY: (1 - enter) * 28 + exit * 32 },
+        { scale: (0.93 + enter * 0.07) * (1 - exit * 0.04) },
       ],
     };
   });
@@ -373,7 +526,7 @@ export function LaunchSplash({
   const fillWidthStyle = useAnimatedStyle(() => {
     const innerWidth = Math.max(0, barWidth - borders.regular * 2);
     return {
-      width: Math.max(16, innerWidth * progressFill.get()),
+      width: Math.max(18, innerWidth * progressFill.get()),
     };
   }, [barWidth]);
 
@@ -381,11 +534,17 @@ export function LaunchSplash({
     const innerWidth = Math.max(0, barWidth - borders.regular * 2);
     return {
       transform: [
-        { translateX: -48 + shimmer.get() * (innerWidth + 96) },
+        { translateX: -52 + shimmer.get() * (innerWidth + 104) },
         { skewX: '-20deg' },
       ],
     };
   }, [barWidth]);
+
+  const milestones = [
+    { key: 'visuals', label: 'Resurse', done: visualsReady },
+    { key: 'account', label: 'Cont', done: startupReady },
+    { key: 'board', label: 'Tablă', done: ready },
+  ] as const;
 
   return (
     <Animated.View
@@ -401,82 +560,138 @@ export function LaunchSplash({
           has resolved so Android never caches a temporary fallback typeface. */}
       {visualsReady ? (
         <>
-        <ComicBackdrop />
-        <View style={styles.stage}>
-          <View style={styles.centerCluster}>
-            <Animated.View style={[styles.heroWrap, heroAnimated]}>
-              {floatingStickers.map((spec) => (
-                <FloatingSticker
-                  key={spec.symbol}
-                  spec={spec}
-                  entered={introStarted}
-                  reducedMotion={reducedMotion}
-                />
-              ))}
-              <View style={styles.medallionShadow} />
-              <View style={styles.medallionOuter}>
-                <View pointerEvents="none" style={styles.medallionShine} />
-                <View style={styles.medallionInner}>
-                  <Image
-                    accessible={false}
-                    source={bundledImageSource(require('../../../assets/brand/splash_mark_v2.png'))}
-                    resizeMode="contain"
-                    fadeDuration={0}
-                    onLoad={() => setImageReady(true)}
-                    style={styles.heroImage}
-                  />
+          <ComicBackdrop />
+          <View style={styles.stage}>
+            <View style={styles.centerCluster}>
+              <View style={styles.emblemStage}>
+                {/* Subtle rotating comic sunburst rays behind the emblem */}
+                <Animated.View pointerEvents="none" style={[styles.sunburstWrap, raysAnimated]}>
+                  {SUNBURST_ANGLES.map((angle) => (
+                    <View
+                      key={angle}
+                      style={[styles.sunburstRay, { transform: [{ rotate: `${angle}deg` }] }]}
+                    />
+                  ))}
+                  <View style={styles.sunburstCore} />
+                </Animated.View>
+
+                {/* Counter-rotating dashed orbital ring with twin glowing sparks */}
+                <Animated.View pointerEvents="none" style={[styles.orbitRing, orbitAnimated]}>
+                  <View style={[styles.orbitNode, styles.orbitNodeLime]} />
+                  <View style={[styles.orbitNode, styles.orbitNodeCyan]} />
+                </Animated.View>
+
+                {/* Radial shockwave pulse on hero landing */}
+                <Animated.View pointerEvents="none" style={[styles.shockwave, shockwaveAnimated]} />
+
+                <Animated.View style={[styles.heroWrap, heroAnimated]}>
+                  {floatingStickers.map((spec) => (
+                    <FloatingSticker
+                      key={spec.symbol}
+                      spec={spec}
+                      entered={introStarted}
+                      reducedMotion={reducedMotion}
+                    />
+                  ))}
+                  <View style={styles.medallionShadow} />
+                  <View style={styles.medallionOuter}>
+                    <View pointerEvents="none" style={styles.medallionShine} />
+                    <Animated.View pointerEvents="none" style={[styles.crestSheen, crestSheenAnimated]} />
+                    <View style={styles.medallionInner}>
+                      <View pointerEvents="none" style={styles.innerCornerDotTL} />
+                      <View pointerEvents="none" style={styles.innerCornerDotBR} />
+                      <Image
+                        accessible={false}
+                        source={bundledImageSource(require('../../../assets/brand/splash_mark_v2.png'))}
+                        resizeMode="contain"
+                        fadeDuration={0}
+                        onLoad={() => setImageReady(true)}
+                        style={styles.heroImage}
+                      />
+                    </View>
+                  </View>
+                </Animated.View>
+              </View>
+
+              <Animated.View style={[styles.chipRow, chipAnimated]}>
+                <Chip label="EXPLICAȚII PAS CU PAS" tone="lime" tilt={-2.5} />
+              </Animated.View>
+
+              <Animated.View style={[styles.copy, copyAnimated]}>
+                <View style={styles.wordmarkWrap}>
+                  <Animated.View pointerEvents="none" style={[styles.markerHighlight, underlineAnimated]} />
+                  <Text
+                    maxFontSizeMultiplier={1.3}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                    style={styles.brand}
+                  >
+                    Profu’ <Text style={styles.brandAccent}>de mate</Text>
+                  </Text>
+                </View>
+                <Text maxFontSizeMultiplier={1.3} style={styles.promise}>
+                  Matematica, pas cu pas.
+                </Text>
+              </Animated.View>
+            </View>
+
+            <Animated.View style={[styles.progressCardOuter, progressCardAnimated]}>
+              <View pointerEvents="none" style={styles.progressCardShadow} />
+              <View style={styles.progressCard}>
+                <View pointerEvents="none" style={styles.cardShine} />
+                <View style={styles.progressHeader}>
+                  <View style={styles.stageLabelRow}>
+                    <View
+                      style={[
+                        styles.stageDot,
+                        startupReady && styles.stageDotMid,
+                        ready && styles.stageDotReady,
+                      ]}
+                    />
+                    <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.stageLabel}>
+                      {stageLabel}
+                    </Text>
+                  </View>
+                  <View style={[styles.percentPill, ready && styles.percentPillReady]}>
+                    <Text maxFontSizeMultiplier={1.2} style={styles.percentText}>
+                      {displayPercent}%
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.barShadow}>
+                  <View
+                    onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+                    style={styles.barTrack}
+                  >
+                    <Animated.View style={[styles.barFill, ready && styles.barFillReady, fillWidthStyle]}>
+                      <View pointerEvents="none" style={styles.barFillShine} />
+                      {!ready ? <Animated.View pointerEvents="none" style={[styles.barShimmer, shimmerStyle]} /> : null}
+                    </Animated.View>
+                  </View>
+                </View>
+
+                <View style={styles.milestonesRow}>
+                  {milestones.map((item) => (
+                    <View key={item.key} style={styles.milestoneItem}>
+                      <View style={[styles.milestoneDot, item.done && styles.milestoneDotDone]}>
+                        {item.done ? (
+                          <Text maxFontSizeMultiplier={1.05} style={styles.milestoneCheck}>✓</Text>
+                        ) : null}
+                      </View>
+                      <Text
+                        maxFontSizeMultiplier={1.15}
+                        style={[styles.milestoneLabel, item.done && styles.milestoneLabelDone]}
+                      >
+                        {item.label}
+                      </Text>
+                    </View>
+                  ))}
                 </View>
               </View>
             </Animated.View>
-
-            <Animated.View style={[styles.chipRow, chipAnimated]}>
-              <Chip label="EXPLICAȚII PAS CU PAS" tone="lime" tilt={-2} />
-            </Animated.View>
-
-            <Animated.View style={[styles.copy, copyAnimated]}>
-              <Text
-                maxFontSizeMultiplier={1.3}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-                style={styles.brand}
-              >
-                Profu’ <Text style={styles.brandAccent}>de mate</Text>
-              </Text>
-              <Text maxFontSizeMultiplier={1.3} style={styles.promise}>
-                Matematica, pas cu pas.
-              </Text>
-            </Animated.View>
           </View>
-
-          <Animated.View style={[styles.progressDock, progressCardAnimated]}>
-            <View style={styles.progressHeader}>
-              <View style={styles.stageLabelRow}>
-                <View style={[styles.stageDot, ready && styles.stageDotReady]} />
-                <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.stageLabel}>
-                  {stageLabel}
-                </Text>
-              </View>
-              <View style={[styles.percentPill, ready && styles.percentPillReady]}>
-                <Text maxFontSizeMultiplier={1.2} style={styles.percentText}>
-                  {displayPercent}%
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.barShadow}>
-              <View
-                onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
-                style={styles.barTrack}
-              >
-                <Animated.View style={[styles.barFill, ready && styles.barFillReady, fillWidthStyle]}>
-                  <View pointerEvents="none" style={styles.barFillShine} />
-                  {!ready ? <Animated.View pointerEvents="none" style={[styles.barShimmer, shimmerStyle]} /> : null}
-                </Animated.View>
-              </View>
-            </View>
-          </Animated.View>
-        </View>
         </>
       ) : null}
     </Animated.View>
@@ -498,9 +713,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 26,
-    paddingTop: '22%',
-    paddingBottom: '12%',
+    paddingHorizontal: 24,
+    paddingTop: '16%',
+    paddingBottom: '10%',
   },
   centerCluster: {
     alignItems: 'center',
@@ -508,26 +723,88 @@ const styles = StyleSheet.create({
     width: '100%',
   },
 
-  // Hero owl medallion
-  heroWrap: {
+  // Hero owl medallion stage with sunburst and orbital ring
+  emblemStage: {
+    width: 268,
+    height: 244,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  sunburstWrap: {
+    position: 'absolute',
+    width: 268,
+    height: 268,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sunburstRay: {
+    position: 'absolute',
+    width: 28,
+    height: 260,
+    borderRadius: 14,
+    backgroundColor: 'rgba(124, 60, 255, 0.085)',
+  },
+  sunburstCore: {
     width: 196,
     height: 196,
+    borderRadius: 98,
+    backgroundColor: 'rgba(236, 226, 255, 0.55)',
+  },
+  orbitRing: {
+    position: 'absolute',
+    width: 234,
+    height: 234,
+    borderRadius: 117,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(124, 60, 255, 0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbitNode: {
+    position: 'absolute',
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 1.75,
+    borderColor: colors.ink,
+  },
+  orbitNodeLime: {
+    top: -6,
+    backgroundColor: colors.lime,
+  },
+  orbitNodeCyan: {
+    bottom: -6,
+    backgroundColor: colors.cyan,
+  },
+  shockwave: {
+    position: 'absolute',
+    width: 194,
+    height: 194,
+    borderRadius: 64,
+    borderWidth: 3.5,
+    borderColor: colors.violetBright,
+  },
+  heroWrap: {
+    width: 204,
+    height: 204,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   medallionShadow: {
     position: 'absolute',
-    top: 9,
-    width: 184,
-    height: 184,
+    top: 11,
+    width: 186,
+    height: 186,
     borderRadius: 56,
     backgroundColor: colors.violetShadow,
     transform: [{ rotate: '-3deg' }],
   },
   medallionOuter: {
-    width: 184,
-    height: 184,
+    width: 186,
+    height: 186,
     borderRadius: 56,
     borderWidth: 3.5,
     borderColor: colors.ink,
@@ -544,30 +821,56 @@ const styles = StyleSheet.create({
     right: 24,
     height: 12,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  crestSheen: {
+    position: 'absolute',
+    top: -20,
+    bottom: -20,
+    width: 44,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
   },
   medallionInner: {
-    width: 156,
-    height: 156,
+    width: 158,
+    height: 158,
     borderRadius: 44,
     borderWidth: 3,
     borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
+    backgroundColor: '#F3FFCC',
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ rotate: '3deg' }],
+    position: 'relative',
   },
-  heroImage: { width: 150, height: 150 },
+  innerCornerDotTL: {
+    position: 'absolute',
+    top: 11,
+    left: 12,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(124, 60, 255, 0.2)',
+  },
+  innerCornerDotBR: {
+    position: 'absolute',
+    bottom: 11,
+    right: 12,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(124, 60, 255, 0.2)',
+  },
+  heroImage: { width: 152, height: 152 },
 
   // Floating math stickers
   stickerWrap: {
     position: 'absolute',
     zIndex: 6,
-    paddingBottom: 3,
+    paddingBottom: 3.5,
   },
   stickerShadow: {
     position: 'absolute',
-    top: 3,
+    top: 3.5,
     left: 0,
     right: 0,
     bottom: 0,
@@ -575,13 +878,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
   },
   stickerFace: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 13,
     borderWidth: borders.regular,
     borderColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  stickerShine: {
+    position: 'absolute',
+    top: 2,
+    left: 6,
+    right: 6,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: colors.shine,
   },
   stickerText: {
     fontFamily: fonts.display,
@@ -590,13 +903,29 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 
-  chipRow: { marginTop: 24 },
+  chipRow: { marginTop: 14 },
   copy: { marginTop: 12, alignItems: 'center', width: '100%' },
+  wordmarkWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  markerHighlight: {
+    position: 'absolute',
+    right: 2,
+    bottom: 3,
+    width: '54%',
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.lime,
+    transformOrigin: 'left',
+  },
   brand: {
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 38,
-    lineHeight: 44,
+    fontSize: 40,
+    lineHeight: 46,
     letterSpacing: -0.5,
     textAlign: 'center',
     includeFontPadding: false,
@@ -612,18 +941,47 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 
-  // Chunky comic progress dock
-  progressDock: {
+  // Comic notebook progress card
+  progressCardOuter: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 332,
+    position: 'relative',
+    paddingBottom: shadows.md,
+  },
+  progressCardShadow: {
+    position: 'absolute',
+    top: shadows.md,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 22,
+    backgroundColor: colors.ink,
+  },
+  progressCard: {
+    borderRadius: 21,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 11,
     gap: 9,
+    overflow: 'hidden',
+  },
+  cardShine: {
+    position: 'absolute',
+    top: 3,
+    left: 16,
+    right: 16,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: colors.shine,
   },
   progressHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    paddingHorizontal: 2,
   },
   stageLabelRow: {
     flex: 1,
@@ -640,6 +998,9 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     backgroundColor: colors.peach,
   },
+  stageDotMid: {
+    backgroundColor: colors.cyan,
+  },
   stageDotReady: {
     backgroundColor: colors.lime,
   },
@@ -652,7 +1013,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   percentPill: {
-    minWidth: 46,
+    minWidth: 48,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 9,
@@ -670,19 +1031,20 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 12.5,
     lineHeight: 15,
+    fontVariant: ['tabular-nums'],
     includeFontPadding: false,
   },
   barShadow: {
     borderRadius: radii.md,
     backgroundColor: colors.ink,
-    paddingBottom: shadows.sm + 1,
+    paddingBottom: shadows.sm,
   },
   barTrack: {
-    height: 22,
-    borderRadius: radii.md - 1,
+    height: 20,
+    borderRadius: radii.md - 2,
     borderWidth: borders.regular,
     borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.canvasWarm,
     overflow: 'hidden',
     justifyContent: 'center',
   },
@@ -704,15 +1066,58 @@ const styles = StyleSheet.create({
     top: 2,
     left: 6,
     right: 6,
-    height: 5,
+    height: 4.5,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.42)',
+    backgroundColor: 'rgba(255, 255, 255, 0.44)',
   },
   barShimmer: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: 38,
-    backgroundColor: 'rgba(216, 255, 62, 0.42)',
+    width: 42,
+    backgroundColor: 'rgba(216, 255, 62, 0.45)',
+  },
+  milestonesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 1,
+    paddingHorizontal: 2,
+  },
+  milestoneItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  milestoneDot: {
+    width: 15,
+    height: 15,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.canvas,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  milestoneDotDone: {
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+  },
+  milestoneCheck: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9,
+    lineHeight: 11,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  milestoneLabel: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.inkMuted,
+  },
+  milestoneLabelDone: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
   },
 });
