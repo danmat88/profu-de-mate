@@ -1,4 +1,3 @@
-import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useContext, useEffect, useRef, useState } from 'react';
@@ -38,6 +37,7 @@ import { HomeMotionReadyContext } from '../context/HomeMotionContext';
 
 type Props = {
   mode: FlowMode;
+  focused?: boolean;
   pending: boolean;
   galleryBusy: boolean;
   galleryError: string | null;
@@ -50,6 +50,7 @@ type Props = {
   savedLessonsCount?: number;
   showGuide?: boolean;
   onDismissGuide?: () => void;
+  onClearGalleryError?: () => void;
   onMode: (mode: FlowMode) => void;
   onCapture: () => void;
   onGallery: () => void;
@@ -80,13 +81,51 @@ const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode
   },
 ];
 
-const CHEER_MESSAGES: readonly { title: string; body: string }[] = [
-  { title: 'Hai că poți!', body: 'Fiecare problemă devine clară pas cu pas.' },
-  { title: 'E mai simplu decât pare!', body: 'Arată-mi exercițiul și îl luăm pe rând.' },
-  { title: 'Sunt aici cu tine!', body: 'Poți face poză sau poți scrie formula direct.' },
-  { title: 'Super ritm!', body: 'Deschide camera când ești gata să începem.' },
-  { title: 'Fără grabă!', body: 'Explicăm până când totul face sens deplin.' },
-  { title: 'Nivel de campion!', body: 'O problemă pe zi te face tot mai sigur.' },
+type TutorMessage = {
+  title: string;
+  body: string;
+  compactBody: string;
+  pose: MascotPose;
+  tone: SpeechBubbleTone;
+};
+
+const LAST_PROBLEM_MESSAGE: TutorMessage = {
+  title: 'Ultima problemă pe azi!',
+  body: 'Alege una bună — revin la 00:00.',
+  compactBody: 'Ultima pe azi — revin la 00:00.',
+  pose: 'point',
+  tone: 'peachSoft',
+};
+
+const SOLVE_CHEER_MESSAGES: readonly TutorMessage[] = [
+  { title: 'Hai că poți!', body: 'Fiecare problemă devine clară pas cu pas.', compactBody: 'Clar, pas cu pas.', pose: 'cheer', tone: 'limeSoft' },
+  { title: 'E mai simplu decât pare!', body: 'Fă o poză sau scrie formula direct.', compactBody: 'Fă o poză sau scrie direct.', pose: 'point', tone: 'limeSoft' },
+  { title: 'Sunt aici cu tine!', body: 'Îți explic pe înțeles, fără grabă.', compactBody: 'Îți explic simplu, fără grabă.', pose: 'wave', tone: 'paper' },
+  { title: 'Nivel de campion!', body: 'Un exercițiu pe zi face diferența.', compactBody: 'Un exercițiu pe zi contează.', pose: 'cheer', tone: 'limeSoft' },
+];
+
+const CHECK_CHEER_MESSAGES: readonly TutorMessage[] = [
+  { title: 'Bravo că încerci întâi!', body: 'Așa înveți cel mai repede la mate.', compactBody: 'Așa înveți cel mai repede.', pose: 'cheer', tone: 'limeSoft' },
+  { title: 'Verificăm fără stres!', body: 'Îți arăt ce e bine și ce corectezi.', compactBody: 'Vezi ce e bine și ce corectezi.', pose: 'point', tone: 'peachSoft' },
+  { title: 'Fiecare pas contează!', body: 'Prinde enunțul și pașii tăi în cadru.', compactBody: 'Prinde enunțul și pașii tăi.', pose: 'wave', tone: 'peachSoft' },
+];
+
+const EXHAUSTED_FREE_MESSAGES: readonly TutorMessage[] = [
+  { title: 'Super treabă azi!', body: 'Problemele revin automat la 00:00.', compactBody: 'Revin automat la 00:00.', pose: 'wave', tone: 'peachSoft' },
+  { title: 'Caietul e mereu liber!', body: 'Recitește lecțiile salvate și offline.', compactBody: 'Lecțiile tale merg și offline.', pose: 'point', tone: 'limeSoft' },
+  { title: 'Vrei mai multă practică?', body: 'Atinge cronometrul pentru Premium.', compactBody: 'Atinge sus pentru Premium.', pose: 'cheer', tone: 'violetSoft' },
+  { title: 'Pauză binemeritată!', body: 'Sus vezi exact cât mai e până la 00:00.', compactBody: 'Cronometrul arată timpul rămas.', pose: 'thinking', tone: 'peachSoft' },
+];
+
+const EXHAUSTED_PREMIUM_MESSAGES: readonly TutorMessage[] = [
+  { title: 'Super ritm azi!', body: 'Toate problemele revin la 00:00.', compactBody: 'Revin automat la 00:00.', pose: 'wave', tone: 'limeSoft' },
+  { title: 'Caietul e mereu liber!', body: 'Recitește lecțiile salvate și offline.', compactBody: 'Lecțiile tale merg și offline.', pose: 'point', tone: 'limeSoft' },
+  { title: 'Pauză binemeritată!', body: 'Sus vezi exact cât mai e până la 00:00.', compactBody: 'Cronometrul arată timpul rămas.', pose: 'thinking', tone: 'peachSoft' },
+];
+
+const PENDING_MESSAGES: readonly TutorMessage[] = [
+  { title: 'Aproape gata!', body: 'Apasă „Revino la analiză” să vezi starea.', compactBody: 'Apasă „Revino la analiză”.', pose: 'point', tone: 'limeSoft' },
+  { title: 'Nu pierzi nimic!', body: 'Între timp poți răsfoi liniștit Caietul.', compactBody: 'Poți răsfoi Caietul între timp.', pose: 'wave', tone: 'limeSoft' },
 ];
 
 const HERO_HALFTONE_DOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
@@ -99,6 +138,7 @@ function solveGreeting(hour: number): string {
 
 export function HomeSurface({
   mode,
+  focused = true,
   pending,
   galleryBusy,
   galleryError,
@@ -111,6 +151,7 @@ export function HomeSurface({
   savedLessonsCount = 0,
   showGuide = false,
   onDismissGuide,
+  onClearGalleryError,
   onMode,
   onCapture,
   onGallery,
@@ -128,22 +169,33 @@ export function HomeSurface({
   // overlay Home instead of changing its spacing and responsive breakpoint.
   const compact = height - insets.top < 690 || fontScale >= 1.3;
   const reducedMotion = useReducedMotion();
-  const focused = useIsFocused();
   const motionReady = useContext(HomeMotionReadyContext);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [cheer, setCheer] = useState<{ index: number; scope: string } | null>(null);
+  const [mascotNudge, setMascotNudge] = useState(0);
   const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMode = useRef(mode);
 
   const isSolve = mode === 'solve';
   const hasPendingAnalysis = pending;
   const quotaExhausted = remaining !== undefined && remaining <= 0;
+  const lastProblemLeft = !hasPendingAnalysis && !quotaExhausted && remaining === 1;
   const showPillResetTimer = Boolean(resetAt) && remaining !== undefined && limit !== undefined && remaining < limit;
   const energyRatio = remaining !== undefined && limit !== undefined && limit > 0
     ? Math.max(0, Math.min(1, remaining / limit))
     : null;
-  const cheerScope = `${mode}:${hasPendingAnalysis}:${galleryError ?? ''}`;
-  const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index : null;
+  const cheerScope = `${mode}:${hasPendingAnalysis}:${quotaExhausted}:${premiumActive}:${lastProblemLeft}:${galleryError ?? ''}`;
+  const baseCheerPool: readonly TutorMessage[] = hasPendingAnalysis
+    ? PENDING_MESSAGES
+    : quotaExhausted
+      ? (premiumActive ? EXHAUSTED_PREMIUM_MESSAGES : EXHAUSTED_FREE_MESSAGES)
+      : isSolve
+        ? SOLVE_CHEER_MESSAGES
+        : CHECK_CHEER_MESSAGES;
+  const cheerPool: readonly TutorMessage[] = lastProblemLeft
+    ? [LAST_PROBLEM_MESSAGE, ...baseCheerPool]
+    : baseCheerPool;
+  const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index % cheerPool.length : null;
   const motionActive = motionReady && focused && foreground && !reducedMotion;
 
   const stagePop = useSharedValue(1);
@@ -298,20 +350,29 @@ export function HomeSurface({
   }, [focused, hasPendingAnalysis, isSolve, medallionPop, mode, modeBlend, motionReady, reducedMotion, stagePop]);
 
   const cycleEncouragement = () => {
-    if (hasPendingAnalysis || galleryError) return;
     if (!reducedMotion) {
       cancelAnimation(tapSpark);
       tapSpark.set(0);
       tapSpark.set(withTiming(1, { duration: 540, easing: Easing.out(Easing.cubic) }));
     }
+    if (galleryError) {
+      onClearGalleryError?.();
+      setCheer(null);
+      return;
+    }
     if (cheerTimer.current) clearTimeout(cheerTimer.current);
     setCheer((current) => {
       const nextIndex = current && current.scope === cheerScope
-        ? (current.index + 1) % CHEER_MESSAGES.length
+        ? (current.index + 1) % cheerPool.length
         : 0;
       return { index: nextIndex, scope: cheerScope };
     });
-    cheerTimer.current = setTimeout(() => setCheer(null), 3200);
+    cheerTimer.current = setTimeout(() => setCheer(null), 4200);
+  };
+
+  const triggerTutorFromHeader = () => {
+    setMascotNudge((value) => value + 1);
+    cycleEncouragement();
   };
 
   const stageAnimated = useAnimatedStyle(() => ({
@@ -401,27 +462,27 @@ export function HomeSurface({
     };
   });
 
-  const activeCheer = !hasPendingAnalysis && !galleryError && cheerIndex !== null
-    ? CHEER_MESSAGES[cheerIndex]
+  const activeCheer = !galleryError && cheerIndex !== null
+    ? cheerPool[cheerIndex]
     : null;
 
-  const mascotPose: MascotPose = hasPendingAnalysis
-    ? 'thinking'
-    : galleryError
-      ? 'oops'
-      : activeCheer
-        ? 'cheer'
+  const mascotPose: MascotPose = galleryError
+    ? 'oops'
+    : activeCheer
+      ? activeCheer.pose
+      : hasPendingAnalysis
+        ? 'thinking'
         : quotaExhausted
-          ? 'thinking'
+          ? 'cheer'
           : isSolve
             ? 'wave'
             : 'point';
 
-  const bubbleTone: SpeechBubbleTone = hasPendingAnalysis
-    ? 'limeSoft'
-    : galleryError
-      ? 'roseSoft'
-      : activeCheer
+  const bubbleTone: SpeechBubbleTone = galleryError
+    ? 'roseSoft'
+    : activeCheer
+      ? activeCheer.tone
+      : hasPendingAnalysis
         ? 'limeSoft'
         : quotaExhausted
           ? 'peachSoft'
@@ -429,27 +490,39 @@ export function HomeSurface({
             ? 'paper'
             : 'peachSoft';
 
-  const greetingTitle = hasPendingAnalysis
-    ? 'Încă lucrez la ea!'
-    : galleryError
-      ? 'Hopa! Încearcă alta.'
-      : activeCheer
-        ? activeCheer.title
+  const greetingTitle = galleryError
+    ? 'Hopa! Încearcă alta.'
+    : activeCheer
+      ? activeCheer.title
+      : hasPendingAnalysis
+        ? 'Încă lucrez la ea!'
         : quotaExhausted
           ? 'Ai terminat pe azi!'
           : isSolve
             ? solveGreeting(new Date().getHours())
             : 'Hai să verificăm!';
 
-  const greetingBody = hasPendingAnalysis
-    ? 'Fotografia și progresul sunt păstrate.'
-    : galleryError
-      ?? activeCheer?.body
-      ?? (quotaExhausted
-        ? 'Problemele revin la 00:00 — apasă sus pentru cronometru sau Premium.'
+  const fullGreetingBody = galleryError
+    ?? activeCheer?.body
+    ?? (hasPendingAnalysis
+      ? 'Fotografia și progresul sunt păstrate.'
+      : quotaExhausted
+        ? 'Revin la 00:00. Între timp vezi Caietul.'
         : isSolve
-          ? 'Fă o poză sau scrie problema — explicăm pas cu pas.'
-          : 'Arată-mi rezolvarea ta și vedem fiecare pas.');
+          ? 'Fă o poză sau scrie problema, pas cu pas.'
+          : 'Arată-mi rezolvarea ta, pas cu pas.');
+
+  const compactGreetingBody = galleryError
+    ?? activeCheer?.compactBody
+    ?? (hasPendingAnalysis
+      ? 'Progresul tău este păstrat.'
+      : quotaExhausted
+        ? 'Revin la 00:00. Vezi Caietul.'
+        : isSolve
+          ? 'Fă o poză sau scrie formula.'
+          : 'Arată-mi rezolvarea ta.');
+
+  const greetingBody = compact ? compactGreetingBody : fullGreetingBody;
 
   const mascotSize = compact ? 74 : isVeryNarrow ? 90 : 102;
   const mascotHaloSize = compact ? 66 : isVeryNarrow ? 78 : 88;
@@ -476,7 +549,7 @@ export function HomeSurface({
                 radius={compact || isVeryNarrow ? 11 : 14}
                 shadowColor={colors.ink}
                 haptic="selection"
-                onPress={cycleEncouragement}
+                onPress={triggerTutorFromHeader}
                 contentStyle={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}
               >
                 <View pointerEvents="none" style={styles.logoShine} />
@@ -504,6 +577,7 @@ export function HomeSurface({
               depth={shadows.sm}
               radius={14}
               haptic="selection"
+              deferPressMs={75}
               onPress={onAllowance}
               style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
               contentStyle={[
@@ -564,6 +638,7 @@ export function HomeSurface({
 
             <IconButton
               label="Deschide setările"
+              deferPressMs={75}
               onPress={onSettings}
               size={compact ? 38 : 44}
               style={styles.settingsWrap}
@@ -603,6 +678,7 @@ export function HomeSurface({
                 size={mascotSize}
                 active={motionActive}
                 interactive
+                nudgeSignal={mascotNudge}
                 onPress={cycleEncouragement}
               />
             </View>
@@ -612,7 +688,8 @@ export function HomeSurface({
               tone={bubbleTone}
               tail="left"
               compact={compact}
-              messageKey={`${mascotPose}:${galleryError ?? mode}:${cheerIndex ?? 'idle'}`}
+              messageKey={`${greetingTitle}:${greetingBody}`}
+              onPress={triggerTutorFromHeader}
             />
           </Enter>
 
@@ -752,6 +829,7 @@ export function HomeSurface({
                     radius={18}
                     shadowColor={colors.ink}
                     haptic="medium"
+                    deferPressMs={75}
                     onPress={onCapture}
                     contentStyle={[
                       styles.captureCta,
@@ -835,6 +913,7 @@ export function HomeSurface({
                   radius={20}
                   shadowColor={colors.ink}
                   haptic="light"
+                  deferPressMs={75}
                   onPress={onMath}
                   style={styles.secondaryTileWrap}
                   contentStyle={[
@@ -875,6 +954,7 @@ export function HomeSurface({
                 radius={20}
                 shadowColor={colors.ink}
                 haptic="selection"
+                deferPressMs={75}
                 onPress={onNotebook}
                 style={styles.notebookWrap}
                 contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}

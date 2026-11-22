@@ -22,6 +22,7 @@ import Animated, {
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionPhases } from '../../../shared/hooks/useTransitionSettled';
 import { getAppVersionLabel } from '../../../shared/services/appInfo';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
@@ -32,6 +33,7 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicSwitch } from '../../../shared/ui/ComicSwitch';
+import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -55,15 +57,7 @@ function SettingsSectionTitle({ children, tone }: { children: string; tone: stri
   );
 }
 
-function ComicSheetModal({
-  visible,
-  busy = false,
-  dismissable = true,
-  alertRole = false,
-  onClose,
-  onAfterClose,
-  children,
-}: {
+type ComicSheetModalProps = {
   visible: boolean;
   busy?: boolean;
   dismissable?: boolean;
@@ -71,7 +65,17 @@ function ComicSheetModal({
   onClose?: () => void;
   onAfterClose?: () => void;
   children: ReactNode;
-}) {
+};
+
+function ComicSheetModalInner({
+  visible,
+  busy = false,
+  dismissable = true,
+  alertRole = false,
+  onClose,
+  onAfterClose,
+  children,
+}: ComicSheetModalProps) {
   const reducedMotion = useReducedMotion();
   const [present, setPresent] = useState(visible);
   const reveal = useSharedValue(visible ? 1 : 0);
@@ -152,12 +156,24 @@ function ComicSheetModal({
   );
 }
 
+/** Lazily mounts the native Modal and its Reanimated worklets only after first open. */
+function ComicSheetModal(props: ComicSheetModalProps) {
+  const [everOpened, setEverOpened] = useState(props.visible);
+  if (props.visible && !everOpened) {
+    setEverOpened(true);
+  }
+  if (!everOpened) return null;
+  return <ComicSheetModalInner {...props} />;
+}
+
 export function SettingsScreen({ navigation }: Props) {
   const frame = useSafeAreaFrame();
   const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
+  const { contentReady, ambientReady } = useTransitionPhases(navigation, reducedMotion);
+  const ambientActive = focused && ambientReady;
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -230,7 +246,9 @@ export function SettingsScreen({ navigation }: Props) {
     transform: [{ scale: identityPulse.get() }],
   }));
 
-  const smoothLayout = reducedMotion ? undefined : LinearTransition.duration(300).easing(Easing.out(Easing.cubic));
+  const smoothLayout = reducedMotion || !ambientActive
+    ? undefined
+    : LinearTransition.duration(300).easing(Easing.out(Easing.cubic));
   const animateSwap = hasSwappedAccount || hasGoogleAccount !== initialGoogleState;
   const enterAfterSwap = !reducedMotion && animateSwap ? FadeIn.duration(260).easing(Easing.out(Easing.cubic)) : undefined;
   const exitSmooth = reducedMotion ? undefined : FadeOut.duration(170);
@@ -390,7 +408,7 @@ export function SettingsScreen({ navigation }: Props) {
           <ComicCard tone="paper" depth={5} radius={24} shine contentStyle={styles.identity}>
             <View style={styles.identityTopRow}>
               <View style={styles.identityMascotWrap}>
-                <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active interactive={!accountBusy} />
+                <Mascot pose={access?.premium.active ? 'cheer' : 'wave'} size={66} active={ambientActive} interactive={!accountBusy} />
               </View>
               <Animated.View
                 key={`${hasGoogleAccount ? 'google' : 'guest'}-${access?.premium.active ? 'premium' : 'free'}`}
@@ -413,13 +431,16 @@ export function SettingsScreen({ navigation }: Props) {
                 limit={access.limit}
                 premium={access.premium.active}
                 variant="embedded"
-                active={focused}
+                active={ambientActive}
                 style={styles.identityTimer}
               />
             ) : null}
           </ComicCard>
         </Animated.View>
 
+        {contentReady ? (
+        <>
+        <Enter delay={0} distance={16} scaleFrom={0.96}>
         <Animated.View layout={smoothLayout} style={styles.accountGroup}>
           {!accessLoading && !access ? (
             <Animated.View entering={enterAfterSwap} exiting={exitSmooth} layout={smoothLayout}>
@@ -496,6 +517,7 @@ export function SettingsScreen({ navigation }: Props) {
             </ComicCard>
           </Animated.View>
         </Animated.View>
+        </Enter>
 
         {accountError ? (
           <Animated.View entering={reducedMotion ? undefined : FadeIn.duration(180)} exiting={exitSmooth} layout={smoothLayout}>
@@ -503,6 +525,7 @@ export function SettingsScreen({ navigation }: Props) {
           </Animated.View>
         ) : null}
 
+        <Enter delay={65} distance={16} scaleFrom={0.96}>
         <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
@@ -531,7 +554,9 @@ export function SettingsScreen({ navigation }: Props) {
             </View>
           </ComicCard>
         </Animated.View>
+        </Enter>
 
+        <Enter delay={130} distance={16} scaleFrom={0.96}>
         <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
@@ -558,7 +583,9 @@ export function SettingsScreen({ navigation }: Props) {
             </Pressable>
           </ComicCard>
         </Animated.View>
+        </Enter>
 
+        <Enter delay={190} distance={14} scaleFrom={0.97}>
         <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.lime}>Despre aplicație</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
@@ -581,6 +608,9 @@ export function SettingsScreen({ navigation }: Props) {
         <Animated.View layout={smoothLayout} style={styles.versionRow}>
           <Text style={styles.version}>{getAppVersionLabel()}</Text>
         </Animated.View>
+        </Enter>
+        </>
+        ) : null}
         </View>
       </ScrollView>
 
@@ -632,7 +662,7 @@ export function SettingsScreen({ navigation }: Props) {
           <View style={styles.sheetHandle} />
           <View style={styles.sheetMascotStage}>
             <View style={[styles.sheetMascotHalo, styles.sheetMascotHaloDanger]} />
-            <Mascot pose="oops" size={88} active />
+            <Mascot pose="oops" size={88} active={confirmDelete} />
           </View>
           <Chip label="ACȚIUNE DEFINITIVĂ" tone="roseSoft" tilt={-2} />
           <Text style={styles.confirmTitle}>{deletionConfirmTitle}</Text>
@@ -675,7 +705,7 @@ export function SettingsScreen({ navigation }: Props) {
           <View style={styles.sheetHandle} />
           <View style={styles.sheetMascotStage}>
             <View style={[styles.sheetMascotHalo, styles.sheetMascotHaloCyan]} />
-            <Mascot pose="wave" size={88} active />
+            <Mascot pose="wave" size={88} active={confirmLogout} />
           </View>
           <Chip label="SCHIMBI CONTUL DE PE TELEFON" tone="cyanSoft" tilt={-1.5} />
           <Text style={styles.confirmTitle}>Te deconectezi?</Text>
@@ -716,7 +746,7 @@ export function SettingsScreen({ navigation }: Props) {
           <View style={styles.sheetHandle} />
           <View style={styles.sheetMascotStage}>
             <View style={[styles.sheetMascotHalo, styles.sheetMascotHaloLime]} />
-            <Mascot pose="cheer" size={88} active />
+            <Mascot pose="cheer" size={88} active={deleteComplete} />
           </View>
           <Chip label="ȘTERGERE ÎNCHEIATĂ" tone="lime" tilt={-2} />
           <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>

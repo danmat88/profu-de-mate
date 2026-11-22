@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -31,6 +31,9 @@ type Props = {
   compact?: boolean;
   /** Change this key to trigger a subtle comic pop when the copy updates. */
   messageKey?: string;
+  /** Optional tap handler to cycle or dismiss messages directly from the bubble. */
+  onPress?: () => void;
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -41,6 +44,8 @@ export function SpeechBubble({
   tail = 'left',
   compact = false,
   messageKey,
+  onPress,
+  accessibilityLabel,
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
@@ -62,31 +67,53 @@ export function SpeechBubble({
     transform: [{ scale: scale.get() }],
   }));
 
+  const cardInner = (
+    <>
+      <View pointerEvents="none" style={styles.shine} />
+      <Text
+        maxFontSizeMultiplier={1.3}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.82}
+        style={[styles.title, compact && styles.titleCompact, tone === 'roseSoft' && styles.titleError]}
+      >
+        {title}
+      </Text>
+      {body ? (
+        <Text
+          maxFontSizeMultiplier={1.3}
+          numberOfLines={compact ? 1 : 2}
+          style={[styles.body, compact && styles.bodyCompact, tone === 'roseSoft' && styles.bodyError]}
+        >
+          {body}
+        </Text>
+      ) : null}
+    </>
+  );
+
   return (
     <Animated.View style={[styles.outer, tail === 'left' && styles.outerWithLeftTail, animatedStyle, style]}>
       <View style={styles.shadowWrap}>
         <View pointerEvents="none" style={styles.shadow} />
-        <View style={[styles.bubble, compact && styles.bubbleCompact, { backgroundColor: fill }]}>
-          <View pointerEvents="none" style={styles.shine} />
-          <Text
-            maxFontSizeMultiplier={1.3}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.82}
-            style={[styles.title, compact && styles.titleCompact, tone === 'roseSoft' && styles.titleError]}
+        {onPress ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel ?? (body ? `${title}. ${body}` : title)}
+            onPress={onPress}
+            style={({ pressed }) => [
+              styles.bubble,
+              compact && styles.bubbleCompact,
+              { backgroundColor: fill },
+              pressed && styles.bubblePressed,
+            ]}
           >
-            {title}
-          </Text>
-          {body ? (
-            <Text
-              maxFontSizeMultiplier={1.3}
-              numberOfLines={compact ? 1 : 2}
-              style={[styles.body, compact && styles.bodyCompact, tone === 'roseSoft' && styles.bodyError]}
-            >
-              {body}
-            </Text>
-          ) : null}
-        </View>
+            {cardInner}
+          </Pressable>
+        ) : (
+          <View style={[styles.bubble, compact && styles.bubbleCompact, { backgroundColor: fill }]}>
+            {cardInner}
+          </View>
+        )}
       </View>
 
       {tail === 'left' ? (
@@ -134,6 +161,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
+  bubblePressed: {
+    transform: [{ translateY: 2 }],
+  },
   shine: {
     position: 'absolute',
     top: 3,
@@ -158,13 +188,15 @@ const styles = StyleSheet.create({
   },
   body: {
     marginTop: 2,
+    minHeight: 33,
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 12.5,
-    lineHeight: 17,
+    lineHeight: 16.5,
   },
   bodyCompact: {
     marginTop: 1,
+    minHeight: 15,
     fontSize: 11.5,
     lineHeight: 15,
   },

@@ -24,17 +24,24 @@ function normalizedProblemText(content: RichContent) {
     .trim();
 }
 
+const presentationCache = new WeakMap<StoredLesson, NotebookProblemPresentation>();
+
 export function notebookProblemPresentation(lesson: StoredLesson): NotebookProblemPresentation {
+  const cached = presentationCache.get(lesson);
+  if (cached) return cached;
+
   const identity = normalizedProblemText(lesson.problem) || lesson.title.trim() || 'Problemă matematică';
   const labels = lesson.problem.flatMap((block) => block.type === 'text'
     ? [...block.text.matchAll(/(?:^|\s)([a-zăâîșț]\))(?:\s+|$)/giu)].map((match) => match[1].toLocaleLowerCase('ro-RO'))
     : []);
 
-  return {
+  const result: NotebookProblemPresentation = {
     identity,
     title: lesson.title.trim() || lesson.topic.trim() || 'Problemă matematică',
     requestCount: new Set(labels).size,
   };
+  presentationCache.set(lesson, result);
+  return result;
 }
 
 export function notebookVerdictPresentation(lesson: StoredLesson): NotebookVerdictPresentation | undefined {

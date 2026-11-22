@@ -12,6 +12,7 @@ type Props = {
   active?: boolean;
   disabled?: boolean;
   dimWhenDisabled?: boolean;
+  deferPressMs?: number;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -25,6 +26,7 @@ export function IconButton({
   active = false,
   disabled = false,
   dimWhenDisabled = true,
+  deferPressMs = 0,
   style,
 }: Props) {
   const isDisabled = disabled || !onPress;
@@ -37,6 +39,7 @@ export function IconButton({
       accessibilityState={{ disabled: isDisabled, selected: active }}
       disabled={isDisabled}
       dimWhenDisabled={dimWhenDisabled}
+      deferPressMs={deferPressMs}
       hitSlop={6}
       depth={shadows.sm}
       radius={radius}

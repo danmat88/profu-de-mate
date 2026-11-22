@@ -1,5 +1,6 @@
-import { useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   Pressable,
   StyleSheet,
   View,
@@ -7,19 +8,10 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  type SharedValue,
-} from 'react-native-reanimated';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
-import { borders, colors, fonts, shadows, springs } from '../theme';
+import { borders, colors, fonts, shadows } from '../theme';
 import { Text } from './Typography';
-
-const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export type ComicTabOption<T extends string> = {
   value: T;
@@ -41,26 +33,23 @@ type Props<T extends string> = {
 };
 
 const TRACK_PADDING = 3;
+const PRESS_RETENTION = { top: 24, bottom: 24, left: 24, right: 24 };
 
 type TabItemProps<T extends string> = {
   option: ComicTabOption<T>;
-  index: number;
   active: boolean;
   disabled: boolean;
   compact: boolean;
   hasPill: boolean;
-  progress: SharedValue<number>;
   onSelect: () => void;
 };
 
 function ComicTabItem<T extends string>({
   option,
-  index,
   active,
   disabled,
   compact,
   hasPill,
-  progress,
   onSelect,
 }: TabItemProps<T>) {
   const activeFill = option.activeFill ?? colors.violet;
@@ -68,34 +57,13 @@ function ComicTabItem<T extends string>({
   const badgeFill = option.badgeFill ?? colors.lime;
   const badgeText = option.badgeText ?? colors.ink;
 
-  const labelAnimated = useAnimatedStyle(() => {
-    const distance = Math.min(1, Math.abs(progress.get() - index));
-    return {
-      color: interpolateColor(distance, [0, 1], [activeText, colors.inkSoft]),
-    };
-  }, [activeText, index]);
-
-  const badgeAnimated = useAnimatedStyle(() => {
-    const distance = Math.min(1, Math.abs(progress.get() - index));
-    return {
-      backgroundColor: interpolateColor(distance, [0, 1], [badgeFill, colors.violetSoft]),
-      borderColor: interpolateColor(distance, [0, 1], [colors.ink, 'rgba(23,19,55,0)']),
-    };
-  }, [badgeFill, index]);
-
-  const badgeTextAnimated = useAnimatedStyle(() => {
-    const distance = Math.min(1, Math.abs(progress.get() - index));
-    return {
-      color: interpolateColor(distance, [0, 1], [badgeText, colors.violetDeep]),
-    };
-  }, [badgeText, index]);
-
   return (
     <Pressable
       collapsable={false}
       accessibilityRole="tab"
       accessibilityState={{ selected: active, disabled }}
       disabled={disabled}
+      pressRetentionOffset={PRESS_RETENTION}
       onPress={onSelect}
       style={[
         styles.tab,
@@ -108,30 +76,39 @@ function ComicTabItem<T extends string>({
       ]}
     >
       <View pointerEvents="none" style={styles.tabContent}>
-        <AnimatedText
+        <Text
           maxFontSizeMultiplier={1.2}
           numberOfLines={1}
           style={[
             styles.label,
             compact && styles.labelCompact,
-            labelAnimated,
+            { color: active ? activeText : colors.inkSoft },
           ]}
         >
           {option.label}
-        </AnimatedText>
+        </Text>
         {option.badge !== undefined ? (
-          <Animated.View style={[styles.badge, compact && styles.badgeCompact, badgeAnimated]}>
-            <AnimatedText
+          <View
+            style={[
+              styles.badge,
+              compact && styles.badgeCompact,
+              {
+                backgroundColor: active ? badgeFill : colors.violetSoft,
+                borderColor: active ? colors.ink : 'transparent',
+              },
+            ]}
+          >
+            <Text
               maxFontSizeMultiplier={1.15}
               style={[
                 styles.badgeText,
                 compact && styles.badgeTextCompact,
-                badgeTextAnimated,
+                { color: active ? badgeText : colors.violetDeep },
               ]}
             >
               {option.badge}
-            </AnimatedText>
-          </Animated.View>
+            </Text>
+          </View>
         ) : null}
       </View>
     </Pressable>
@@ -139,9 +116,9 @@ function ComicTabItem<T extends string>({
 }
 
 /**
- * Snappy Reanimated comic tab bar supporting 2 or more segments with a
- * spring-sliding glossy pill whose label & badge colors stay locked in sync
- * with the pill position on the UI thread (zero white-on-white flash).
+ * Snappy comic tab bar driven by native-driver spring motion and React state
+ * colors so initial screen mounts incur zero Reanimated worklet overhead and
+ * tabs stay immune to Android Fabric view detachment.
  */
 export function ComicTabBar<T extends string>({
   options,
@@ -154,39 +131,39 @@ export function ComicTabBar<T extends string>({
   const reducedMotion = useReducedMotion();
   const [trackWidth, setTrackWidth] = useState(0);
   const activeIndex = Math.max(0, options.findIndex((item) => item.value === value));
-  const progress = useSharedValue(activeIndex);
-
-  useLayoutEffect(() => {
-    if (reducedMotion) {
-      progress.set(activeIndex);
-    } else {
-      progress.set(withSpring(activeIndex, springs.snappy));
-    }
-  }, [activeIndex, progress, reducedMotion]);
-
+  const activeOption = options[activeIndex];
   const count = Math.max(1, options.length);
   const innerWidth = trackWidth - borders.regular * 2 - TRACK_PADDING * 2;
   const pillWidth = innerWidth > 0 ? innerWidth / count : 0;
 
-  const colorsKey = options.map((option) => option.activeFill ?? colors.violet).join('|');
-  const { inputRange, outputRange } = useMemo(() => {
-    const fills = colorsKey.split('|');
-    return {
-      inputRange: fills.map((_, index) => index),
-      outputRange: fills,
-    };
-  }, [colorsKey]);
+  const slideX = useRef(new Animated.Value(0)).current;
+  const measuredWidthRef = useRef(0);
+  const lastIndexRef = useRef(activeIndex);
 
-  const pillStyle = useAnimatedStyle(() => {
-    const p = Math.max(0, Math.min(count - 1, progress.get()));
-    const bg = count > 1
-      ? interpolateColor(p, inputRange, outputRange)
-      : outputRange[0];
-    return {
-      transform: [{ translateX: p * pillWidth }],
-      backgroundColor: bg,
+  useEffect(() => {
+    if (pillWidth <= 0) return undefined;
+    const target = activeIndex * pillWidth;
+    const widthChanged = Math.abs(measuredWidthRef.current - pillWidth) > 0.5;
+    const indexChanged = lastIndexRef.current !== activeIndex;
+    measuredWidthRef.current = pillWidth;
+    lastIndexRef.current = activeIndex;
+
+    slideX.stopAnimation();
+    if (reducedMotion || (widthChanged && !indexChanged)) {
+      slideX.setValue(target);
+      return undefined;
+    }
+    Animated.spring(slideX, {
+      toValue: target,
+      tension: 280,
+      friction: 24,
+      useNativeDriver: true,
+    }).start();
+
+    return () => {
+      slideX.stopAnimation();
     };
-  }, [count, inputRange, outputRange, pillWidth]);
+  }, [activeIndex, pillWidth, reducedMotion, slideX]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const nextWidth = event.nativeEvent.layout.width;
@@ -197,6 +174,7 @@ export function ComicTabBar<T extends string>({
 
   return (
     <View
+      collapsable={false}
       accessibilityRole="tablist"
       style={[
         styles.outer,
@@ -206,39 +184,41 @@ export function ComicTabBar<T extends string>({
       ]}
     >
       <View pointerEvents="none" style={styles.shadow} />
-      <View onLayout={handleLayout} style={[styles.track, compact && styles.trackCompact]}>
+      <View collapsable={false} onLayout={handleLayout} style={[styles.track, compact && styles.trackCompact]}>
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.pill,
               compact && styles.pillCompact,
-              { width: pillWidth },
-              pillStyle,
+              {
+                width: pillWidth,
+                backgroundColor: activeOption?.activeFill ?? colors.violet,
+                transform: [{ translateX: slideX }],
+              },
             ]}
           >
-            <View style={styles.pillShine} />
+            <View pointerEvents="none" style={styles.pillShine} />
           </Animated.View>
         ) : null}
 
-        {options.map((option, index) => (
-          <ComicTabItem
-            key={option.value}
-            option={option}
-            index={index}
-            active={index === activeIndex}
-            disabled={disabled}
-            compact={compact}
-            hasPill={pillWidth > 0}
-            progress={progress}
-            onSelect={() => {
-              if (option.value === value) return;
-              Haptics.selection();
-              progress.set(reducedMotion ? index : withSpring(index, springs.snappy));
-              onChange(option.value);
-            }}
-          />
-        ))}
+        <View collapsable={false} style={styles.tabsRow}>
+          {options.map((option, index) => (
+            <ComicTabItem
+              key={option.value}
+              option={option}
+              active={index === activeIndex}
+              disabled={disabled}
+              compact={compact}
+              hasPill={pillWidth > 0}
+              onSelect={() => {
+                if (disabled || option.value === value) return;
+                Haptics.selection();
+                onChange(option.value);
+              }}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -265,8 +245,6 @@ const styles = StyleSheet.create({
   },
   track: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'stretch',
     padding: TRACK_PADDING,
     borderRadius: 17,
     borderWidth: borders.regular,
@@ -300,12 +278,16 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.shine,
   },
+  tabsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
   tab: {
     flex: 1,
     minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1,
   },
   tabContent: {
     flexDirection: 'row',

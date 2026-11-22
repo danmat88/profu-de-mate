@@ -46,13 +46,18 @@ export function HomeScreen() {
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
   const [notebookPreview, setNotebookPreview] = useState<NotebookPreview>(() => readNotebookPreview());
   const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
+  const [homeFocused, setHomeFocused] = useState(true);
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
   const mounted = useRef(true);
   const focused = useRef(true);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
     mounted.current = false;
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    if (blurTimer.current) clearTimeout(blurTimer.current);
   }, []);
 
   useEffect(() => {
@@ -65,9 +70,27 @@ export function HomeScreen() {
     focused.current = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+    if (focusTimer.current) {
+      clearTimeout(focusTimer.current);
+      focusTimer.current = null;
+    }
+    focusTimer.current = setTimeout(() => {
+      focusTimer.current = null;
+      if (active && mounted.current) setHomeFocused(true);
+    }, 220);
     setGalleryBusy(false);
-    setNotebookPreview(readNotebookPreview());
-    setPendingAnalysis(getPreparedPendingAnalysis() ?? null);
+    setNotebookPreview((previous) => {
+      const next = readNotebookPreview();
+      return previous.latestTitle === next.latestTitle && previous.count === next.count ? previous : next;
+    });
+    setPendingAnalysis((previous) => {
+      const next = getPreparedPendingAnalysis() ?? null;
+      return previous?.requestId === next?.requestId && previous?.mode === next?.mode ? previous : next;
+    });
     const warmFrame = requestAnimationFrame(() => {
       if (!active) return;
       try { warmMathDrafts(captureSession()); } catch { /* Ignore when session is not yet ready. */ }
@@ -76,7 +99,20 @@ export function HomeScreen() {
       if (active) setPendingAnalysis(pending);
     });
     void refreshCommercialAccessIfStale();
-    return () => { active = false; focused.current = false; cancelAnimationFrame(warmFrame); };
+    return () => {
+      active = false;
+      focused.current = false;
+      cancelAnimationFrame(warmFrame);
+      if (focusTimer.current) {
+        clearTimeout(focusTimer.current);
+        focusTimer.current = null;
+      }
+      // Pause Home ambient loops quietly only after the pushed screen has slid in.
+      blurTimer.current = setTimeout(() => {
+        blurTimer.current = null;
+        if (mounted.current && !focused.current) setHomeFocused(false);
+      }, 320);
+    };
   }, [refreshCommercialAccessIfStale]));
 
   const activeMode = pendingAnalysis?.mode ?? mode;
@@ -108,21 +144,18 @@ export function HomeScreen() {
   const openCapture = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     if (!resume()) navigation.navigate('Capture', { mode });
   };
 
   const openMath = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     if (!resume()) navigation.navigate('MathInput', { mode });
   };
 
   const openNotebook = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    Haptics.selection();
     navigation.navigate('Notebook');
   };
 
@@ -130,7 +163,6 @@ export function HomeScreen() {
     if (galleryLocked.current || navigationLocked.current) return;
     if (resume()) return;
     galleryLocked.current = true;
-    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     setGalleryError(null);
     setGalleryBusy(true);
     try {
@@ -184,6 +216,7 @@ export function HomeScreen() {
   return (
     <HomeSurface
       mode={activeMode}
+      focused={homeFocused}
       pending={Boolean(pendingAnalysis)}
       galleryBusy={galleryBusy}
       galleryError={galleryError}
@@ -196,6 +229,7 @@ export function HomeScreen() {
       savedLessonsCount={notebookPreview.count}
       showGuide={!guideDismissed}
       onDismissGuide={dismissGuide}
+      onClearGalleryError={() => setGalleryError(null)}
       onMode={chooseMode}
       onCapture={openCapture}
       onGallery={() => void openGallery()}

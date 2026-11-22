@@ -4,7 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
 import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
@@ -106,6 +108,8 @@ function loadInitialDraft(mode: FlowMode, session: ActiveSession | null): MathDr
 export function MathInputScreen({ navigation, route }: Props) {
   const { gutter, isVeryShort, isShort, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const contentReady = useTransitionSettled(navigation, reducedMotion);
   const compact = isVeryShort || isShort;
   const session = useRef<ActiveSession | null>(null);
   const userEdited = useRef(false);
@@ -146,11 +150,29 @@ export function MathInputScreen({ navigation, route }: Props) {
     focused.current = true;
     inFlight.current = false;
     setBusy(false);
+    let activeSession = session.current;
+    try { activeSession = captureSession(); } catch { /* Keep previous session fallback. */ }
+    const sessionChanged = activeSession?.sessionKey !== session.current?.sessionKey;
+    const modeChanged = !userEdited.current && route.params.mode !== modeRef.current;
+    if (sessionChanged || modeChanged) {
+      session.current = activeSession;
+      const targetMode = route.params.mode;
+      const nextDraft = loadInitialDraft(targetMode, activeSession);
+      modeRef.current = targetMode;
+      draftRef.current = nextDraft;
+      userEdited.current = false;
+      setActiveMode(targetMode);
+      setDraft(nextDraft);
+      setField('problem');
+      setError(null);
+      setErrorSignal(0);
+      setSaveState('saved');
+    }
     return () => {
       focused.current = false;
       if (userEdited.current) persistDraft(false);
     };
-  }, [persistDraft]));
+  }, [persistDraft, route.params.mode]));
 
   useEffect(() => {
     draftRef.current = draft;
@@ -398,6 +420,7 @@ export function MathInputScreen({ navigation, route }: Props) {
             referenceText={problemPreview || undefined}
             onPressReference={problemPreview ? () => selectField('problem') : undefined}
             errorSignal={errorSignal}
+            keypadReady={contentReady}
             onChange={updateDocument}
           />
         </View>

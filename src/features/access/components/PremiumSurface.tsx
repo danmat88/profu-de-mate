@@ -1,6 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
 import Animated, {
@@ -24,6 +23,7 @@ import type { CommercialAccess } from '../../../shared/types';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
+import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -50,6 +50,7 @@ type Props = {
   error: string | null;
   success: boolean;
   successLimit: number;
+  contentReady?: boolean;
   active?: boolean;
   onClose: () => void;
   onConnect: () => void;
@@ -73,17 +74,6 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
   const pop = useSharedValue(1);
   const annual = period === 'annual';
 
-  useEffect(() => {
-    if (!selected || reducedMotion) {
-      pop.set(1);
-      return;
-    }
-    pop.set(withSequence(
-      withTiming(1.028, { duration: 90 }),
-      withSpring(1, springs.bouncy),
-    ));
-  }, [pop, reducedMotion, selected]);
-
   const cardAnimated = useAnimatedStyle(() => ({
     transform: [{ scale: pop.get() }],
   }));
@@ -97,6 +87,12 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
         disabled={disabled}
         onPress={() => {
           Haptics.selection();
+          if (!reducedMotion && !selected) {
+            pop.set(withSequence(
+              withTiming(1.028, { duration: 90 }),
+              withSpring(1, springs.bouncy),
+            ));
+          }
           onSelect();
         }}
         style={({ pressed }) => [styles.plan, selected && styles.planSelected, pressed && styles.pressed]}
@@ -131,7 +127,7 @@ export function PremiumSurface(props: Props) {
   const { gutter, isVeryShort } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit, active = true } = props;
+  const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit, contentReady = true, active = true } = props;
   const premium = access?.premium.active === true;
   const quotaExhausted = Boolean(access && !access.canAnalyze);
   const googleLinked = identity === 'google';
@@ -141,7 +137,7 @@ export function PremiumSurface(props: Props) {
   const canBuy = googleLinked && Boolean(access && selectedPackage && configured);
   const waitingForAccess = !access && accessLoading;
   const showPlans = !premium && !success;
-  const smoothLayout = !reducedMotion && LinearTransition && Easing
+  const smoothLayout = active && !reducedMotion && LinearTransition && Easing
     ? LinearTransition.duration(240).easing(Easing.out(Easing.cubic))
     : undefined;
   const busyLabel = busy === 'google'
@@ -207,7 +203,7 @@ export function PremiumSurface(props: Props) {
               </View>
               <View pointerEvents="none" style={styles.art}>
                 <View style={styles.artHalo} />
-                <Mascot pose={success || premium ? 'cheer' : 'wave'} size={126} active />
+                <Mascot pose={success || premium ? 'cheer' : 'wave'} size={126} active={active} />
                 <View style={styles.artSpark}>
                   <MiniGlyph name="spark" size={18} color={colors.ink} />
                 </View>
@@ -228,6 +224,9 @@ export function PremiumSurface(props: Props) {
             ))}
           </View>
 
+          {contentReady ? (
+          <>
+          <Enter delay={0} distance={14} scaleFrom={0.96}>
           {success ? (
             <View style={styles.activeSection}>
               <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
@@ -279,7 +278,9 @@ export function PremiumSurface(props: Props) {
               </View>
             </View>
           ) : null}
+          </Enter>
 
+          <Enter delay={65} distance={14} scaleFrom={0.96}>
           {showPlans ? (
             <View style={styles.plansSection}>
               <View style={styles.sectionHeading}>
@@ -338,10 +339,15 @@ export function PremiumSurface(props: Props) {
               <Text style={styles.legalLink}>Termeni și confidențialitate</Text>
             </Pressable>
           </View>
+          </Enter>
+          </>
+          ) : null}
         </View>
         </Animated.View>
       </ScrollView>
 
+      {contentReady ? (
+      <Enter delay={125} distance={16} scaleFrom={0.96}>
       <Animated.View layout={smoothLayout} style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {success ? (
           <ComicButton title="Înapoi la matematică" icon="scan" onPress={props.onClose} compact />
@@ -377,6 +383,8 @@ export function PremiumSurface(props: Props) {
           <Text style={styles.footerNote}>Continui gratuit oricând. Fără obligații.</Text>
         ) : null}
       </Animated.View>
+      </Enter>
+      ) : null}
 
       {busy ? (
         <View pointerEvents="auto" style={styles.lockOverlay}>

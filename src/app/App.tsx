@@ -35,6 +35,14 @@ import { colors } from '../shared/theme';
 import type { RootStackParamList } from '../shared/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const NAVIGATION_THEME = {
+  ...DarkTheme,
+  colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink },
+};
+
+function isDarkSystemBarRoute(routeName: string | undefined): boolean {
+  return routeName === 'Capture' || routeName === 'Processing' || routeName === 'MathProcessing';
+}
 
 SplashScreen.setOptions({ duration: 0, fade: false });
 void SplashScreen.preventAutoHideAsync();
@@ -43,19 +51,52 @@ type AppStartup = (StartupSnapshot & { offline: false }) | {
   offline: true; initialAccess: null; pendingAnalysis: null; verifiedAt: 0; sessionKey: string;
 };
 
+function SystemBarChrome({
+  navigationRef,
+  initialDark,
+}: {
+  navigationRef: ReturnType<typeof useNavigationContainerRef<RootStackParamList>>;
+  initialDark: boolean;
+}) {
+  const [dark, setDark] = useState(initialDark);
+
+  useEffect(() => {
+    const sync = () => {
+      const route = navigationRef.getCurrentRoute();
+      if (route) setDark(isDarkSystemBarRoute(route.name));
+    };
+    const unsubscribe = navigationRef.addListener('state', sync);
+    return unsubscribe;
+  }, [navigationRef]);
+
+  return (
+    <>
+      <NavigationBar hidden style={dark ? 'dark' : 'light'} />
+      <StatusBar style={dark ? 'light' : 'dark'} />
+    </>
+  );
+}
+
 function AppExperience({ startup, interactive, revealReady, onReady }: { startup: AppStartup; interactive: boolean; revealReady: boolean; onReady: () => void }) {
   const { pendingAnalysis } = startup;
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
-  const [activeRoute, setActiveRoute] = useState<keyof RootStackParamList>(startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home');
+  const initialRoute: keyof RootStackParamList = startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home';
   const reducedMotion = useReducedMotion();
   const { authSessionKey } = useCommercial();
   const previousSessionKey = useRef(authSessionKey);
   const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
-  const darkSystemBars = activeRoute === 'Capture' || activeRoute === 'Processing' || activeRoute === 'MathProcessing';
   const initialState = useMemo(
     () => (startup.offline ? { index: 1, routes: [{ name: 'Home' as const }, { name: 'Notebook' as const }] } : undefined),
     [startup.offline],
   );
+  const defaultScreenOptions = useMemo(() => ({
+    headerShown: false,
+    contentStyle: { backgroundColor: colors.canvas },
+    animation: (reducedMotion ? 'none' : 'ios_from_right') as 'none' | 'ios_from_right',
+  }), [reducedMotion]);
+  const handleNavigationReady = useCallback(() => {
+    requestAnimationFrame(() => requestAnimationFrame(onReady));
+  }, [onReady]);
 
   useEffect(() => {
     if (previousSessionKey.current === authSessionKey) return;
@@ -76,7 +117,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
 
   return (
     <View style={styles.app}>
-      <NavigationBar hidden style={darkSystemBars ? 'dark' : 'light'} />
+      <SystemBarChrome navigationRef={navigationRef} initialDark={isDarkSystemBarRoute(initialRoute)} />
       <View
         style={styles.navigator}
         pointerEvents={interactive ? 'auto' : 'none'}
@@ -86,15 +127,10 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
         <NavigationContainer
             ref={navigationRef}
             initialState={initialState}
-            theme={{ ...DarkTheme, colors: { ...DarkTheme.colors, background: colors.canvas, card: colors.canvas, text: colors.ink } }}
-            onReady={() => requestAnimationFrame(() => requestAnimationFrame(onReady))}
-            onStateChange={(state) => {
-              const route = state?.routes[state.index];
-              if (route) setActiveRoute(route.name as keyof RootStackParamList);
-            }}
+            theme={NAVIGATION_THEME}
+            onReady={handleNavigationReady}
           >
-            <StatusBar style={darkSystemBars ? 'light' : 'dark'} />
-            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas }, animation: reducedMotion ? 'none' : 'ios_from_right' }}>
+            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={defaultScreenOptions}>
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
               <Stack.Screen name="MathInput" component={MathInputScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom' }} />
               <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade', contentStyle: { backgroundColor: colors.ink } }} />

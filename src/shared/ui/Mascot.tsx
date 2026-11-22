@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Image, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -31,8 +31,10 @@ type Props = {
   size?: number;
   /** Pauses idle float when offscreen or in the background. */
   active?: boolean;
-  /** Allows tapping Profu’ for a playful spring hop + wiggle. */
+  /** Allows tapping Profu for a playful spring hop and wiggle. */
   interactive?: boolean;
+  /** Increment to trigger a playful hop and wiggle from an external control. */
+  nudgeSignal?: number;
   /** Optional extra callback when tapped (requires `interactive`). */
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
@@ -43,6 +45,7 @@ export function Mascot({
   size = 104,
   active = true,
   interactive = false,
+  nudgeSignal,
   onPress,
   style,
 }: Props) {
@@ -53,6 +56,30 @@ export function Mascot({
   const hopY = useSharedValue(0);
   const wiggle = useSharedValue(0);
   const previousPose = useRef<MascotPose>(pose);
+  const previousNudge = useRef<number | undefined>(nudgeSignal);
+
+  const playHopWiggle = useCallback(() => {
+    if (reducedMotion) return;
+    hopY.set(withSequence(
+      withTiming(-11, { duration: 110, easing: Easing.out(Easing.quad) }),
+      withSpring(0, springs.bouncy),
+    ));
+    wiggle.set(withSequence(
+      withTiming(-8, { duration: 75 }),
+      withTiming(8, { duration: 105 }),
+      withSpring(0, springs.bouncy),
+    ));
+    pop.set(withSequence(
+      withTiming(1.08, { duration: 95 }),
+      withSpring(1, springs.bouncy),
+    ));
+  }, [hopY, pop, reducedMotion, wiggle]);
+
+  useEffect(() => {
+    if (nudgeSignal === undefined || previousNudge.current === nudgeSignal) return;
+    previousNudge.current = nudgeSignal;
+    playHopWiggle();
+  }, [nudgeSignal, playHopWiggle]);
 
   useEffect(() => {
     if (reducedMotion || !active) {
@@ -107,20 +134,7 @@ export function Mascot({
   const handleTap = () => {
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     onPress?.();
-    if (reducedMotion) return;
-    hopY.set(withSequence(
-      withTiming(-11, { duration: 110, easing: Easing.out(Easing.quad) }),
-      withSpring(0, springs.bouncy),
-    ));
-    wiggle.set(withSequence(
-      withTiming(-8, { duration: 75 }),
-      withTiming(8, { duration: 105 }),
-      withSpring(0, springs.bouncy),
-    ));
-    pop.set(withSequence(
-      withTiming(1.08, { duration: 95 }),
-      withSpring(1, springs.bouncy),
-    ));
+    playHopWiggle();
   };
 
   const visual = (

@@ -5,6 +5,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
 import * as Haptics from '../../../shared/services/haptics';
 import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import { Enter } from '../../../shared/ui/Enter';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
 import {
@@ -550,6 +551,8 @@ export type MathEditorProps = {
   placeholder?: string;
   referenceText?: string;
   onPressReference?: () => void;
+  /** Keep the 26-key comic keypad deferred until the push transition finishes, while reserving its exact height. */
+  keypadReady?: boolean;
 };
 
 /** Native formula studio: notebook spine, 2D bounded scrolling, auto-scaling, zero Reanimated churn. */
@@ -565,6 +568,7 @@ export function MathEditor({
   placeholder = 'Tastează formula cu tastele de mai jos',
   referenceText,
   onPressReference,
+  keypadReady = true,
 }: MathEditorProps) {
   const { isVeryShort, isShort } = useResponsiveLayout();
   const compact = isVeryShort || isShort;
@@ -1071,15 +1075,21 @@ export function MathEditor({
       </View>
 
       {!expanded ? (
-        <KeypadGrid
-          showRelations={showRelations}
-          isEmpty={isEmpty}
-          disabled={disabled}
-          compact={compact}
-          onSymbol={handleSymbol}
-          onTemplate={handleTemplate}
-          onBackspace={handleBackspace}
-        />
+        keypadReady ? (
+          <Enter delay={0} distance={18} scaleFrom={0.97} bouncy={false}>
+            <KeypadGrid
+              showRelations={showRelations}
+              isEmpty={isEmpty}
+              disabled={disabled}
+              compact={compact}
+              onSymbol={handleSymbol}
+              onTemplate={handleTemplate}
+              onBackspace={handleBackspace}
+            />
+          </Enter>
+        ) : (
+          <View style={[styles.keypadPlaceholder, compact && styles.keypadPlaceholderCompact]} />
+        )
       ) : null}
 
       {state.message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{state.message}</Text> : null}
@@ -1429,6 +1439,8 @@ const styles = StyleSheet.create({
   paletteLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink },
 
   keypad: { gap: 5, flexShrink: 0 },
+  keypadPlaceholder: { height: 229, flexShrink: 0 },
+  keypadPlaceholderCompact: { height: 201 },
   templateRow: { flexDirection: 'row', gap: 4.5 },
   keyRow: { flexDirection: 'row', gap: 5 },
   key: {

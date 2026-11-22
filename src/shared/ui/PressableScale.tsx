@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -34,6 +34,8 @@ type Props = Omit<PressableProps, 'style' | 'children'> & {
   haptic?: PressHaptic;
   /** Dim control opacity when disabled (default true). Set false for crisp transient locks. */
   dimWhenDisabled?: boolean;
+  /** Optional micro-delay (ms) after tap so the rebound spring completes visibly before navigation. */
+  deferPressMs?: number;
 };
 
 function triggerHaptic(kind: PressHaptic) {
@@ -57,6 +59,7 @@ export function PressableScale({
   pressedScale = 0.96,
   haptic = 'none',
   dimWhenDisabled = true,
+  deferPressMs = 0,
   disabled,
   onPress,
   onPressIn,
@@ -65,16 +68,24 @@ export function PressableScale({
 }: Props) {
   const reducedMotion = useReducedMotion();
   const pressed = useSharedValue(0);
+  const deferTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (reducedMotion) pressed.set(0);
   }, [pressed, reducedMotion]);
 
+  useEffect(() => () => {
+    if (deferTimer.current) clearTimeout(deferTimer.current);
+  }, []);
+
   const animatedFace = useAnimatedStyle(() => {
     const p = pressed.get();
     if (depth > 0) {
       return {
-        transform: [{ translateY: p * Math.max(2, depth - 1) }],
+        transform: [
+          { translateY: p * Math.max(2, depth - 1) },
+          { scale: 1 - p * 0.018 },
+        ],
       };
     }
     return {
@@ -97,9 +108,17 @@ export function PressableScale({
   };
 
   const handlePress: PressableProps['onPress'] = (event) => {
-    if (disabled) return;
+    if (disabled || deferTimer.current) return;
     triggerHaptic(haptic);
-    onPress?.(event);
+    if (!onPress) return;
+    if (deferPressMs > 0 && !reducedMotion) {
+      deferTimer.current = setTimeout(() => {
+        deferTimer.current = null;
+        onPress(event);
+      }, deferPressMs);
+      return;
+    }
+    onPress(event);
   };
 
   return (

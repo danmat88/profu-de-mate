@@ -15,6 +15,8 @@ import {
   type PremiumOffer,
 } from '../services/purchases';
 import type { RootStackParamList } from '../../../shared/types';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
+import { useTransitionPhases } from '../../../shared/hooks/useTransitionSettled';
 import { createLatestTask, type TaskState } from '../../../shared/utils/latestTask';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { isCommercialAccessExpired } from '../services/commercialRefreshPolicy';
@@ -59,6 +61,9 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [success, setSuccess] = useState(false);
   const [successLimit, setSuccessLimit] = useState(30);
   const [screenFocused, setScreenFocused] = useState(() => navigation.isFocused?.() ?? true);
+  const reducedMotion = useReducedMotion();
+  const { contentReady, ambientReady } = useTransitionPhases(navigation, reducedMotion);
+  const ambientActive = screenFocused && ambientReady;
   const identity = sessionIdentity ?? access?.identity ?? null;
   const googleLinked = identity === 'google';
   const premium = access?.premium.active === true;
@@ -106,9 +111,10 @@ export function PaywallScreen({ navigation, route }: Props) {
   useEffect(() => {
     const cached = getCachedPremiumOffer();
     setOfferState(cached ? { status: 'ready', value: cached } : null);
+    if (!ambientActive) return undefined;
     if (access?.purchaseUserId && googleLinked && !premium && isPurchasesConfigured()) void offerTask.run();
     return () => offerTask.cancel();
-  }, [googleLinked, premium, access?.purchaseUserId, offerTask]);
+  }, [ambientActive, googleLinked, premium, access?.purchaseUserId, offerTask]);
 
   const connect = async () => {
     if (activeBusy) return;
@@ -194,7 +200,8 @@ export function PaywallScreen({ navigation, route }: Props) {
       error={error}
       success={success}
       successLimit={successLimit}
-      active={screenFocused}
+      contentReady={contentReady}
+      active={ambientActive}
       onClose={() => { if (!activeBusy) navigation.goBack(); }}
       onConnect={() => void connect()}
       onBuy={() => void buy()}

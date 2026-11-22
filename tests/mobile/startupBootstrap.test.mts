@@ -168,12 +168,13 @@ test('Home renders a preparation boundary until access exists, then paints the r
   const Surface = () => {};
   const Boundary = () => {};
   const load = serviceLoader({
-    react: { useCallback: (callback: unknown) => callback, useEffect() {}, useRef: (current: unknown) => ({ current }),
+    react: { useCallback: (callback: unknown) => callback, useContext: () => true, useEffect() {}, useRef: (current: unknown) => ({ current }),
       useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}] },
     'react/jsx-runtime': { jsx: (type: unknown, props: unknown) => ({ type, props }) },
     '@react-navigation/native': { useNavigation: () => ({ navigate }), useFocusEffect() {} },
     'expo-image-picker': {}, 'src/shared/services/haptics.ts': {}, 'src/shared/services/sessionGuard.ts': {},
     'src/features/home/components/HomeSurface.tsx': { HomeSurface: Surface },
+    'src/features/home/context/HomeMotionContext.ts': { HomeMotionReadyContext: {} },
     'src/shared/ui/ReadinessScreen.tsx': { ReadinessScreen: Boundary },
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access: current, status: 'resolving', refresh: async () => {}, refreshIfStale: async () => {} }) },
     'src/features/analysis/services/pendingAnalysis.ts': { getPreparedPendingAnalysis: () => null },

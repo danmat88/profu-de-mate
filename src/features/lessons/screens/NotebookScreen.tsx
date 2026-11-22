@@ -13,9 +13,10 @@ import {
   type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionPhases } from '../../../shared/hooks/useTransitionSettled';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
 import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
@@ -25,6 +26,7 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
+import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -53,12 +55,10 @@ const verdictTones = {
   incorrect: { backgroundColor: colors.roseSoft, color: colors.berryDeep },
 } as const;
 
-function TrashGlyph({ size = 16, color = colors.inkSoft }: { size?: number; color?: string }) {
-  return (
-    <Svg accessible={false} width={size} height={size} viewBox="0 0 24 24">
-      <Path d="M4 7h16M9 7V4.8h6V7M6.7 7l.9 13h8.8l.9-13M10 10.2v6.6M14 10.2v6.6" fill="none" stroke={color} strokeWidth={2.15} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
+const SHORT_MONTHS_RO = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
+
+function padTwo(value: number): string {
+  return value < 10 ? `0${value}` : `${value}`;
 }
 
 function lessonTime(lesson: StoredLesson): string {
@@ -67,9 +67,9 @@ function lessonTime(lesson: StoredLesson): string {
   const now = new Date();
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startLesson = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  if (startLesson === startToday) return `Astăzi · ${date.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })}`;
+  if (startLesson === startToday) return `Astăzi · ${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
   if (startLesson === startToday - 24 * 60 * 60 * 1000) return 'Ieri';
-  return date.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }).replace('.', '');
+  return `${date.getDate()} ${SHORT_MONTHS_RO[date.getMonth()]}`;
 }
 
 function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
@@ -184,7 +184,7 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
                 }}
                 style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
               >
-                <TrashGlyph size={15} color={colors.inkSoft} />
+                <MiniGlyph name="wrong" size={14} color={colors.inkSoft} />
                 <Text style={styles.removeText}>Scoate</Text>
               </Pressable>
               <View style={styles.openPill}>
@@ -200,7 +200,7 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
             </View>
           </View>
         </View>
-      </PressableScale>
+    </PressableScale>
   );
 }, (previous, next) => (
   previous.lesson.id === next.lesson.id
@@ -219,11 +219,11 @@ function LessonSeparator() {
   return <View style={styles.lessonSeparator} />;
 }
 
-function NotebookLoading() {
-  const showProgress = useDelayedBusy(true, 300);
+function NotebookLoading({ active }: { active: boolean }) {
+  const showProgress = useDelayedBusy(active, 300);
   return (
     <View style={styles.loadingState}>
-      <Mascot pose="thinking" size={132} active />
+      <Mascot pose="thinking" size={132} active={active} />
       <Chip label="CAIETUL TĂU" tone="violetSoft" outlined={false} style={styles.stateChip} />
       <Text style={styles.loadingTitle}>Lecțiile tale, la un loc.</Text>
       <View style={styles.notebookProgress}>
@@ -235,11 +235,12 @@ function NotebookLoading() {
 
 type FullStateProps = {
   kind: 'empty' | 'error';
+  active: boolean;
   onPrimary: () => void;
   onSecondary?: () => void;
 };
 
-function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
+function FullNotebookState({ kind, active, onPrimary, onSecondary }: FullStateProps) {
   const error = kind === 'error';
   return (
     <ScrollView
@@ -249,7 +250,7 @@ function FullNotebookState({ kind, onPrimary, onSecondary }: FullStateProps) {
     >
       <View style={styles.emptyMascotStage}>
         <View style={[styles.emptyHalo, error && styles.emptyHaloError]} />
-        <Mascot pose={error ? 'oops' : 'wave'} size={142} active interactive />
+        <Mascot pose={error ? 'oops' : 'wave'} size={142} active={active} interactive />
       </View>
       <View>
         <Chip
@@ -336,6 +337,8 @@ function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
 export function NotebookScreen({ navigation }: Props) {
   const { gutter, isNarrow } = useResponsiveLayout();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const { contentReady, ambientReady } = useTransitionPhases(navigation, reducedMotion);
   const [filterState, setFilterState] = useState<{ filter: NotebookFilter; direction: -1 | 0 | 1 }>({
     filter: 'all',
     direction: 0,
@@ -344,8 +347,9 @@ export function NotebookScreen({ navigation }: Props) {
   const [queryText, setQueryText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const deferredQueryText = useDeferredValue(queryText);
+  const [initialWarmCache] = useState(() => getCachedFavoriteLessons() !== undefined);
   const [notes, setNotes] = useState<StoredLesson[]>(() => getCachedFavoriteLessons() ?? []);
-  const [loading, setLoading] = useState(() => getCachedFavoriteLessons() === undefined);
+  const [loading, setLoading] = useState(() => !initialWarmCache);
   const [loadError, setLoadError] = useState(false);
   const [subscriptionAttempt, setSubscriptionAttempt] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<StoredLesson>();
@@ -367,6 +371,9 @@ export function NotebookScreen({ navigation }: Props) {
   }, []));
 
   useEffect(() => {
+    // When cached lessons are already ready, wait for both the slide and
+    // staggered card entrance to finish before attaching the live subscription.
+    if (initialWarmCache && !ambientReady) return undefined;
     let mounted = true;
     let unsubscribe: (() => void) | undefined;
     subscribeToFavoriteLessons(
@@ -392,7 +399,7 @@ export function NotebookScreen({ navigation }: Props) {
       setLoadError(true);
     });
     return () => { mounted = false; unsubscribe?.(); };
-  }, [subscriptionAttempt]);
+  }, [ambientReady, initialWarmCache, subscriptionAttempt]);
 
   const normalizedQuery = deferredQueryText.trim();
   const visibleNotes = useMemo(
@@ -513,14 +520,31 @@ export function NotebookScreen({ navigation }: Props) {
   }, [notes.length]);
 
   const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
-  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item }) => (
-    <LessonRow lesson={item} newest={item.id === newestNoteId} opening={item.id === openingNoteId} onOpen={openNote} onRemove={requestRemove} />
-  ), [newestNoteId, openNote, openingNoteId, requestRemove]);
+  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item, index }) => {
+    const row = (
+      <LessonRow
+        lesson={item}
+        newest={item.id === newestNoteId}
+        opening={item.id === openingNoteId}
+        onOpen={openNote}
+        onRemove={requestRemove}
+      />
+    );
+    if (direction === 0 && index < 3) {
+      return (
+        <Enter delay={index * 65} distance={18} scaleFrom={0.95}>
+          {row}
+        </Enter>
+      );
+    }
+    return row;
+  }, [direction, newestNoteId, openNote, openingNoteId, requestRemove]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
   const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
   const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTabLabel;
   const headerCount = loading && notes.length === 0 ? 'LECȚII SALVATE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
+  const searchPlaceholder = isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole';
 
   if (loading && notes.length === 0) {
     return (
@@ -528,7 +552,7 @@ export function NotebookScreen({ navigation }: Props) {
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        <NotebookLoading />
+        <NotebookLoading active={ambientReady} />
       </View>
     );
   }
@@ -539,7 +563,7 @@ export function NotebookScreen({ navigation }: Props) {
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        <FullNotebookState kind={loadError ? 'error' : 'empty'} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
+        <FullNotebookState kind={loadError ? 'error' : 'empty'} active={ambientReady} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
       </View>
     );
   }
@@ -556,18 +580,22 @@ export function NotebookScreen({ navigation }: Props) {
             <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
               <View pointerEvents="none" style={styles.searchShine} />
               <AppIcon name="search" size={26} />
-              <TextInput
-                autoCorrect={false}
-                returnKeyType="search"
-                value={queryText}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                onChangeText={setQueryText}
-                placeholder={isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole'}
-                placeholderTextColor={colors.inkSoft}
-                selectionColor={colors.violet}
-                style={styles.searchInput}
-              />
+              {contentReady ? (
+                <TextInput
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  value={queryText}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  onChangeText={setQueryText}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor={colors.inkSoft}
+                  selectionColor={colors.violet}
+                  style={styles.searchInput}
+                />
+              ) : (
+                <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
+              )}
               {queryText ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
                   <MiniGlyph name="close" size={14} color={colors.ink} />
@@ -594,7 +622,7 @@ export function NotebookScreen({ navigation }: Props) {
         <View style={[styles.listHeading, { paddingHorizontal: gutter }]}>
           <View style={styles.listHeadingLeft}>
             <View style={styles.miniMascotBadge}>
-              <Mascot pose="wave" size={38} active interactive />
+              <Mascot pose="wave" size={38} active={ambientReady} interactive />
             </View>
             <View style={styles.listHeadingCopy}>
               <Text numberOfLines={1} style={styles.listEyebrow}>
@@ -610,36 +638,40 @@ export function NotebookScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <TabPanel key={filter} direction={direction} style={styles.listMotion}>
-          <FlatList
-            data={visibleNotes}
-            renderItem={renderLesson}
-            keyExtractor={keyExtractor}
-            ItemSeparatorComponent={LessonSeparator}
-            ListEmptyComponent={<FilterEmpty filter={filter} query={normalizedQuery} onReset={resetFilters} onStart={startMode} />}
-            ListFooterComponent={<View style={styles.listFooter} />}
-            keyboardDismissMode="on-drag"
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            removeClippedSubviews={false}
-            initialNumToRender={7}
-            maxToRenderPerBatch={7}
-            windowSize={7}
-            contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 18 }]}
-          />
-        </TabPanel>
+        {contentReady ? (
+          <TabPanel key={filter} direction={direction} style={styles.listMotion}>
+            <FlatList
+              data={visibleNotes}
+              renderItem={renderLesson}
+              keyExtractor={keyExtractor}
+              ItemSeparatorComponent={LessonSeparator}
+              ListEmptyComponent={visibleNotes.length === 0 ? <FilterEmpty filter={filter} query={normalizedQuery} onReset={resetFilters} onStart={startMode} /> : null}
+              ListFooterComponent={<View style={styles.listFooter} />}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              removeClippedSubviews={false}
+              initialNumToRender={3}
+              maxToRenderPerBatch={3}
+              windowSize={5}
+              contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 18 }]}
+            />
+          </TabPanel>
+        ) : null}
       </KeyboardAvoidingView>
 
-      <RemoveFromNotebookModal
-        visible={removeVisible && Boolean(pendingRemoval)}
-        lessonTitle={pendingRemovalTitle}
-        description="Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet."
-        removing={removing}
-        error={removeError}
-        onConfirm={() => void confirmRemoval()}
-        onCancel={() => closeRemoval()}
-        onAfterClose={handleRemovalClosed}
-      />
+      {pendingRemoval ? (
+        <RemoveFromNotebookModal
+          visible={removeVisible && Boolean(pendingRemoval)}
+          lessonTitle={pendingRemovalTitle}
+          description="Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet."
+          removing={removing}
+          error={removeError}
+          onConfirm={() => void confirmRemoval()}
+          onCancel={() => closeRemoval()}
+          onAfterClose={handleRemovalClosed}
+        />
+      ) : null}
     </View>
   );
 }
@@ -674,6 +706,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.shine,
   },
   searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
+  searchPlaceholderText: { flex: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 13.5 },
   clearSearch: {
     width: 28,
     height: 28,

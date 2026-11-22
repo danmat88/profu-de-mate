@@ -139,6 +139,7 @@ test('cancelling the gallery preserves Home, releases the launch lock and permit
     '@react-navigation/native': { useNavigation: () => ({ navigate: (...args: any[]) => navigations.push(args) }), useFocusEffect() {} },
     'expo-image-picker': { launchImageLibraryAsync: () => new Promise(resolve => launches.push(resolve)) },
     'src/features/home/components/HomeSurface.tsx': { HomeSurface: 'HomeSurface' },
+    'src/features/home/context/HomeMotionContext.ts': { HomeMotionReadyContext: {} },
     'src/shared/ui/ReadinessScreen.tsx': {},
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access, status: 'ready', refreshIfStale: async () => {} }) },
     'src/features/analysis/services/pendingAnalysis.ts': { getPreparedPendingAnalysis: () => null },
@@ -187,4 +188,153 @@ test('opening the gallery keeps Home controls crisp without dimming them gray', 
   assert.equal(gallery.props.dimWhenDisabled, false);
   assert.equal(math.props.disabled, true);
   assert.equal(math.props.dimWhenDisabled, false);
+});
+
+function statefulSurfaceFixture(initialHeight = 802) {
+  const window = { width: 360, height: initialHeight, fontScale: 1 };
+  const frame = { x: 0, y: 0, width: 360, height: initialHeight };
+  const insets = { top: 42, right: 0, bottom: 0, left: 0 };
+  const sharedValue = (initial: number) => ({ value: initial, get: () => initial, set() {} });
+  const states: unknown[] = [];
+  const refs: Array<{ current: unknown }> = [];
+  let stateCursor = 0;
+  let refCursor = 0;
+  const load = serviceLoader({
+    react: {
+      useCallback: (fn: unknown) => fn,
+      useContext: () => true,
+      useRef: (initial: unknown) => {
+        const index = refCursor++;
+        if (!refs[index]) refs[index] = { current: initial };
+        return refs[index];
+      },
+      useState: (initial: any) => {
+        const index = stateCursor++;
+        if (!(index in states)) {
+          states[index] = typeof initial === 'function' ? initial() : initial;
+        }
+        const setState = (next: any) => {
+          states[index] = typeof next === 'function' ? next(states[index]) : next;
+        };
+        return [states[index], setState];
+      },
+      useEffect() {},
+    },
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': {
+      AppState: { currentState: 'active' },
+      View: 'View', Image: 'Image', Pressable: 'Pressable', StyleSheet: { create: (s: unknown) => s },
+      useWindowDimensions: () => window,
+    },
+    'react-native-reanimated': {
+      default: { View: 'View' },
+      cancelAnimation() {},
+      Easing: {
+        inOut: (fn: unknown) => fn,
+        out: (fn: unknown) => fn,
+        quad: (v: number) => v,
+        cubic: (v: number) => v,
+        linear: (v: number) => v,
+      },
+      useAnimatedStyle: (fn: () => unknown) => fn(),
+      useSharedValue: sharedValue,
+      withDelay: (_delay: number, v: unknown) => v,
+      withRepeat: (v: unknown) => v,
+      withSequence: (v: unknown) => v,
+      withSpring: (v: unknown) => v,
+      withTiming: (v: unknown) => v,
+    },
+    '@react-navigation/native': { useIsFocused: () => true },
+    'react-native-safe-area-context': { useSafeAreaFrame: () => frame, useSafeAreaInsets: () => insets },
+    'expo-linear-gradient': { LinearGradient: 'Gradient' }, 'expo-status-bar': { StatusBar: 'StatusBar' },
+    'src/features/home/context/HomeMotionContext.ts': { HomeMotionReadyContext: {} },
+    'src/shared/hooks/useReducedMotion.ts': { useReducedMotion: () => true },
+    'src/shared/services/bundledImages.ts': { bundledImageSource: (id: number) => id },
+    'src/shared/ui/AppIcon.tsx': { AppIcon: 'AppIcon' }, 'src/shared/ui/Chip.tsx': { Chip: 'Chip' },
+    'src/shared/ui/ComicBackdrop.tsx': { ComicBackdrop: 'Backdrop' }, 'src/shared/ui/Enter.tsx': { Enter: 'Enter' },
+    'src/shared/ui/IconButton.tsx': { IconButton: 'IconButton' }, 'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
+    'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'Glyph' }, 'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'Loader' },
+    'src/shared/ui/PressableScale.tsx': { PressableScale: 'PressableScale' },
+    'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
+    'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
+    'src/shared/ui/Typography.tsx': { Text: 'Text' },
+    'src/features/access/components/QuotaResetTimer.tsx': {
+      ComicClockIcon: 'ComicClockIcon',
+      HomeResetPillNote: 'HomeResetPillNote',
+    },
+    'assets/brand/profu_mark_v2.png': 1, 'assets/profu_mascot_v2.png': 2,
+  });
+  const Surface = load('src/features/home/components/HomeSurface.tsx').HomeSurface;
+  const render = (overrides: Record<string, unknown> = {}) => {
+    stateCursor = 0;
+    refCursor = 0;
+    return Surface({
+      mode: 'solve',
+      pending: false,
+      galleryBusy: false,
+      galleryError: null,
+      allowance: { label: '2 din 5 azi', note: 'VEZI PREMIUM', accessibilityLabel: 'Premium' },
+      remaining: 2,
+      limit: 5,
+      premiumActive: false,
+      ...overrides,
+    });
+  };
+  return { render };
+}
+
+test('top-left owl icon adapts tutor messages for exhausted free, exhausted premium, last problem, pending and gallery errors', () => {
+  const freeExhausted = statefulSurfaceFixture();
+  let tree = freeExhausted.render({ remaining: 0, limit: 5, premiumActive: false });
+  let bubble = find(tree, node => node.type === 'SpeechBubble');
+  let mascot = find(tree, node => node.type === 'Mascot');
+  assert.equal(bubble.props.title, 'Ai terminat pe azi!');
+  assert.ok(bubble.props.body.length <= 42, 'exhausted owl body stays concise without ugly ellipsis');
+  assert.equal(mascot.props.nudgeSignal, 0);
+
+  const seenFreeBodies: string[] = [];
+  for (let tap = 1; tap <= 4; tap += 1) {
+    const logoButton = find(tree, node => node.props?.accessibilityLabel === 'Profu’ de mate');
+    logoButton.props.onPress();
+    tree = freeExhausted.render({ remaining: 0, limit: 5, premiumActive: false });
+    bubble = find(tree, node => node.type === 'SpeechBubble');
+    mascot = find(tree, node => node.type === 'Mascot');
+    seenFreeBodies.push(bubble.props.body);
+    assert.equal(mascot.props.nudgeSignal, tap, 'tapping top-left owl icon nudges Profu mascot');
+    assert.doesNotMatch(bubble.props.body, /Fă o poză|Deschide camera/i);
+    assert.ok(bubble.props.body.length <= 44);
+  }
+  assert.equal(seenFreeBodies.some(body => body.includes('Premium')), true);
+
+  const premiumExhausted = statefulSurfaceFixture();
+  tree = premiumExhausted.render({ remaining: 0, limit: 30, premiumActive: true });
+  for (let tap = 0; tap < 3; tap += 1) {
+    find(tree, node => node.props?.accessibilityLabel === 'Profu’ de mate').props.onPress();
+    tree = premiumExhausted.render({ remaining: 0, limit: 30, premiumActive: true });
+    bubble = find(tree, node => node.type === 'SpeechBubble');
+    assert.doesNotMatch(bubble.props.title + bubble.props.body, /Premium/i, 'exhausted Premium users must not get Premium upsell tips');
+  }
+
+  const lastProblem = statefulSurfaceFixture();
+  tree = lastProblem.render({ remaining: 1, limit: 5, premiumActive: false });
+  find(tree, node => node.props?.accessibilityLabel === 'Profu’ de mate').props.onPress();
+  tree = lastProblem.render({ remaining: 1, limit: 5, premiumActive: false });
+  bubble = find(tree, node => node.type === 'SpeechBubble');
+  assert.equal(bubble.props.title, 'Ultima problemă pe azi!');
+
+  let cleared = 0;
+  const galleryErrorFixture = statefulSurfaceFixture();
+  tree = galleryErrorFixture.render({
+    galleryError: 'Fotografia nu s-a deschis. Încearcă alta.',
+    onClearGalleryError: () => { cleared += 1; },
+  });
+  bubble = find(tree, node => node.type === 'SpeechBubble');
+  assert.equal(bubble.props.tone, 'roseSoft');
+  find(tree, node => node.props?.accessibilityLabel === 'Profu’ de mate').props.onPress();
+  assert.equal(cleared, 1, 'tapping the top-left owl icon dismisses an active gallery error');
+
+  const compactExhausted = statefulSurfaceFixture(640);
+  tree = compactExhausted.render({ remaining: 0, limit: 5, premiumActive: false });
+  bubble = find(tree, node => node.type === 'SpeechBubble');
+  assert.ok(bubble.props.body.length <= 32, 'compact phones get a short 1-line owl message without clipping');
 });
