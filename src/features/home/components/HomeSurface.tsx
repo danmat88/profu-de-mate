@@ -577,7 +577,7 @@ export function HomeSurface({
               depth={shadows.sm}
               radius={14}
               haptic="selection"
-              deferPressMs={75}
+              deferPressMs={55}
               onPress={onAllowance}
               style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
               contentStyle={[
@@ -638,7 +638,7 @@ export function HomeSurface({
 
             <IconButton
               label="Deschide setările"
-              deferPressMs={75}
+              deferPressMs={55}
               onPress={onSettings}
               size={compact ? 38 : 44}
               style={styles.settingsWrap}
@@ -829,7 +829,7 @@ export function HomeSurface({
                     radius={18}
                     shadowColor={colors.ink}
                     haptic="medium"
-                    deferPressMs={75}
+                    deferPressMs={55}
                     onPress={onCapture}
                     contentStyle={[
                       styles.captureCta,
@@ -913,7 +913,7 @@ export function HomeSurface({
                   radius={20}
                   shadowColor={colors.ink}
                   haptic="light"
-                  deferPressMs={75}
+                  deferPressMs={55}
                   onPress={onMath}
                   style={styles.secondaryTileWrap}
                   contentStyle={[
@@ -954,7 +954,7 @@ export function HomeSurface({
                 radius={20}
                 shadowColor={colors.ink}
                 haptic="selection"
-                deferPressMs={75}
+                deferPressMs={55}
                 onPress={onNotebook}
                 style={styles.notebookWrap}
                 contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}

@@ -8,10 +8,11 @@ type TransitionNavigation = {
 };
 
 /**
- * Returns `false` while the native stack push transition is animating in, then
- * flips to `true` as soon as `transitionEnd` fires (with a bounded fallback).
- * Keeping Frame 0 to the lightweight above-the-fold view ensures Android starts
- * the native slide immediately with zero freeze and zero empty void.
+ * Returns `false` while the native stack push transition is sliding in, then
+ * flips to `true` once `transitionEnd` fires (with a bounded fallback).
+ * Keeping ambient loops, layout animations and background network calls paused
+ * until `transitionEnd` lets the full screen glide in cleanly and then wake up
+ * its living motion sequentially without overlapping animations.
  */
 export function useTransitionSettled(
   navigation: TransitionNavigation | undefined,
@@ -43,36 +44,4 @@ export function useTransitionSettled(
   }, [fallbackMs, navigation, reducedMotion]);
 
   return settled;
-}
-
-/**
- * Coordinates the 3-step sequential screen choreography:
- * 1. Native slide (`contentReady === false`): rich above-the-fold first paint glides in smoothly.
- * 2. Staggered reveal (`contentReady === true, ambientReady === false`): lower cards and controls pop in one by one.
- * 3. Living ambient (`ambientReady === true`): mascot float, live timers, layout springs and background sync wake up.
- */
-export function useTransitionPhases(
-  navigation: TransitionNavigation | undefined,
-  reducedMotion: boolean,
-  options: { fallbackMs?: number; ambientDelayMs?: number } = {},
-): { contentReady: boolean; ambientReady: boolean } {
-  const fallbackMs = options.fallbackMs ?? 260;
-  const ambientDelayMs = options.ambientDelayMs ?? 240;
-  const contentReady = useTransitionSettled(navigation, reducedMotion, fallbackMs);
-  const [ambientReady, setAmbientReady] = useState(reducedMotion);
-
-  useEffect(() => {
-    if (reducedMotion) {
-      setAmbientReady(true);
-      return undefined;
-    }
-    if (!contentReady) {
-      setAmbientReady(false);
-      return undefined;
-    }
-    const timer = setTimeout(() => setAmbientReady(true), ambientDelayMs);
-    return () => clearTimeout(timer);
-  }, [ambientDelayMs, contentReady, reducedMotion]);
-
-  return { contentReady, ambientReady };
 }

@@ -5,6 +5,7 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withSpring,
@@ -57,6 +58,7 @@ export function Mascot({
   const wiggle = useSharedValue(0);
   const previousPose = useRef<MascotPose>(pose);
   const previousNudge = useRef<number | undefined>(nudgeSignal);
+  const previousActive = useRef<boolean>(active);
 
   const playHopWiggle = useCallback(() => {
     if (reducedMotion) return;
@@ -82,6 +84,8 @@ export function Mascot({
   }, [nudgeSignal, playHopWiggle]);
 
   useEffect(() => {
+    const justActivated = active && !previousActive.current;
+    previousActive.current = active;
     if (reducedMotion || !active) {
       cancelAnimation(floatY);
       cancelAnimation(tilt);
@@ -90,28 +94,52 @@ export function Mascot({
       return;
     }
 
-    floatY.set(withRepeat(
-      withSequence(
-        withTiming(-4.5, { duration: 1550, easing: Easing.inOut(Easing.sin) }),
-        withTiming(2.5, { duration: 1550, easing: Easing.inOut(Easing.sin) }),
+    // Joyful welcome hop and wave when a screen settles and wakes up its mascot.
+    if (justActivated) {
+      hopY.set(withSequence(
+        withTiming(-7, { duration: 115, easing: Easing.out(Easing.quad) }),
+        withSpring(0, springs.bouncy),
+      ));
+      wiggle.set(withSequence(
+        withTiming(-4.5, { duration: 80 }),
+        withTiming(3.5, { duration: 95 }),
+        withSpring(0, springs.bouncy),
+      ));
+      pop.set(withSequence(
+        withTiming(1.06, { duration: 100, easing: Easing.out(Easing.quad) }),
+        withSpring(1, springs.snappy),
+      ));
+    }
+
+    const idleDelay = justActivated ? 200 : 0;
+    floatY.set(withDelay(
+      idleDelay,
+      withRepeat(
+        withSequence(
+          withTiming(-4.5, { duration: 1550, easing: Easing.inOut(Easing.sin) }),
+          withTiming(2.5, { duration: 1550, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        true,
       ),
-      -1,
-      true,
     ));
-    tilt.set(withRepeat(
-      withSequence(
-        withTiming(-2.2, { duration: 2100, easing: Easing.inOut(Easing.sin) }),
-        withTiming(2.4, { duration: 2100, easing: Easing.inOut(Easing.sin) }),
+    tilt.set(withDelay(
+      idleDelay,
+      withRepeat(
+        withSequence(
+          withTiming(-2.2, { duration: 2100, easing: Easing.inOut(Easing.sin) }),
+          withTiming(2.4, { duration: 2100, easing: Easing.inOut(Easing.sin) }),
+        ),
+        -1,
+        true,
       ),
-      -1,
-      true,
     ));
 
     return () => {
       cancelAnimation(floatY);
       cancelAnimation(tilt);
     };
-  }, [active, floatY, reducedMotion, tilt]);
+  }, [active, floatY, hopY, pop, reducedMotion, tilt, wiggle]);
 
   useEffect(() => {
     if (previousPose.current === pose) return;

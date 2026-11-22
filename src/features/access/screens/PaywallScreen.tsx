@@ -16,7 +16,7 @@ import {
 } from '../services/purchases';
 import type { RootStackParamList } from '../../../shared/types';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-import { useTransitionPhases } from '../../../shared/hooks/useTransitionSettled';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { createLatestTask, type TaskState } from '../../../shared/utils/latestTask';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { isCommercialAccessExpired } from '../services/commercialRefreshPolicy';
@@ -62,8 +62,8 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [successLimit, setSuccessLimit] = useState(30);
   const [screenFocused, setScreenFocused] = useState(() => navigation.isFocused?.() ?? true);
   const reducedMotion = useReducedMotion();
-  const { contentReady, ambientReady } = useTransitionPhases(navigation, reducedMotion);
-  const ambientActive = screenFocused && ambientReady;
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
+  const ambientActive = screenFocused && transitionSettled;
   const identity = sessionIdentity ?? access?.identity ?? null;
   const googleLinked = identity === 'google';
   const premium = access?.premium.active === true;
@@ -200,7 +200,6 @@ export function PaywallScreen({ navigation, route }: Props) {
       error={error}
       success={success}
       successLimit={successLimit}
-      contentReady={contentReady}
       active={ambientActive}
       onClose={() => { if (!activeBusy) navigation.goBack(); }}
       onConnect={() => void connect()}

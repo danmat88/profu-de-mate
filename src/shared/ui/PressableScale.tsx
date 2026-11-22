@@ -84,7 +84,7 @@ export function PressableScale({
       return {
         transform: [
           { translateY: p * Math.max(2, depth - 1) },
-          { scale: 1 - p * 0.018 },
+          { scale: 1 - p * 0.022 },
         ],
       };
     }

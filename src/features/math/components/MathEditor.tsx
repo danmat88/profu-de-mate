@@ -5,7 +5,6 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
 import * as Haptics from '../../../shared/services/haptics';
 import { borders, colors, fonts, shadows } from '../../../shared/theme';
-import { Enter } from '../../../shared/ui/Enter';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
 import {
@@ -358,20 +357,78 @@ type KeyProps = {
   label: string;
   spoken: string;
   onPress: () => void;
-  repeatOnHold?: boolean;
   tone?: KeyTone;
   disabled?: boolean;
   compact?: boolean;
   slim?: boolean;
 };
 
-/** Pure native 3D comic keycap with zero Reanimated overhead for instant response. */
-const EditorKey = memo(function EditorKey({
+function keyContainerStyles(tone: KeyTone, slim: boolean, compact: boolean, pressed: boolean, disabled: boolean) {
+  return [
+    styles.key,
+    slim && styles.keySlim,
+    compact && (slim ? styles.keySlimCompact : styles.keyCompact),
+    tone === 'operator' && styles.operatorKey,
+    tone === 'equals' && styles.equalsKey,
+    tone === 'variable' && styles.variableKey,
+    tone === 'relation' && styles.relationKey,
+    tone === 'template' && styles.templateKey,
+    tone === 'danger' && styles.dangerKey,
+    pressed && !disabled && styles.keyPressed,
+    disabled && styles.keyDisabled,
+  ];
+}
+
+function keyLabelStyles(tone: KeyTone, slim: boolean, compact: boolean) {
+  return [
+    styles.keyLabel,
+    slim && styles.keyLabelSlim,
+    tone === 'operator' && styles.operatorLabel,
+    tone === 'equals' && styles.equalsLabel,
+    tone === 'variable' && styles.variableLabel,
+    tone === 'relation' && styles.relationLabel,
+    tone === 'template' && styles.templateLabel,
+    tone === 'danger' && styles.dangerLabel,
+    compact && (slim ? styles.keyLabelSlimCompact : styles.keyLabelCompact),
+  ];
+}
+
+/** Stateless native 3D comic keycap with zero hooks for ultra-fast full-keypad mount. */
+const SimpleEditorKey = memo(function SimpleEditorKey({
   label,
   spoken,
   onPress,
-  repeatOnHold = false,
   tone = 'plain',
+  disabled = false,
+  compact = false,
+  slim = false,
+}: KeyProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={spoken}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      hitSlop={2}
+      onPress={() => {
+        Haptics.selection();
+        onPress();
+      }}
+      style={({ pressed }) => keyContainerStyles(tone, slim, compact, pressed, disabled)}
+    >
+      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={keyLabelStyles(tone, slim, compact)}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+});
+
+/** Repeat-on-hold native comic keycap used exclusively by backspace. */
+const RepeatEditorKey = memo(function RepeatEditorKey({
+  label,
+  spoken,
+  onPress,
+  tone = 'danger',
   disabled = false,
   compact = false,
   slim = false,
@@ -407,7 +464,7 @@ const EditorKey = memo(function EditorKey({
       accessibilityState={{ disabled }}
       disabled={disabled}
       hitSlop={2}
-      onPressIn={repeatOnHold ? () => {
+      onPressIn={() => {
         if (disabled) return;
         stopRepeat();
         holdDelay.current = setTimeout(() => {
@@ -416,42 +473,15 @@ const EditorKey = memo(function EditorKey({
             latestPress.current();
           }, 80);
         }, 320);
-      } : undefined}
-      onPressOut={repeatOnHold ? stopRepeat : undefined}
+      }}
+      onPressOut={stopRepeat}
       onPress={() => {
         Haptics.selection();
         onPress();
       }}
-      style={({ pressed }) => [
-        styles.key,
-        slim && styles.keySlim,
-        compact && (slim ? styles.keySlimCompact : styles.keyCompact),
-        tone === 'operator' && styles.operatorKey,
-        tone === 'equals' && styles.equalsKey,
-        tone === 'variable' && styles.variableKey,
-        tone === 'relation' && styles.relationKey,
-        tone === 'template' && styles.templateKey,
-        tone === 'danger' && styles.dangerKey,
-        pressed && !disabled && styles.keyPressed,
-        disabled && styles.keyDisabled,
-      ]}
+      style={({ pressed }) => keyContainerStyles(tone, slim, compact, pressed, disabled)}
     >
-      <View pointerEvents="none" style={styles.keyShine} />
-      <Text
-        maxFontSizeMultiplier={1.25}
-        numberOfLines={1}
-        style={[
-          styles.keyLabel,
-          slim && styles.keyLabelSlim,
-          tone === 'operator' && styles.operatorLabel,
-          tone === 'equals' && styles.equalsLabel,
-          tone === 'variable' && styles.variableLabel,
-          tone === 'relation' && styles.relationLabel,
-          tone === 'template' && styles.templateLabel,
-          tone === 'danger' && styles.dangerLabel,
-          compact && (slim ? styles.keyLabelSlimCompact : styles.keyLabelCompact),
-        ]}
-      >
+      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={keyLabelStyles(tone, slim, compact)}>
         {label}
       </Text>
     </Pressable>
@@ -484,7 +514,7 @@ const KeypadGrid = memo(function KeypadGrid({
     <View style={styles.keypad}>
       <View style={styles.templateRow}>
         {TEMPLATES.map((item) => (
-          <EditorKey
+          <SimpleEditorKey
             key={item.value}
             slim
             compact={compact}
@@ -495,13 +525,12 @@ const KeypadGrid = memo(function KeypadGrid({
             onPress={() => onTemplate(item.value)}
           />
         ))}
-        <EditorKey
+        <RepeatEditorKey
           slim
           compact={compact}
           label="⌫"
           spoken="Șterge înaintea cursorului"
           tone="danger"
-          repeatOnHold
           disabled={disabled || isEmpty}
           onPress={onBackspace}
         />
@@ -512,7 +541,7 @@ const KeypadGrid = memo(function KeypadGrid({
         return (
           <View key={rowIndex} style={styles.keyRow}>
             {row.map((value) => (
-              <EditorKey
+              <SimpleEditorKey
                 key={value}
                 label={SYMBOL_LABELS[value] ?? value}
                 spoken={`Inserează ${SYMBOL_SPOKEN[value] ?? value}`}
@@ -522,7 +551,7 @@ const KeypadGrid = memo(function KeypadGrid({
                 onPress={() => onSymbol(value)}
               />
             ))}
-            <EditorKey
+            <SimpleEditorKey
               key={sideSymbol}
               label={SYMBOL_LABELS[sideSymbol] ?? sideSymbol}
               spoken={`Inserează ${SYMBOL_SPOKEN[sideSymbol] ?? sideSymbol}`}
@@ -551,8 +580,6 @@ export type MathEditorProps = {
   placeholder?: string;
   referenceText?: string;
   onPressReference?: () => void;
-  /** Keep the 26-key comic keypad deferred until the push transition finishes, while reserving its exact height. */
-  keypadReady?: boolean;
 };
 
 /** Native formula studio: notebook spine, 2D bounded scrolling, auto-scaling, zero Reanimated churn. */
@@ -568,7 +595,6 @@ export function MathEditor({
   placeholder = 'Tastează formula cu tastele de mai jos',
   referenceText,
   onPressReference,
-  keypadReady = true,
 }: MathEditorProps) {
   const { isVeryShort, isShort } = useResponsiveLayout();
   const compact = isVeryShort || isShort;
@@ -1075,21 +1101,15 @@ export function MathEditor({
       </View>
 
       {!expanded ? (
-        keypadReady ? (
-          <Enter delay={0} distance={18} scaleFrom={0.97} bouncy={false}>
-            <KeypadGrid
-              showRelations={showRelations}
-              isEmpty={isEmpty}
-              disabled={disabled}
-              compact={compact}
-              onSymbol={handleSymbol}
-              onTemplate={handleTemplate}
-              onBackspace={handleBackspace}
-            />
-          </Enter>
-        ) : (
-          <View style={[styles.keypadPlaceholder, compact && styles.keypadPlaceholderCompact]} />
-        )
+        <KeypadGrid
+          showRelations={showRelations}
+          isEmpty={isEmpty}
+          disabled={disabled}
+          compact={compact}
+          onSymbol={handleSymbol}
+          onTemplate={handleTemplate}
+          onBackspace={handleBackspace}
+        />
       ) : null}
 
       {state.message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{state.message}</Text> : null}
@@ -1439,8 +1459,6 @@ const styles = StyleSheet.create({
   paletteLabel: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.ink },
 
   keypad: { gap: 5, flexShrink: 0 },
-  keypadPlaceholder: { height: 229, flexShrink: 0 },
-  keypadPlaceholderCompact: { height: 201 },
   templateRow: { flexDirection: 'row', gap: 4.5 },
   keyRow: { flexDirection: 'row', gap: 5 },
   key: {
@@ -1464,15 +1482,6 @@ const styles = StyleSheet.create({
     transform: [{ translateY: 2.5 }],
     borderBottomWidth: 1.5,
     opacity: 0.94,
-  },
-  keyShine: {
-    position: 'absolute',
-    top: 2,
-    left: 6,
-    right: 6,
-    height: 3.5,
-    borderRadius: 2,
-    backgroundColor: colors.shine,
   },
   operatorKey: { backgroundColor: colors.violetSoft },
   equalsKey: { backgroundColor: colors.mintSoft },

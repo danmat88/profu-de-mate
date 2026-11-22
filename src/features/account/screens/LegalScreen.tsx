@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { legalDocument } from '../../../shared/config/legal';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { borders, colors, fonts, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -14,7 +12,6 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
-import { Enter } from '../../../shared/ui/Enter';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { TabPanel } from '../../../shared/ui/TabPanel';
@@ -60,8 +57,6 @@ export function LegalScreen({ navigation }: Props) {
   const frame = useSafeAreaFrame();
   const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
-  const contentReady = useTransitionSettled(navigation, reducedMotion);
   const [tabState, setTabState] = useState<{ tab: DocumentTab; direction: -1 | 0 | 1 }>({
     tab: 'overview',
     direction: 0,
@@ -106,36 +101,26 @@ export function LegalScreen({ navigation }: Props) {
                 </View>
               </ComicCard>
 
-              {contentReady ? (
-              <>
-              <Enter delay={0} distance={14} scaleFrom={0.97}>
-                <Section number="01" title="Ce se întâmplă cu poza">
-                  <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
-                  <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză.</Bullet>
-                  <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
-                  <Bullet>Dacă scrii problema, trimitem formula și, la verificare, rezolvarea introdusă de tine către același serviciu. Ciorna rămâne pe telefon până alegi să pornești analiza.</Bullet>
-                  <Bullet>Google poate păstra temporar cererea și răspunsul numai pentru siguranță și prevenirea abuzului, conform termenilor serviciului plătit.</Bullet>
-                </Section>
-              </Enter>
+              <Section number="01" title="Ce se întâmplă cu poza">
+                <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
+                <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză.</Bullet>
+                <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
+                <Bullet>Dacă scrii problema, trimitem formula și, la verificare, rezolvarea introdusă de tine către același serviciu. Ciorna rămâne pe telefon până alegi să pornești analiza.</Bullet>
+                <Bullet>Google poate păstra temporar cererea și răspunsul numai pentru siguranță și prevenirea abuzului, conform termenilor serviciului plătit.</Bullet>
+              </Section>
 
-              <Enter delay={60} distance={14} scaleFrom={0.97}>
-                <Section number="02" title="Tu controlezi Caietul">
-                  <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile din Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate.</Paragraph>
-                </Section>
-              </Enter>
+              <Section number="02" title="Tu controlezi Caietul">
+                <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile din Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate.</Paragraph>
+              </Section>
 
-              <Enter delay={120} distance={14} scaleFrom={0.97}>
-                <Section number="03" title="Inteligența artificială explică, nu decide">
-                  <Paragraph>Răspunsul este generat automat și poate greși. Profu’ de mate este un ajutor educațional, nu înlocuiește profesorul și nu produce decizii cu efect juridic sau academic.</Paragraph>
-                </Section>
+              <Section number="03" title="Inteligența artificială explică, nu decide">
+                <Paragraph>Răspunsul este generat automat și poate greși. Profu’ de mate este un ajutor educațional, nu înlocuiește profesorul și nu produce decizii cu efect juridic sau academic.</Paragraph>
+              </Section>
 
-                <View style={styles.updated}>
-                  <MiniGlyph name="check" size={16} color={colors.violetDeep} />
-                  <Text style={styles.updatedText}>Actualizat la {legalDocument.updatedAt}</Text>
-                </View>
-              </Enter>
-              </>
-              ) : null}
+              <View style={styles.updated}>
+                <MiniGlyph name="check" size={16} color={colors.violetDeep} />
+                <Text style={styles.updatedText}>Actualizat la {legalDocument.updatedAt}</Text>
+              </View>
             </>
           ) : null}
 

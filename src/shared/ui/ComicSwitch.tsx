@@ -1,13 +1,7 @@
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
+import { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { borders, colors, springs } from '../theme';
+import { borders, colors } from '../theme';
 
 type Props = {
   value: boolean;
@@ -18,47 +12,63 @@ const TRACK_HEIGHT = 32;
 const KNOB_SIZE = 22;
 const TRAVEL = TRACK_WIDTH - borders.thin * 2 - 6 - KNOB_SIZE;
 
-/** Bouncy comic toggle switch with Reanimated spring travel & color morph. */
+/**
+ * Bouncy comic toggle switch driven by native-driver spring motion and React
+ * colors so Settings mounts with zero Reanimated worklet overhead.
+ */
 export function ComicSwitch({ value }: Props) {
   const reducedMotion = useReducedMotion();
-  const progress = useSharedValue(value ? 1 : 0);
+  const progress = useRef(new Animated.Value(value ? 1 : 0)).current;
+  const previousValue = useRef(value);
 
   useEffect(() => {
+    if (previousValue.current === value) return undefined;
+    previousValue.current = value;
     const next = value ? 1 : 0;
+    progress.stopAnimation();
     if (reducedMotion) {
-      progress.set(next);
-    } else {
-      progress.set(withSpring(next, springs.bouncy));
+      progress.setValue(next);
+      return undefined;
     }
+    Animated.spring(progress, {
+      toValue: next,
+      tension: 260,
+      friction: 16,
+      useNativeDriver: true,
+    }).start();
+    return () => {
+      progress.stopAnimation();
+    };
   }, [progress, reducedMotion, value]);
 
-  const trackAnimated = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.get(), [0, 1], [colors.line, colors.lime]),
-  }));
-
-  const knobAnimated = useAnimatedStyle(() => {
-    const p = progress.get();
-    return {
-      transform: [
-        { translateX: p * TRAVEL },
-        { scale: 1 + Math.sin(p * Math.PI) * 0.1 },
-      ],
-    };
+  const knobTranslateX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, TRAVEL],
   });
-
-  const dotAnimated = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.get(), [0, 1], [colors.line, colors.violet]),
-  }));
+  const knobScale = progress.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.1, 1],
+  });
 
   return (
     <View style={styles.outer}>
       <View pointerEvents="none" style={styles.shadow} />
-      <Animated.View style={[styles.track, trackAnimated]}>
+      <View style={[styles.track, value && styles.trackActive]}>
         <View pointerEvents="none" style={styles.shine} />
-        <Animated.View style={[styles.knob, knobAnimated]}>
-          <Animated.View style={[styles.knobDot, dotAnimated]} />
+        <Animated.View
+          style={[
+            styles.knob,
+            {
+              transform: [
+                { translateX: knobTranslateX },
+                { scale: knobScale },
+              ],
+            },
+          ]}
+        >
+          <View style={[styles.knobDot, value && styles.knobDotActive]} />
         </Animated.View>
-      </Animated.View>
+      </View>
     </View>
   );
 }
@@ -85,9 +95,13 @@ const styles = StyleSheet.create({
     borderRadius: TRACK_HEIGHT / 2,
     borderWidth: borders.thin,
     borderColor: colors.ink,
+    backgroundColor: colors.line,
     paddingHorizontal: 3,
     justifyContent: 'center',
     overflow: 'hidden',
+  },
+  trackActive: {
+    backgroundColor: colors.lime,
   },
   shine: {
     position: 'absolute',
@@ -112,5 +126,9 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
+    backgroundColor: colors.line,
+  },
+  knobDotActive: {
+    backgroundColor: colors.violet,
   },
 });

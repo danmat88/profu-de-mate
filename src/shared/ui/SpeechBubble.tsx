@@ -58,8 +58,9 @@ export function SpeechBubble({
     previousKey.current = messageKey;
     if (reducedMotion) return;
     scale.set(withSequence(
-      withTiming(1.028, { duration: 80, easing: Easing.out(Easing.quad) }),
-      withSpring(1, springs.snappy),
+      withTiming(0.97, { duration: 55, easing: Easing.out(Easing.quad) }),
+      withTiming(1.032, { duration: 85, easing: Easing.out(Easing.quad) }),
+      withSpring(1, springs.bouncy),
     ));
   }, [messageKey, reducedMotion, scale]);
 

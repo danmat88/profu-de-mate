@@ -26,7 +26,11 @@ const mathInputSource = await readFile(new URL('../../src/features/math/screens/
 const mathEditorSource = await readFile(new URL('../../src/features/math/components/MathEditor.tsx', import.meta.url), 'utf8');
 const notebookSource = await readFile(new URL('../../src/features/lessons/screens/NotebookScreen.tsx', import.meta.url), 'utf8');
 const pressableScaleSource = await readFile(new URL('../../src/shared/ui/PressableScale.tsx', import.meta.url), 'utf8');
+const screenHeaderSource = await readFile(new URL('../../src/shared/ui/ScreenHeader.tsx', import.meta.url), 'utf8');
 const comicTabBarSource = await readFile(new URL('../../src/shared/ui/ComicTabBar.tsx', import.meta.url), 'utf8');
+const comicSwitchSource = await readFile(new URL('../../src/shared/ui/ComicSwitch.tsx', import.meta.url), 'utf8');
+const mascotSource = await readFile(new URL('../../src/shared/ui/Mascot.tsx', import.meta.url), 'utf8');
+const quotaTimerSource = await readFile(new URL('../../src/features/access/components/QuotaResetTimer.tsx', import.meta.url), 'utf8');
 const tabPanelSource = await readFile(new URL('../../src/shared/ui/TabPanel.tsx', import.meta.url), 'utf8');
 const enterSource = await readFile(new URL('../../src/shared/ui/Enter.tsx', import.meta.url), 'utf8');
 
@@ -183,11 +187,12 @@ test('automatic commercial refresh is stale-while-revalidate and pauses during i
   assert.equal(isCurrentCommercialRefreshGeneration(4, 5), false);
 });
 
-test('Settings, Paywall and Legal apply synchronous top insets and lock all interaction cleanly without ugly dimming', () => {
-  for (const source of [settingsSource, premiumSurfaceSource, legalSource]) {
+test('Settings, Paywall and Legal apply synchronous top insets, render complete on Frame 0, and lock cleanly without ugly dimming', () => {
+  for (const source of [settingsSource, premiumSurfaceSource, legalSource, notebookSource]) {
     assert.doesNotMatch(source, /<SafeAreaView/);
     assert.match(source, /paddingTop: insets\.top \?\? 0/);
-    assert.match(source, /\{contentReady \? \([\s\S]*<Enter\s+delay=/);
+    assert.doesNotMatch(source, /<Enter[\s>]/);
+    assert.doesNotMatch(source, /contentReady/);
   }
   assert.doesNotMatch(settingsSource, /sectionLocked/);
   assert.doesNotMatch(premiumSurfaceSource, /contentLocked/);
@@ -213,38 +218,42 @@ test('Settings, Paywall and Legal apply synchronous top insets and lock all inte
   assert.match(notebookSource, /waitForLessonPresentation\(lesson\.id/);
 });
 
-test('taps rebound visibly first, screens slide in with rich above-the-fold UI and stagger lower content after transitionEnd', () => {
+test('taps rebound crisply, full screens mount with minimal worklets, and living animations wake on transitionEnd', () => {
   assert.match(appSource, /const NAVIGATION_THEME = \{/);
   assert.match(appSource, /function SystemBarChrome\(/);
   assert.doesNotMatch(appSource, /setActiveRoute/);
 
   assert.match(pressableScaleSource, /deferPressMs = 0/);
-  assert.match(homeSurfaceSource, /deferPressMs=\{75\}/);
+  assert.match(homeSurfaceSource, /deferPressMs=\{55\}/);
   assert.doesNotMatch(homeSurfaceSource, /useIsFocused/);
   assert.match(homeSource, /focused=\{homeFocused\}/);
+  assert.match(screenHeaderSource, /deferPressMs=\{45\}/);
+  assert.match(screenHeaderSource, /styles\.rightBadge/);
 
   assert.doesNotMatch(comicTabBarSource, /react-native-reanimated/);
+  assert.doesNotMatch(comicSwitchSource, /react-native-reanimated/);
+  assert.doesNotMatch(quotaTimerSource, /react-native-reanimated/);
   assert.match(tabPanelSource, /if \(reducedMotion \|\| direction === 0\) \{\s*return <View style=\{style\}>\{children\}<\/View>;/);
+  assert.match(mascotSource, /const justActivated = active && !previousActive\.current/);
 
-  assert.match(notebookSource, /useTransitionPhases\(navigation, reducedMotion\)/);
-  assert.match(notebookSource, /if \(initialWarmCache && !ambientReady\) return undefined;/);
-  assert.match(notebookSource, /<PressableScale[\s\S]*contentStyle=\{styles\.lessonCard\}/);
-  assert.match(notebookSource, /if \(direction === 0 && index < 3\)/);
+  assert.match(notebookSource, /useTransitionSettled\(navigation, reducedMotion\)/);
+  assert.match(notebookSource, /if \(initialWarmCache && !transitionSettled\) return undefined;/);
+  assert.match(notebookSource, /styles\.lessonRowShadow/);
   assert.doesNotMatch(notebookSource, /toLocaleTimeString|toLocaleDateString/);
   assert.match(notebookSource, /\{pendingRemoval \? \(\s*<RemoveFromNotebookModal/);
 
-  assert.match(settingsSource, /useTransitionPhases\(navigation, reducedMotion\)/);
+  assert.match(settingsSource, /useTransitionSettled\(navigation, reducedMotion\)/);
   assert.match(settingsSource, /if \(!everOpened\) return null;/);
   assert.match(settingsSource, /reducedMotion \|\| !ambientActive\s*\?\s*undefined\s*:\s*LinearTransition\.duration\(/);
 
-  assert.match(paywallSource, /useTransitionPhases\(navigation, reducedMotion\)/);
+  assert.match(paywallSource, /useTransitionSettled\(navigation, reducedMotion\)/);
   assert.match(paywallSource, /if \(!ambientActive\) return undefined;/);
-  assert.match(paywallSource, /contentReady=\{contentReady\}/);
   assert.match(paywallSource, /active=\{ambientActive\}/);
   assert.match(premiumSurfaceSource, /const smoothLayout = active && !reducedMotion/);
+  assert.doesNotMatch(premiumSurfaceSource, /useSharedValue|useAnimatedStyle/);
 
-  assert.match(mathInputSource, /useTransitionSettled\(navigation, reducedMotion\)/);
-  assert.match(mathInputSource, /keypadReady=\{contentReady\}/);
-  assert.match(mathEditorSource, /keypadPlaceholder: \{ height: 229/);
-  assert.match(legalSource, /useTransitionSettled\(navigation, reducedMotion\)/);
+  assert.doesNotMatch(mathInputSource, /keypadReady/);
+  assert.match(mathEditorSource, /const SimpleEditorKey = memo\(/);
+  assert.match(mathEditorSource, /const RepeatEditorKey = memo\(/);
+  assert.doesNotMatch(mathEditorSource, /keypadPlaceholder|<Enter[\s>]/);
 });

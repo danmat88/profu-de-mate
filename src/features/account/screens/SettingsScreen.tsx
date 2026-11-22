@@ -22,7 +22,7 @@ import Animated, {
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { useTransitionPhases } from '../../../shared/hooks/useTransitionSettled';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { getAppVersionLabel } from '../../../shared/services/appInfo';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
@@ -33,7 +33,6 @@ import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicSwitch } from '../../../shared/ui/ComicSwitch';
-import { Enter } from '../../../shared/ui/Enter';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -172,8 +171,8 @@ export function SettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
-  const { contentReady, ambientReady } = useTransitionPhases(navigation, reducedMotion);
-  const ambientActive = focused && ambientReady;
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
+  const ambientActive = focused && transitionSettled;
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -438,9 +437,6 @@ export function SettingsScreen({ navigation }: Props) {
           </ComicCard>
         </Animated.View>
 
-        {contentReady ? (
-        <>
-        <Enter delay={0} distance={16} scaleFrom={0.96}>
         <Animated.View layout={smoothLayout} style={styles.accountGroup}>
           {!accessLoading && !access ? (
             <Animated.View entering={enterAfterSwap} exiting={exitSmooth} layout={smoothLayout}>
@@ -517,7 +513,6 @@ export function SettingsScreen({ navigation }: Props) {
             </ComicCard>
           </Animated.View>
         </Animated.View>
-        </Enter>
 
         {accountError ? (
           <Animated.View entering={reducedMotion ? undefined : FadeIn.duration(180)} exiting={exitSmooth} layout={smoothLayout}>
@@ -525,8 +520,7 @@ export function SettingsScreen({ navigation }: Props) {
           </Animated.View>
         ) : null}
 
-        <Enter delay={65} distance={16} scaleFrom={0.96}>
-        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
+        <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             <Pressable
@@ -553,11 +547,9 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="check" size={18} color={colors.violetDeep} />
             </View>
           </ComicCard>
-        </Animated.View>
-        </Enter>
+        </View>
 
-        <Enter delay={130} distance={16} scaleFrom={0.96}>
-        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
+        <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             <View style={[styles.row, styles.rowBorder]}>
@@ -582,11 +574,9 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="next" size={18} color={colors.rose} />
             </Pressable>
           </ComicCard>
-        </Animated.View>
-        </Enter>
+        </View>
 
-        <Enter delay={190} distance={14} scaleFrom={0.97}>
-        <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} layout={smoothLayout} style={styles.sectionBlock}>
+        <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
           <SettingsSectionTitle tone={colors.lime}>Despre aplicație</SettingsSectionTitle>
           <ComicCard tone="paper" depth={4} radius={22} contentStyle={styles.cardList}>
             <Pressable
@@ -603,14 +593,11 @@ export function SettingsScreen({ navigation }: Props) {
               <MiniGlyph name="next" size={18} color={colors.violetDeep} />
             </Pressable>
           </ComicCard>
-        </Animated.View>
+        </View>
 
-        <Animated.View layout={smoothLayout} style={styles.versionRow}>
+        <View style={styles.versionRow}>
           <Text style={styles.version}>{getAppVersionLabel()}</Text>
-        </Animated.View>
-        </Enter>
-        </>
-        ) : null}
+        </View>
         </View>
       </ScrollView>
 
@@ -878,7 +865,7 @@ const styles = StyleSheet.create({
   cardList: { paddingHorizontal: 13, paddingVertical: 4 },
   row: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 11 },
   rowBorder: { borderBottomWidth: 1.5, borderBottomColor: '#EFEAF8' },
-  rowPressed: { opacity: 0.72 },
+  rowPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   rowIcon: {
     width: 44,
     height: 44,

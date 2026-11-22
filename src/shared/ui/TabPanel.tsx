@@ -19,16 +19,21 @@ type Props = {
 
 function AnimatedTabPanel({ direction, style, children }: { direction: -1 | 1; style?: StyleProp<ViewStyle>; children: ReactNode }) {
   const opacity = useSharedValue(0);
-  const shiftX = useSharedValue(direction * 18);
+  const shiftX = useSharedValue(direction * 22);
+  const scale = useSharedValue(0.985);
 
   useLayoutEffect(() => {
-    opacity.set(withTiming(1, { duration: 155, easing: Easing.out(Easing.quad) }));
+    opacity.set(withTiming(1, { duration: 165, easing: Easing.out(Easing.quad) }));
     shiftX.set(withSpring(0, springs.snappy));
-  }, [opacity, shiftX]);
+    scale.set(withSpring(1, springs.snappy));
+  }, [opacity, scale, shiftX]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.get(),
-    transform: [{ translateX: shiftX.get() }],
+    transform: [
+      { translateX: shiftX.get() },
+      { scale: scale.get() },
+    ],
   }));
 
   return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>;

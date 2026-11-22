@@ -1,19 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useRef } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows, springs, typography } from '../../../shared/theme';
+import { borders, colors, fonts, radii, shadows, typography } from '../../../shared/theme';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
 import { useQuotaResetCountdown } from '../hooks/useQuotaResetCountdown';
@@ -75,25 +65,25 @@ const FlipDigitTile = memo(function FlipDigitTile({
   reducedMotion: boolean;
 }) {
   const prevValue = useRef(value);
-  const pop = useSharedValue(1);
+  const pop = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    if (prevValue.current === value) return;
+    if (prevValue.current === value) return undefined;
     prevValue.current = value;
-    if (reducedMotion) return;
-    pop.set(withSequence(
-      withTiming(1.055, { duration: 70, easing: Easing.out(Easing.quad) }),
-      withSpring(1, springs.snappy),
-    ));
+    if (reducedMotion) return undefined;
+    pop.stopAnimation();
+    Animated.sequence([
+      Animated.timing(pop, { toValue: 1.055, duration: 70, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.spring(pop, { toValue: 1, tension: 320, friction: 20, useNativeDriver: true }),
+    ]).start();
+    return () => {
+      pop.stopAnimation();
+    };
   }, [pop, reducedMotion, value]);
-
-  const tileAnimated = useAnimatedStyle(() => ({
-    transform: [{ scale: pop.get() }],
-  }));
 
   return (
     <View style={styles.heroUnitCol}>
-      <Animated.View style={[styles.flipWrap, tileAnimated]}>
+      <Animated.View style={[styles.flipWrap, { transform: [{ scale: pop }] }]}>
         <View pointerEvents="none" style={styles.flipShadow} />
         <View style={[styles.flipFace, accent && { borderColor: accentColor }]}>
           <View pointerEvents="none" style={styles.flipTopHalf} />
@@ -198,7 +188,7 @@ export function QuotaResetTimer({
 }: Props) {
   const reducedMotion = useReducedMotion();
   const snapshot = useQuotaResetCountdown(resetAt, active);
-  const pulse = useSharedValue(1);
+  const pulse = useRef(new Animated.Value(1)).current;
   const isHero = variant === 'hero';
   const isEmbedded = variant === 'embedded';
   const isExhausted = remaining <= 0;
@@ -208,29 +198,27 @@ export function QuotaResetTimer({
 
   useEffect(() => {
     if (!active || reducedMotion || !hasLiveCountdown) {
-      cancelAnimation(pulse);
-      pulse.set(1);
-      return;
+      pulse.stopAnimation();
+      pulse.setValue(1);
+      return undefined;
     }
-    pulse.set(withRepeat(
-      withSequence(
-        withTiming(0.38, { duration: 500, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1, { duration: 500, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      false,
-    ));
-    return () => cancelAnimation(pulse);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 0.38, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      pulse.stopAnimation();
+    };
   }, [active, hasLiveCountdown, pulse, reducedMotion]);
 
-  const colonStyle = useAnimatedStyle(() => ({
-    opacity: pulse.get(),
-  }));
-
-  const liveDotStyle = useAnimatedStyle(() => ({
-    opacity: 0.45 + pulse.get() * 0.55,
-    transform: [{ scale: 0.86 + pulse.get() * 0.22 }],
-  }));
+  const colonStyle = { opacity: pulse };
+  const liveDotOpacity = pulse.interpolate({ inputRange: [0.38, 1], outputRange: [0.66, 1] });
+  const liveDotScale = pulse.interpolate({ inputRange: [0.38, 1], outputRange: [0.94, 1.08] });
+  const liveDotStyle = { opacity: liveDotOpacity, transform: [{ scale: liveDotScale }] };
 
   if (!snapshot) return null;
 

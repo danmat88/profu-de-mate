@@ -155,8 +155,8 @@ export function ComicTabBar<T extends string>({
     }
     Animated.spring(slideX, {
       toValue: target,
-      tension: 280,
-      friction: 24,
+      tension: 250,
+      friction: 20,
       useNativeDriver: true,
     }).start();
 
