@@ -31,9 +31,16 @@ function surfaceFixture() {
     'react-native-reanimated': {
       default: { View: 'View' },
       cancelAnimation() {},
-      Easing: { inOut: (fn: unknown) => fn, quad: (v: number) => v },
+      Easing: {
+        inOut: (fn: unknown) => fn,
+        out: (fn: unknown) => fn,
+        quad: (v: number) => v,
+        cubic: (v: number) => v,
+        linear: (v: number) => v,
+      },
       useAnimatedStyle: (fn: () => unknown) => fn(),
       useSharedValue: sharedValue,
+      withDelay: (_delay: number, v: unknown) => v,
       withRepeat: (v: unknown) => v,
       withSequence: (v: unknown) => v,
       withSpring: (v: unknown) => v,

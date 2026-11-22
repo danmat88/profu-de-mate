@@ -16,10 +16,19 @@ import { allowancePresentation } from '../../access/utils/commercialPresentation
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
 
-function readLatestLessonTitle(): string | null {
-  const first = getCachedFavoriteLessons()?.[0];
-  if (!first) return null;
-  return first.title.trim() || first.topic.trim() || null;
+type NotebookPreview = {
+  latestTitle: string | null;
+  count: number;
+};
+
+function readNotebookPreview(): NotebookPreview {
+  const lessons = getCachedFavoriteLessons();
+  if (!lessons || lessons.length === 0) return { latestTitle: null, count: 0 };
+  const first = lessons[0];
+  return {
+    latestTitle: first.title.trim() || first.topic.trim() || null,
+    count: lessons.length,
+  };
 }
 
 export function HomeScreen() {
@@ -35,7 +44,7 @@ export function HomeScreen() {
   const [galleryBusy, setGalleryBusy] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
-  const [latestLessonTitle, setLatestLessonTitle] = useState<string | null>(() => readLatestLessonTitle());
+  const [notebookPreview, setNotebookPreview] = useState<NotebookPreview>(() => readNotebookPreview());
   const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
@@ -47,7 +56,7 @@ export function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    setLatestLessonTitle(readLatestLessonTitle());
+    setNotebookPreview(readNotebookPreview());
     setPendingAnalysis(getPreparedPendingAnalysis() ?? null);
   }, [authSessionKey]);
 
@@ -57,7 +66,7 @@ export function HomeScreen() {
     navigationLocked.current = false;
     galleryLocked.current = false;
     setGalleryBusy(false);
-    setLatestLessonTitle(readLatestLessonTitle());
+    setNotebookPreview(readNotebookPreview());
     setPendingAnalysis(getPreparedPendingAnalysis() ?? null);
     const warmFrame = requestAnimationFrame(() => {
       if (!active) return;
@@ -183,7 +192,8 @@ export function HomeScreen() {
       remaining={access.remaining}
       limit={access.limit}
       premiumActive={Boolean(access?.premium.active)}
-      latestLessonTitle={latestLessonTitle}
+      latestLessonTitle={notebookPreview.latestTitle}
+      savedLessonsCount={notebookPreview.count}
       showGuide={!guideDismissed}
       onDismissGuide={dismissGuide}
       onMode={chooseMode}
