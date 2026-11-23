@@ -111,8 +111,8 @@ export function PressableScale({
       pressed.stopAnimation();
       Animated.spring(pressed, {
         toValue: 1,
-        tension: 360,
-        friction: 24,
+        tension: 500,
+        friction: 28,
         useNativeDriver: true,
       }).start();
     }
@@ -124,8 +124,8 @@ export function PressableScale({
       pressed.stopAnimation();
       Animated.spring(pressed, {
         toValue: 0,
-        tension: 260,
-        friction: 14,
+        tension: 300,
+        friction: 15,
         useNativeDriver: true,
       }).start();
     }

@@ -63,7 +63,7 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [successLimit, setSuccessLimit] = useState(30);
   const [screenFocused, setScreenFocused] = useState(() => navigation.isFocused?.() ?? true);
   const reducedMotion = useReducedMotion();
-  const { isTransitioning } = useTransitionMotion();
+  const { isTransitioning } = useTransitionMotion(screenFocused && !reducedMotion);
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const ambientActive = screenFocused && transitionSettled && !isTransitioning;
   const identity = sessionIdentity ?? access?.identity ?? null;

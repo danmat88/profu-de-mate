@@ -1,7 +1,5 @@
 import { getCommercialAccess } from '../../features/access/services/commercial';
 import { preparePendingAnalysisOnStartup } from '../../features/analysis/services/pendingAnalysis';
-import { prewarmFavoriteLessonsCache } from '../../features/lessons/services/lessons';
-import { recordDiagnosticError } from '../../shared/services/diagnostics';
 import { firebaseUserSessionKey, getRestoredFirebaseUser, initializeFirebaseServices } from '../../shared/services/firebase';
 import { preloadCriticalAppAssets } from './startupAssets';
 import { createStartupLoader } from './startupBootstrap';
@@ -14,11 +12,9 @@ export function currentStartupSession() {
 
 export const prepareApplication = createStartupLoader({
   prepareVisuals: preloadCriticalAppAssets,
-  initializeSession: async () => {
-    const user = await initializeFirebaseServices();
-    void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error));
-    return user;
-  },
+  // Notebook cache prewarming runs cleanly in CommercialContext right after
+  // launch settles so Firestore document validation never blocks the splash bar.
+  initializeSession: initializeFirebaseServices,
   loadAccess: getCommercialAccess,
   loadPendingAnalysis: preparePendingAnalysisOnStartup,
   currentSession: currentStartupSession,

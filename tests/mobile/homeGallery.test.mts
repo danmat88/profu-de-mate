@@ -16,35 +16,48 @@ const hooks = {
 const jsx = (type: unknown, props: unknown) => ({ type, props });
 const flatten = (style: any): any => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
 
+function mockAnimated(viewComponent: unknown) {
+  const composite = { start() {}, stop() {} };
+  class Value {
+    value: number;
+    constructor(initial: number) { this.value = initial; }
+    setValue(next: number) { this.value = next; }
+    stopAnimation() {}
+    interpolate() { return this; }
+  }
+  return {
+    Animated: {
+      Value,
+      View: viewComponent,
+      timing: () => composite,
+      spring: () => composite,
+      sequence: () => composite,
+      loop: () => composite,
+      delay: () => composite,
+    },
+    Easing: {
+      inOut: (fn: unknown) => fn,
+      out: (fn: unknown) => fn,
+      in: (fn: unknown) => fn,
+      quad: (v: number) => v,
+      cubic: (v: number) => v,
+      sin: (v: number) => v,
+      linear: (v: number) => v,
+    },
+  };
+}
+
 function surfaceFixture() {
   const window = { width: 360, height: 802, fontScale: 1 };
   const frame = { x: 0, y: 0, width: 360, height: 802 };
   const insets = { top: 42, right: 0, bottom: 0, left: 0 };
-  const sharedValue = (initial: number) => ({ value: initial, get: () => initial, set() {} });
   const load = serviceLoader({
     react: hooks, 'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': {
+      ...mockAnimated('View'),
       AppState: { currentState: 'active' },
       View: 'View', Image: 'Image', Pressable: 'Pressable', StyleSheet: { create: (s: unknown) => s },
       useWindowDimensions: () => window,
-    },
-    'react-native-reanimated': {
-      default: { View: 'View' },
-      cancelAnimation() {},
-      Easing: {
-        inOut: (fn: unknown) => fn,
-        out: (fn: unknown) => fn,
-        quad: (v: number) => v,
-        cubic: (v: number) => v,
-        linear: (v: number) => v,
-      },
-      useAnimatedStyle: (fn: () => unknown) => fn(),
-      useSharedValue: sharedValue,
-      withDelay: (_delay: number, v: unknown) => v,
-      withRepeat: (v: unknown) => v,
-      withSequence: (v: unknown) => v,
-      withSpring: (v: unknown) => v,
-      withTiming: (v: unknown) => v,
     },
     '@react-navigation/native': { useIsFocused: () => true },
     'react-native-safe-area-context': { useSafeAreaFrame: () => frame, useSafeAreaInsets: () => insets },
@@ -194,7 +207,6 @@ function statefulSurfaceFixture(initialHeight = 802) {
   const window = { width: 360, height: initialHeight, fontScale: 1 };
   const frame = { x: 0, y: 0, width: 360, height: initialHeight };
   const insets = { top: 42, right: 0, bottom: 0, left: 0 };
-  const sharedValue = (initial: number) => ({ value: initial, get: () => initial, set() {} });
   const states: unknown[] = [];
   const refs: Array<{ current: unknown }> = [];
   let stateCursor = 0;
@@ -222,27 +234,10 @@ function statefulSurfaceFixture(initialHeight = 802) {
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': {
+      ...mockAnimated('View'),
       AppState: { currentState: 'active' },
       View: 'View', Image: 'Image', Pressable: 'Pressable', StyleSheet: { create: (s: unknown) => s },
       useWindowDimensions: () => window,
-    },
-    'react-native-reanimated': {
-      default: { View: 'View' },
-      cancelAnimation() {},
-      Easing: {
-        inOut: (fn: unknown) => fn,
-        out: (fn: unknown) => fn,
-        quad: (v: number) => v,
-        cubic: (v: number) => v,
-        linear: (v: number) => v,
-      },
-      useAnimatedStyle: (fn: () => unknown) => fn(),
-      useSharedValue: sharedValue,
-      withDelay: (_delay: number, v: unknown) => v,
-      withRepeat: (v: unknown) => v,
-      withSequence: (v: unknown) => v,
-      withSpring: (v: unknown) => v,
-      withTiming: (v: unknown) => v,
     },
     '@react-navigation/native': { useIsFocused: () => true },
     'react-native-safe-area-context': { useSafeAreaFrame: () => frame, useSafeAreaInsets: () => insets },

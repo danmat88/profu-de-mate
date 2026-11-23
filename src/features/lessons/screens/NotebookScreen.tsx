@@ -16,7 +16,7 @@ import {
   type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -651,7 +651,6 @@ export function NotebookScreen({ navigation }: Props) {
   const { gutter, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { beginTransition } = useTransitionMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const [tabState, setTabState] = useState<{
@@ -802,26 +801,26 @@ export function NotebookScreen({ navigation }: Props) {
     openingNoteRef.current = true;
     // Pause all animations on Caiet immediately and launch the native slide
     // without blocking the main thread on WebView preloading.
-    beginTransition();
+    beginAppTransition();
     navigation.navigate('Lesson', {
       lesson,
       lessonId: lesson.id,
       isFavorite: true,
       source: 'notebook',
     });
-  }, [beginTransition, navigation]);
+  }, [navigation]);
 
   const openSummary = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
     openingNoteRef.current = true;
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-    beginTransition();
+    beginAppTransition();
     navigation.navigate('Summary', {
       lesson,
       lessonId: lesson.id,
       isFavorite: true,
     });
-  }, [beginTransition, navigation]);
+  }, [navigation]);
 
   const shareNote = useCallback((lesson: StoredLesson) => {
     Haptics.selection();
@@ -870,9 +869,9 @@ export function NotebookScreen({ navigation }: Props) {
   const startMode = useCallback((mode: FlowMode) => {
     if (openingNoteRef.current) return;
     openingNoteRef.current = true;
-    beginTransition();
+    beginAppTransition();
     navigation.navigate('Capture', { mode });
-  }, [beginTransition, navigation]);
+  }, [navigation]);
   const clearSearch = useCallback(() => setQueryText(''), []);
   const resetFilters = useCallback(() => {
     setQueryText('');

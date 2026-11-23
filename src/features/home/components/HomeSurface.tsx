@@ -1,23 +1,12 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useContext, useEffect, useRef, useState } from 'react';
-import { AppState, Image, Pressable, StyleSheet, View } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Animated, AppState, Easing, Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
-import { borders, colors, fonts, radii, shadows, springs } from '../../../shared/theme';
+import { borders, colors, fonts, radii, shadows } from '../../../shared/theme';
 import type { FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -198,15 +187,15 @@ export function HomeSurface({
   const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index % cheerPool.length : null;
   const motionActive = motionReady && focused && foreground && !reducedMotion;
 
-  const stagePop = useSharedValue(1);
-  const medallionPop = useSharedValue(1);
-  const modeBlend = useSharedValue(isSolve || hasPendingAnalysis ? 0 : 1);
-  const beamProgress = useSharedValue(0.5);
-  const sparkPulse = useSharedValue(0);
-  const arrowNudge = useSharedValue(0);
-  const ctaSheen = useSharedValue(0);
-  const mascotHaloSpin = useSharedValue(0);
-  const tapSpark = useSharedValue(0);
+  const stagePop = useRef(new Animated.Value(1)).current;
+  const medallionPop = useRef(new Animated.Value(1)).current;
+  const modeBlend = useRef(new Animated.Value(isSolve || hasPendingAnalysis ? 0 : 1)).current;
+  const beamProgress = useRef(new Animated.Value(0.5)).current;
+  const sparkPulse = useRef(new Animated.Value(0)).current;
+  const arrowNudge = useRef(new Animated.Value(0)).current;
+  const ctaSheen = useRef(new Animated.Value(0)).current;
+  const mascotHaloSpin = useRef(new Animated.Value(0)).current;
+  const tapSpark = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
@@ -224,137 +213,224 @@ export function HomeSurface({
     }
   }, [cheerScope]);
 
-  // Ambient studio loops start strictly after the entrance cascade settles.
+  // Ambient studio loops run strictly on native RenderThread and stop instantly on blur or transitionStart.
   useEffect(() => {
     if (!motionActive) {
-      cancelAnimation(beamProgress);
-      cancelAnimation(sparkPulse);
-      cancelAnimation(arrowNudge);
-      cancelAnimation(ctaSheen);
-      cancelAnimation(mascotHaloSpin);
-      beamProgress.set(0.5);
-      sparkPulse.set(0);
-      arrowNudge.set(0);
-      ctaSheen.set(0);
-      mascotHaloSpin.set(0);
-      return;
+      beamProgress.stopAnimation();
+      sparkPulse.stopAnimation();
+      arrowNudge.stopAnimation();
+      ctaSheen.stopAnimation();
+      mascotHaloSpin.stopAnimation();
+      beamProgress.setValue(0.5);
+      sparkPulse.setValue(0);
+      arrowNudge.setValue(0);
+      ctaSheen.setValue(0);
+      mascotHaloSpin.setValue(0);
+      return undefined;
     }
 
-    mascotHaloSpin.set(withDelay(
-      360,
-      withRepeat(
-        withTiming(360, { duration: 28_000, easing: Easing.linear }),
-        -1,
-        false,
+    const loops: Animated.CompositeAnimation[] = [];
+    const startLoop = (anim: Animated.CompositeAnimation) => {
+      loops.push(anim);
+      anim.start();
+    };
+
+    mascotHaloSpin.setValue(0);
+    startLoop(Animated.sequence([
+      Animated.delay(340),
+      Animated.loop(
+        Animated.timing(mascotHaloSpin, {
+          toValue: 1,
+          duration: 28_000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
       ),
-    ));
+    ]));
 
     if (hasPendingAnalysis) {
-      cancelAnimation(beamProgress);
-      cancelAnimation(sparkPulse);
-      cancelAnimation(arrowNudge);
-      cancelAnimation(ctaSheen);
-      beamProgress.set(0.5);
-      sparkPulse.set(0);
-      arrowNudge.set(0);
-      ctaSheen.set(0);
+      beamProgress.stopAnimation();
+      sparkPulse.stopAnimation();
+      arrowNudge.stopAnimation();
+      ctaSheen.stopAnimation();
+      beamProgress.setValue(0.5);
+      sparkPulse.setValue(0);
+      arrowNudge.setValue(0);
+      ctaSheen.setValue(0);
       return () => {
-        cancelAnimation(mascotHaloSpin);
+        loops.forEach((loop) => loop.stop());
+        mascotHaloSpin.stopAnimation();
       };
     }
 
-    beamProgress.set(0);
-    beamProgress.set(withDelay(
-      400,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 1850, easing: Easing.inOut(Easing.quad) }),
-          withTiming(0, { duration: 1850, easing: Easing.inOut(Easing.quad) }),
-        ),
-        -1,
-        false,
+    beamProgress.setValue(0);
+    startLoop(Animated.sequence([
+      Animated.delay(380),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(beamProgress, {
+            toValue: 1,
+            duration: 1850,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(beamProgress, {
+            toValue: 0,
+            duration: 1850,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
       ),
-    ));
+    ]));
 
-    sparkPulse.set(0);
-    sparkPulse.set(withDelay(
-      420,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 1350, easing: Easing.inOut(Easing.quad) }),
-          withTiming(0, { duration: 1350, easing: Easing.inOut(Easing.quad) }),
-        ),
-        -1,
-        false,
+    sparkPulse.setValue(0);
+    startLoop(Animated.sequence([
+      Animated.delay(400),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(sparkPulse, {
+            toValue: 1,
+            duration: 1350,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(sparkPulse, {
+            toValue: 0,
+            duration: 1350,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
       ),
-    ));
+    ]));
 
-    arrowNudge.set(0);
-    arrowNudge.set(withDelay(
-      460,
-      withRepeat(
-        withSequence(
-          withTiming(3.5, { duration: 880, easing: Easing.inOut(Easing.quad) }),
-          withTiming(0, { duration: 880, easing: Easing.inOut(Easing.quad) }),
-        ),
-        -1,
-        false,
+    arrowNudge.setValue(0);
+    startLoop(Animated.sequence([
+      Animated.delay(440),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(arrowNudge, {
+            toValue: 3.5,
+            duration: 880,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(arrowNudge, {
+            toValue: 0,
+            duration: 880,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
       ),
-    ));
+    ]));
 
-    ctaSheen.set(0);
-    ctaSheen.set(withDelay(
-      900,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 720, easing: Easing.inOut(Easing.quad) }),
-          withDelay(2_700, withTiming(0, { duration: 0 })),
-        ),
-        -1,
-        false,
+    ctaSheen.setValue(0);
+    startLoop(Animated.sequence([
+      Animated.delay(850),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(ctaSheen, {
+            toValue: 1,
+            duration: 720,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.delay(2_700),
+          Animated.timing(ctaSheen, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
       ),
-    ));
+    ]));
 
     return () => {
-      cancelAnimation(beamProgress);
-      cancelAnimation(sparkPulse);
-      cancelAnimation(arrowNudge);
-      cancelAnimation(ctaSheen);
-      cancelAnimation(mascotHaloSpin);
+      loops.forEach((loop) => loop.stop());
+      beamProgress.stopAnimation();
+      sparkPulse.stopAnimation();
+      arrowNudge.stopAnimation();
+      ctaSheen.stopAnimation();
+      mascotHaloSpin.stopAnimation();
     };
   }, [arrowNudge, beamProgress, ctaSheen, hasPendingAnalysis, mascotHaloSpin, motionActive, sparkPulse]);
 
   // Smooth hero card gradient crossfade & spring settle when toggling Rezolvă <-> Verifică.
   useEffect(() => {
     const targetBlend = isSolve || hasPendingAnalysis ? 0 : 1;
+    const anims: Animated.CompositeAnimation[] = [];
     if (reducedMotion || !motionReady || !focused) {
-      modeBlend.set(targetBlend);
+      modeBlend.stopAnimation();
+      modeBlend.setValue(targetBlend);
     } else {
-      modeBlend.set(withTiming(targetBlend, { duration: 280, easing: Easing.out(Easing.cubic) }));
+      const blendAnim = Animated.timing(modeBlend, {
+        toValue: targetBlend,
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      });
+      anims.push(blendAnim);
+      blendAnim.start();
     }
 
-    if (previousMode.current === mode) return;
+    if (previousMode.current === mode) {
+      return () => anims.forEach((anim) => anim.stop());
+    }
     previousMode.current = mode;
     if (reducedMotion || !motionReady || !focused) {
-      stagePop.set(1);
-      medallionPop.set(1);
-      return;
+      stagePop.stopAnimation();
+      medallionPop.stopAnimation();
+      stagePop.setValue(1);
+      medallionPop.setValue(1);
+      return () => anims.forEach((anim) => anim.stop());
     }
-    stagePop.set(withSequence(
-      withTiming(0.986, { duration: 65, easing: Easing.out(Easing.quad) }),
-      withSpring(1, springs.snappy),
-    ));
-    medallionPop.set(withSequence(
-      withTiming(0.88, { duration: 70, easing: Easing.out(Easing.quad) }),
-      withSpring(1, springs.bouncy),
-    ));
+    const stageAnim = Animated.sequence([
+      Animated.timing(stagePop, {
+        toValue: 0.986,
+        duration: 65,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(stagePop, {
+        toValue: 1,
+        tension: 260,
+        friction: 18,
+        useNativeDriver: true,
+      }),
+    ]);
+    const medallionAnim = Animated.sequence([
+      Animated.timing(medallionPop, {
+        toValue: 0.88,
+        duration: 70,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(medallionPop, {
+        toValue: 1,
+        tension: 210,
+        friction: 14,
+        useNativeDriver: true,
+      }),
+    ]);
+    anims.push(stageAnim, medallionAnim);
+    stageAnim.start();
+    medallionAnim.start();
+
+    return () => anims.forEach((anim) => anim.stop());
   }, [focused, hasPendingAnalysis, isSolve, medallionPop, mode, modeBlend, motionReady, reducedMotion, stagePop]);
 
   const cycleEncouragement = () => {
     if (!reducedMotion) {
-      cancelAnimation(tapSpark);
-      tapSpark.set(0);
-      tapSpark.set(withTiming(1, { duration: 540, easing: Easing.out(Easing.cubic) }));
+      tapSpark.stopAnimation();
+      tapSpark.setValue(0);
+      Animated.timing(tapSpark, {
+        toValue: 1,
+        duration: 540,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
     }
     if (galleryError) {
       onClearGalleryError?.();
@@ -376,92 +452,179 @@ export function HomeSurface({
     cycleEncouragement();
   };
 
-  const stageAnimated = useAnimatedStyle(() => ({
-    transform: [{ scale: stagePop.get() }],
-  }));
+  const stageAnimated = {
+    transform: [{ scale: stagePop }],
+  };
 
-  const checkGradientStyle = useAnimatedStyle(() => ({
-    opacity: modeBlend.get(),
-  }));
+  const checkGradientStyle = {
+    opacity: modeBlend,
+  };
 
-  const medallionAnimated = useAnimatedStyle(() => ({
-    transform: [{ scale: medallionPop.get() }],
-  }));
+  const medallionAnimated = {
+    transform: [{ scale: medallionPop }],
+  };
 
   const beamRange = compact ? 22 : 34;
-  const beamStyle = useAnimatedStyle(() => ({
+  const beamStyle = {
     opacity: hasPendingAnalysis ? 0 : 0.96,
-    transform: [{ translateY: (beamProgress.get() - 0.5) * 2 * beamRange }],
-  }), [beamRange, hasPendingAnalysis]);
+    transform: [
+      {
+        translateY: beamProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-beamRange, beamRange],
+        }),
+      },
+    ],
+  };
 
-  const sparkStyle = useAnimatedStyle(() => {
-    const p = sparkPulse.get();
-    return {
-      opacity: 0.72 + p * 0.28,
-      transform: [{ scale: 0.92 + p * 0.2 }, { rotate: `${-8 + p * 16}deg` }],
-    };
+  const sparkStyle = {
+    opacity: sparkPulse.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.72, 1],
+    }),
+    transform: [
+      {
+        scale: sparkPulse.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.92, 1.12],
+        }),
+      },
+      {
+        rotate: sparkPulse.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['-8deg', '8deg'],
+        }),
+      },
+    ],
+  };
+
+  const arrowStyle = {
+    transform: [{ translateX: arrowNudge }],
+  };
+
+  const ctaSheenStyle = {
+    opacity: ctaSheen.interpolate({
+      inputRange: [0, 0.04, 0.96, 1],
+      outputRange: [0, 0.36, 0.36, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: ctaSheen.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-90, 340],
+        }),
+      },
+      { skewX: '-22deg' },
+    ],
+  };
+
+  const mascotHaloStyle = {
+    transform: [
+      {
+        rotate: mascotHaloSpin.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', '360deg'],
+        }),
+      },
+    ],
+  };
+
+  const sparkArcOpacity = tapSpark.interpolate({
+    inputRange: [0, 0.22, 0.5, 0.78, 1],
+    outputRange: [0, 0.78, 1, 0.78, 0],
+    extrapolate: 'clamp',
   });
 
-  const arrowStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: arrowNudge.get() }],
-  }));
+  const sparkTopStyle = {
+    opacity: sparkArcOpacity,
+    transform: [
+      {
+        translateX: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -14],
+        }),
+      },
+      {
+        translateY: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -22],
+        }),
+      },
+      {
+        scale: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.5, 1.2],
+        }),
+      },
+      {
+        rotate: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['-16deg', '18deg'],
+        }),
+      },
+    ],
+  };
 
-  const ctaSheenStyle = useAnimatedStyle(() => {
-    const p = ctaSheen.get();
-    return {
-      opacity: p > 0.02 && p < 0.98 ? 0.36 : 0,
-      transform: [
-        { translateX: -90 + p * 430 },
-        { skewX: '-22deg' },
-      ],
-    };
-  });
+  const sparkRightStyle = {
+    opacity: sparkArcOpacity,
+    transform: [
+      {
+        translateX: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 22],
+        }),
+      },
+      {
+        translateY: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -16],
+        }),
+      },
+      {
+        scale: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.45, 1.2],
+        }),
+      },
+      {
+        rotate: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['18deg', '-18deg'],
+        }),
+      },
+    ],
+  };
 
-  const mascotHaloStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${mascotHaloSpin.get()}deg` }],
-  }));
-
-  const sparkTopStyle = useAnimatedStyle(() => {
-    const p = tapSpark.get();
-    const opacity = p <= 0.02 || p >= 0.98 ? 0 : Math.sin(p * Math.PI);
-    return {
-      opacity,
-      transform: [
-        { translateX: -14 * p },
-        { translateY: -22 * p },
-        { scale: 0.5 + p * 0.7 },
-        { rotate: `${-16 + p * 34}deg` },
-      ],
-    };
-  });
-
-  const sparkRightStyle = useAnimatedStyle(() => {
-    const p = tapSpark.get();
-    const opacity = p <= 0.02 || p >= 0.98 ? 0 : Math.sin(p * Math.PI);
-    return {
-      opacity,
-      transform: [
-        { translateX: 22 * p },
-        { translateY: -16 * p },
-        { scale: 0.45 + p * 0.75 },
-        { rotate: `${18 - p * 36}deg` },
-      ],
-    };
-  });
-
-  const sparkLeftStyle = useAnimatedStyle(() => {
-    const p = tapSpark.get();
-    const opacity = p <= 0.02 || p >= 0.98 ? 0 : Math.sin(p * Math.PI);
-    return {
-      opacity,
-      transform: [
-        { translateX: -22 * p },
-        { translateY: 6 * p },
-        { scale: 0.45 + p * 0.65 },
-        { rotate: `${-10 + p * 28}deg` },
-      ],
-    };
-  });
+  const sparkLeftStyle = {
+    opacity: sparkArcOpacity,
+    transform: [
+      {
+        translateX: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -22],
+        }),
+      },
+      {
+        translateY: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 6],
+        }),
+      },
+      {
+        scale: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.45, 1.1],
+        }),
+      },
+      {
+        rotate: tapSpark.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['-10deg', '18deg'],
+        }),
+      },
+    ],
+  };
 
   const activeCheer = !galleryError && cheerIndex !== null
     ? cheerPool[cheerIndex]
@@ -578,7 +741,6 @@ export function HomeSurface({
               depth={shadows.sm}
               radius={14}
               haptic="selection"
-              deferPressMs={55}
               onPress={onAllowance}
               style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
               contentStyle={[
@@ -639,7 +801,6 @@ export function HomeSurface({
 
             <IconButton
               label="Deschide setările"
-              deferPressMs={55}
               onPress={onSettings}
               size={compact ? 38 : 44}
               style={styles.settingsWrap}
@@ -830,7 +991,6 @@ export function HomeSurface({
                     radius={18}
                     shadowColor={colors.ink}
                     haptic="medium"
-                    deferPressMs={55}
                     onPress={onCapture}
                     contentStyle={[
                       styles.captureCta,
@@ -914,7 +1074,6 @@ export function HomeSurface({
                   radius={20}
                   shadowColor={colors.ink}
                   haptic="light"
-                  deferPressMs={55}
                   onPress={onMath}
                   style={styles.secondaryTileWrap}
                   contentStyle={[
@@ -955,7 +1114,6 @@ export function HomeSurface({
                 radius={20}
                 shadowColor={colors.ink}
                 haptic="selection"
-                deferPressMs={55}
                 onPress={onNotebook}
                 style={styles.notebookWrap}
                 contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}

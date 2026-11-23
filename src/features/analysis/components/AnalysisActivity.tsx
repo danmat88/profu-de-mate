@@ -1,15 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { borders, colors, fonts, radii, shadows } from '../../../shared/theme';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -27,77 +18,118 @@ export function AnalysisActivity({
 }) {
   const reducedMotion = useReducedMotion();
   const [trackWidth, setTrackWidth] = useState(0);
-  const sweep = useSharedValue(0);
-  const pulse = useSharedValue(1);
-  const readyFill = useSharedValue(preparing ? 1 : 0);
+  const sweep = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
+  const readyFill = useRef(new Animated.Value(preparing ? 1 : 0)).current;
   const accent = check ? colors.peach : colors.lime;
   const label = preparing ? 'Pregătesc lecția' : 'Analiză în curs';
+  const effectiveWidth = trackWidth > 0 ? trackWidth : 280;
+  const barWidth = effectiveWidth * 0.38;
 
   useEffect(() => {
     if (preparing) {
-      cancelAnimation(sweep);
-      cancelAnimation(pulse);
-      pulse.set(1);
-      readyFill.set(
-        reducedMotion
-          ? 1
-          : withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }),
-      );
+      sweep.stopAnimation();
+      pulse.stopAnimation();
+      pulse.setValue(1);
+      if (reducedMotion) {
+        readyFill.setValue(1);
+        return undefined;
+      }
+      const fillAnim = Animated.timing(readyFill, {
+        toValue: 1,
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      });
+      fillAnim.start();
       return () => {
-        cancelAnimation(readyFill);
+        fillAnim.stop();
+        readyFill.stopAnimation();
       };
     }
 
-    readyFill.set(0);
+    readyFill.stopAnimation();
+    readyFill.setValue(0);
     if (reducedMotion || !active) {
-      cancelAnimation(sweep);
-      cancelAnimation(pulse);
-      sweep.set(reducedMotion ? 0.5 : 0);
-      pulse.set(1);
-      return;
+      sweep.stopAnimation();
+      pulse.stopAnimation();
+      sweep.setValue(reducedMotion ? 0.5 : 0);
+      pulse.setValue(1);
+      return undefined;
     }
 
-    sweep.set(0);
-    sweep.set(withRepeat(
-      withTiming(1, { duration: 1_550, easing: Easing.inOut(Easing.quad) }),
-      -1,
-      false,
-    ));
-
-    pulse.set(withRepeat(
-      withSequence(
-        withTiming(1.12, { duration: 680, easing: Easing.inOut(Easing.sin) }),
-        withTiming(0.94, { duration: 680, easing: Easing.inOut(Easing.sin) }),
-      ),
-      -1,
-      true,
-    ));
+    sweep.setValue(0);
+    const sweepLoop = Animated.loop(
+      Animated.timing(sweep, {
+        toValue: 1,
+        duration: 1_550,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    );
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.12,
+          duration: 680,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.94,
+          duration: 680,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    sweepLoop.start();
+    pulseLoop.start();
 
     return () => {
-      cancelAnimation(sweep);
-      cancelAnimation(pulse);
+      sweepLoop.stop();
+      pulseLoop.stop();
+      sweep.stopAnimation();
+      pulse.stopAnimation();
     };
   }, [active, preparing, pulse, readyFill, reducedMotion, sweep]);
 
-  const sweepStyle = useAnimatedStyle(() => {
-    const barWidth = trackWidth * 0.38;
-    return {
-      opacity: Math.max(0, 1 - readyFill.get() * 2),
-      transform: [{ translateX: -barWidth + sweep.get() * (trackWidth + barWidth) }],
-    };
-  }, [trackWidth]);
+  const sweepStyle = {
+    opacity: readyFill.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [1, 0, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: sweep.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-barWidth, effectiveWidth],
+        }),
+      },
+    ],
+  };
 
-  const readyFillStyle = useAnimatedStyle(() => {
-    const p = readyFill.get();
-    return {
-      opacity: p <= 0.01 ? 0 : 1,
-      width: Math.max(0, trackWidth * p),
-    };
-  }, [trackWidth]);
+  const readyFillStyle = {
+    opacity: readyFill.interpolate({
+      inputRange: [0, 0.02, 1],
+      outputRange: [0, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: readyFill.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-effectiveWidth, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
 
-  const glyphStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: '-6deg' }, { scale: pulse.get() }],
-  }));
+  const glyphStyle = {
+    transform: [{ rotate: '-6deg' }, { scale: pulse }],
+  };
 
   return (
     <View
@@ -301,6 +333,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     left: 0,
+    width: '100%',
     borderRadius: radii.pill,
     overflow: 'hidden',
   },

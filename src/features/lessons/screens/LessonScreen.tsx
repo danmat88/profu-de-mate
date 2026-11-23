@@ -6,7 +6,7 @@ import { Animated, Easing, Image, Modal, Pressable, Share, StyleSheet, View } fr
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
@@ -425,7 +425,6 @@ export function LessonScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const screenFocused = useIsFocused();
-  const { beginTransition } = useTransitionMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const { refresh: refreshCommercialAccess } = useCommercial();
@@ -596,7 +595,7 @@ export function LessonScreen({ navigation, route }: Props) {
   }, []);
 
   const openSummary = useCallback(() => {
-    beginTransition();
+    beginAppTransition();
     if (isFromNotebook) {
       navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
       return;
@@ -608,7 +607,7 @@ export function LessonScreen({ navigation, route }: Props) {
         { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved } },
       ],
     });
-  }, [beginTransition, isFromNotebook, lesson, navigation, route.params.lessonId, saved]);
+  }, [isFromNotebook, lesson, navigation, route.params.lessonId, saved]);
 
   const jumpToStep = useCallback((target: number) => {
     if (target < 0 || target >= lesson.steps.length || target === step) return;
@@ -633,11 +632,11 @@ export function LessonScreen({ navigation, route }: Props) {
       setStepState((current) => ({ step: current.step - 1, direction: -1 }));
       return;
     }
-    beginTransition();
+    beginAppTransition();
     if (isFromNotebook) navigation.goBack();
     else if (navigation.canGoBack()) navigation.popToTop();
     else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-  }, [beginTransition, isFromNotebook, lockPaging, navigation, step]);
+  }, [isFromNotebook, lockPaging, navigation, step]);
 
   const swipePrev = useCallback(() => {
     if (step > 0) back();

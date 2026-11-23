@@ -32,6 +32,10 @@ function clearTransitionWatchdog() {
   }
 }
 
+export function isAppTransitioning(): boolean {
+  return activeTransition;
+}
+
 export function endAppTransition(): void {
   clearTransitionWatchdog();
   if (!activeTransition) return;
@@ -57,11 +61,15 @@ export function beginAppTransition(): void {
  * App-wide transition coordinator boundary mounted around the root navigator.
  *
  * Golden rule:
- * 1. The moment a transition starts (tap or native `transitionStart`), `isTransitioning`
- *    becomes `true`, pausing animations on BOTH the outgoing and incoming screens.
- * 2. The moment native `transitionEnd` finishes, `isTransitioning` flips back to `false`,
+ * 1. The moment a transition starts (tap or native transitionStart), isTransitioning
+ *    becomes true, pausing animations on BOTH the outgoing and incoming screens.
+ * 2. The moment native transitionEnd finishes, isTransitioning flips back to false,
  *    allowing ONLY the newly focused destination screen to wake its animations and
  *    deferred heavy surfaces (such as WebViews).
+ *
+ * Callers that only trigger transitions should call beginAppTransition / endAppTransition
+ * directly instead of subscribing via this hook, keeping the root navigator and
+ * unfocused screens completely free of transition re-renders.
  */
 export function TransitionMotionProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => {
@@ -71,17 +79,21 @@ export function TransitionMotionProvider({ children }: { children: ReactNode }) 
   return <>{children}</>;
 }
 
-export function useTransitionMotion(): TransitionMotionValue {
-  const [isTransitioning, setIsTransitioning] = useState(activeTransition);
+export function useTransitionMotion(enabled = true): TransitionMotionValue {
+  const [isTransitioning, setIsTransitioning] = useState(() => (enabled ? activeTransition : false));
 
   useEffect(() => {
+    if (!enabled) {
+      setIsTransitioning(false);
+      return undefined;
+    }
     const sync = () => setIsTransitioning(activeTransition);
     listeners.add(sync);
     sync();
     return () => {
       listeners.delete(sync);
     };
-  }, []);
+  }, [enabled]);
 
   return {
     isTransitioning,

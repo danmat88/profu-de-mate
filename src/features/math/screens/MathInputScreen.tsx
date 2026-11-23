@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
@@ -332,7 +333,14 @@ export function MathInputScreen({ navigation, route }: Props) {
       <ComicBackdrop />
 
       <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
-        <IconButton label="Înapoi" deferPressMs={45} onPress={() => navigation.goBack()} size={compact ? 38 : 42}>
+        <IconButton
+          label="Înapoi"
+          onPress={() => {
+            beginAppTransition();
+            navigation.goBack();
+          }}
+          size={compact ? 38 : 42}
+        >
           <MiniGlyph name="back" size={compact ? 21 : 23} color={colors.ink} />
         </IconButton>
 

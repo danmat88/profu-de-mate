@@ -173,7 +173,7 @@ export function SettingsScreen({ navigation }: Props) {
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
-  const { isTransitioning } = useTransitionMotion();
+  const { isTransitioning } = useTransitionMotion(focused && !reducedMotion);
   const ambientActive = focused && transitionSettled && !isTransitioning;
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);

@@ -1,16 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Animated, Easing, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows, springs } from '../theme';
+import { borders, colors, fonts, radii, shadows } from '../theme';
 import { Text } from './Typography';
 
 export type SpeechBubbleTone = 'paper' | 'limeSoft' | 'peachSoft' | 'roseSoft' | 'violetSoft';
@@ -49,24 +41,41 @@ export function SpeechBubble({
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
-  const scale = useSharedValue(1);
+  const scale = useRef(new Animated.Value(1)).current;
   const previousKey = useRef(messageKey);
   const fill = fills[tone];
 
   useEffect(() => {
-    if (!messageKey || previousKey.current === messageKey) return;
+    if (!messageKey || previousKey.current === messageKey) return undefined;
     previousKey.current = messageKey;
-    if (reducedMotion) return;
-    scale.set(withSequence(
-      withTiming(0.97, { duration: 55, easing: Easing.out(Easing.quad) }),
-      withTiming(1.032, { duration: 85, easing: Easing.out(Easing.quad) }),
-      withSpring(1, springs.bouncy),
-    ));
+    if (reducedMotion) return undefined;
+    scale.stopAnimation();
+    const anim = Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 0.97,
+        duration: 55,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        toValue: 1.032,
+        duration: 85,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        tension: 240,
+        friction: 14,
+        useNativeDriver: true,
+      }),
+    ]);
+    anim.start();
+    return () => {
+      anim.stop();
+      scale.stopAnimation();
+    };
   }, [messageKey, reducedMotion, scale]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.get() }],
-  }));
 
   const cardInner = (
     <>
@@ -93,7 +102,14 @@ export function SpeechBubble({
   );
 
   return (
-    <Animated.View style={[styles.outer, tail === 'left' && styles.outerWithLeftTail, animatedStyle, style]}>
+    <Animated.View
+      style={[
+        styles.outer,
+        tail === 'left' && styles.outerWithLeftTail,
+        { transform: [{ scale }] },
+        style,
+      ]}
+    >
       <View style={styles.shadowWrap}>
         <View pointerEvents="none" style={styles.shadow} />
         {onPress ? (

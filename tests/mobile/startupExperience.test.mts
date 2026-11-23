@@ -33,6 +33,10 @@ const mascotSource = await readFile(new URL('../../src/shared/ui/Mascot.tsx', im
 const quotaTimerSource = await readFile(new URL('../../src/features/access/components/QuotaResetTimer.tsx', import.meta.url), 'utf8');
 const tabPanelSource = await readFile(new URL('../../src/shared/ui/TabPanel.tsx', import.meta.url), 'utf8');
 const enterSource = await readFile(new URL('../../src/shared/ui/Enter.tsx', import.meta.url), 'utf8');
+const speechBubbleSource = await readFile(new URL('../../src/shared/ui/SpeechBubble.tsx', import.meta.url), 'utf8');
+const confettiSource = await readFile(new URL('../../src/shared/ui/ConfettiBurst.tsx', import.meta.url), 'utf8');
+const analysisActivitySource = await readFile(new URL('../../src/features/analysis/components/AnalysisActivity.tsx', import.meta.url), 'utf8');
+const transitionSettledSource = await readFile(new URL('../../src/shared/hooks/useTransitionSettled.ts', import.meta.url), 'utf8');
 const lessonSource = await readFile(new URL('../../src/features/lessons/screens/LessonScreen.tsx', import.meta.url), 'utf8');
 const summarySource = await readFile(new URL('../../src/features/lessons/screens/SummaryScreen.tsx', import.meta.url), 'utf8');
 const progressDotsSource = await readFile(new URL('../../src/shared/ui/ProgressDots.tsx', import.meta.url), 'utf8');
@@ -58,6 +62,7 @@ test('launch preparation includes all shared icons and branding', () => {
 
 test('React splash restores the branded comic scene on Home’s canvas with a bounded handoff', () => {
   assert.doesNotMatch(splashSource, /imageFallback/);
+  assert.doesNotMatch(splashSource, /react-native-reanimated/);
   assert.match(splashSource, /if \(!sceneReady \|\| !imageReady \|\| !visualsReady\) return/);
   assert.match(splashSource, /if \(!ready \|\| !introComplete \|\| !nativeSplashHidden\) return/);
   assert.match(splashSource, /const hardDeadline = setTimeout\(finishOnce, 2_500\)/);
@@ -65,7 +70,8 @@ test('React splash restores the branded comic scene on Home’s canvas with a bo
   assert.match(splashSource, /backgroundColor: colors\.canvas/);
   assert.match(splashSource, /<ComicBackdrop \/>/);
   assert.match(splashSource, /const SplashProgressHeader = memo\(/);
-  assert.match(splashSource, /scaleX: ratio/);
+  assert.match(splashSource, /translateX: progressFill\.interpolate\(/);
+  assert.match(splashSource, /useNativeDriver: true/);
   assert.match(splashSource, /notifyIntroSettledOnce\(\)/);
   assert.match(splashSource, /notifyRevealOnce\(\)/);
 });
@@ -76,7 +82,7 @@ test('native splash hands off only after the branded scene and image are painted
   assert.match(splashSource, /onLayout=\{handleSceneLayout\}/);
   assert.match(splashSource, /if \(!sceneReady \|\| !imageReady \|\| !visualsReady\) return/);
   assert.match(splashSource, /SplashScreen\.hideAsync\(\)/);
-  assert.match(splashSource, /backdropOpacity\.set\(/);
+  assert.match(splashSource, /Animated\.timing\(backdropOpacity,/);
 });
 
 test('Home fills the safe-area viewport without a scrolling container', () => {
@@ -219,36 +225,49 @@ test('Settings, Paywall and Legal apply synchronous top insets, render complete 
   assert.match(paywallSource, /beforeRemove/);
   assert.match(premiumSurfaceSource, /style=\{styles\.lockOverlay\}/);
   assert.match(premiumSurfaceSource, /styles\.busyPill/);
-  assert.match(enterSource, /cancelAnimation\(progress\)/);
+  assert.match(enterSource, /progress\.stopAnimation\(\)/);
   assert.match(enterSource, /clearTimeout\(watchdog\)/);
+  assert.doesNotMatch(enterSource, /react-native-reanimated/);
   assert.match(homeSource, /showGuide=\{!guideDismissed\}/);
   assert.match(homeSource, /setGalleryBusy\(false\)/);
   assert.doesNotMatch(notebookSource, /navigation\.preload\('Lesson'/);
-  assert.match(notebookSource, /beginTransition\(\)/);
+  assert.match(notebookSource, /beginAppTransition\(\)/);
   assert.match(lessonSource, /const mountMathDocument = !isFromNotebook \|\| transitionSettled;/);
   assert.match(summarySource, /\{transitionSettled \? \(\s*<MathDocumentView/);
 });
 
 test('taps rebound crisply, full screens mount with minimal worklets, and living animations wake on transitionEnd', () => {
   assert.match(appSource, /const NAVIGATION_THEME = \{/);
+  assert.match(appSource, /enableFreeze\(true\)/);
+  assert.match(appSource, /freezeOnBlur: true/);
   assert.match(appSource, /function SystemBarChrome\(/);
   assert.match(appSource, /<TransitionMotionProvider>/);
-  assert.match(appSource, /transitionStart:\s*\(\)\s*=>\s*\{[\s\S]*beginTransition\(\)/);
-  assert.match(appSource, /transitionEnd:\s*\(\)\s*=>\s*\{[\s\S]*endTransition\(\)/);
+  assert.match(appSource, /transitionStart:\s*\(\)\s*=>\s*\{[\s\S]*beginAppTransition\(\)/);
+  assert.match(appSource, /transitionEnd:\s*\(\)\s*=>\s*\{[\s\S]*endAppTransition\(\)/);
+  assert.doesNotMatch(appSource, /useTransitionMotion\(/);
   assert.doesNotMatch(appSource, /setActiveRoute/);
 
   assert.match(pressableScaleSource, /deferPressMs = 0/);
   assert.doesNotMatch(pressableScaleSource, /react-native-reanimated/);
-  assert.match(homeSurfaceSource, /deferPressMs=\{55\}/);
+  assert.doesNotMatch(homeSurfaceSource, /react-native-reanimated/);
+  assert.doesNotMatch(homeSurfaceSource, /deferPressMs=/);
   assert.doesNotMatch(homeSurfaceSource, /useIsFocused/);
   assert.match(homeSource, /focused=\{homeFocused\}/);
-  assert.match(screenHeaderSource, /deferPressMs=\{45\}/);
+  assert.doesNotMatch(homeSource, /useTransitionMotion\(/);
+  assert.doesNotMatch(screenHeaderSource, /deferPressMs=/);
+  assert.doesNotMatch(screenHeaderSource, /useTransitionMotion\(/);
   assert.match(screenHeaderSource, /styles\.rightBadge/);
+  assert.doesNotMatch(premiumSurfaceSource, /deferPressMs=/);
+  assert.doesNotMatch(mathInputSource, /deferPressMs=/);
 
   assert.doesNotMatch(comicTabBarSource, /react-native-reanimated/);
   assert.doesNotMatch(comicSwitchSource, /react-native-reanimated/);
   assert.doesNotMatch(quotaTimerSource, /react-native-reanimated/);
   assert.doesNotMatch(tabPanelSource, /react-native-reanimated/);
+  assert.doesNotMatch(speechBubbleSource, /react-native-reanimated/);
+  assert.doesNotMatch(confettiSource, /react-native-reanimated/);
+  assert.doesNotMatch(analysisActivitySource, /react-native-reanimated/);
+  assert.match(transitionSettledSource, /useTransitionMotion\(focused && !reducedMotion\)/);
   assert.match(tabPanelSource, /if \(reducedMotion \|\| direction === 0\) \{\s*return <View style=\{style\}>\{children\}<\/View>;/);
   assert.doesNotMatch(mascotSource, /react-native-reanimated/);
   assert.match(mascotSource, /const justActivated = active && !previousActive\.current/);

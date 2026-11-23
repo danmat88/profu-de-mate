@@ -1,16 +1,7 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Animated, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { motion, springs } from '../theme';
 
 type Props = {
   children: ReactNode;
@@ -24,11 +15,11 @@ type Props = {
 };
 
 /**
- * Staggered comic panel entrance. Stays cleanly hidden while `ready` is false
- * (unless reduced motion is enabled) and pops in with Reanimated spring physics
- * when its turn arrives. Includes a bounded watchdog so a paused/resumed Android
- * Choreographer (e.g. returning from a system modal) can never leave content
- * stuck invisible.
+ * Staggered comic panel entrance powered by pure native-driver Animated
+ * springs (zero Reanimated worklet mount cost). Stays cleanly hidden while
+ * ready is false (unless reduced motion is enabled) and pops in smoothly when
+ * its turn arrives. Includes a bounded watchdog so a paused/resumed Android
+ * Choreographer can never leave content stuck invisible.
  */
 export function Enter({
   children,
@@ -42,68 +33,74 @@ export function Enter({
 }: Props) {
   const reducedMotion = useReducedMotion();
   const played = useRef(reducedMotion);
-  const progress = useSharedValue(reducedMotion ? 1 : 0);
+  const progress = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
 
   useEffect(() => {
     if (reducedMotion) {
-      cancelAnimation(progress);
-      progress.set(1);
+      progress.stopAnimation();
+      progress.setValue(1);
       played.current = true;
       return undefined;
     }
     if (!ready) {
-      if (!played.current) progress.set(0);
+      if (!played.current) progress.setValue(0);
       return undefined;
     }
     if (played.current) {
-      progress.set(1);
+      progress.setValue(1);
       return undefined;
     }
     played.current = true;
-    const springConfig = bouncy ? springs.bouncy : springs.snappy;
+
+    let anim: Animated.CompositeAnimation | undefined;
+    const springAnim = Animated.spring(progress, {
+      toValue: 1,
+      tension: bouncy ? 210 : 280,
+      friction: bouncy ? 15 : 21,
+      useNativeDriver: true,
+    });
     const frame = requestAnimationFrame(() => {
-      if (delay > 0) {
-        progress.set(withDelay(delay, withSpring(1, springConfig)));
-      } else {
-        progress.set(withSpring(1, springConfig));
-      }
+      anim = delay > 0 ? Animated.sequence([Animated.delay(delay), springAnim]) : springAnim;
+      anim.start();
     });
     const watchdog = setTimeout(() => {
-      progress.set(1);
+      progress.stopAnimation();
+      progress.setValue(1);
     }, delay + 550);
 
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(watchdog);
-      cancelAnimation(progress);
+      anim?.stop();
+      progress.stopAnimation();
     };
   }, [bouncy, delay, progress, ready, reducedMotion]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    const p = progress.get();
-    const opacity = p <= 0.01 ? 0 : Math.min(1, p * 1.45);
-    const scale = scaleFrom + p * (1 - scaleFrom);
-    const translateY = (1 - p) * distance;
-    if (tiltFrom !== 0) {
-      return {
-        opacity,
-        transform: [
-          { translateY },
-          { scale },
-          { rotate: `${(1 - p) * tiltFrom}deg` },
-        ],
-      };
-    }
-    return {
-      opacity,
-      transform: [{ translateY }, { scale }],
-    };
-  }, [distance, scaleFrom, tiltFrom]);
+  const opacity = progress.interpolate({
+    inputRange: [0, 0.68, 1],
+    outputRange: [0, 1, 1],
+    extrapolate: 'clamp',
+  });
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [distance, 0],
+  });
+  const scale = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [scaleFrom, 1],
+  });
+  const transform = tiltFrom !== 0
+    ? [
+      { translateY },
+      { scale },
+      {
+        rotate: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [`${tiltFrom}deg`, '0deg'],
+        }),
+      },
+    ]
+    : [{ translateY }, { scale }];
 
-  return <Animated.View style={[animatedStyle, style]}>{children}</Animated.View>;
-}
-
-/** Quick timing helper export for inline pops. */
-export function popTiming(toValue: number) {
-  return withTiming(toValue, { duration: motion.fast });
+  return <Animated.View style={[{ opacity, transform }, style]}>{children}</Animated.View>;
 }

@@ -96,9 +96,11 @@ export function useScreenMotionActive(
 ): boolean {
   const initiallySettled = options?.initiallySettled ?? false;
   const fallbackMs = options?.fallbackMs ?? 300;
-  const { isTransitioning } = useTransitionMotion();
-  const pushedSettled = useTransitionSettled(navigation, reducedMotion || initiallySettled, fallbackMs);
   const [focused, setFocused] = useState(() => navigation?.isFocused?.() ?? true);
+  // Subscribe to global transitions ONLY while this screen is focused so covered
+  // stack screens never re-render when deeper screens navigate.
+  const { isTransitioning } = useTransitionMotion(focused && !reducedMotion);
+  const pushedSettled = useTransitionSettled(navigation, reducedMotion || initiallySettled, fallbackMs);
   const [localTransitioning, setLocalTransitioning] = useState(false);
 
   useEffect(() => {

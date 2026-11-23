@@ -1,21 +1,10 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { bundledImageSource } from '../../shared/services/bundledImages';
-import { borders, colors, fonts, radii, shadows, springs, typography } from '../../shared/theme';
+import { borders, colors, fonts, radii, shadows, typography } from '../../shared/theme';
 import { Chip } from '../../shared/ui/Chip';
 import { ComicBackdrop } from '../../shared/ui/ComicBackdrop';
 import { Text } from '../../shared/ui/Typography';
@@ -79,8 +68,8 @@ const STUDIO_PILLARS = [
 const BAR_STRIPE_INDICES = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
 /**
- * Isolated progress header leaf so gentle percentage ticks never re-render the
- * emblem, comic stickers, speech bubble, or background art.
+ * Isolated progress header leaf so gentle percentage easing updates only this
+ * tiny counter and never re-renders the emblem, comic stickers, or background art.
  */
 const SplashProgressHeader = memo(function SplashProgressHeader({
   ready,
@@ -89,7 +78,6 @@ const SplashProgressHeader = memo(function SplashProgressHeader({
   introStarted,
   reducedMotion,
   stageLabel,
-  targetProgress,
 }: {
   ready: boolean;
   startupReady: boolean;
@@ -97,21 +85,25 @@ const SplashProgressHeader = memo(function SplashProgressHeader({
   introStarted: boolean;
   reducedMotion: boolean;
   stageLabel: string;
-  targetProgress: number;
 }) {
-  const [displayPercent, setDisplayPercent] = useState(reducedMotion ? 100 : Math.round(targetProgress * 100));
+  const [displayPercent, setDisplayPercent] = useState(reducedMotion ? 100 : 12);
 
   useEffect(() => {
-    const pct = Math.round(targetProgress * 100);
-    setDisplayPercent((current) => Math.max(current, pct));
-  }, [targetProgress]);
+    if (ready || reducedMotion) {
+      setDisplayPercent(100);
+      return undefined;
+    }
+    if (!introStarted) return undefined;
 
-  useEffect(() => {
-    if (ready || !introStarted || reducedMotion) return undefined;
-    const cap = startupReady ? 94 : visualsReady ? 80 : 48;
+    const targetCap = startupReady ? 95 : visualsReady ? 88 : 48;
     const interval = setInterval(() => {
-      setDisplayPercent((current) => (current >= cap ? current : Math.min(cap, current + 4)));
-    }, 360);
+      setDisplayPercent((current) => {
+        if (current >= targetCap) return current;
+        const step = Math.max(1, Math.ceil((targetCap - current) * 0.16));
+        return Math.min(targetCap, current + step);
+      });
+    }, 75);
+
     return () => clearInterval(interval);
   }, [introStarted, ready, reducedMotion, startupReady, visualsReady]);
 
@@ -140,10 +132,10 @@ const SplashProgressHeader = memo(function SplashProgressHeader({
 
 /**
  * Rich comic-studio launch splash sharing the exact warm cream canvas of
- * Android native splash and Home. Stages 4 strictly sequential, low-worklet
- * GPU beats (top ribbon + starburst owl crest -> stickers + speech bubble ->
- * wordmark + highlighter + feature pills -> mini-notebook progress dock) and
- * mounts Home only after the entrance settles cleanly at 60fps.
+ * Android native splash and Home. Powered entirely by pure native-driver
+ * Animated transforms (zero Reanimated worklets on cold boot) so the continuous
+ * progress bar and liquid sheen run directly on Android RenderThread without
+ * ever blocking or stuttering while startup and navigation mount underneath.
  */
 export function LaunchSplash({
   ready,
@@ -162,18 +154,19 @@ export function LaunchSplash({
   const [introComplete, setIntroComplete] = useState(reducedMotion);
   const [barWidth, setBarWidth] = useState(0);
 
-  // Strictly minimal GPU shared values so cold boot stays locked at 60fps.
-  const heroEnter = useSharedValue(reducedMotion ? 1 : 0);
-  const heroFloat = useSharedValue(0);
-  const pulseRing = useSharedValue(0);
-  const stickersEnter = useSharedValue(reducedMotion ? 1 : 0);
-  const crestSheen = useSharedValue(0);
-  const copyEnter = useSharedValue(reducedMotion ? 1 : 0);
-  const underlineReveal = useSharedValue(reducedMotion ? 1 : 0);
-  const dockEnter = useSharedValue(reducedMotion ? 1 : 0);
-  const progressFill = useSharedValue(reducedMotion ? 1 : 0.22);
-  const exitProgress = useSharedValue(0);
-  const backdropOpacity = useSharedValue(1);
+  // Pure native-driver Animated values (100% Android RenderThread, 0 Reanimated worklets).
+  const heroEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const heroFloat = useRef(new Animated.Value(0)).current;
+  const pulseRing = useRef(new Animated.Value(0)).current;
+  const stickersEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const crestSheen = useRef(new Animated.Value(0)).current;
+  const copyEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const underlineReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const dockEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const progressFill = useRef(new Animated.Value(reducedMotion ? 1 : 0.12)).current;
+  const barSheen = useRef(new Animated.Value(0)).current;
+  const exitProgress = useRef(new Animated.Value(0)).current;
+  const backdropOpacity = useRef(new Animated.Value(1)).current;
 
   const introSettledRef = useRef(onIntroSettled);
   const revealStartRef = useRef(onRevealStart);
@@ -184,6 +177,8 @@ export function LaunchSplash({
   const handleSceneLayout = useCallback(() => setSceneReady(true), []);
   const visualScale = Math.max(0.82, Math.min(1.04, width / 390, height / 780));
   const compact = height < 720;
+  const fallbackBarWidth = Math.max(180, Math.min(width - 96, 286));
+  const trackInnerWidth = Math.max(1, (barWidth > 0 ? barWidth : fallbackBarWidth) - borders.regular * 2);
 
   introSettledRef.current = onIntroSettled;
   revealStartRef.current = onRevealStart;
@@ -210,15 +205,6 @@ export function LaunchSplash({
     finishRef.current();
   }, [notifyIntroSettledOnce, notifyRevealOnce]);
 
-  // Real milestone progress target (never claims 100% until app + navigation are ready).
-  const targetProgress = ready
-    ? 1
-    : startupReady
-      ? 0.86
-      : visualsReady
-        ? 0.56
-        : 0.24;
-
   const stageLabel = ready
     ? 'Gata! Începem!'
     : startupReady
@@ -232,6 +218,14 @@ export function LaunchSplash({
     if (!sceneReady || !imageReady || !visualsReady) return undefined;
     let active = true;
     let introTimer: ReturnType<typeof setTimeout> | undefined;
+    let floatLoop: Animated.CompositeAnimation | undefined;
+    const animations: Animated.CompositeAnimation[] = [];
+
+    const run = (anim: Animated.CompositeAnimation) => {
+      animations.push(anim);
+      anim.start();
+    };
+
     const frame = requestAnimationFrame(() => {
       void SplashScreen.hideAsync().catch(() => undefined).then(() => {
         if (active) setNativeSplashHidden(true);
@@ -239,63 +233,124 @@ export function LaunchSplash({
       if (!active) return;
       setIntroStarted(true);
       if (reducedMotion) {
-        heroEnter.set(1);
-        stickersEnter.set(1);
-        copyEnter.set(1);
-        underlineReveal.set(1);
-        dockEnter.set(1);
+        heroEnter.setValue(1);
+        stickersEnter.setValue(1);
+        copyEnter.setValue(1);
+        underlineReveal.setValue(1);
+        dockEnter.setValue(1);
         notifyIntroSettledOnce();
         return;
       }
 
       // Beat 1 (0ms): Comic starburst + 3D Owl Crest pop cleanly onto stage with crisp shockwave.
-      heroEnter.set(withSpring(1, springs.pop));
-      pulseRing.set(0);
-      pulseRing.set(withDelay(65, withTiming(1, { duration: 430, easing: Easing.out(Easing.cubic) })));
+      run(Animated.spring(heroEnter, {
+        toValue: 1,
+        tension: 210,
+        friction: 16,
+        useNativeDriver: true,
+      }));
+      pulseRing.setValue(0);
+      run(Animated.sequence([
+        Animated.delay(55),
+        Animated.timing(pulseRing, {
+          toValue: 1,
+          duration: 420,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]));
 
-      // Beat 2 (190ms): Math stickers, sparkles, and owl speech pop-bubble burst out together.
-      stickersEnter.set(withDelay(190, withSpring(1, springs.bouncy)));
+      // Beat 2 (170ms): Math stickers, sparkles, and owl speech pop-bubble burst out together.
+      run(Animated.sequence([
+        Animated.delay(170),
+        Animated.spring(stickersEnter, {
+          toValue: 1,
+          tension: 200,
+          friction: 14,
+          useNativeDriver: true,
+        }),
+      ]));
 
-      // Beat 3 (300ms): Chip, bold wordmark, feature pills, and lime highlighter swipe glide up.
-      copyEnter.set(withDelay(300, withSpring(1, springs.snappy)));
-      underlineReveal.set(withDelay(415, withTiming(1, { duration: 250, easing: Easing.out(Easing.cubic) })));
+      // Beat 3 (260ms): Chip, bold wordmark, feature pills, and lime highlighter swipe glide up.
+      run(Animated.sequence([
+        Animated.delay(260),
+        Animated.spring(copyEnter, {
+          toValue: 1,
+          tension: 260,
+          friction: 20,
+          useNativeDriver: true,
+        }),
+      ]));
+      run(Animated.sequence([
+        Animated.delay(375),
+        Animated.timing(underlineReveal, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]));
 
-      // Beat 4 (425ms): Signature mini-notebook progress dock rises into place last.
-      dockEnter.set(withDelay(425, withSpring(1, springs.snappy)));
+      // Beat 4 (370ms): Signature mini-notebook progress dock rises into place cleanly.
+      run(Animated.sequence([
+        Animated.delay(370),
+        Animated.spring(dockEnter, {
+          toValue: 1,
+          tension: 260,
+          friction: 20,
+          useNativeDriver: true,
+        }),
+      ]));
 
-      // Subtle living motion starts strictly after all 4 entrance beats settle.
-      crestSheen.set(withDelay(
-        600,
-        withTiming(1, { duration: 680, easing: Easing.inOut(Easing.quad) }),
-      ));
-      heroFloat.set(withDelay(
-        640,
-        withRepeat(
-          withSequence(
-            withTiming(-5, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
-            withTiming(2.5, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
-          ),
-          -1,
-          true,
+      // Subtle living motion runs purely on Android native RenderThread after entrance settles.
+      run(Animated.sequence([
+        Animated.delay(560),
+        Animated.timing(crestSheen, {
+          toValue: 1,
+          duration: 680,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]));
+      floatLoop = Animated.sequence([
+        Animated.delay(580),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(heroFloat, {
+              toValue: -5,
+              duration: 1350,
+              easing: Easing.inOut(Easing.sin),
+              useNativeDriver: true,
+            }),
+            Animated.timing(heroFloat, {
+              toValue: 2.5,
+              duration: 1350,
+              easing: Easing.inOut(Easing.sin),
+              useNativeDriver: true,
+            }),
+          ]),
         ),
-      ));
+      ]);
+      floatLoop.start();
 
       // Signal AppRoot to mount Home ONLY after every splash entrance animation is settled.
       introTimer = setTimeout(() => {
         if (active) notifyIntroSettledOnce();
-      }, 640);
+      }, 600);
     });
     const introFallback = setTimeout(() => {
       if (active) notifyIntroSettledOnce();
-    }, 1_050);
+    }, 1_000);
 
     return () => {
       active = false;
       cancelAnimationFrame(frame);
       if (introTimer) clearTimeout(introTimer);
       clearTimeout(introFallback);
-      cancelAnimation(heroFloat);
-      cancelAnimation(crestSheen);
+      animations.forEach((anim) => anim.stop());
+      floatLoop?.stop();
+      heroFloat.stopAnimation();
+      crestSheen.stopAnimation();
     };
   }, [
     copyEnter,
@@ -313,17 +368,56 @@ export function LaunchSplash({
     visualsReady,
   ]);
 
-  // Smoothly track real startup milestones in the GPU-scaled comic progress bar.
+  // Continuous liquid-smooth native-driver progress glide that never halts or stalls mid-load.
   useEffect(() => {
     if (reducedMotion) {
-      progressFill.set(targetProgress);
-      return;
+      progressFill.setValue(ready ? 1 : startupReady ? 0.94 : visualsReady ? 0.65 : 0.25);
+      return undefined;
     }
-    progressFill.set(withTiming(targetProgress, {
-      duration: ready ? 210 : 380,
+    if (!introStarted && !ready) return undefined;
+
+    const target = ready ? 1 : startupReady ? 0.95 : visualsReady ? 0.88 : 0.48;
+    const duration = ready ? 210 : startupReady ? 520 : visualsReady ? 1_750 : 700;
+    const anim = Animated.timing(progressFill, {
+      toValue: target,
+      duration,
       easing: Easing.out(Easing.cubic),
-    }));
-  }, [progressFill, ready, reducedMotion, targetProgress]);
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [introStarted, progressFill, ready, reducedMotion, startupReady, visualsReady]);
+
+  // Living native-driver gloss sheen glides continuously across the progress bar while loading.
+  useEffect(() => {
+    if (reducedMotion || !introStarted || ready) {
+      barSheen.stopAnimation();
+      barSheen.setValue(0);
+      return undefined;
+    }
+    barSheen.setValue(0);
+    const sheenLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(barSheen, {
+          toValue: 1,
+          duration: 1_050,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(barSheen, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+        Animated.delay(240),
+      ]),
+    );
+    sheenLoop.start();
+    return () => {
+      sheenLoop.stop();
+      barSheen.stopAnimation();
+    };
+  }, [barSheen, introStarted, ready, reducedMotion]);
 
   // Sequential baton-pass exit into Home once intro, startup, and navigation are all ready.
   useEffect(() => {
@@ -334,28 +428,63 @@ export function LaunchSplash({
     }
     let revealTimer: ReturnType<typeof setTimeout> | undefined;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
+    const exitAnims: Animated.CompositeAnimation[] = [];
+
+    const startExitAnim = (anim: Animated.CompositeAnimation) => {
+      exitAnims.push(anim);
+      anim.start();
+    };
 
     // Celebratory victory hop + lime shockwave right as the dock reaches 100%.
-    cancelAnimation(heroFloat);
-    heroFloat.set(withSequence(
-      withTiming(-11, { duration: 95, easing: Easing.out(Easing.quad) }),
-      withSpring(0, springs.snappy),
-    ));
-    pulseRing.set(0);
-    pulseRing.set(withTiming(1, { duration: 340, easing: Easing.out(Easing.cubic) }));
+    heroFloat.stopAnimation();
+    startExitAnim(Animated.sequence([
+      Animated.timing(heroFloat, {
+        toValue: -11,
+        duration: 95,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(heroFloat, {
+        toValue: 0,
+        tension: 260,
+        friction: 18,
+        useNativeDriver: true,
+      }),
+    ]));
+    pulseRing.setValue(0);
+    startExitAnim(Animated.timing(pulseRing, {
+      toValue: 1,
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }));
 
     const beatTimer = setTimeout(() => {
       // Splash foreground glides cleanly out FIRST, then canvas fades and hands baton to Home.
-      exitProgress.set(withTiming(1, { duration: 225, easing: Easing.in(Easing.cubic) }));
-      backdropOpacity.set(withDelay(100, withTiming(0, { duration: 205, easing: Easing.out(Easing.quad) })));
-      revealTimer = setTimeout(notifyRevealOnce, 135);
-      exitTimer = setTimeout(finishOnce, 315);
+      startExitAnim(Animated.timing(exitProgress, {
+        toValue: 1,
+        duration: 220,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }));
+      startExitAnim(Animated.sequence([
+        Animated.delay(95),
+        Animated.timing(backdropOpacity, {
+          toValue: 0,
+          duration: 205,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]));
+      revealTimer = setTimeout(notifyRevealOnce, 130);
+      exitTimer = setTimeout(finishOnce, 310);
     }, 175);
 
     return () => {
       clearTimeout(beatTimer);
       if (revealTimer) clearTimeout(revealTimer);
       if (exitTimer) clearTimeout(exitTimer);
+      exitAnims.forEach((anim) => anim.stop());
     };
   }, [
     backdropOpacity,
@@ -377,96 +506,252 @@ export function LaunchSplash({
     return () => clearTimeout(hardDeadline);
   }, [finishOnce, imageReady, nativeSplashHidden, ready, sceneReady, visualsReady]);
 
-  const rootAnimated = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.get(),
-  }));
+  const rootAnimated = {
+    opacity: backdropOpacity,
+  };
 
-  const pulseRingAnimated = useAnimatedStyle(() => {
-    const p = pulseRing.get();
-    const opacity = p <= 0.01 || p >= 0.99 ? 0 : (1 - p) * 0.66;
-    return {
-      opacity,
-      transform: [{ scale: visualScale * (0.76 + p * 0.66) }],
-    };
-  }, [visualScale]);
+  const pulseRingAnimated = {
+    opacity: pulseRing.interpolate({
+      inputRange: [0, 0.04, 0.96, 1],
+      outputRange: [0, 0.64, 0.04, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: pulseRing.interpolate({
+          inputRange: [0, 1],
+          outputRange: [visualScale * 0.76, visualScale * 1.42],
+        }),
+      },
+    ],
+  };
 
-  const heroAnimated = useAnimatedStyle(() => {
-    const enter = heroEnter.get();
-    const exit = exitProgress.get();
-    const opacity = enter <= 0.01 ? 0 : Math.min(1, enter * 1.5) * (1 - exit);
-    return {
-      opacity,
-      transform: [
-        { translateY: (1 - enter) * 24 + heroFloat.get() - exit * 44 },
-        { scale: visualScale * (0.72 + enter * 0.28) * (1 - exit * 0.1) },
-        { rotate: `${(1 - enter) * -8 - exit * 4}deg` },
-      ],
-    };
-  }, [visualScale]);
+  const heroEnterStyle = {
+    opacity: heroEnter.interpolate({
+      inputRange: [0, 0.68, 1],
+      outputRange: [0, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: heroEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [24, 0],
+        }),
+      },
+      { translateY: heroFloat },
+      {
+        scale: heroEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [visualScale * 0.72, visualScale],
+        }),
+      },
+      {
+        rotate: heroEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['-8deg', '0deg'],
+        }),
+      },
+    ],
+  };
 
-  const stickersAnimated = useAnimatedStyle(() => {
-    const enter = stickersEnter.get();
-    const exit = exitProgress.get();
-    return {
-      opacity: (enter <= 0.01 ? 0 : Math.min(1, enter * 1.45)) * (1 - exit),
-      transform: [
-        { scale: 0.66 + enter * 0.34 + exit * 0.12 },
-        { rotate: `${(1 - enter) * 12}deg` },
-      ],
-    };
-  });
+  const heroExitStyle = {
+    opacity: exitProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -44],
+        }),
+      },
+      {
+        scale: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.9],
+        }),
+      },
+      {
+        rotate: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', '-4deg'],
+        }),
+      },
+    ],
+  };
 
-  const crestSheenAnimated = useAnimatedStyle(() => {
-    const p = crestSheen.get();
-    return {
-      opacity: p > 0.02 && p < 0.98 ? 0.45 : 0,
-      transform: [
-        { translateX: -120 + p * 320 },
-        { skewX: '-22deg' },
-      ],
-    };
-  });
+  const stickersAnimated = {
+    opacity: stickersEnter.interpolate({
+      inputRange: [0, 0.68, 1],
+      outputRange: [0, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: stickersEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.66, 1],
+        }),
+      },
+      {
+        rotate: stickersEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['12deg', '0deg'],
+        }),
+      },
+    ],
+  };
 
-  const copyAnimated = useAnimatedStyle(() => {
-    const enter = copyEnter.get();
-    const exit = exitProgress.get();
-    return {
-      opacity: (enter <= 0.01 ? 0 : Math.min(1, enter * 1.45)) * (1 - exit),
-      transform: [
-        { translateY: (1 - enter) * 18 - exit * 20 },
-        { scale: (0.92 + enter * 0.08) * (1 - exit * 0.04) },
-      ],
-    };
-  });
+  const crestSheenAnimated = {
+    opacity: crestSheen.interpolate({
+      inputRange: [0, 0.06, 0.94, 1],
+      outputRange: [0, 0.45, 0.45, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: crestSheen.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-120, 200],
+        }),
+      },
+      { skewX: '-22deg' },
+    ],
+  };
 
-  const underlineAnimated = useAnimatedStyle(() => ({
-    opacity: underlineReveal.get(),
-    transform: [{ scaleX: Math.max(0.02, underlineReveal.get()) }],
-  }));
+  const copyEnterStyle = {
+    opacity: copyEnter.interpolate({
+      inputRange: [0, 0.68, 1],
+      outputRange: [0, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: copyEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [18, 0],
+        }),
+      },
+      {
+        scale: copyEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.92, 1],
+        }),
+      },
+    ],
+  };
 
-  const dockAnimated = useAnimatedStyle(() => {
-    const enter = dockEnter.get();
-    const exit = exitProgress.get();
-    return {
-      opacity: (enter <= 0.01 ? 0 : Math.min(1, enter * 1.45)) * (1 - exit),
-      transform: [
-        { translateY: (1 - enter) * 24 + exit * 30 },
-        { scale: (0.94 + enter * 0.06) * (1 - exit * 0.04) },
-      ],
-    };
-  });
+  const copyExitStyle = {
+    opacity: exitProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -20],
+        }),
+      },
+      {
+        scale: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.96],
+        }),
+      },
+    ],
+  };
 
-  // Pure GPU scaleX + translateX progress fill (zero layout recalculation per frame).
-  const fillTransformStyle = useAnimatedStyle(() => {
-    const innerWidth = Math.max(0, barWidth - borders.regular * 2);
-    const ratio = Math.max(0.08, Math.min(1, progressFill.get()));
-    return {
-      transform: [
-        { translateX: -((1 - ratio) * innerWidth) / 2 },
-        { scaleX: ratio },
-      ],
-    };
-  }, [barWidth]);
+  const underlineAnimated = {
+    opacity: underlineReveal,
+    transform: [
+      {
+        scaleX: underlineReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.02, 1],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+
+  const dockEnterStyle = {
+    opacity: dockEnter.interpolate({
+      inputRange: [0, 0.68, 1],
+      outputRange: [0, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: dockEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [24, 0],
+        }),
+      },
+      {
+        scale: dockEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.94, 1],
+        }),
+      },
+    ],
+  };
+
+  const dockExitStyle = {
+    opacity: exitProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 30],
+        }),
+      },
+      {
+        scale: exitProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.96],
+        }),
+      },
+    ],
+  };
+
+  // Pure GPU native-driver translateX progress fill (zero layout recalculation and crisp rounded tip).
+  const fillTransformStyle = {
+    transform: [
+      {
+        translateX: progressFill.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-trackInnerWidth, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+
+  const barSheenStyle = {
+    opacity: barSheen.interpolate({
+      inputRange: [0, 0.14, 0.86, 1],
+      outputRange: [0, 0.54, 0.54, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: barSheen.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-56, trackInnerWidth + 56],
+        }),
+      },
+      { skewX: '-22deg' },
+    ],
+  };
 
   const milestones = [
     { key: 'visuals', label: 'Resurse', done: visualsReady },
@@ -518,14 +803,16 @@ export function LaunchSplash({
 
           <View style={[styles.stage, compact && styles.stageCompact]}>
             {/* Top comic studio banner framing the viewport */}
-            <Animated.View style={[styles.topBannerWrap, copyAnimated]}>
-              <View collapsable={false} style={styles.topBanner}>
-                <View style={[styles.bannerDot, { backgroundColor: colors.violet }]} />
-                <Text maxFontSizeMultiplier={1.2} style={styles.topBannerText}>
-                  STUDIOUL TĂU DE MATE
-                </Text>
-                <View style={[styles.bannerDot, { backgroundColor: colors.peach }]} />
-              </View>
+            <Animated.View style={[styles.topBannerWrap, copyExitStyle]}>
+              <Animated.View style={copyEnterStyle}>
+                <View collapsable={false} style={styles.topBanner}>
+                  <View style={[styles.bannerDot, { backgroundColor: colors.violet }]} />
+                  <Text maxFontSizeMultiplier={1.2} style={styles.topBannerText}>
+                    STUDIOUL TĂU DE MATE
+                  </Text>
+                  <View style={[styles.bannerDot, { backgroundColor: colors.peach }]} />
+                </View>
+              </Animated.View>
             </Animated.View>
 
             <View style={styles.centerCluster}>
@@ -554,166 +841,172 @@ export function LaunchSplash({
                 {/* Crisp shockwave ring on crest landing and 100% victory */}
                 <Animated.View pointerEvents="none" style={[styles.pulseRing, ready && styles.pulseRingReady, pulseRingAnimated]} />
 
-                <Animated.View style={[styles.heroWrap, heroAnimated]}>
-                  {/* Unified GPU layer: 4 3D math stickers + stars + owl speech pop-bubble */}
-                  <Animated.View pointerEvents="none" style={[styles.stickersLayer, stickersAnimated]}>
-                    {/* Playful comic speech bubble greeting right beside the owl */}
-                    <View collapsable={false} style={[styles.speechBubble, ready && styles.speechBubbleReady]}>
-                      <View pointerEvents="none" style={styles.speechShine} />
-                      <Text maxFontSizeMultiplier={1.15} style={styles.speechText}>
-                        {ready ? 'Gata!' : 'Salut!'}
-                      </Text>
-                      <View style={[styles.speechTail, ready && styles.speechTailReady]} />
-                    </View>
-
-                    {MATH_STICKERS.map((spec) => (
-                      <View
-                        key={spec.symbol}
-                        collapsable={false}
-                        style={[
-                          styles.stickerWrap,
-                          {
-                            top: spec.top,
-                            bottom: spec.bottom,
-                            left: spec.left,
-                            right: spec.right,
-                            transform: [{ rotate: spec.tilt }],
-                          },
-                        ]}
-                      >
-                        <View style={styles.stickerShadow} />
-                        <View style={[styles.stickerFace, { backgroundColor: spec.bg }]}>
-                          <View pointerEvents="none" style={styles.stickerShine} />
-                          <Text maxFontSizeMultiplier={1.2} style={[styles.stickerText, { color: spec.fg }]}>
-                            {spec.symbol}
-                          </Text>
-                        </View>
+                <Animated.View style={heroExitStyle}>
+                  <Animated.View style={[styles.heroWrap, heroEnterStyle]}>
+                    {/* Unified GPU layer: 4 3D math stickers + stars + owl speech pop-bubble */}
+                    <Animated.View pointerEvents="none" style={[styles.stickersLayer, stickersAnimated]}>
+                      {/* Playful comic speech bubble greeting right beside the owl */}
+                      <View collapsable={false} style={[styles.speechBubble, ready && styles.speechBubbleReady]}>
+                        <View pointerEvents="none" style={styles.speechShine} />
+                        <Text maxFontSizeMultiplier={1.15} style={styles.speechText}>
+                          {ready ? 'Gata!' : 'Salut!'}
+                        </Text>
+                        <View style={[styles.speechTail, ready && styles.speechTailReady]} />
                       </View>
-                    ))}
-                    <Text accessible={false} style={[styles.cornerStar, styles.cornerStarTopLeft]}>✦</Text>
-                    <Text accessible={false} style={[styles.cornerStar, styles.cornerStarBottomLeft]}>★</Text>
-                    <Text accessible={false} style={[styles.cornerStar, styles.cornerStarMidRight]}>✦</Text>
-                  </Animated.View>
 
-                  {/* 3D Royal Violet & Electric Lime Owl Medallion */}
-                  <View style={styles.medallionShadow} />
-                  <View style={styles.medallionOuter}>
-                    <View pointerEvents="none" style={styles.medallionGlowTop} />
-                    <View pointerEvents="none" style={styles.medallionShine} />
-                    <Animated.View pointerEvents="none" style={[styles.crestSheen, crestSheenAnimated]} />
-                    <View style={styles.medallionInner}>
-                      <View pointerEvents="none" style={styles.innerCornerDotTL} />
-                      <View pointerEvents="none" style={styles.innerCornerDotTR} />
-                      <View pointerEvents="none" style={styles.innerCornerDotBL} />
-                      <View pointerEvents="none" style={styles.innerCornerDotBR} />
-                      <Image
-                        accessible={false}
-                        source={bundledImageSource(require('../../../assets/brand/splash_mark_v2.png'))}
-                        resizeMode="contain"
-                        fadeDuration={0}
-                        onLoad={() => setImageReady(true)}
-                        style={styles.heroImage}
-                      />
+                      {MATH_STICKERS.map((spec) => (
+                        <View
+                          key={spec.symbol}
+                          collapsable={false}
+                          style={[
+                            styles.stickerWrap,
+                            {
+                              top: spec.top,
+                              bottom: spec.bottom,
+                              left: spec.left,
+                              right: spec.right,
+                              transform: [{ rotate: spec.tilt }],
+                            },
+                          ]}
+                        >
+                          <View style={styles.stickerShadow} />
+                          <View style={[styles.stickerFace, { backgroundColor: spec.bg }]}>
+                            <View pointerEvents="none" style={styles.stickerShine} />
+                            <Text maxFontSizeMultiplier={1.2} style={[styles.stickerText, { color: spec.fg }]}>
+                              {spec.symbol}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                      <Text accessible={false} style={[styles.cornerStar, styles.cornerStarTopLeft]}>✦</Text>
+                      <Text accessible={false} style={[styles.cornerStar, styles.cornerStarBottomLeft]}>★</Text>
+                      <Text accessible={false} style={[styles.cornerStar, styles.cornerStarMidRight]}>✦</Text>
+                    </Animated.View>
+
+                    {/* 3D Royal Violet & Electric Lime Owl Medallion */}
+                    <View style={styles.medallionShadow} />
+                    <View style={styles.medallionOuter}>
+                      <View pointerEvents="none" style={styles.medallionGlowTop} />
+                      <View pointerEvents="none" style={styles.medallionShine} />
+                      <Animated.View pointerEvents="none" style={[styles.crestSheen, crestSheenAnimated]} />
+                      <View style={styles.medallionInner}>
+                        <View pointerEvents="none" style={styles.innerCornerDotTL} />
+                        <View pointerEvents="none" style={styles.innerCornerDotTR} />
+                        <View pointerEvents="none" style={styles.innerCornerDotBL} />
+                        <View pointerEvents="none" style={styles.innerCornerDotBR} />
+                        <Image
+                          accessible={false}
+                          source={bundledImageSource(require('../../../assets/brand/splash_mark_v2.png'))}
+                          resizeMode="contain"
+                          fadeDuration={0}
+                          onLoad={() => setImageReady(true)}
+                          style={styles.heroImage}
+                        />
+                      </View>
                     </View>
-                  </View>
+                  </Animated.View>
                 </Animated.View>
               </View>
 
-              <Animated.View style={[styles.identityBlock, copyAnimated]}>
-                <Chip label="EXPLICAȚII PAS CU PAS" tone="lime" tilt={-2.5} />
-                <View style={styles.wordmarkWrap}>
-                  <Animated.View pointerEvents="none" style={[styles.markerHighlight, underlineAnimated]} />
-                  <Text
-                    maxFontSizeMultiplier={1.3}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
-                    style={styles.brand}
-                  >
-                    Profu’ <Text style={styles.brandAccent}>de mate</Text>
-                  </Text>
-                </View>
-                <Text maxFontSizeMultiplier={1.3} style={styles.promise}>
-                  Matematica, pas cu pas.
-                </Text>
-
-                {!compact ? (
-                  <View style={styles.pillarsRow}>
-                    {STUDIO_PILLARS.map((pillar) => (
-                      <View key={pillar.label} collapsable={false} style={styles.pillarPill}>
-                        <View style={[styles.pillarDot, { backgroundColor: pillar.dot }]} />
-                        <Text maxFontSizeMultiplier={1.15} style={styles.pillarText}>
-                          {pillar.label}
-                        </Text>
-                      </View>
-                    ))}
+              <Animated.View style={[styles.identityBlock, copyExitStyle]}>
+                <Animated.View style={[styles.identityInner, copyEnterStyle]}>
+                  <Chip label="EXPLICAȚII PAS CU PAS" tone="lime" tilt={-2.5} />
+                  <View style={styles.wordmarkWrap}>
+                    <Animated.View pointerEvents="none" style={[styles.markerHighlight, underlineAnimated]} />
+                    <Text
+                      maxFontSizeMultiplier={1.3}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.82}
+                      style={styles.brand}
+                    >
+                      Profu’ <Text style={styles.brandAccent}>de mate</Text>
+                    </Text>
                   </View>
-                ) : null}
+                  <Text maxFontSizeMultiplier={1.3} style={styles.promise}>
+                    Matematica, pas cu pas.
+                  </Text>
+
+                  {!compact ? (
+                    <View style={styles.pillarsRow}>
+                      {STUDIO_PILLARS.map((pillar) => (
+                        <View key={pillar.label} collapsable={false} style={styles.pillarPill}>
+                          <View style={[styles.pillarDot, { backgroundColor: pillar.dot }]} />
+                          <Text maxFontSizeMultiplier={1.15} style={styles.pillarText}>
+                            {pillar.label}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </Animated.View>
               </Animated.View>
             </View>
 
             {/* Signature 3D Comic Notebook Progress Dock with bookmark ribbon */}
-            <Animated.View style={[styles.progressCardOuter, dockAnimated]}>
-              <View pointerEvents="none" style={styles.progressCardShadow} />
-              <View style={styles.progressCard}>
-                <View style={[styles.progressSpine, startupReady && styles.progressSpineMid, ready && styles.progressSpineReady]}>
-                  <View pointerEvents="none" style={styles.spineGloss} />
-                  <View style={styles.spineHole} />
-                  <View style={styles.spineHole} />
-                  <View style={styles.spineHole} />
-                </View>
-
-                <View style={styles.progressBody}>
-                  <View pointerEvents="none" style={styles.cardShine} />
-                  <View pointerEvents="none" style={styles.dockBookmark}>
-                    <View style={styles.dockBookmarkNotch} />
+            <Animated.View style={[styles.progressCardOuter, dockExitStyle]}>
+              <Animated.View style={dockEnterStyle}>
+                <View pointerEvents="none" style={styles.progressCardShadow} />
+                <View style={styles.progressCard}>
+                  <View style={[styles.progressSpine, startupReady && styles.progressSpineMid, ready && styles.progressSpineReady]}>
+                    <View pointerEvents="none" style={styles.spineGloss} />
+                    <View style={styles.spineHole} />
+                    <View style={styles.spineHole} />
+                    <View style={styles.spineHole} />
                   </View>
 
-                  <SplashProgressHeader
-                    ready={ready}
-                    startupReady={startupReady}
-                    visualsReady={visualsReady}
-                    introStarted={introStarted}
-                    reducedMotion={reducedMotion}
-                    stageLabel={stageLabel}
-                    targetProgress={targetProgress}
-                  />
+                  <View style={styles.progressBody}>
+                    <View pointerEvents="none" style={styles.cardShine} />
+                    <View pointerEvents="none" style={styles.dockBookmark}>
+                      <View style={styles.dockBookmarkNotch} />
+                    </View>
 
-                  <View style={styles.barShadow}>
-                    <View
-                      onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
-                      style={styles.barTrack}
-                    >
-                      <Animated.View style={[styles.barFill, ready && styles.barFillReady, fillTransformStyle]}>
-                        <View pointerEvents="none" style={styles.barStripes}>
-                          {BAR_STRIPE_INDICES.map((index) => (
-                            <View key={index} style={styles.barStripe} />
-                          ))}
+                    <SplashProgressHeader
+                      ready={ready}
+                      startupReady={startupReady}
+                      visualsReady={visualsReady}
+                      introStarted={introStarted}
+                      reducedMotion={reducedMotion}
+                      stageLabel={stageLabel}
+                    />
+
+                    <View style={styles.barShadow}>
+                      <View
+                        onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
+                        style={styles.barTrack}
+                      >
+                        <Animated.View style={[styles.barFill, ready && styles.barFillReady, fillTransformStyle]}>
+                          <View pointerEvents="none" style={styles.barStripes}>
+                            {BAR_STRIPE_INDICES.map((index) => (
+                              <View key={index} style={styles.barStripe} />
+                            ))}
+                          </View>
+                          <Animated.View pointerEvents="none" style={[styles.barSheen, barSheenStyle]} />
+                          <View pointerEvents="none" style={styles.barFillShine} />
+                        </Animated.View>
+                      </View>
+                    </View>
+
+                    <View style={styles.milestonesRow}>
+                      {milestones.map((item) => (
+                        <View key={item.key} collapsable={false} style={[styles.milestonePill, item.done && styles.milestonePillDone]}>
+                          <View style={[styles.milestoneDot, item.done && styles.milestoneDotDone]}>
+                            {item.done ? (
+                              <Text maxFontSizeMultiplier={1.05} style={styles.milestoneCheck}>✓</Text>
+                            ) : null}
+                          </View>
+                          <Text
+                            maxFontSizeMultiplier={1.15}
+                            style={[styles.milestoneLabel, item.done && styles.milestoneLabelDone]}
+                          >
+                            {item.label}
+                          </Text>
                         </View>
-                        <View pointerEvents="none" style={styles.barFillShine} />
-                      </Animated.View>
+                      ))}
                     </View>
                   </View>
-
-                  <View style={styles.milestonesRow}>
-                    {milestones.map((item) => (
-                      <View key={item.key} collapsable={false} style={[styles.milestonePill, item.done && styles.milestonePillDone]}>
-                        <View style={[styles.milestoneDot, item.done && styles.milestoneDotDone]}>
-                          {item.done ? (
-                            <Text maxFontSizeMultiplier={1.05} style={styles.milestoneCheck}>✓</Text>
-                          ) : null}
-                        </View>
-                        <Text
-                          maxFontSizeMultiplier={1.15}
-                          style={[styles.milestoneLabel, item.done && styles.milestoneLabelDone]}
-                        >
-                          {item.label}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
                 </View>
-              </View>
+              </Animated.View>
             </Animated.View>
           </View>
         </>
@@ -1108,6 +1401,7 @@ const styles = StyleSheet.create({
   },
 
   identityBlock: { marginTop: 12, alignItems: 'center', width: '100%' },
+  identityInner: { alignItems: 'center', width: '100%' },
   wordmarkWrap: {
     marginTop: 10,
     position: 'relative',
@@ -1376,6 +1670,13 @@ const styles = StyleSheet.create({
     height: '140%',
     backgroundColor: 'rgba(255, 255, 255, 0.16)',
     transform: [{ skewX: '-22deg' }],
+  },
+  barSheen: {
+    position: 'absolute',
+    top: -4,
+    bottom: -4,
+    width: 44,
+    backgroundColor: 'rgba(255, 255, 255, 0.48)',
   },
   barFillShine: {
     position: 'absolute',

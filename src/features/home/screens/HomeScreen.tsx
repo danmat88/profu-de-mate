@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { HomeSurface } from '../components/HomeSurface';
 import { ReadinessScreen } from '../../../shared/ui/ReadinessScreen';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useScreenMotionActive } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
@@ -49,7 +49,6 @@ export function HomeScreen() {
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
   const [notebookPreview, setNotebookPreview] = useState<NotebookPreview>(() => readNotebookPreview());
   const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
-  const { beginTransition } = useTransitionMotion();
   const homeFocused = useScreenMotionActive(navigation, false, { initiallySettled: true });
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
@@ -124,21 +123,21 @@ export function HomeScreen() {
   const openCapture = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    beginTransition();
+    beginAppTransition();
     if (!resume()) navigation.navigate('Capture', { mode });
   };
 
   const openMath = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    beginTransition();
+    beginAppTransition();
     if (!resume()) navigation.navigate('MathInput', { mode });
   };
 
   const openNotebook = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    beginTransition();
+    beginAppTransition();
     navigation.navigate('Notebook');
   };
 
@@ -176,13 +175,13 @@ export function HomeScreen() {
   const openAllowance = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    beginTransition();
+    beginAppTransition();
     navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) });
   };
   const openSettings = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
-    beginTransition();
+    beginAppTransition();
     navigation.navigate('Settings');
   };
 

@@ -5,7 +5,7 @@ import { Animated, Easing, Pressable, Share, StyleSheet, View } from 'react-nati
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
-import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
@@ -50,7 +50,6 @@ export function SummaryScreen({ navigation, route }: Props) {
   const { gutter, isNarrow, isShort, isLargeText } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const { beginTransition } = useTransitionMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -319,14 +318,14 @@ export function SummaryScreen({ navigation, route }: Props) {
   };
 
   const closeSummary = () => {
-    beginTransition();
+    beginAppTransition();
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.popToTop();
   };
 
   const reviewSteps = () => {
     Haptics.selection();
-    beginTransition();
+    beginAppTransition();
     navigation.replace('Lesson', {
       lesson,
       lessonId: route.params.lessonId,

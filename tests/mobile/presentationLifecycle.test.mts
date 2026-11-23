@@ -8,31 +8,35 @@ import { serviceLoader } from '../helpers/loadService.mts';
 test('splash text first mounts with prepared custom typefaces, never a temporary system font', () => {
   let textMounts = 0;
   const view = ({ children }: any) => React.createElement('div', null, children);
-  const sharedValue = (initial: number) => ({ value: initial, get: () => initial, set() {} });
+  const composite = { start() {}, stop() {} };
+  class MockAnimatedValue {
+    value: number;
+    constructor(initial: number) { this.value = initial; }
+    setValue(next: number) { this.value = next; }
+    stopAnimation() {}
+    interpolate() { return this; }
+  }
   const flatten = (style: any): any => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
   const load = serviceLoader({
     react: React,
     'react/jsx-runtime': jsxRuntime,
     'react-native': {
+      Animated: {
+        Value: MockAnimatedValue,
+        View: view,
+        timing: () => composite,
+        spring: () => composite,
+        sequence: () => composite,
+        loop: () => composite,
+        delay: () => composite,
+      },
+      Easing: { inOut: (fn: unknown) => fn, out: (fn: unknown) => fn, in: (fn: unknown) => fn, quad: (v: number) => v, sin: (v: number) => v, cubic: (v: number) => v },
       Image: () => React.createElement('img'),
       StyleSheet: { create: (styles: unknown) => styles }, View: view,
       useWindowDimensions: () => ({ width: 360, height: 802 }),
     },
     'react-native-safe-area-context': {
       useSafeAreaFrame: () => ({ x: 0, y: 0, width: 360, height: 802 }),
-    },
-    'react-native-reanimated': {
-      __esModule: true,
-      default: { View: view },
-      cancelAnimation() {},
-      Easing: { inOut: (fn: unknown) => fn, out: (fn: unknown) => fn, in: (fn: unknown) => fn, quad: (v: number) => v, sin: (v: number) => v, cubic: (v: number) => v },
-      useAnimatedStyle: (fn: () => unknown) => fn(),
-      useSharedValue: sharedValue,
-      withDelay: (_d: number, v: unknown) => v,
-      withRepeat: (v: unknown) => v,
-      withSequence: (v: unknown) => v,
-      withSpring: (v: unknown) => v,
-      withTiming: (v: unknown) => v,
     },
     'expo-splash-screen': {}, 'expo-status-bar': { StatusBar: () => null },
     'src/shared/services/bundledImages.ts': { bundledImageSource: (id: number) => id },

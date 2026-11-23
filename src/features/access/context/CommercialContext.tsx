@@ -238,8 +238,12 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   }, [initiallyOffline, refreshIfStale]);
 
   useEffect(() => {
-    // The session-scoped listener also keeps later saves ready for the next visit.
-    void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error));
+    // Defer notebook cache prewarm past splash exit so Firestore parsing never contends with launch motion.
+    const timer = setTimeout(
+      () => void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error)),
+      450,
+    );
+    return () => clearTimeout(timer);
   }, [authSessionKey]);
 
   useEffect(() => {

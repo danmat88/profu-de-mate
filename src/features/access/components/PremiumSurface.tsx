@@ -140,7 +140,6 @@ export function PremiumSurface(props: Props) {
         </Text>
         <IconButton
           label="Închide Premium"
-          deferPressMs={45}
           disabled={Boolean(busy)}
           dimWhenDisabled={false}
           onPress={props.onClose}

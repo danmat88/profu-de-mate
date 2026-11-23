@@ -1,13 +1,5 @@
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, {
-  Easing,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withTiming,
-} from 'react-native-reanimated';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors } from '../theme';
 
@@ -19,6 +11,8 @@ type Piece = {
   shape: 'pill' | 'square' | 'circle';
   delay: number;
 };
+
+const BURST_DURATION_MS = 1_200;
 
 const pieces: readonly Piece[] = [
   { x: -148, y: -96, color: colors.lime, rotateDeg: -210, shape: 'pill', delay: 0 },
@@ -37,29 +31,80 @@ const pieces: readonly Piece[] = [
   { x: -156, y: -4, color: colors.violetBright, rotateDeg: 190, shape: 'square', delay: 20 },
 ];
 
-function ConfettiPiece({ piece, index }: { piece: Piece; index: number }) {
-  const progress = useSharedValue(0);
+function ConfettiPiece({
+  burst,
+  piece,
+  index,
+}: {
+  burst: Animated.Value;
+  piece: Piece;
+  index: number;
+}) {
+  const start = piece.delay / BURST_DURATION_MS;
+  const span = 1 - start;
+  const peakScale = 1 + (index % 3) * 0.1;
+  const at = (u: number) => start + u * span;
+  const arcY = (u: number) => u * piece.y + u * u * 44;
 
-  useEffect(() => {
-    progress.value = withDelay(
-      110 + piece.delay,
-      withTiming(1, { duration: 1150, easing: Easing.out(Easing.cubic) }),
-    );
-  }, [piece.delay, progress]);
+  const opacity = start > 0
+    ? burst.interpolate({
+      inputRange: [0, start, at(0.08), at(0.74), 1],
+      outputRange: [0, 0, 1, 1, 0],
+      extrapolate: 'clamp',
+    })
+    : burst.interpolate({
+      inputRange: [0, 0.08, 0.74, 1],
+      outputRange: [0, 1, 1, 0],
+      extrapolate: 'clamp',
+    });
 
-  const animated = useAnimatedStyle(() => {
-    const t = progress.value;
-    const gravity = t * t * 44;
-    return {
-      opacity: interpolate(t, [0, 0.08, 0.74, 1], [0, 1, 1, 0]),
-      transform: [
-        { translateX: t * piece.x },
-        { translateY: t * piece.y + gravity },
-        { rotate: `${t * piece.rotateDeg}deg` },
-        { scale: interpolate(t, [0, 0.14, 1], [0.25, 1 + (index % 3) * 0.1, 0.78]) },
-      ],
-    };
-  });
+  const translateX = start > 0
+    ? burst.interpolate({
+      inputRange: [0, start, 1],
+      outputRange: [0, 0, piece.x],
+      extrapolate: 'clamp',
+    })
+    : burst.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, piece.x],
+      extrapolate: 'clamp',
+    });
+
+  const translateY = start > 0
+    ? burst.interpolate({
+      inputRange: [0, start, at(0.35), at(0.7), 1],
+      outputRange: [0, 0, arcY(0.35), arcY(0.7), arcY(1)],
+      extrapolate: 'clamp',
+    })
+    : burst.interpolate({
+      inputRange: [0, 0.35, 0.7, 1],
+      outputRange: [0, arcY(0.35), arcY(0.7), arcY(1)],
+      extrapolate: 'clamp',
+    });
+
+  const rotate = start > 0
+    ? burst.interpolate({
+      inputRange: [0, start, 1],
+      outputRange: ['0deg', '0deg', `${piece.rotateDeg}deg`],
+      extrapolate: 'clamp',
+    })
+    : burst.interpolate({
+      inputRange: [0, 1],
+      outputRange: ['0deg', `${piece.rotateDeg}deg`],
+      extrapolate: 'clamp',
+    });
+
+  const scale = start > 0
+    ? burst.interpolate({
+      inputRange: [0, start, at(0.14), 1],
+      outputRange: [0.25, 0.25, peakScale, 0.78],
+      extrapolate: 'clamp',
+    })
+    : burst.interpolate({
+      inputRange: [0, 0.14, 1],
+      outputRange: [0.25, peakScale, 0.78],
+      extrapolate: 'clamp',
+    });
 
   return (
     <Animated.View
@@ -67,21 +112,49 @@ function ConfettiPiece({ piece, index }: { piece: Piece; index: number }) {
         styles.piece,
         piece.shape === 'pill' && styles.pill,
         piece.shape === 'circle' && styles.circle,
-        { backgroundColor: piece.color },
-        animated,
+        {
+          backgroundColor: piece.color,
+          opacity,
+          transform: [{ translateX }, { translateY }, { rotate }, { scale }],
+        },
       ]}
     />
   );
 }
 
+/**
+ * Celebratory comic confetti burst driven by a single shared native-driver
+ * Animated.Value across all 14 pieces (zero Reanimated worklets).
+ */
 export function ConfettiBurst() {
   const reducedMotion = useReducedMotion();
+  const burst = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (reducedMotion) return undefined;
+    burst.setValue(0);
+    const anim = Animated.sequence([
+      Animated.delay(95),
+      Animated.timing(burst, {
+        toValue: 1,
+        duration: BURST_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+    anim.start();
+    return () => {
+      anim.stop();
+      burst.stopAnimation();
+    };
+  }, [burst, reducedMotion]);
+
   if (reducedMotion) return null;
 
   return (
     <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.stage]}>
       {pieces.map((piece, index) => (
-        <ConfettiPiece key={`${piece.x}-${piece.y}`} piece={piece} index={index} />
+        <ConfettiPiece key={`${piece.x}-${piece.y}`} burst={burst} piece={piece} index={index} />
       ))}
     </View>
   );
