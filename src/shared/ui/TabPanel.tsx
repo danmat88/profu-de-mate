@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Animated, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type Props = {
@@ -9,28 +9,25 @@ type Props = {
   children: ReactNode;
 };
 
+/**
+ * Pure GPU-transform tab slide (translateX + subtle scale, opacity locked at 1)
+ * so Android Fabric never drops child badge text via offscreen alpha layers.
+ */
 function AnimatedTabPanel({ direction, style, children }: { direction: -1 | 1; style?: StyleProp<ViewStyle>; children: ReactNode }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const shiftX = useRef(new Animated.Value(direction * 20)).current;
-  const scale = useRef(new Animated.Value(0.988)).current;
+  const shiftX = useRef(new Animated.Value(direction * 22)).current;
+  const scale = useRef(new Animated.Value(0.985)).current;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const anim = Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 165,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
       Animated.spring(shiftX, {
         toValue: 0,
-        tension: 260,
+        tension: 250,
         friction: 22,
         useNativeDriver: true,
       }),
       Animated.spring(scale, {
         toValue: 1,
-        tension: 260,
+        tension: 250,
         friction: 22,
         useNativeDriver: true,
       }),
@@ -39,14 +36,14 @@ function AnimatedTabPanel({ direction, style, children }: { direction: -1 | 1; s
     return () => {
       anim.stop();
     };
-  }, [opacity, scale, shiftX]);
+  }, [scale, shiftX]);
 
   return (
     <Animated.View
+      collapsable={false}
       style={[
         style,
         {
-          opacity,
           transform: [
             { translateX: shiftX },
             { scale },

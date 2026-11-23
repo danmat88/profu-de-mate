@@ -1,10 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
-  Easing,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -103,10 +102,11 @@ function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
 }
 
 /**
- * Pure native-driver staggered card entrance used ONLY after tab switches on
- * the first 4 visible rows. On initial screen mount (`generation === 0`) or
- * below-the-fold rows (`index >= 4`), renders children immediately with zero
- * animation overhead so the screen slides in 100% complete.
+ * Pure GPU-transform staggered card entrance used on tab switches for the
+ * first 4 visible rows. Always keeps a stable Animated.View wrapper for
+ * `index < 4` (so LessonRow never remounts on tab change) and animates ONLY
+ * transform (translateX, translateY, scale) — never opacity: 0 — eliminating
+ * Android Fabric offscreen-alpha text culling inside badges.
  */
 function StaggerCardSlot({
   index,
@@ -125,7 +125,7 @@ function StaggerCardSlot({
   const progress = useRef(new Animated.Value(animateOnMount ? 0 : 1)).current;
   const lastGeneration = useRef(animateOnMount ? -1 : generation);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (generation === 0 || reducedMotion || index >= 4 || lastGeneration.current === generation) {
       lastGeneration.current = generation;
       progress.setValue(1);
@@ -134,12 +134,12 @@ function StaggerCardSlot({
     lastGeneration.current = generation;
     progress.stopAnimation();
     progress.setValue(0);
-    const delay = index * 48;
+    const delay = index * 44;
     const anim = Animated.sequence([
       ...(delay > 0 ? [Animated.delay(delay)] : []),
       Animated.spring(progress, {
         toValue: 1,
-        tension: 250,
+        tension: 245,
         friction: 21,
         useNativeDriver: true,
       }),
@@ -150,25 +150,28 @@ function StaggerCardSlot({
     };
   }, [generation, index, progress, reducedMotion]);
 
-  if (generation === 0 || reducedMotion || index >= 4) {
+  if (reducedMotion || index >= 4) {
     return <>{children}</>;
   }
 
   const translateX = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [direction * 18, 0],
+    outputRange: [direction * 26, 0],
   });
   const translateY = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [10, 0],
+    outputRange: [8, 0],
+  });
+  const scale = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.968, 1],
   });
 
   return (
     <Animated.View
       collapsable={false}
       style={{
-        opacity: progress,
-        transform: [{ translateX }, { translateY }],
+        transform: [{ translateX }, { translateY }, { scale }],
       }}
     >
       {children}
@@ -483,11 +486,7 @@ export function NotebookScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
-  // `selectedTab` updates immediately for ComicTabBar's spring pill, while
-  // `committedTab` swaps cleanly during the 75ms fade-out so old tab cards
-  // NEVER flash as the incoming tab.
-  const [selectedTab, setSelectedTab] = useState<NotebookFilter>('all');
-  const [committedTab, setCommittedTab] = useState<{
+  const [tabState, setTabState] = useState<{
     filter: NotebookFilter;
     direction: -1 | 0 | 1;
     generation: number;
@@ -508,49 +507,17 @@ export function NotebookScreen({ navigation }: Props) {
   const [openingNoteId, setOpeningNoteId] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<StoredLesson>>(null);
-  const listOpacity = useRef(new Animated.Value(1)).current;
-  const listShiftX = useRef(new Animated.Value(0)).current;
-  const tabSwapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const revealFrame = useRef<number | null>(null);
-  const selectedTabRef = useRef<NotebookFilter>('all');
   const openingNoteRef = useRef(false);
   const focusedRef = useRef(true);
-
-  useEffect(() => () => {
-    if (tabSwapTimer.current) clearTimeout(tabSwapTimer.current);
-    if (revealFrame.current !== null) cancelAnimationFrame(revealFrame.current);
-    listOpacity.stopAnimation();
-    listShiftX.stopAnimation();
-  }, [listOpacity, listShiftX]);
-
-  // Restore list visibility on the exact frame AFTER React commits the newly
-  // selected tab's cards so each visible card staggers in with zero old-tab flash.
-  useEffect(() => {
-    if (committedTab.generation === 0) return undefined;
-    if (revealFrame.current !== null) cancelAnimationFrame(revealFrame.current);
-    revealFrame.current = requestAnimationFrame(() => {
-      revealFrame.current = null;
-      listShiftX.setValue(0);
-      listOpacity.setValue(1);
-    });
-    return () => {
-      if (revealFrame.current !== null) {
-        cancelAnimationFrame(revealFrame.current);
-        revealFrame.current = null;
-      }
-    };
-  }, [committedTab.generation, listOpacity, listShiftX]);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
     openingNoteRef.current = false;
     setOpeningNoteId(null);
-    listOpacity.setValue(1);
-    listShiftX.setValue(0);
     return () => {
       focusedRef.current = false;
     };
-  }, [listOpacity, listShiftX]));
+  }, []));
 
   useEffect(() => {
     // When cached lessons are already ready, wait for the slide transition to
@@ -583,7 +550,7 @@ export function NotebookScreen({ navigation }: Props) {
     return () => { mounted = false; unsubscribe?.(); };
   }, [initialWarmCache, subscriptionAttempt, transitionSettled]);
 
-  const filter = committedTab.filter;
+  const { filter, direction, generation } = tabState;
   const normalizedQuery = deferredQueryText.trim();
   const visibleNotes = useMemo(
     () => filterNotebookLessons(notes, filter, normalizedQuery),
@@ -628,48 +595,17 @@ export function NotebookScreen({ navigation }: Props) {
   ], [counts.all, counts.check, counts.solve]);
 
   const chooseFilter = useCallback((next: NotebookFilter) => {
-    const previous = selectedTabRef.current;
-    if (previous === next) return;
-    const direction: -1 | 1 = FILTER_ORDER[next] > FILTER_ORDER[previous] ? 1 : -1;
-    selectedTabRef.current = next;
-    setSelectedTab(next);
-
-    if (tabSwapTimer.current) {
-      clearTimeout(tabSwapTimer.current);
-      tabSwapTimer.current = null;
-    }
-
-    if (reducedMotion) {
+    setTabState((current) => {
+      if (current.filter === next) return current;
+      const nextDirection: -1 | 1 = FILTER_ORDER[next] > FILTER_ORDER[current.filter] ? 1 : -1;
       listRef.current?.scrollToOffset({ offset: 0, animated: false });
-      setCommittedTab((current) => ({ filter: next, direction, generation: current.generation + 1 }));
-      return;
-    }
-
-    // Step 1 (0..75ms): Quickly glide out the previous tab while the pill springs.
-    listOpacity.stopAnimation();
-    listShiftX.stopAnimation();
-    Animated.parallel([
-      Animated.timing(listOpacity, {
-        toValue: 0,
-        duration: 75,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(listShiftX, {
-        toValue: -direction * 12,
-        duration: 75,
-        easing: Easing.in(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Step 2 (at 75ms, while hidden): Swap data cleanly, then stagger cards in one by one.
-    tabSwapTimer.current = setTimeout(() => {
-      tabSwapTimer.current = null;
-      listRef.current?.scrollToOffset({ offset: 0, animated: false });
-      setCommittedTab((current) => ({ filter: next, direction, generation: current.generation + 1 }));
-    }, 78);
-  }, [listOpacity, listShiftX, reducedMotion]);
+      return {
+        filter: next,
+        direction: nextDirection,
+        generation: current.generation + 1,
+      };
+    });
+  }, []);
 
   const openNote = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
@@ -750,8 +686,8 @@ export function NotebookScreen({ navigation }: Props) {
   const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item, index }) => (
     <StaggerCardSlot
       index={index}
-      generation={committedTab.generation}
-      direction={committedTab.direction}
+      generation={generation}
+      direction={direction}
       reducedMotion={reducedMotion}
     >
       <LessonRow
@@ -763,10 +699,10 @@ export function NotebookScreen({ navigation }: Props) {
         onRemove={requestRemove}
       />
     </StaggerCardSlot>
-  ), [committedTab.direction, committedTab.generation, newestNoteId, openNote, openingNoteId, reducedMotion, requestRemove]);
+  ), [direction, generation, newestNoteId, openNote, openingNoteId, reducedMotion, requestRemove]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
-  const activeTabLabel = tabOptions.find((tab) => tab.value === selectedTab)?.label ?? 'Toate';
-  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : selectedTab === 'all' ? 'Probleme salvate' : activeTabLabel;
+  const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
+  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTabLabel;
   const headerCount = loading && notes.length === 0 ? 'LECȚII SALVATE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
   const searchPlaceholder = isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole';
@@ -841,7 +777,7 @@ export function NotebookScreen({ navigation }: Props) {
           <ComicTabBar
             compact
             options={tabOptions}
-            value={selectedTab}
+            value={filter}
             onChange={chooseFilter}
           />
         </View>
@@ -873,16 +809,7 @@ export function NotebookScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <Animated.View
-          collapsable={false}
-          style={[
-            styles.listMotion,
-            {
-              opacity: listOpacity,
-              transform: [{ translateX: listShiftX }],
-            },
-          ]}
-        >
+        <View style={styles.listMotion}>
           <FlatList
             ref={listRef}
             data={renderedNotes}
@@ -892,8 +819,8 @@ export function NotebookScreen({ navigation }: Props) {
             ListEmptyComponent={renderedNotes.length === 0 ? (
               <StaggerCardSlot
                 index={0}
-                generation={committedTab.generation}
-                direction={committedTab.direction}
+                generation={generation}
+                direction={direction}
                 reducedMotion={reducedMotion}
               >
                 <FilterEmpty filter={filter} query={normalizedQuery} onReset={resetFilters} onStart={startMode} />
@@ -909,7 +836,7 @@ export function NotebookScreen({ navigation }: Props) {
             windowSize={5}
             contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 18 }]}
           />
-        </Animated.View>
+        </View>
       </KeyboardAvoidingView>
 
       {pendingRemoval ? (
@@ -1157,7 +1084,8 @@ const styles = StyleSheet.create({
   },
   metaLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   modeStamp: {
-    minHeight: 23,
+    flexShrink: 0,
+    minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1170,25 +1098,27 @@ const styles = StyleSheet.create({
   modeGlyph: {
     fontFamily: fonts.display,
     fontSize: 11,
-    lineHeight: 14,
+    lineHeight: 15,
     color: colors.ink,
     includeFontPadding: false,
   },
   modeText: {
-    ...typography.kicker,
-    fontSize: 9.5,
-    lineHeight: 14,
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    lineHeight: 15,
+    letterSpacing: 0.2,
     paddingHorizontal: 1,
     color: colors.ink,
     includeFontPadding: false,
   },
   newDot: {
-    minHeight: 23,
+    flexShrink: 0,
+    minHeight: 24,
     borderRadius: 9,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1196,15 +1126,16 @@ const styles = StyleSheet.create({
   newDotText: {
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 9.5,
-    lineHeight: 14,
-    letterSpacing: 0.4,
+    fontSize: 10,
+    lineHeight: 15,
+    letterSpacing: 0.2,
     paddingHorizontal: 1,
     includeFontPadding: false,
   },
   timePill: {
-    minHeight: 22,
-    paddingHorizontal: 7,
+    flexShrink: 0,
+    minHeight: 23,
+    paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
     backgroundColor: colors.canvas,
@@ -1217,7 +1148,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 10.5,
-    lineHeight: 14,
+    lineHeight: 15,
     includeFontPadding: false,
   },
 
@@ -1228,7 +1159,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   pageNumBadge: {
-    minWidth: 28,
+    flexShrink: 0,
+    minWidth: 30,
     minHeight: 24,
     marginTop: 1,
     paddingHorizontal: 6,
@@ -1337,7 +1269,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderBottomWidth: 3,
     borderColor: colors.ink,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1345,8 +1277,8 @@ const styles = StyleSheet.create({
   verdictText: {
     fontFamily: fonts.bodyBold,
     fontSize: 10,
-    lineHeight: 14,
-    letterSpacing: 0.35,
+    lineHeight: 15,
+    letterSpacing: 0.2,
     paddingHorizontal: 1,
     includeFontPadding: false,
   },
@@ -1363,7 +1295,8 @@ const styles = StyleSheet.create({
   },
   detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
   detailChip: {
-    minHeight: 24,
+    flexShrink: 0,
+    minHeight: 25,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
