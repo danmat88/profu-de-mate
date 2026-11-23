@@ -1,15 +1,5 @@
-import { useEffect } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors, fonts } from '../theme';
 import { Text } from './Typography';
@@ -38,41 +28,58 @@ function BounceDot({
   micro: boolean;
   reducedMotion: boolean;
 }) {
-  const lift = useSharedValue(reducedMotion ? 0 : 0);
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    progress.stopAnimation();
     if (reducedMotion) {
-      cancelAnimation(lift);
-      lift.value = 0;
-      return;
+      progress.setValue(0);
+      return undefined;
     }
 
-    const hop = micro ? 3 : compact ? 5 : 7;
-    lift.value = withDelay(
-      index * 110,
-      withRepeat(
-        withSequence(
-          withTiming(-hop, { duration: 240, easing: Easing.out(Easing.cubic) }),
-          withTiming(0, { duration: 260, easing: Easing.in(Easing.quad) }),
-          withDelay(240, withTiming(0, { duration: 10 })),
-        ),
-        -1,
-        false,
-      ),
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(progress, {
+          toValue: 1,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(progress, {
+          toValue: 0,
+          duration: 260,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.delay(250),
+      ]),
     );
 
-    return () => cancelAnimation(lift);
-  }, [compact, index, lift, micro, reducedMotion]);
+    const startTimer = index > 0
+      ? setTimeout(() => { loop.start(); }, index * 110)
+      : null;
+    if (index === 0) loop.start();
 
-  const animated = useAnimatedStyle(() => {
-    const scaleBoost = Math.abs(lift.value) / 28;
-    return {
-      transform: [
-        { translateY: lift.value },
-        { scaleX: 1 - scaleBoost * 0.4 },
-        { scaleY: 1 + scaleBoost * 0.6 },
-      ],
+    return () => {
+      if (startTimer) clearTimeout(startTimer);
+      loop.stop();
+      progress.setValue(0);
     };
+  }, [index, progress, reducedMotion]);
+
+  const hop = micro ? 3 : compact ? 5 : 7;
+  const maxBoost = hop / 28;
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -hop],
+  });
+  const scaleX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1 - maxBoost * 0.4],
+  });
+  const scaleY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1 + maxBoost * 0.6],
   });
 
   return (
@@ -81,7 +88,13 @@ function BounceDot({
         styles.dotShadow,
         compact && styles.dotShadowCompact,
         micro && styles.dotShadowMicro,
-        animated,
+        {
+          transform: [
+            { translateY },
+            { scaleX },
+            { scaleY },
+          ],
+        },
       ]}
     >
       <View
@@ -96,6 +109,7 @@ function BounceDot({
   );
 }
 
+/** Branded comic three-dot loader running on native-driver Animated with zero Reanimated overhead. */
 export function PlayfulLoader({
   label,
   note,

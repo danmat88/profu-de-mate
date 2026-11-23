@@ -212,20 +212,57 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
   const actionLabel = checked ? 'Vezi verificarea' : 'Vezi rezolvarea';
   const stepLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas' : 'pași'}`;
   const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : null;
+  const pressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    pressAnim.stopAnimation();
+    Animated.spring(pressAnim, {
+      toValue: opening ? 0.6 : 0,
+      tension: 260,
+      friction: 22,
+      useNativeDriver: true,
+    }).start();
+    return () => {
+      pressAnim.stopAnimation();
+    };
+  }, [opening, pressAnim]);
+
+  const animatePress = (pressed: boolean) => {
+    if (opening) return;
+    pressAnim.stopAnimation();
+    Animated.spring(pressAnim, {
+      toValue: pressed ? 1 : 0,
+      tension: pressed ? 340 : 250,
+      friction: pressed ? 24 : 18,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const cardTranslateY = pressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 3.5],
+  });
+  const cardScale = pressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0.986],
+  });
 
   return (
     <View style={styles.lessonRowWrap}>
-      <View pointerEvents="none" style={styles.lessonRowShadow} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
-        accessibilityHint={actionLabel}
-        onPress={() => {
-          Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-          onOpen(lesson);
-        }}
-        style={({ pressed }) => [styles.lessonCard, pressed && styles.lessonCardPressed]}
-      >
+      <View pointerEvents="none" style={[styles.lessonRowShadow, opening && styles.lessonRowShadowOpening]} />
+      <Animated.View style={{ transform: [{ translateY: cardTranslateY }, { scale: cardScale }] }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
+          accessibilityHint={actionLabel}
+          onPressIn={() => animatePress(true)}
+          onPressOut={() => animatePress(false)}
+          onPress={() => {
+            Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+            onOpen(lesson);
+          }}
+          style={[styles.lessonCard, opening && styles.lessonCardOpening]}
+        >
         <View style={[styles.lessonRail, { backgroundColor: spineTone }]}>
           <View pointerEvents="none" style={styles.railGloss} />
           <View style={styles.railHole} />
@@ -316,10 +353,13 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
               >
                 <Text style={styles.removeText}>× Scoate</Text>
               </Pressable>
-              <View collapsable={false} style={styles.openPill}>
+              <View collapsable={false} style={[styles.openPill, opening && styles.openPillOpening]}>
                 <View pointerEvents="none" style={styles.openPillShine} />
                 {opening ? (
-                  <PlayfulLoader micro inverse />
+                  <>
+                    <PlayfulLoader micro inverse />
+                    <Text style={styles.openPillText}>Deschid</Text>
+                  </>
                 ) : (
                   <>
                     <Text style={styles.openPillText}>Deschide</Text>
@@ -333,6 +373,7 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
           </View>
         </View>
       </Pressable>
+      </Animated.View>
     </View>
   );
 }, (previous, next) => (
@@ -508,6 +549,7 @@ export function NotebookScreen({ navigation }: Props) {
 
   const listRef = useRef<FlatList<StoredLesson>>(null);
   const openingNoteRef = useRef(false);
+  const openFrameRef = useRef(0);
   const focusedRef = useRef(true);
 
   useFocusEffect(useCallback(() => {
@@ -516,6 +558,10 @@ export function NotebookScreen({ navigation }: Props) {
     setOpeningNoteId(null);
     return () => {
       focusedRef.current = false;
+      if (openFrameRef.current) {
+        cancelAnimationFrame(openFrameRef.current);
+        openFrameRef.current = 0;
+      }
     };
   }, []));
 
@@ -617,16 +663,26 @@ export function NotebookScreen({ navigation }: Props) {
       isFavorite: true,
       source: 'notebook',
     };
-    beginLessonPresentation(lesson.id);
-    navigation.preload('Lesson', params);
-    void waitForLessonPresentation(lesson.id, 900).then(() => {
+    // Paint the card press and active pill on Frame 0 first, then preload and
+    // transition once the math view is ready (bounded so detached Android WebView never stalls).
+    openFrameRef.current = requestAnimationFrame(() => {
+      openFrameRef.current = 0;
       if (!focusedRef.current) {
-        forgetLessonPresentation(lesson.id);
         openingNoteRef.current = false;
         setOpeningNoteId(null);
         return;
       }
-      navigation.navigate('Lesson', params);
+      beginLessonPresentation(lesson.id);
+      navigation.preload('Lesson', params);
+      void waitForLessonPresentation(lesson.id, 240).then(() => {
+        if (!focusedRef.current) {
+          forgetLessonPresentation(lesson.id);
+          openingNoteRef.current = false;
+          setOpeningNoteId(null);
+          return;
+        }
+        navigation.navigate('Lesson', params);
+      });
     });
   }, [navigation]);
 
@@ -986,6 +1042,9 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     backgroundColor: colors.ink,
   },
+  lessonRowShadowOpening: {
+    backgroundColor: colors.violetDeep,
+  },
   lessonCard: {
     overflow: 'hidden',
     borderRadius: 23,
@@ -994,8 +1053,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
     flexDirection: 'row',
   },
-  lessonCardPressed: {
-    transform: [{ translateY: 3.5 }, { scale: 0.99 }],
+  lessonCardOpening: {
+    borderColor: colors.violet,
+    backgroundColor: '#FCF9FF',
   },
   lessonRail: {
     width: 18,
@@ -1348,6 +1408,10 @@ const styles = StyleSheet.create({
     gap: 6,
     overflow: 'hidden',
     position: 'relative',
+  },
+  openPillOpening: {
+    paddingRight: 11,
+    backgroundColor: colors.violetDeep,
   },
   openPillShine: {
     position: 'absolute',

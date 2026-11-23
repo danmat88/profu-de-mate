@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewHandle } from 'react-native-webview';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-import { colors, fonts, springs } from '../../../shared/theme';
+import { colors, fonts } from '../../../shared/theme';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
 import { getCachedDocumentFonts, preloadDocumentFonts } from '../services/documentFonts';
@@ -29,15 +21,26 @@ type Props = {
   definition: MathDocumentDefinition;
   /** Optional slide direction when swapping document content (-1 = from left, 1 = from right). */
   transitionDirection?: -1 | 0 | 1;
+  /**
+   * True when the host screen is already visible on screen. Keeps preloaded
+   * off-screen paints instant so the slide-in arrives fully painted on Frame 0,
+   * while late post-slide arrivals glide in smoothly instead of snapping.
+   */
+  animateInitialReveal?: boolean;
   style?: StyleProp<ViewStyle>;
   scrollEnabled?: boolean;
   testID?: string;
   onReady?: () => void;
 };
 
+/**
+ * Local math WebView powered by native-driver Animated transforms (zero
+ * Reanimated worklet mount cost) for crisp step turns and smooth lesson opens.
+ */
 export function MathDocumentView({
   definition,
   transitionDirection = 0,
+  animateInitialReveal = true,
   style,
   scrollEnabled = true,
   testID,
@@ -47,43 +50,91 @@ export function MathDocumentView({
   const reducedMotion = useReducedMotion();
   const webViewRef = useRef<WebViewHandle>(null);
   const latestDefinition = useRef(definition);
+  const animateInitialRef = useRef(animateInitialReveal);
   const loaded = useRef(false);
   const initialMarkup = useRef<string | undefined>(undefined);
   const lastInjectedMarkup = useRef<string | undefined>(undefined);
   const revision = useRef(0);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyRaf1 = useRef(0);
+  const readyRaf2 = useRef(0);
   const [fontsReady, setFontsReady] = useState<MathDocumentFonts | undefined>(getCachedDocumentFonts);
   const [documentReady, setDocumentReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const [webViewKey, setWebViewKey] = useState(0);
-  const showProgress = useDelayedBusy(!documentReady && !failed);
+  const showProgress = useDelayedBusy(!documentReady && !failed, 220);
 
-  const stageOpacity = useSharedValue(0);
-  const stageShiftX = useSharedValue(0);
+  const stageOpacity = useRef(new Animated.Value(0)).current;
+  const stageShiftX = useRef(new Animated.Value(0)).current;
+  const stageShiftY = useRef(new Animated.Value(0)).current;
 
   useLayoutEffect(() => {
     latestDefinition.current = definition;
-  }, [definition]);
+    animateInitialRef.current = animateInitialReveal;
+  }, [animateInitialReveal, definition]);
 
-  const revealDocument = useCallback(() => {
+  const stopStageMotion = useCallback(() => {
+    stageOpacity.stopAnimation();
+    stageShiftX.stopAnimation();
+    stageShiftY.stopAnimation();
+  }, [stageOpacity, stageShiftX, stageShiftY]);
+
+  const revealDocument = useCallback((initialGlide = false) => {
     if (revealTimer.current) {
       clearTimeout(revealTimer.current);
       revealTimer.current = null;
     }
+    stopStageMotion();
     if (reducedMotion) {
-      stageOpacity.set(1);
-      stageShiftX.set(0);
+      stageOpacity.setValue(1);
+      stageShiftX.setValue(0);
+      stageShiftY.setValue(0);
       return;
     }
-    stageOpacity.set(withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) }));
-    stageShiftX.set(withSpring(0, springs.snappy));
-  }, [reducedMotion, stageOpacity, stageShiftX]);
+    if (initialGlide) {
+      stageShiftX.setValue(0);
+      stageShiftY.setValue(10);
+      Animated.parallel([
+        Animated.timing(stageOpacity, {
+          toValue: 1,
+          duration: 210,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(stageShiftY, {
+          toValue: 0,
+          tension: 250,
+          friction: 22,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+    stageShiftY.setValue(0);
+    Animated.parallel([
+      Animated.timing(stageOpacity, {
+        toValue: 1,
+        duration: 210,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(stageShiftX, {
+        toValue: 0,
+        tension: 260,
+        friction: 22,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [reducedMotion, stageOpacity, stageShiftX, stageShiftY, stopStageMotion]);
 
   useEffect(() => () => {
     if (revealTimer.current) clearTimeout(revealTimer.current);
     if (swapTimer.current) clearTimeout(swapTimer.current);
-  }, []);
+    cancelAnimationFrame(readyRaf1.current);
+    cancelAnimationFrame(readyRaf2.current);
+    stopStageMotion();
+  }, [stopStageMotion]);
 
   useEffect(() => {
     if (!fontsReady || documentReady || failed) return;
@@ -132,16 +183,16 @@ export function MathDocumentView({
       clearTimeout(revealTimer.current);
       revealTimer.current = null;
     }
-    cancelAnimation(stageOpacity);
-    cancelAnimation(stageShiftX);
+    stopStageMotion();
 
     const injectUpdatedDocument = () => {
-      stageOpacity.set(0);
-      stageShiftX.set(reducedMotion ? 0 : transitionDirection * 18);
+      stageOpacity.setValue(0);
+      stageShiftY.setValue(0);
+      stageShiftX.setValue(reducedMotion ? 0 : transitionDirection * 18);
       webViewRef.current?.injectJavaScript(
         buildMathDocumentUpdateScript(definition, targetRevision),
       );
-      revealTimer.current = setTimeout(revealDocument, 460);
+      revealTimer.current = setTimeout(() => revealDocument(false), 380);
     };
 
     if (reducedMotion || transitionDirection === 0) {
@@ -149,20 +200,26 @@ export function MathDocumentView({
       return;
     }
 
-    // Phase 1: glide outgoing step smoothly out before swapping HTML, then
-    // let the incoming step glide cleanly in once painted.
-    stageOpacity.set(withTiming(0, { duration: 115, easing: Easing.in(Easing.quad) }));
-    stageShiftX.set(withTiming(-transitionDirection * 14, { duration: 115, easing: Easing.in(Easing.quad) }));
+    // Phase 1: crisp outgoing glide before swapping HTML, then spring-settle the next step in.
+    Animated.parallel([
+      Animated.timing(stageOpacity, {
+        toValue: 0,
+        duration: 85,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(stageShiftX, {
+        toValue: -transitionDirection * 12,
+        duration: 85,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
     swapTimer.current = setTimeout(() => {
       swapTimer.current = null;
       injectUpdatedDocument();
-    }, 120);
-  }, [definition, failed, fontsReady, markup, reducedMotion, revealDocument, stageOpacity, stageShiftX, transitionDirection]);
-
-  const stageAnimated = useAnimatedStyle(() => ({
-    opacity: stageOpacity.get(),
-    transform: [{ translateX: stageShiftX.get() }],
-  }));
+    }, 88);
+  }, [definition, failed, fontsReady, markup, reducedMotion, revealDocument, stageOpacity, stageShiftX, stageShiftY, stopStageMotion, transitionDirection]);
 
   const retry = () => {
     if (swapTimer.current) {
@@ -177,8 +234,10 @@ export function MathDocumentView({
     initialMarkup.current = undefined;
     lastInjectedMarkup.current = undefined;
     revision.current = 0;
-    stageOpacity.set(0);
-    stageShiftX.set(0);
+    stopStageMotion();
+    stageOpacity.setValue(0);
+    stageShiftX.setValue(0);
+    stageShiftY.setValue(0);
     setFailed(false);
     setDocumentReady(false);
     setWebViewKey((value) => value + 1);
@@ -207,7 +266,18 @@ export function MathDocumentView({
 
   return (
     <View style={[styles.frame, style]} testID={testID}>
-      <Animated.View style={[styles.webViewStage, stageAnimated]}>
+      <Animated.View
+        style={[
+          styles.webViewStage,
+          {
+            opacity: stageOpacity,
+            transform: [
+              { translateX: stageShiftX },
+              { translateY: stageShiftY },
+            ],
+          },
+        ]}
+      >
         <WebView
           key={webViewKey}
           ref={webViewRef}
@@ -241,13 +311,15 @@ export function MathDocumentView({
             if (lastInjectedMarkup.current !== currentMarkup) {
               lastInjectedMarkup.current = currentMarkup;
               revision.current += 1;
-              stageOpacity.set(0);
-              stageShiftX.set(0);
+              stopStageMotion();
+              stageOpacity.setValue(0);
+              stageShiftX.setValue(0);
+              stageShiftY.setValue(0);
               webViewRef.current?.injectJavaScript(
                 buildMathDocumentUpdateScript(latestDefinition.current, String(revision.current)),
               );
               if (revealTimer.current) clearTimeout(revealTimer.current);
-              revealTimer.current = setTimeout(revealDocument, 420);
+              revealTimer.current = setTimeout(() => revealDocument(false), 380);
             }
           }}
           onMessage={(event) => {
@@ -263,12 +335,19 @@ export function MathDocumentView({
                   lastInjectedMarkup.current = initialMarkup.current;
                 }
                 setDocumentReady(true);
-                if (revision.current === 0 && onReady) {
-                  stageOpacity.set(1);
-                  stageShiftX.set(0);
-                  requestAnimationFrame(() => onReady());
+                if (revision.current === 0 && onReady && !animateInitialRef.current) {
+                  stopStageMotion();
+                  stageOpacity.setValue(1);
+                  stageShiftX.setValue(0);
+                  stageShiftY.setValue(0);
+                  // Give Chromium two frames to upload GPU tiles before the screen slide starts.
+                  cancelAnimationFrame(readyRaf1.current);
+                  cancelAnimationFrame(readyRaf2.current);
+                  readyRaf1.current = requestAnimationFrame(() => {
+                    readyRaf2.current = requestAnimationFrame(() => onReady());
+                  });
                 } else {
-                  revealDocument();
+                  revealDocument(revision.current === 0);
                   onReady?.();
                 }
               }

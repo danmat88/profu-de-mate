@@ -33,6 +33,12 @@ const mascotSource = await readFile(new URL('../../src/shared/ui/Mascot.tsx', im
 const quotaTimerSource = await readFile(new URL('../../src/features/access/components/QuotaResetTimer.tsx', import.meta.url), 'utf8');
 const tabPanelSource = await readFile(new URL('../../src/shared/ui/TabPanel.tsx', import.meta.url), 'utf8');
 const enterSource = await readFile(new URL('../../src/shared/ui/Enter.tsx', import.meta.url), 'utf8');
+const lessonSource = await readFile(new URL('../../src/features/lessons/screens/LessonScreen.tsx', import.meta.url), 'utf8');
+const summarySource = await readFile(new URL('../../src/features/lessons/screens/SummaryScreen.tsx', import.meta.url), 'utf8');
+const progressDotsSource = await readFile(new URL('../../src/shared/ui/ProgressDots.tsx', import.meta.url), 'utf8');
+const playfulLoaderSource = await readFile(new URL('../../src/shared/ui/PlayfulLoader.tsx', import.meta.url), 'utf8');
+const mathDocumentViewSource = await readFile(new URL('../../src/features/math/components/MathDocumentView.tsx', import.meta.url), 'utf8');
+const mathDocumentHtmlSource = await readFile(new URL('../../src/features/math/utils/mathDocument.ts', import.meta.url), 'utf8');
 
 test('navigation receives verified launch data, waits for splash intro to settle, and stays covered until ready', () => {
   assert.match(appSource, /startup && \(splashIntroDone \|\| reducedMotion\) \? <CommercialProvider initialAccess=\{startup\.initialAccess\} initialVerifiedAt=\{startup\.verifiedAt\}/);
@@ -264,4 +270,18 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   assert.match(mathEditorSource, /const SimpleEditorKey = memo\(/);
   assert.match(mathEditorSource, /const RepeatEditorKey = memo\(/);
   assert.doesNotMatch(mathEditorSource, /keypadPlaceholder|<Enter[\s>]/);
+
+  // Opening a problem from Caiet keeps Frame 0 free of Reanimated worklet bursts,
+  // lazily mounts closed sheets/modals, and never stalls on detached Android WebView rAF.
+  assert.doesNotMatch(lessonSource, /react-native-reanimated/);
+  assert.doesNotMatch(progressDotsSource, /react-native-reanimated/);
+  assert.doesNotMatch(playfulLoaderSource, /react-native-reanimated/);
+  assert.doesNotMatch(mathDocumentViewSource, /react-native-reanimated/);
+  assert.match(lessonSource, /\{removeEverOpened \? \(/);
+  assert.match(lessonSource, /\{feedbackEverOpened \? \(/);
+  assert.match(lessonSource, /animateInitialReveal=\{screenFocused\}/);
+  assert.match(summarySource, /\{removeEverOpened \? \(/);
+  assert.match(summarySource, /\{feedbackEverOpened \? \(/);
+  assert.match(notebookSource, /requestAnimationFrame\(\(\) => \{[\s\S]*navigation\.preload\('Lesson', params\)[\s\S]*waitForLessonPresentation\(lesson\.id, 240\)/);
+  assert.match(mathDocumentHtmlSource, /function afterPaint\(/);
 });

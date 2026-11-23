@@ -48,9 +48,15 @@ export function SummaryScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackEverOpened, setFeedbackEverOpened] = useState(false);
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removeEverOpened, setRemoveEverOpened] = useState(false);
+
+  if (removeConfirmOpen && !removeEverOpened) {
+    setRemoveEverOpened(true);
+  }
   const [removingFromNotebook, setRemovingFromNotebook] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [showSaveCoach, setShowSaveCoach] = useState(false);
@@ -421,7 +427,10 @@ export function SummaryScreen({ navigation, route }: Props) {
             radius={15}
             shadowColor={colors.ink}
             haptic="selection"
-            onPress={() => setFeedbackOpen(true)}
+            onPress={() => {
+              setFeedbackEverOpened(true);
+              setFeedbackOpen(true);
+            }}
             contentStyle={[styles.reportButton, isLargeText && styles.secondaryActionLargeText]}
           >
             <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
@@ -470,20 +479,24 @@ export function SummaryScreen({ navigation, route }: Props) {
           </Pressable>
         </Animated.View>
       ) : null}
-      <RemoveFromNotebookModal
-        visible={removeConfirmOpen}
-        lessonTitle={lesson.title}
-        description="Lecția va dispărea din Caietul tău. O poți salva din nou oricând cât ești aici."
-        removing={removingFromNotebook}
-        error={removeError}
-        onConfirm={() => void confirmRemoveFromNotebook()}
-        onCancel={() => {
-          if (removingFromNotebook) return;
-          setRemoveConfirmOpen(false);
-        }}
-        onAfterClose={() => setRemoveError(false)}
-      />
-      <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
+      {removeEverOpened ? (
+        <RemoveFromNotebookModal
+          visible={removeConfirmOpen}
+          lessonTitle={lesson.title}
+          description="Lecția va dispărea din Caietul tău. O poți salva din nou oricând cât ești aici."
+          removing={removingFromNotebook}
+          error={removeError}
+          onConfirm={() => void confirmRemoveFromNotebook()}
+          onCancel={() => {
+            if (removingFromNotebook) return;
+            setRemoveConfirmOpen(false);
+          }}
+          onAfterClose={() => setRemoveError(false)}
+        />
+      ) : null}
+      {feedbackEverOpened ? (
+        <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
+      ) : null}
     </View>
   );
 }

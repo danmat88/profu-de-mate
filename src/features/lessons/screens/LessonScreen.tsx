@@ -1,22 +1,17 @@
+import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, shadows, springs, typography } from '../../../shared/theme';
-import type { RootStackParamList } from '../../../shared/types';
+import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
+import type { CapturedImage, RichContent, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
@@ -55,11 +50,310 @@ const problemViewTabs: readonly ComicTabOption<ProblemView>[] = [
   { value: 'photo', label: 'Fotografia ta', activeFill: colors.cyan, activeText: colors.ink },
 ];
 
+function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; reducedMotion: boolean }) {
+  const reveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+
+  useEffect(() => {
+    reveal.stopAnimation();
+    if (reducedMotion) {
+      reveal.setValue(1);
+      return undefined;
+    }
+    reveal.setValue(0);
+    Animated.spring(reveal, {
+      toValue: 1,
+      tension: 260,
+      friction: 18,
+      useNativeDriver: true,
+    }).start();
+    return () => {
+      reveal.stopAnimation();
+    };
+  }, [kind, reducedMotion, reveal]);
+
+  const opacity = reveal.interpolate({ inputRange: [0, 0.85, 1], outputRange: [0, 1, 1] });
+  const translateY = reveal.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] });
+  const scale = reveal.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] });
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.savedToast,
+        kind === 'removed' && styles.removedToast,
+        { opacity, transform: [{ translateY }, { scale }] },
+      ]}
+    >
+      <MiniGlyph name={kind === 'saved' ? 'check' : 'wrong'} size={15} color={colors.ink} />
+      <Text style={styles.savedText}>
+        {kind === 'saved' ? 'Lecție salvată' : 'Scoasă din Caiet'}
+      </Text>
+    </Animated.View>
+  );
+}
+
+/** Lazily mounted alternate explanation sheet so Frame 0 carries zero hidden sheet worklets. */
+function LessonAlternateModal({
+  alternative,
+  bottomSpace,
+  reducedMotion,
+  onClosed,
+}: {
+  alternative: RichContent;
+  bottomSpace: number;
+  reducedMotion: boolean;
+  onClosed: () => void;
+}) {
+  const reveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const closingRef = useRef(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const alternateDocument = useMemo<MathDocumentDefinition>(() => ({
+    accessibilityLabel: `O altă explicație. ${contentToAccessibleText(alternative)}`,
+    variant: 'alternate',
+    sections: [{ kind: 'content', content: alternative }],
+  }), [alternative]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      reveal.setValue(1);
+    } else {
+      Animated.spring(reveal, {
+        toValue: 1,
+        tension: 250,
+        friction: 24,
+        useNativeDriver: true,
+      }).start();
+    }
+    return () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+      reveal.stopAnimation();
+    };
+  }, [reducedMotion, reveal]);
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    if (reducedMotion) {
+      reveal.setValue(0);
+      onClosed();
+      return;
+    }
+    Animated.timing(reveal, {
+      toValue: 0,
+      duration: 150,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+    closeTimer.current = setTimeout(onClosed, 155);
+  }, [onClosed, reducedMotion, reveal]);
+
+  const sheetOpacity = reveal.interpolate({ inputRange: [0, 0.78, 1], outputRange: [0, 1, 1] });
+  const sheetTranslateY = reveal.interpolate({ inputRange: [0, 1], outputRange: [60, 0] });
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={requestClose}
+    >
+      <View style={styles.modalLayer}>
+        <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: reveal }]} />
+        <Pressable accessible={false} onPress={requestClose} style={StyleSheet.absoluteFill} />
+        <Animated.View
+          accessibilityViewIsModal
+          style={[
+            styles.sheet,
+            { paddingBottom: bottomSpace + 14, opacity: sheetOpacity, transform: [{ translateY: sheetTranslateY }] },
+          ]}
+        >
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeading}>
+            <Mascot pose="point" size={56} active />
+            <View style={styles.sheetCopy}>
+              <Text style={styles.sheetEyebrow}>PROFU’ ÎȚI ARATĂ ALTFEL</Text>
+              <Text style={styles.sheetTitle}>O explicație mai simplă</Text>
+            </View>
+            <IconButton label="Închide explicația" onPress={requestClose} size={40}>
+              <MiniGlyph name="close" size={19} color={colors.ink} />
+            </IconButton>
+          </View>
+          <MathDocumentView definition={alternateDocument} style={styles.sheetDocument} testID="alternate-math-document" />
+          <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={requestClose} />
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+/** Lazily mounted full problem sheet so Frame 0 avoids hidden document & tab worklets. */
+function LessonProblemModal({
+  title,
+  problem,
+  problemAccessible,
+  sourceImage,
+  bottomSpace,
+  reducedMotion,
+  onClosed,
+}: {
+  title: string;
+  problem: RichContent;
+  problemAccessible: string;
+  sourceImage?: CapturedImage;
+  bottomSpace: number;
+  reducedMotion: boolean;
+  onClosed: () => void;
+}) {
+  const [problemView, setProblemView] = useState<ProblemView>('statement');
+  const reveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const tabProgress = useRef(new Animated.Value(0)).current;
+  const closingRef = useRef(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const problemDocument = useMemo<MathDocumentDefinition>(() => ({
+    accessibilityLabel: `Enunțul complet. ${problemAccessible}`,
+    variant: 'problem',
+    sections: [{ kind: 'content', content: problem }],
+  }), [problem, problemAccessible]);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      reveal.setValue(1);
+    } else {
+      Animated.spring(reveal, {
+        toValue: 1,
+        tension: 250,
+        friction: 24,
+        useNativeDriver: true,
+      }).start();
+    }
+    return () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+      reveal.stopAnimation();
+      tabProgress.stopAnimation();
+    };
+  }, [reducedMotion, reveal, tabProgress]);
+
+  const requestClose = useCallback(() => {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    if (reducedMotion) {
+      reveal.setValue(0);
+      onClosed();
+      return;
+    }
+    Animated.timing(reveal, {
+      toValue: 0,
+      duration: 150,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+    closeTimer.current = setTimeout(onClosed, 155);
+  }, [onClosed, reducedMotion, reveal]);
+
+  const chooseProblemView = (next: ProblemView) => {
+    if (next === problemView) return;
+    setProblemView(next);
+    const target = next === 'photo' ? 1 : 0;
+    tabProgress.stopAnimation();
+    if (reducedMotion) {
+      tabProgress.setValue(target);
+      return;
+    }
+    Animated.spring(tabProgress, {
+      toValue: target,
+      tension: 250,
+      friction: 24,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const sheetOpacity = reveal.interpolate({ inputRange: [0, 0.78, 1], outputRange: [0, 1, 1] });
+  const sheetTranslateY = reveal.interpolate({ inputRange: [0, 1], outputRange: [60, 0] });
+  const statementOpacity = tabProgress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const statementShift = tabProgress.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
+  const photoOpacity = tabProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  const photoShift = tabProgress.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={requestClose}
+    >
+      <View style={styles.modalLayer}>
+        <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: reveal }]} />
+        <Pressable accessible={false} onPress={requestClose} style={StyleSheet.absoluteFill} />
+        <Animated.View
+          accessibilityViewIsModal
+          style={[
+            styles.problemSheet,
+            { paddingBottom: bottomSpace + 14, opacity: sheetOpacity, transform: [{ translateY: sheetTranslateY }] },
+          ]}
+        >
+          <View style={styles.sheetHandle} />
+          <View style={styles.sheetHeading}>
+            <View style={[styles.sheetIcon, styles.problemSheetIcon]}>
+              <AppIcon name="notebook" size={34} />
+            </View>
+            <View style={styles.sheetCopy}>
+              <Text style={styles.sheetEyebrow}>PROBLEMA TA</Text>
+              <Text numberOfLines={2} style={styles.sheetTitle}>{title}</Text>
+            </View>
+            <IconButton label="Închide enunțul" onPress={requestClose} size={40}>
+              <MiniGlyph name="close" size={19} color={colors.ink} />
+            </IconButton>
+          </View>
+          {sourceImage ? (
+            <ComicTabBar
+              compact
+              options={problemViewTabs}
+              value={problemView}
+              onChange={chooseProblemView}
+              style={styles.problemTabs}
+            />
+          ) : null}
+          <View style={styles.problemContent}>
+            <Animated.View
+              pointerEvents={problemView === 'statement' ? 'auto' : 'none'}
+              accessibilityElementsHidden={problemView !== 'statement'}
+              importantForAccessibility={problemView === 'statement' ? 'yes' : 'no-hide-descendants'}
+              style={[styles.problemPane, { opacity: statementOpacity, transform: [{ translateX: statementShift }] }]}
+            >
+              <MathDocumentView definition={problemDocument} testID="problem-math-document" />
+            </Animated.View>
+            {sourceImage ? (
+              <Animated.View
+                pointerEvents={problemView === 'photo' ? 'auto' : 'none'}
+                accessibilityElementsHidden={problemView !== 'photo'}
+                importantForAccessibility={problemView === 'photo' ? 'yes' : 'no-hide-descendants'}
+                style={[styles.problemPaneOverlay, { opacity: photoOpacity, transform: [{ translateX: photoShift }] }]}
+              >
+                <View accessible accessibilityRole="image" accessibilityLabel="Fotografia originală a problemei" style={styles.sourceImageCard}>
+                  <Image accessible={false} source={{ uri: sourceImage.uri }} resizeMode="contain" style={styles.sourceImage} />
+                </View>
+              </Animated.View>
+            ) : null}
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
 export function LessonScreen({ navigation, route }: Props) {
   const frame = useSafeAreaFrame();
   const { gutter } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const screenFocused = useIsFocused();
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const { refresh: refreshCommercialAccess } = useCommercial();
   const lesson = route.params.lesson;
   const sourceImage = route.params.sourceImage;
@@ -72,31 +366,36 @@ export function LessonScreen({ navigation, route }: Props) {
   const step = stepState.step;
   const [alternate, setAlternate] = useState(false);
   const [problemOpen, setProblemOpen] = useState(false);
-  const [problemView, setProblemView] = useState<ProblemView>('statement');
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [saveToast, setSaveToast] = useState<'saved' | 'removed' | null>(null);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removeEverOpened, setRemoveEverOpened] = useState(false);
   const [removingFromNotebook, setRemovingFromNotebook] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackEverOpened, setFeedbackEverOpened] = useState(false);
+  const [arrivalPulse, setArrivalPulse] = useState(0);
 
-  const alternateReveal = useSharedValue(0);
-  const problemReveal = useSharedValue(0);
-  const problemTabProgress = useSharedValue(0);
-  const savedReveal = useSharedValue(0);
+  if (removeConfirmOpen && !removeEverOpened) {
+    setRemoveEverOpened(true);
+  }
+
+  const cardShiftX = useRef(new Animated.Value(0)).current;
+  const cardScale = useRef(new Animated.Value(1)).current;
+  const ribbonSweep = useRef(new Animated.Value(0)).current;
 
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const closeAlternateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const closeProblemTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveLocked = useRef(false);
   const removedToastPending = useRef(false);
   const pagingLocked = useRef(false);
   const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const arrivalPlayed = useRef(false);
+  const previousStep = useRef(0);
 
   const current = lesson.steps[step];
   const tone = documentTones[step % documentTones.length];
   const bottomSpace = Math.max(insets.bottom, 8);
-  const problemAccessible = contentToAccessibleText(lesson.problem);
+  const problemAccessible = useMemo(() => contentToAccessibleText(lesson.problem), [lesson.problem]);
   const isLastStep = step === lesson.steps.length - 1;
   const nextTitle = isLastStep ? 'Vezi rezultatul' : 'Continuă';
 
@@ -112,29 +411,62 @@ export function LessonScreen({ navigation, route }: Props) {
     ],
   }), [current, tone]);
 
-  const alternateDocument = useMemo<MathDocumentDefinition>(() => ({
-    accessibilityLabel: `O altă explicație. ${contentToAccessibleText(current.alternative)}`,
-    variant: 'alternate',
-    sections: [{ kind: 'content', content: current.alternative }],
-  }), [current.alternative]);
+  const playRibbonSweep = useCallback(() => {
+    if (reducedMotion) return;
+    ribbonSweep.stopAnimation();
+    ribbonSweep.setValue(0);
+    Animated.timing(ribbonSweep, {
+      toValue: 1,
+      duration: 560,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [reducedMotion, ribbonSweep]);
 
-  const problemDocument = useMemo<MathDocumentDefinition>(() => ({
-    accessibilityLabel: `Enunțul complet. ${problemAccessible}`,
-    variant: 'problem',
-    sections: [{ kind: 'content', content: lesson.problem }],
-  }), [lesson.problem, problemAccessible]);
-
+  // Choreographed arrival flourish once the native slide transition lands cleanly.
   useEffect(() => {
+    if (!transitionSettled || !screenFocused || arrivalPlayed.current) return;
+    arrivalPlayed.current = true;
+    if (reducedMotion) return;
+    setArrivalPulse((value) => value + 1);
+    playRibbonSweep();
+  }, [playRibbonSweep, reducedMotion, screenFocused, transitionSettled]);
+
+  // Tactile page-turn spring & ribbon shimmer whenever moving between steps.
+  useEffect(() => {
+    if (previousStep.current === step) return;
+    previousStep.current = step;
     setAlternate(false);
-    alternateReveal.set(0);
-  }, [alternateReveal, step]);
+    if (reducedMotion || stepState.direction === 0) return;
+
+    cardShiftX.stopAnimation();
+    cardScale.stopAnimation();
+    cardShiftX.setValue(stepState.direction * 9);
+    cardScale.setValue(0.988);
+    Animated.parallel([
+      Animated.spring(cardShiftX, {
+        toValue: 0,
+        tension: 280,
+        friction: 22,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardScale, {
+        toValue: 1,
+        tension: 260,
+        friction: 20,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    playRibbonSweep();
+  }, [cardScale, cardShiftX, playRibbonSweep, reducedMotion, step, stepState.direction]);
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
     if (pagingTimer.current) clearTimeout(pagingTimer.current);
-    if (closeAlternateTimer.current) clearTimeout(closeAlternateTimer.current);
-    if (closeProblemTimer.current) clearTimeout(closeProblemTimer.current);
-  }, []);
+    cardShiftX.stopAnimation();
+    cardScale.stopAnimation();
+    ribbonSweep.stopAnimation();
+  }, [cardScale, cardShiftX, ribbonSweep]);
 
   useEffect(() => navigation.addListener('beforeRemove', () => {
     forgetLessonPresentation(route.params.lessonId);
@@ -154,7 +486,7 @@ export function LessonScreen({ navigation, route }: Props) {
   const lockPaging = useCallback(() => {
     if (pagingLocked.current) return false;
     pagingLocked.current = true;
-    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 340);
+    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 260);
     return true;
   }, []);
 
@@ -214,71 +546,26 @@ export function LessonScreen({ navigation, route }: Props) {
     [next, swipePrev],
   );
 
-  const closeAlternate = () => {
-    if (closeAlternateTimer.current) clearTimeout(closeAlternateTimer.current);
-    if (reducedMotion) {
-      alternateReveal.set(0);
-      setAlternate(false);
-      return;
-    }
-    alternateReveal.set(withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }));
-    closeAlternateTimer.current = setTimeout(() => setAlternate(false), 155);
-  };
-
-  const explainDifferently = () => {
+  const openAlternate = () => {
     Haptics.selection();
-    if (alternate) {
-      closeAlternate();
-      return;
-    }
-    if (closeAlternateTimer.current) clearTimeout(closeAlternateTimer.current);
     setAlternate(true);
-    alternateReveal.set(0);
-    if (reducedMotion) alternateReveal.set(1);
-    else alternateReveal.set(withSpring(1, springs.snappy));
   };
 
-  const closeProblem = () => {
-    if (closeProblemTimer.current) clearTimeout(closeProblemTimer.current);
-    if (reducedMotion) {
-      problemReveal.set(0);
-      setProblemOpen(false);
-      return;
-    }
-    problemReveal.set(withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }));
-    closeProblemTimer.current = setTimeout(() => setProblemOpen(false), 155);
-  };
-
-  const toggleProblem = () => {
+  const openProblem = () => {
     Haptics.selection();
-    if (problemOpen) {
-      closeProblem();
-      return;
-    }
-    if (closeProblemTimer.current) clearTimeout(closeProblemTimer.current);
-    setProblemView('statement');
-    problemTabProgress.set(0);
     setProblemOpen(true);
-    problemReveal.set(0);
-    if (reducedMotion) problemReveal.set(1);
-    else problemReveal.set(withSpring(1, springs.snappy));
   };
 
-  const chooseProblemView = (next: ProblemView) => {
-    if (next === problemView) return;
-    setProblemView(next);
-    const target = next === 'photo' ? 1 : 0;
-    problemTabProgress.set(reducedMotion ? target : withSpring(target, springs.snappy));
+  const openFeedback = () => {
+    setFeedbackEverOpened(true);
+    setFeedbackOpen(true);
   };
 
   const showNotebookToast = useCallback((kind: 'saved' | 'removed') => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
     setSaveToast(kind);
-    savedReveal.set(0);
-    if (reducedMotion) savedReveal.set(1);
-    else savedReveal.set(withSpring(1, springs.bouncy));
     savedTimer.current = setTimeout(() => setSaveToast(null), 1750);
-  }, [reducedMotion, savedReveal]);
+  }, []);
 
   const toggleSaved = async () => {
     if (saveLocked.current || removingFromNotebook) return;
@@ -328,46 +615,13 @@ export function LessonScreen({ navigation, route }: Props) {
     }
   }, [showNotebookToast]);
 
-  const toastAnimated = useAnimatedStyle(() => {
-    const p = savedReveal.get();
-    return {
-      opacity: Math.min(1, p * 1.2),
-      transform: [{ translateY: (1 - p) * -10 }, { scale: 0.9 + p * 0.1 }],
-    };
+  const ribbonSweepTranslateX = ribbonSweep.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-90, 420],
   });
-
-  const alternateScrimStyle = useAnimatedStyle(() => ({ opacity: alternateReveal.get() }));
-  const alternateSheetStyle = useAnimatedStyle(() => {
-    const p = alternateReveal.get();
-    return {
-      opacity: Math.min(1, p * 1.3),
-      transform: [{ translateY: (1 - p) * 60 }],
-    };
-  });
-
-  const problemScrimStyle = useAnimatedStyle(() => ({ opacity: problemReveal.get() }));
-  const problemSheetStyle = useAnimatedStyle(() => {
-    const p = problemReveal.get();
-    return {
-      opacity: Math.min(1, p * 1.3),
-      transform: [{ translateY: (1 - p) * 60 }],
-    };
-  });
-
-  const statementPaneStyle = useAnimatedStyle(() => {
-    const p = Math.max(0, Math.min(1, problemTabProgress.get()));
-    return {
-      opacity: 1 - p,
-      transform: [{ translateX: -p * 18 }],
-    };
-  });
-
-  const photoPaneStyle = useAnimatedStyle(() => {
-    const p = Math.max(0, Math.min(1, problemTabProgress.get()));
-    return {
-      opacity: p,
-      transform: [{ translateX: (1 - p) * 18 }],
-    };
+  const ribbonSweepOpacity = ribbonSweep.interpolate({
+    inputRange: [0, 0.15, 0.85, 1],
+    outputRange: [0, 0.78, 0.78, 0],
   });
 
   return (
@@ -385,25 +639,12 @@ export function LessonScreen({ navigation, route }: Props) {
         onRight={toggleSaved}
       />
 
-      {saveToast ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.savedToast,
-            saveToast === 'removed' && styles.removedToast,
-            toastAnimated,
-          ]}
-        >
-          <MiniGlyph name={saveToast === 'saved' ? 'check' : 'wrong'} size={15} color={colors.ink} />
-          <Text style={styles.savedText}>
-            {saveToast === 'saved' ? 'Lecție salvată' : 'Scoasă din Caiet'}
-          </Text>
-        </Animated.View>
-      ) : null}
+      {saveToast ? <LessonSaveToast kind={saveToast} reducedMotion={reducedMotion} /> : null}
 
       <ProgressDots
         total={lesson.steps.length}
         current={step}
+        pulseSignal={arrivalPulse}
         onSelectStep={jumpToStep}
         style={[styles.progress, { marginHorizontal: gutter }]}
       />
@@ -416,7 +657,7 @@ export function LessonScreen({ navigation, route }: Props) {
           radius={14}
           shadowColor={colors.ink}
           haptic="selection"
-          onPress={toggleProblem}
+          onPress={openProblem}
           style={styles.problemWrap}
           contentStyle={styles.problemRow}
         >
@@ -424,28 +665,47 @@ export function LessonScreen({ navigation, route }: Props) {
             <Text style={styles.problemIconText}>x²</Text>
           </View>
           <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
-          <View style={styles.problemActionPill}>
+          <View collapsable={false} style={styles.problemActionPill}>
             <Text style={styles.problemAction}>Enunț</Text>
             <MiniGlyph name="next" size={13} color={colors.violetDeep} />
           </View>
         </PressableScale>
 
         <GestureDetector gesture={swipeGesture}>
-          <View style={styles.cardWrap}>
+          <Animated.View
+            style={[
+              styles.cardWrap,
+              { transform: [{ translateX: cardShiftX }, { scale: cardScale }] },
+            ]}
+          >
             <View pointerEvents="none" style={styles.cardShadow} />
             <View style={styles.cardFace}>
               <View style={[styles.cardRibbon, { backgroundColor: ribbonColors[tone] }]}>
                 <View pointerEvents="none" style={styles.cardRibbonShine} />
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.cardRibbonSweep,
+                    {
+                      opacity: ribbonSweepOpacity,
+                      transform: [
+                        { translateX: ribbonSweepTranslateX },
+                        { skewX: '-24deg' },
+                      ],
+                    },
+                  ]}
+                />
               </View>
               <View style={styles.documentFrame}>
                 <MathDocumentView definition={lessonDocument}
                   transitionDirection={stepState.direction}
+                  animateInitialReveal={screenFocused}
                   testID="lesson-math-document"
                   onReady={() => markLessonPresentationReady(route.params.lessonId)}
                 />
               </View>
             </View>
-          </View>
+          </Animated.View>
         </GestureDetector>
       </View>
 
@@ -473,7 +733,7 @@ export function LessonScreen({ navigation, route }: Props) {
             radius={14}
             shadowColor={colors.ink}
             haptic="selection"
-            onPress={explainDifferently}
+            onPress={openAlternate}
             style={styles.secondaryActionWrap}
             contentStyle={styles.secondaryAction}
           >
@@ -491,7 +751,7 @@ export function LessonScreen({ navigation, route }: Props) {
             radius={14}
             shadowColor={colors.ink}
             haptic="selection"
-            onPress={() => setFeedbackOpen(true)}
+            onPress={openFeedback}
             contentStyle={styles.reportAction}
           >
             <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
@@ -508,111 +768,45 @@ export function LessonScreen({ navigation, route }: Props) {
       </View>
 
       {alternate ? (
-        <Modal
-          visible
-          transparent
-          animationType="none"
-          statusBarTranslucent
-          navigationBarTranslucent
-          onRequestClose={closeAlternate}
-        >
-          <View style={styles.modalLayer}>
-            <Animated.View pointerEvents="none" style={[styles.scrim, alternateScrimStyle]} />
-            <Pressable accessible={false} onPress={closeAlternate} style={StyleSheet.absoluteFill} />
-            <Animated.View accessibilityViewIsModal style={[styles.sheet, { paddingBottom: bottomSpace + 14 }, alternateSheetStyle]}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeading}>
-                <Mascot pose="point" size={56} active />
-                <View style={styles.sheetCopy}>
-                  <Text style={styles.sheetEyebrow}>PROFU’ ÎȚI ARATĂ ALTFEL</Text>
-                  <Text style={styles.sheetTitle}>O explicație mai simplă</Text>
-                </View>
-                <IconButton label="Închide explicația" onPress={closeAlternate} size={40}>
-                  <MiniGlyph name="close" size={19} color={colors.ink} />
-                </IconButton>
-              </View>
-              <MathDocumentView definition={alternateDocument} style={styles.sheetDocument} testID="alternate-math-document" />
-              <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={closeAlternate} />
-            </Animated.View>
-          </View>
-        </Modal>
+        <LessonAlternateModal
+          alternative={current.alternative}
+          bottomSpace={bottomSpace}
+          reducedMotion={reducedMotion}
+          onClosed={() => setAlternate(false)}
+        />
       ) : null}
 
       {problemOpen ? (
-        <Modal
-          visible
-          transparent
-          animationType="none"
-          statusBarTranslucent
-          navigationBarTranslucent
-          onRequestClose={closeProblem}
-        >
-          <View style={styles.modalLayer}>
-            <Animated.View pointerEvents="none" style={[styles.scrim, problemScrimStyle]} />
-            <Pressable accessible={false} onPress={closeProblem} style={StyleSheet.absoluteFill} />
-            <Animated.View accessibilityViewIsModal style={[styles.problemSheet, { paddingBottom: bottomSpace + 14 }, problemSheetStyle]}>
-              <View style={styles.sheetHandle} />
-              <View style={styles.sheetHeading}>
-                <View style={[styles.sheetIcon, styles.problemSheetIcon]}>
-                  <AppIcon name="notebook" size={34} />
-                </View>
-                <View style={styles.sheetCopy}>
-                  <Text style={styles.sheetEyebrow}>PROBLEMA TA</Text>
-                  <Text numberOfLines={2} style={styles.sheetTitle}>{lesson.title}</Text>
-                </View>
-                <IconButton label="Închide enunțul" onPress={closeProblem} size={40}>
-                  <MiniGlyph name="close" size={19} color={colors.ink} />
-                </IconButton>
-              </View>
-              {sourceImage ? (
-                <ComicTabBar
-                  compact
-                  options={problemViewTabs}
-                  value={problemView}
-                  onChange={chooseProblemView}
-                  style={styles.problemTabs}
-                />
-              ) : null}
-              <View style={styles.problemContent}>
-                <Animated.View
-                  pointerEvents={problemView === 'statement' ? 'auto' : 'none'}
-                  accessibilityElementsHidden={problemView !== 'statement'}
-                  importantForAccessibility={problemView === 'statement' ? 'yes' : 'no-hide-descendants'}
-                  style={[styles.problemPane, statementPaneStyle]}
-                >
-                  <MathDocumentView definition={problemDocument} testID="problem-math-document" />
-                </Animated.View>
-                {sourceImage ? (
-                  <Animated.View
-                    pointerEvents={problemView === 'photo' ? 'auto' : 'none'}
-                    accessibilityElementsHidden={problemView !== 'photo'}
-                    importantForAccessibility={problemView === 'photo' ? 'yes' : 'no-hide-descendants'}
-                    style={[styles.problemPaneOverlay, photoPaneStyle]}
-                  >
-                    <View accessible accessibilityRole="image" accessibilityLabel="Fotografia originală a problemei" style={styles.sourceImageCard}>
-                      <Image accessible={false} source={{ uri: sourceImage.uri }} resizeMode="contain" style={styles.sourceImage} />
-                    </View>
-                  </Animated.View>
-                ) : null}
-              </View>
-            </Animated.View>
-          </View>
-        </Modal>
+        <LessonProblemModal
+          title={lesson.title}
+          problem={lesson.problem}
+          problemAccessible={problemAccessible}
+          sourceImage={sourceImage}
+          bottomSpace={bottomSpace}
+          reducedMotion={reducedMotion}
+          onClosed={() => setProblemOpen(false)}
+        />
       ) : null}
-      <RemoveFromNotebookModal
-        visible={removeConfirmOpen}
-        lessonTitle={lesson.title}
-        description="Lecția va dispărea din Caietul tău. O poți salva din nou oricând cât ești aici."
-        removing={removingFromNotebook}
-        error={removeError}
-        onConfirm={() => void confirmRemoveFromNotebook()}
-        onCancel={() => {
-          if (removingFromNotebook) return;
-          setRemoveConfirmOpen(false);
-        }}
-        onAfterClose={handleRemoveModalClosed}
-      />
-      <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
+
+      {removeEverOpened ? (
+        <RemoveFromNotebookModal
+          visible={removeConfirmOpen}
+          lessonTitle={lesson.title}
+          description="Lecția va dispărea din Caietul tău. O poți salva din nou oricând cât ești aici."
+          removing={removingFromNotebook}
+          error={removeError}
+          onConfirm={() => void confirmRemoveFromNotebook()}
+          onCancel={() => {
+            if (removingFromNotebook) return;
+            setRemoveConfirmOpen(false);
+          }}
+          onAfterClose={handleRemoveModalClosed}
+        />
+      ) : null}
+
+      {feedbackEverOpened ? (
+        <FeedbackSheet visible={feedbackOpen} lessonId={route.params.lessonId} onClose={() => setFeedbackOpen(false)} />
+      ) : null}
     </View>
   );
 }
@@ -712,6 +906,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: borders.thin,
     borderBottomColor: colors.ink,
     position: 'relative',
+    overflow: 'hidden',
   },
   cardRibbonShine: {
     position: 'absolute',
@@ -721,6 +916,14 @@ const styles = StyleSheet.create({
     height: 2.5,
     borderRadius: 2,
     backgroundColor: colors.shine,
+  },
+  cardRibbonSweep: {
+    position: 'absolute',
+    top: -2,
+    bottom: -2,
+    left: 0,
+    width: 72,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
 
