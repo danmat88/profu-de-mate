@@ -1,14 +1,6 @@
-import { useLayoutEffect, type ReactNode } from 'react';
-import { View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { Animated, Easing, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { springs } from '../theme';
 
 type Props = {
   /** Slide direction for the newly mounted tab (-1 = from left, 1 = from right, 0 = instant). */
@@ -18,32 +10,59 @@ type Props = {
 };
 
 function AnimatedTabPanel({ direction, style, children }: { direction: -1 | 1; style?: StyleProp<ViewStyle>; children: ReactNode }) {
-  const opacity = useSharedValue(0);
-  const shiftX = useSharedValue(direction * 22);
-  const scale = useSharedValue(0.985);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const shiftX = useRef(new Animated.Value(direction * 20)).current;
+  const scale = useRef(new Animated.Value(0.988)).current;
 
-  useLayoutEffect(() => {
-    opacity.set(withTiming(1, { duration: 165, easing: Easing.out(Easing.quad) }));
-    shiftX.set(withSpring(0, springs.snappy));
-    scale.set(withSpring(1, springs.snappy));
+  useEffect(() => {
+    const anim = Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: 165,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.spring(shiftX, {
+        toValue: 0,
+        tension: 260,
+        friction: 22,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        tension: 260,
+        friction: 22,
+        useNativeDriver: true,
+      }),
+    ]);
+    anim.start();
+    return () => {
+      anim.stop();
+    };
   }, [opacity, scale, shiftX]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.get(),
-    transform: [
-      { translateX: shiftX.get() },
-      { scale: scale.get() },
-    ],
-  }));
-
-  return <Animated.View style={[style, animatedStyle]}>{children}</Animated.View>;
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          opacity,
+          transform: [
+            { translateX: shiftX },
+            { scale },
+          ],
+        },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
 }
 
 /**
- * Mount-atomic tab content stage. Pair with `key={activeTab}` so React replaces
- * the previous tab in a single commit and only the newly selected tab animates in,
- * eliminating previous-tab flash or jump glitches while incurring zero Reanimated
- * worklets on initial screen mount (`direction === 0`).
+ * Mount-atomic tab content stage powered by native-driver Animated springs so
+ * switching tabs stays silky with zero Reanimated worklet overhead, and initial
+ * screen mounts (`direction === 0`) render a plain View.
  */
 export function TabPanel({ direction, style, children }: Props) {
   const reducedMotion = useReducedMotion();

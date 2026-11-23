@@ -6,12 +6,15 @@ import { isMathAnalysis } from '../../math/utils/mathContent';
 import { firebaseUserSessionKey, initializeFirebaseServices } from '../../../shared/services/firebase';
 
 type LessonListener = (lessons: StoredLesson[]) => void;
+type LessonErrorListener = (error: Error) => void;
 let favoriteLessonsCache: StoredLesson[] | undefined;
 let favoriteLessonsCacheSessionKey: string | null = null;
 let favoriteLessonsPrewarm: Promise<void> | null = null;
 let warmUnsubscribe: (() => void) | undefined;
+let warmSessionKey: string | null = null;
 let warming = false;
 let cacheGeneration = 0;
+const warmSubscribers = new Set<{ onChange: LessonListener; onError: LessonErrorListener }>();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SAVED_RETENTION_MS = 400 * DAY_MS;
 const RETENTION_REFRESH_WINDOW_MS = 399 * DAY_MS;
@@ -28,6 +31,8 @@ export function clearFavoriteLessonsCache() {
   cacheGeneration += 1;
   warmUnsubscribe?.();
   warmUnsubscribe = undefined;
+  warmSessionKey = null;
+  warmSubscribers.clear();
   warming = false;
   favoriteLessonsCache = undefined;
   favoriteLessonsCacheSessionKey = null;
@@ -53,17 +58,27 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
     const timeout = setTimeout(finish, 3_500);
 
     subscribeToFavoriteLessons(
-      () => finish(),
-      () => {
-        failed = true;
-        if (generation === cacheGeneration) { warmUnsubscribe?.(); warmUnsubscribe = undefined; warming = false; }
+      (lessons) => {
         finish();
+        warmSubscribers.forEach((subscriber) => subscriber.onChange(lessons));
+      },
+      (error) => {
+        failed = true;
+        if (generation === cacheGeneration) {
+          warmUnsubscribe?.();
+          warmUnsubscribe = undefined;
+          warmSessionKey = null;
+          warming = false;
+        }
+        finish();
+        warmSubscribers.forEach((subscriber) => subscriber.onError(error));
       },
     ).then((stop) => {
       if (generation !== cacheGeneration || failed) { stop(); return; }
       warming = false;
       // Keep this listener alive so saving a lesson warms the next visit too.
       warmUnsubscribe = stop;
+      warmSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
     }).catch(() => {
       if (generation === cacheGeneration) warming = false;
       finish();
@@ -81,6 +96,18 @@ export async function subscribeToFavoriteLessons(onChange: LessonListener, onErr
   const user = await initializeFirebaseServices();
   const sessionKey = firebaseUserSessionKey(user);
   if (!sessionKey) throw new Error('Sesiunea Caietului nu este disponibilă.');
+  // Reuse the already-running session-scoped prewarm listener instead of
+  // opening a duplicate Firestore snapshot & re-validating every document.
+  if (warmUnsubscribe && warmSessionKey === sessionKey && generation === cacheGeneration) {
+    const subscriber = { onChange, onError };
+    warmSubscribers.add(subscriber);
+    if (favoriteLessonsCache !== undefined && favoriteLessonsCacheSessionKey === sessionKey) {
+      onChange(favoriteLessonsCache);
+    }
+    return () => {
+      warmSubscribers.delete(subscriber);
+    };
+  }
   const db = getFirestore(getApp());
   const lessonsQuery = query(
     collection(db, 'users', user.uid, 'lessons'),

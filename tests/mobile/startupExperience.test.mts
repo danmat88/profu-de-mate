@@ -34,10 +34,10 @@ const quotaTimerSource = await readFile(new URL('../../src/features/access/compo
 const tabPanelSource = await readFile(new URL('../../src/shared/ui/TabPanel.tsx', import.meta.url), 'utf8');
 const enterSource = await readFile(new URL('../../src/shared/ui/Enter.tsx', import.meta.url), 'utf8');
 
-test('navigation receives verified launch data and stays covered until its first layout', () => {
-  assert.match(appSource, /startup \? <CommercialProvider initialAccess=\{startup\.initialAccess\} initialVerifiedAt=\{startup\.verifiedAt\}/);
+test('navigation receives verified launch data, waits for splash intro to settle, and stays covered until ready', () => {
+  assert.match(appSource, /startup && \(splashIntroDone \|\| reducedMotion\) \? <CommercialProvider initialAccess=\{startup\.initialAccess\} initialVerifiedAt=\{startup\.verifiedAt\}/);
   assert.match(appSource, /onReady=\{markNavigationReady\}/);
-  assert.match(appSource, /<LaunchSplash ready=\{Boolean\(startup\) && navigationReady\} visualsReady=\{visualsReady\}/);
+  assert.match(appSource, /<LaunchSplash ready=\{Boolean\(startup\) && navigationReady\} visualsReady=\{visualsReady\}[\s\S]*onIntroSettled=\{markSplashIntroDone\}/);
   assert.match(appSource, /if \(failure && !startup\)/);
   assert.doesNotMatch(appSource, /settleStartupTask|readCachedCommercialAccess/);
 });
@@ -58,6 +58,9 @@ test('React splash restores the branded comic scene on Home’s canvas with a bo
   assert.match(splashSource, /assets\/brand\/splash_mark_v2\.png/);
   assert.match(splashSource, /backgroundColor: colors\.canvas/);
   assert.match(splashSource, /<ComicBackdrop \/>/);
+  assert.match(splashSource, /const SplashProgressHeader = memo\(/);
+  assert.match(splashSource, /scaleX: ratio/);
+  assert.match(splashSource, /notifyIntroSettledOnce\(\)/);
   assert.match(splashSource, /notifyRevealOnce\(\)/);
 });
 
@@ -233,12 +236,17 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   assert.doesNotMatch(comicTabBarSource, /react-native-reanimated/);
   assert.doesNotMatch(comicSwitchSource, /react-native-reanimated/);
   assert.doesNotMatch(quotaTimerSource, /react-native-reanimated/);
+  assert.doesNotMatch(tabPanelSource, /react-native-reanimated/);
   assert.match(tabPanelSource, /if \(reducedMotion \|\| direction === 0\) \{\s*return <View style=\{style\}>\{children\}<\/View>;/);
   assert.match(mascotSource, /const justActivated = active && !previousActive\.current/);
 
   assert.match(notebookSource, /useTransitionSettled\(navigation, reducedMotion\)/);
   assert.match(notebookSource, /if \(initialWarmCache && !transitionSettled\) return undefined;/);
   assert.match(notebookSource, /styles\.lessonRowShadow/);
+  assert.match(notebookSource, /visibleNotes\.slice\(0, 3\)/);
+  assert.match(notebookSource, /function StaggerCardSlot\(/);
+  assert.match(notebookSource, /const mountSearchInput = transitionSettled \|\| searchActivated/);
+  assert.doesNotMatch(notebookSource, /<TabPanel\s+key=\{filter\}/);
   assert.doesNotMatch(notebookSource, /toLocaleTimeString|toLocaleDateString/);
   assert.match(notebookSource, /\{pendingRemoval \? \(\s*<RemoveFromNotebookModal/);
 

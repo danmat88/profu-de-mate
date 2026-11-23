@@ -745,7 +745,7 @@ export function HomeSurface({
                     tone={hasPendingAnalysis || !isSolve ? 'gold' : 'lime'}
                     tilt={-2}
                   />
-                  <View style={styles.stageLivePill}>
+                  <View collapsable={false} style={styles.stageLivePill}>
                     <Animated.View style={sparkStyle}>
                       <Text accessible={false} style={[styles.stageSpark, { color: cornerColor }]}>✦</Text>
                     </Animated.View>
@@ -981,12 +981,12 @@ export function HomeSurface({
                       CAIETUL MEU
                     </Text>
                     {savedCountLabel && !compact ? (
-                      <View style={styles.countBadge}>
+                      <View collapsable={false} style={styles.countBadge}>
                         <Text maxFontSizeMultiplier={1.1} style={styles.countBadgeText}>{savedCountLabel}</Text>
                       </View>
                     ) : null}
                     {latestLessonTitle && !compact && !isVeryNarrow ? (
-                      <View style={styles.latestBadge}>
+                      <View collapsable={false} style={styles.latestBadge}>
                         <Text maxFontSizeMultiplier={1.1} style={styles.latestBadgeText}>ULTIMA</Text>
                       </View>
                     ) : null}
@@ -1581,23 +1581,25 @@ const styles = StyleSheet.create({
   },
   notebookIconCompact: { width: 38, height: 38, borderRadius: 12 },
   notebookCopy: { flex: 1, minWidth: 0, paddingVertical: 8 },
-  notebookHeaderRow: { height: 18, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  notebookHeaderRow: { minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 5 },
   notebookKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 0.85 },
   countBadge: {
-    height: 16,
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    minHeight: 19,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 7,
     borderWidth: 1.25,
     borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countBadgeText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 8.5, lineHeight: 11, includeFontPadding: false },
+  countBadgeText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9, lineHeight: 12, paddingHorizontal: 1, includeFontPadding: false },
   latestBadge: {
-    height: 16,
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    minHeight: 19,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 7,
     borderWidth: 1.25,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
@@ -1605,7 +1607,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     transform: [{ rotate: '-2deg' }],
   },
-  latestBadgeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 8.5, lineHeight: 11, letterSpacing: 0.5, includeFontPadding: false },
+  latestBadgeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9, lineHeight: 12, letterSpacing: 0.4, paddingHorizontal: 1, includeFontPadding: false },
   notebookTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20, marginTop: 1 },
   notebookTitleCompact: { fontSize: 15, lineHeight: 18 },
   notebookNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 15 },

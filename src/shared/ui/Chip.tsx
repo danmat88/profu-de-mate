@@ -37,6 +37,7 @@ export function Chip({
   const palette = palettes[tone];
   return (
     <View
+      collapsable={false}
       style={[
         styles.chip,
         { backgroundColor: palette.bg },
@@ -48,7 +49,7 @@ export function Chip({
       {leading}
       <Text
         maxFontSizeMultiplier={1.3}
-        numberOfLines={1}
+        textBreakStrategy="simple"
         style={[styles.label, { color: palette.fg }]}
       >
         {label}
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 4.5,
     borderRadius: radii.sm,
   },
   outlined: {
@@ -73,6 +74,8 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.kicker,
+    lineHeight: 15,
+    paddingHorizontal: 1,
     includeFontPadding: false,
   },
 });

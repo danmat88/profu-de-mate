@@ -299,6 +299,7 @@ const styles = StyleSheet.create({
     top: TRACK_PADDING,
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
+    zIndex: 1,
     borderRadius: 16,
     borderWidth: borders.thin,
     borderColor: colors.ink,
@@ -318,6 +319,7 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flex: 1,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'stretch',
   },
@@ -366,7 +368,8 @@ const styles = StyleSheet.create({
   dotText: {
     fontFamily: fonts.bodyBold,
     fontSize: 9.5,
-    lineHeight: 11,
+    lineHeight: 12,
+    includeFontPadding: false,
   },
   label: {
     flexShrink: 1,

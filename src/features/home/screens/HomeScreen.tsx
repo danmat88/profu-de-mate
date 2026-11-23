@@ -8,6 +8,7 @@ import { useCommercial } from '../../access/context/CommercialContext';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { getCachedFavoriteLessons } from '../../lessons/services/lessons';
+import { prewarmNotebookPresentations } from '../../lessons/utils/notebookPresentation';
 import { warmMathDrafts } from '../../math/services/mathDraft';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { hasSeenHomeGuide, markHomeGuideSeen } from '../../../shared/storage/localPreferences';
@@ -94,6 +95,7 @@ export function HomeScreen() {
     const warmFrame = requestAnimationFrame(() => {
       if (!active) return;
       try { warmMathDrafts(captureSession()); } catch { /* Ignore when session is not yet ready. */ }
+      try { prewarmNotebookPresentations(getCachedFavoriteLessons()); } catch { /* Ignore cache prewarm errors. */ }
     });
     void preparePendingAnalysisOnStartup().then((pending) => {
       if (active) setPendingAnalysis(pending);

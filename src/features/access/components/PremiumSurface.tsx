@@ -85,7 +85,7 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
         <View style={styles.planCopy}>
           <View style={styles.planTitleRow}>
             <Text style={styles.planTitle}>{annual ? 'Anual' : 'Lunar'}</Text>
-            {annual ? <View style={styles.bestBadge}><Text style={styles.bestBadgeText}>RECOMANDAT</Text></View> : null}
+            {annual ? <View collapsable={false} style={styles.bestBadge}><Text style={styles.bestBadgeText}>RECOMANDAT</Text></View> : null}
           </View>
           <Text style={styles.planNote}>
             {annual
@@ -537,15 +537,15 @@ const styles = StyleSheet.create({
   planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
   planTitle: { fontFamily: fonts.display, fontSize: 19, color: colors.ink },
   bestBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.gold,
     transform: [{ rotate: '-2deg' }],
   },
-  bestBadgeText: { ...typography.kicker, fontSize: 9.5, color: colors.ink },
+  bestBadgeText: { ...typography.kicker, fontSize: 9.5, lineHeight: 13, paddingHorizontal: 1, color: colors.ink, includeFontPadding: false },
   planNote: { fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 16, color: colors.inkSoft, marginTop: 2 },
   priceCopy: { maxWidth: '42%', alignItems: 'flex-end' },
   price: { fontFamily: fonts.displaySemi, fontSize: 18, color: colors.ink, textAlign: 'right' },

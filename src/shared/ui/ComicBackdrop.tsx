@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { colors, fonts } from '../theme';
 import { Text } from './Typography';
 
+const BACKDROP_DOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
+
 /**
  * Ambient cartoon notebook backdrop. All accents sit strictly in peripheral
  * corner margins so foreground typography and cards stay crisp and unobstructed.
@@ -15,7 +17,7 @@ export const ComicBackdrop = memo(function ComicBackdrop({ dark = false }: { dar
       <View style={[styles.blobMidLeft, dark && styles.blobMidLeftDark]} />
 
       <View style={[styles.dotClusterTop, dark && styles.dotClusterDark]}>
-        {Array.from({ length: 9 }).map((_, index) => (
+        {BACKDROP_DOTS.map((index) => (
           <View key={index} style={[styles.dot, dark && styles.dotDark]} />
         ))}
       </View>

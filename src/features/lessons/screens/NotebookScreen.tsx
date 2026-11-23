@@ -1,8 +1,10 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  Animated,
+  Easing,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -13,7 +15,7 @@ import {
   View,
   type ListRenderItem,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -33,7 +35,6 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
-import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { beginLessonPresentation, forgetLessonPresentation, waitForLessonPresentation } from '../services/lessonPresentation';
@@ -51,9 +52,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Notebook'>;
 const FILTER_ORDER: Record<NotebookFilter, number> = { all: 0, solve: 1, check: 2 };
 
 const verdictTones = {
-  correct: { backgroundColor: colors.lime, color: colors.ink },
-  partial: { backgroundColor: colors.gold, color: colors.ink },
-  incorrect: { backgroundColor: colors.roseSoft, color: colors.berryDeep },
+  correct: { bg: colors.lime, color: colors.ink, mark: '✓' },
+  partial: { bg: colors.gold, color: colors.ink, mark: '◐' },
+  incorrect: { bg: colors.roseSoft, color: colors.berryDeep, mark: '!' },
 } as const;
 
 const SHORT_MONTHS_RO = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
@@ -64,13 +65,34 @@ function padTwo(value: number): string {
 
 function lessonTime(lesson: StoredLesson): string {
   const date = lesson.createdAt?.toDate?.();
-  if (!date) return 'Salvată recent';
+  if (!date) return 'Recent';
   const now = new Date();
   const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const startLesson = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   if (startLesson === startToday) return `Astăzi · ${padTwo(date.getHours())}:${padTwo(date.getMinutes())}`;
   if (startLesson === startToday - 24 * 60 * 60 * 1000) return 'Ieri';
   return `${date.getDate()} ${SHORT_MONTHS_RO[date.getMonth()]}`;
+}
+
+function sameLessonList(previous: StoredLesson[], next: StoredLesson[]): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  for (let index = 0; index < previous.length; index += 1) {
+    const a = previous[index];
+    const b = next[index];
+    if (
+      a.id !== b.id
+      || a.title !== b.title
+      || a.topic !== b.topic
+      || a.mode !== b.mode
+      || a.verdict !== b.verdict
+      || a.steps.length !== b.steps.length
+      || a.createdAt?.toDate?.().getTime() !== b.createdAt?.toDate?.().getTime()
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
@@ -80,15 +102,96 @@ function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
     && previousPreview.title === nextPreview.title;
 }
 
+/**
+ * Pure native-driver staggered card entrance used ONLY after tab switches on
+ * the first 4 visible rows. On initial screen mount (`generation === 0`) or
+ * below-the-fold rows (`index >= 4`), renders children immediately with zero
+ * animation overhead so the screen slides in 100% complete.
+ */
+function StaggerCardSlot({
+  index,
+  generation,
+  direction,
+  reducedMotion,
+  children,
+}: {
+  index: number;
+  generation: number;
+  direction: -1 | 0 | 1;
+  reducedMotion: boolean;
+  children: ReactNode;
+}) {
+  const animateOnMount = generation > 0 && !reducedMotion && index < 4;
+  const progress = useRef(new Animated.Value(animateOnMount ? 0 : 1)).current;
+  const lastGeneration = useRef(animateOnMount ? -1 : generation);
+
+  useEffect(() => {
+    if (generation === 0 || reducedMotion || index >= 4 || lastGeneration.current === generation) {
+      lastGeneration.current = generation;
+      progress.setValue(1);
+      return undefined;
+    }
+    lastGeneration.current = generation;
+    progress.stopAnimation();
+    progress.setValue(0);
+    const delay = index * 48;
+    const anim = Animated.sequence([
+      ...(delay > 0 ? [Animated.delay(delay)] : []),
+      Animated.spring(progress, {
+        toValue: 1,
+        tension: 250,
+        friction: 21,
+        useNativeDriver: true,
+      }),
+    ]);
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, [generation, index, progress, reducedMotion]);
+
+  if (generation === 0 || reducedMotion || index >= 4) {
+    return <>{children}</>;
+  }
+
+  const translateX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [direction * 18, 0],
+  });
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [10, 0],
+  });
+
+  return (
+    <Animated.View
+      collapsable={false}
+      style={{
+        opacity: progress,
+        transform: [{ translateX }, { translateY }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 type LessonRowProps = {
   lesson: StoredLesson;
+  cardNumber: number;
   newest: boolean;
   opening: boolean;
   onOpen: (lesson: StoredLesson) => void;
   onRemove: (lesson: StoredLesson) => void;
 };
 
-const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onRemove }: LessonRowProps) {
+/**
+ * Collectible 3D comic notebook page card: color-coded spiral spine, bookmark
+ * ribbon on the newest entry, numbered page stamp, formula snippet callout,
+ * collapsable-safe badges (immune to Android Fabric text clipping), and zero
+ * Reanimated worklets or per-row image decodes.
+ */
+const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening, onOpen, onRemove }: LessonRowProps) {
   const presentation = notebookProblemPresentation(lesson);
   const verdict = notebookVerdictPresentation(lesson);
   const checked = lesson.mode === 'check';
@@ -96,12 +199,16 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
     ? colors.lime
     : verdict?.tone === 'incorrect'
       ? colors.rose
-      : checked ? colors.peach : colors.cyan;
+      : verdict?.tone === 'partial'
+        ? colors.gold
+        : checked ? colors.peach : colors.cyan;
   const modePillBg = checked ? colors.peachSoft : colors.cyanSoft;
+  const modeGlyph = checked ? '✓' : '✦';
   const modeLabel = checked ? 'VERIFICATĂ' : 'REZOLVATĂ';
+  const watermarkGlyph = verdict?.tone === 'correct' ? '✓' : checked ? '∑' : 'π';
   const actionLabel = checked ? 'Vezi verificarea' : 'Vezi rezolvarea';
   const stepLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas' : 'pași'}`;
-  const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : undefined;
+  const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : null;
 
   return (
     <View style={styles.lessonRowWrap}>
@@ -117,6 +224,7 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
         style={({ pressed }) => [styles.lessonCard, pressed && styles.lessonCardPressed]}
       >
         <View style={[styles.lessonRail, { backgroundColor: spineTone }]}>
+          <View pointerEvents="none" style={styles.railGloss} />
           <View style={styles.railHole} />
           <View style={styles.railHole} />
           <View style={styles.railHole} />
@@ -124,44 +232,69 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
 
         <View style={styles.lessonBody}>
           <View pointerEvents="none" style={styles.cardShine} />
+          {newest ? (
+            <View pointerEvents="none" style={styles.bookmarkRibbon}>
+              <View style={styles.bookmarkNotch} />
+            </View>
+          ) : null}
+          <Text accessible={false} style={styles.cardWatermark}>{watermarkGlyph}</Text>
 
-          <View style={styles.lessonMeta}>
+          <View style={[styles.lessonMeta, newest && styles.lessonMetaNewest]}>
             <View style={styles.metaLeft}>
-              <View style={[styles.modeStamp, { backgroundColor: modePillBg }]}>
-                <AppIcon name={checked ? 'verify' : 'practice'} size={15} />
+              <View collapsable={false} style={[styles.modeStamp, { backgroundColor: modePillBg }]}>
+                <Text style={styles.modeGlyph}>{modeGlyph}</Text>
                 <Text style={styles.modeText}>{modeLabel}</Text>
               </View>
               {newest ? (
-                <View style={styles.newDot}>
+                <View collapsable={false} style={styles.newDot}>
                   <Text style={styles.newDotText}>★ NOUĂ</Text>
                 </View>
               ) : null}
             </View>
-            <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
+            <View collapsable={false} style={styles.timePill}>
+              <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
+            </View>
           </View>
 
-          <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
+          <View style={styles.titleRow}>
+            <View collapsable={false} style={[styles.pageNumBadge, newest && styles.pageNumBadgeNew]}>
+              <Text style={styles.pageNumText}>#{cardNumber}</Text>
+            </View>
+            <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
+          </View>
+
+          {presentation.snippet ? (
+            <View style={styles.snippetBox}>
+              <View style={[styles.snippetAccent, { backgroundColor: spineTone }]} />
+              <View collapsable={false} style={styles.snippetFormulaBadge}>
+                <Text style={styles.snippetFormulaGlyph}>ƒ</Text>
+              </View>
+              <Text numberOfLines={2} style={styles.snippetText}>{presentation.snippet}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.topicRow}>
-            <View style={styles.topicTag}>
+            <View collapsable={false} style={styles.topicTag}>
               <View style={[styles.topicMarker, { backgroundColor: spineTone }]} />
               <Text numberOfLines={1} style={styles.topicText}>{lesson.topic}</Text>
             </View>
             {verdict ? (
-              <View style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].backgroundColor }]}>
-                <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>{verdict.label}</Text>
+              <View collapsable={false} style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].bg }]}>
+                <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>
+                  {verdictTones[verdict.tone].mark} {verdict.label}
+                </Text>
               </View>
             ) : null}
           </View>
 
           <View style={styles.lessonFooter}>
             <View style={styles.detailCluster}>
-              <View style={styles.detailChip}>
-                <View style={[styles.detailDot, { backgroundColor: colors.violet }]} />
+              <View collapsable={false} style={styles.detailChip}>
+                <View style={styles.detailDot} />
                 <Text style={styles.detailText}>{stepLabel}</Text>
               </View>
               {requestLabel ? (
-                <View style={styles.detailChip}>
+                <View collapsable={false} style={styles.detailChip}>
                   <Text style={styles.detailText}>{requestLabel}</Text>
                 </View>
               ) : null}
@@ -178,16 +311,18 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
                 }}
                 style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
               >
-                <MiniGlyph name="wrong" size={14} color={colors.inkSoft} />
-                <Text style={styles.removeText}>Scoate</Text>
+                <Text style={styles.removeText}>× Scoate</Text>
               </Pressable>
-              <View style={styles.openPill}>
+              <View collapsable={false} style={styles.openPill}>
+                <View pointerEvents="none" style={styles.openPillShine} />
                 {opening ? (
                   <PlayfulLoader micro inverse />
                 ) : (
                   <>
                     <Text style={styles.openPillText}>Deschide</Text>
-                    <MiniGlyph name="next" size={14} color={colors.paper} />
+                    <View collapsable={false} style={styles.openArrowBadge}>
+                      <Text style={styles.openArrowGlyph}>→</Text>
+                    </View>
                   </>
                 )}
               </View>
@@ -199,8 +334,10 @@ const LessonRow = memo(function LessonRow({ lesson, newest, opening, onOpen, onR
   );
 }, (previous, next) => (
   previous.lesson.id === next.lesson.id
+  && previous.cardNumber === next.cardNumber
   && previous.lesson.topic === next.lesson.topic
   && previous.lesson.mode === next.lesson.mode
+  && previous.lesson.verdict === next.lesson.verdict
   && previous.lesson.steps.length === next.lesson.steps.length
   && previous.lesson.createdAt?.toDate?.().getTime() === next.lesson.createdAt?.toDate?.().getTime()
   && previous.newest === next.newest
@@ -296,7 +433,8 @@ type FilterEmptyProps = {
   onStart: (mode: FlowMode) => void;
 };
 
-function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
+/** Zero-worklet empty state so switching to an empty filter tab stays instant. */
+const FilterEmpty = memo(function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
   const searching = Boolean(query);
   const check = filter === 'check';
   const title = searching
@@ -308,39 +446,55 @@ function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
 
   return (
     <View style={styles.filterEmpty}>
-      <Mascot pose="thinking" size={108} active />
+      <View style={styles.filterEmptyBadge}>
+        <Image
+          accessible={false}
+          fadeDuration={0}
+          source={bundledImageSource(mascotAssets.thinking)}
+          resizeMode="contain"
+          style={styles.filterEmptyOwl}
+        />
+      </View>
       <Text style={styles.filterEmptyTitle}>{title}</Text>
       <Text style={styles.filterEmptyText}>{description}</Text>
-      <PressableScale
-        accessibilityRole="button"
-        depth={shadows.sm}
-        radius={14}
-        shadowColor={colors.ink}
-        haptic="selection"
-        onPress={searching ? onReset : () => onStart(check ? 'check' : 'solve')}
-        style={styles.filterEmptyActionWrap}
-        contentStyle={styles.filterEmptyAction}
-      >
-        <Text style={styles.filterEmptyActionText}>
-          {searching ? 'Șterge căutarea' : check ? 'Verifică o rezolvare' : 'Rezolvă o problemă'}
-        </Text>
-      </PressableScale>
+      <View style={styles.filterEmptyActionWrap}>
+        <View pointerEvents="none" style={styles.filterEmptyActionShadow} />
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            Haptics.selection();
+            if (searching) onReset();
+            else onStart(check ? 'check' : 'solve');
+          }}
+          style={({ pressed }) => [styles.filterEmptyAction, pressed && styles.filterEmptyActionPressed]}
+        >
+          <Text style={styles.filterEmptyActionText}>
+            {searching ? 'Șterge căutarea' : check ? 'Verifică o rezolvare' : 'Rezolvă o problemă'}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
-}
+});
 
 export function NotebookScreen({ navigation }: Props) {
-  const { gutter, isNarrow } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
-  const [filterState, setFilterState] = useState<{ filter: NotebookFilter; direction: -1 | 0 | 1 }>({
-    filter: 'all',
-    direction: 0,
-  });
-  const { filter, direction } = filterState;
+  // `selectedTab` updates immediately for ComicTabBar's spring pill, while
+  // `committedTab` swaps cleanly during the 75ms fade-out so old tab cards
+  // NEVER flash as the incoming tab.
+  const [selectedTab, setSelectedTab] = useState<NotebookFilter>('all');
+  const [committedTab, setCommittedTab] = useState<{
+    filter: NotebookFilter;
+    direction: -1 | 0 | 1;
+    generation: number;
+  }>({ filter: 'all', direction: 0, generation: 0 });
   const [queryText, setQueryText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [searchActivated, setSearchActivated] = useState(false);
   const deferredQueryText = useDeferredValue(queryText);
   const [initialWarmCache] = useState(() => getCachedFavoriteLessons() !== undefined);
   const [notes, setNotes] = useState<StoredLesson[]>(() => getCachedFavoriteLessons() ?? []);
@@ -353,17 +507,50 @@ export function NotebookScreen({ navigation }: Props) {
   const [removeError, setRemoveError] = useState(false);
   const [openingNoteId, setOpeningNoteId] = useState<string | null>(null);
 
+  const listRef = useRef<FlatList<StoredLesson>>(null);
+  const listOpacity = useRef(new Animated.Value(1)).current;
+  const listShiftX = useRef(new Animated.Value(0)).current;
+  const tabSwapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealFrame = useRef<number | null>(null);
+  const selectedTabRef = useRef<NotebookFilter>('all');
   const openingNoteRef = useRef(false);
   const focusedRef = useRef(true);
+
+  useEffect(() => () => {
+    if (tabSwapTimer.current) clearTimeout(tabSwapTimer.current);
+    if (revealFrame.current !== null) cancelAnimationFrame(revealFrame.current);
+    listOpacity.stopAnimation();
+    listShiftX.stopAnimation();
+  }, [listOpacity, listShiftX]);
+
+  // Restore list visibility on the exact frame AFTER React commits the newly
+  // selected tab's cards so each visible card staggers in with zero old-tab flash.
+  useEffect(() => {
+    if (committedTab.generation === 0) return undefined;
+    if (revealFrame.current !== null) cancelAnimationFrame(revealFrame.current);
+    revealFrame.current = requestAnimationFrame(() => {
+      revealFrame.current = null;
+      listShiftX.setValue(0);
+      listOpacity.setValue(1);
+    });
+    return () => {
+      if (revealFrame.current !== null) {
+        cancelAnimationFrame(revealFrame.current);
+        revealFrame.current = null;
+      }
+    };
+  }, [committedTab.generation, listOpacity, listShiftX]);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
     openingNoteRef.current = false;
     setOpeningNoteId(null);
+    listOpacity.setValue(1);
+    listShiftX.setValue(0);
     return () => {
       focusedRef.current = false;
     };
-  }, []));
+  }, [listOpacity, listShiftX]));
 
   useEffect(() => {
     // When cached lessons are already ready, wait for the slide transition to
@@ -374,7 +561,7 @@ export function NotebookScreen({ navigation }: Props) {
     subscribeToFavoriteLessons(
       (lessons) => {
         if (!mounted) return;
-        setNotes(lessons);
+        setNotes((current) => (sameLessonList(current, lessons) ? current : lessons));
         setLoading(false);
         setLoadError(false);
       },
@@ -396,10 +583,17 @@ export function NotebookScreen({ navigation }: Props) {
     return () => { mounted = false; unsubscribe?.(); };
   }, [initialWarmCache, subscriptionAttempt, transitionSettled]);
 
+  const filter = committedTab.filter;
   const normalizedQuery = deferredQueryText.trim();
   const visibleNotes = useMemo(
     () => filterNotebookLessons(notes, filter, normalizedQuery),
     [filter, normalizedQuery, notes],
+  );
+  // Keep 100% of the visible viewport filled on Frame 0 while preventing
+  // off-screen list items from inflating mid-transition.
+  const renderedNotes = useMemo(
+    () => (transitionSettled || visibleNotes.length <= 3 ? visibleNotes : visibleNotes.slice(0, 3)),
+    [transitionSettled, visibleNotes],
   );
   const counts = useMemo(() => notebookFilterCounts(notes), [notes]);
 
@@ -434,10 +628,48 @@ export function NotebookScreen({ navigation }: Props) {
   ], [counts.all, counts.check, counts.solve]);
 
   const chooseFilter = useCallback((next: NotebookFilter) => {
-    setFilterState((current) => (current.filter === next
-      ? current
-      : { filter: next, direction: FILTER_ORDER[next] > FILTER_ORDER[current.filter] ? 1 : -1 }));
-  }, []);
+    const previous = selectedTabRef.current;
+    if (previous === next) return;
+    const direction: -1 | 1 = FILTER_ORDER[next] > FILTER_ORDER[previous] ? 1 : -1;
+    selectedTabRef.current = next;
+    setSelectedTab(next);
+
+    if (tabSwapTimer.current) {
+      clearTimeout(tabSwapTimer.current);
+      tabSwapTimer.current = null;
+    }
+
+    if (reducedMotion) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      setCommittedTab((current) => ({ filter: next, direction, generation: current.generation + 1 }));
+      return;
+    }
+
+    // Step 1 (0..75ms): Quickly glide out the previous tab while the pill springs.
+    listOpacity.stopAnimation();
+    listShiftX.stopAnimation();
+    Animated.parallel([
+      Animated.timing(listOpacity, {
+        toValue: 0,
+        duration: 75,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(listShiftX, {
+        toValue: -direction * 12,
+        duration: 75,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Step 2 (at 75ms, while hidden): Swap data cleanly, then stagger cards in one by one.
+    tabSwapTimer.current = setTimeout(() => {
+      tabSwapTimer.current = null;
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      setCommittedTab((current) => ({ filter: next, direction, generation: current.generation + 1 }));
+    }, 78);
+  }, [listOpacity, listShiftX, reducedMotion]);
 
   const openNote = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
@@ -515,21 +747,30 @@ export function NotebookScreen({ navigation }: Props) {
   }, [notes.length]);
 
   const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
-  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item }) => (
-    <LessonRow
-      lesson={item}
-      newest={item.id === newestNoteId}
-      opening={item.id === openingNoteId}
-      onOpen={openNote}
-      onRemove={requestRemove}
-    />
-  ), [newestNoteId, openNote, openingNoteId, requestRemove]);
+  const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item, index }) => (
+    <StaggerCardSlot
+      index={index}
+      generation={committedTab.generation}
+      direction={committedTab.direction}
+      reducedMotion={reducedMotion}
+    >
+      <LessonRow
+        lesson={item}
+        cardNumber={index + 1}
+        newest={item.id === newestNoteId}
+        opening={item.id === openingNoteId}
+        onOpen={openNote}
+        onRemove={requestRemove}
+      />
+    </StaggerCardSlot>
+  ), [committedTab.direction, committedTab.generation, newestNoteId, openNote, openingNoteId, reducedMotion, requestRemove]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
-  const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
-  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTabLabel;
+  const activeTabLabel = tabOptions.find((tab) => tab.value === selectedTab)?.label ?? 'Toate';
+  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : selectedTab === 'all' ? 'Probleme salvate' : activeTabLabel;
   const headerCount = loading && notes.length === 0 ? 'LECȚII SALVATE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
   const searchPlaceholder = isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole';
+  const mountSearchInput = transitionSettled || searchActivated;
 
   if (loading && notes.length === 0) {
     return (
@@ -565,18 +806,30 @@ export function NotebookScreen({ navigation }: Props) {
             <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
               <View pointerEvents="none" style={styles.searchShine} />
               <AppIcon name="search" size={26} />
-              <TextInput
-                autoCorrect={false}
-                returnKeyType="search"
-                value={queryText}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                onChangeText={setQueryText}
-                placeholder={searchPlaceholder}
-                placeholderTextColor={colors.inkSoft}
-                selectionColor={colors.violet}
-                style={styles.searchInput}
-              />
+              {mountSearchInput ? (
+                <TextInput
+                  autoFocus={searchActivated}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  value={queryText}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  onChangeText={setQueryText}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor={colors.inkSoft}
+                  selectionColor={colors.violet}
+                  style={styles.searchInput}
+                />
+              ) : (
+                <Pressable
+                  accessibilityRole="search"
+                  accessibilityLabel={searchPlaceholder}
+                  onPress={() => setSearchActivated(true)}
+                  style={styles.searchPlaceholderTouch}
+                >
+                  <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
+                </Pressable>
+              )}
               {queryText ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
                   <MiniGlyph name="close" size={14} color={colors.ink} />
@@ -588,7 +841,7 @@ export function NotebookScreen({ navigation }: Props) {
           <ComicTabBar
             compact
             options={tabOptions}
-            value={filter}
+            value={selectedTab}
             onChange={chooseFilter}
           />
         </View>
@@ -602,14 +855,9 @@ export function NotebookScreen({ navigation }: Props) {
 
         <View style={[styles.listHeading, { paddingHorizontal: gutter }]}>
           <View style={styles.listHeadingLeft}>
-            <View style={styles.miniMascotBadge}>
-              <Image
-                accessible={false}
-                fadeDuration={0}
-                source={bundledImageSource(mascotAssets.wave)}
-                resizeMode="contain"
-                style={styles.miniMascotImage}
-              />
+            <View collapsable={false} style={styles.miniMascotBadge}>
+              <View pointerEvents="none" style={styles.miniMascotShine} />
+              <AppIcon name="notebook" size={26} />
             </View>
             <View style={styles.listHeadingCopy}>
               <Text numberOfLines={1} style={styles.listEyebrow}>
@@ -618,20 +866,39 @@ export function NotebookScreen({ navigation }: Props) {
               <Text numberOfLines={1} style={styles.listTitle}>{resultLabel}</Text>
             </View>
           </View>
-          <View style={styles.visibleCountPill}>
+          <View collapsable={false} style={styles.visibleCountPill}>
             <Text style={styles.visibleCount}>
-              {visibleNotes.length} {visibleNotes.length === 1 ? 'lecție' : 'lecții'}
+              ★ {visibleNotes.length} {visibleNotes.length === 1 ? 'lecție' : 'lecții'}
             </Text>
           </View>
         </View>
 
-        <TabPanel key={filter} direction={direction} style={styles.listMotion}>
+        <Animated.View
+          collapsable={false}
+          style={[
+            styles.listMotion,
+            {
+              opacity: listOpacity,
+              transform: [{ translateX: listShiftX }],
+            },
+          ]}
+        >
           <FlatList
-            data={visibleNotes}
+            ref={listRef}
+            data={renderedNotes}
             renderItem={renderLesson}
             keyExtractor={keyExtractor}
             ItemSeparatorComponent={LessonSeparator}
-            ListEmptyComponent={visibleNotes.length === 0 ? <FilterEmpty filter={filter} query={normalizedQuery} onReset={resetFilters} onStart={startMode} /> : null}
+            ListEmptyComponent={renderedNotes.length === 0 ? (
+              <StaggerCardSlot
+                index={0}
+                generation={committedTab.generation}
+                direction={committedTab.direction}
+                reducedMotion={reducedMotion}
+              >
+                <FilterEmpty filter={filter} query={normalizedQuery} onReset={resetFilters} onStart={startMode} />
+              </StaggerCardSlot>
+            ) : null}
             ListFooterComponent={<View style={styles.listFooter} />}
             keyboardDismissMode="on-drag"
             keyboardShouldPersistTaps="handled"
@@ -642,7 +909,7 @@ export function NotebookScreen({ navigation }: Props) {
             windowSize={5}
             contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 18 }]}
           />
-        </TabPanel>
+        </Animated.View>
       </KeyboardAvoidingView>
 
       {pendingRemoval ? (
@@ -691,6 +958,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.shine,
   },
   searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
+  searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center' },
+  searchPlaceholderText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 13.5 },
   clearSearch: {
     width: 28,
     height: 28,
@@ -724,80 +993,117 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
     paddingTop: 6,
-    paddingBottom: 2,
+    paddingBottom: 3,
   },
-  listHeadingLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  listHeadingLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   miniMascotBadge: {
     width: 40,
     height: 40,
     borderRadius: 14,
     borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
     borderColor: colors.ink,
     backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     transform: [{ rotate: '-3deg' }],
   },
-  miniMascotImage: { width: 34, height: 34 },
+  miniMascotShine: {
+    position: 'absolute',
+    top: 2,
+    left: 6,
+    right: 6,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: colors.shine,
+  },
   listHeadingCopy: { flex: 1, minWidth: 0 },
-  listEyebrow: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
-  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 22.5, marginTop: 1 },
+  listEyebrow: { ...typography.kicker, fontSize: 10.5, lineHeight: 14, color: colors.violetDeep },
+  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 23, marginTop: 1 },
   visibleCountPill: {
+    minHeight: 26,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1.5,
+    borderBottomWidth: 3,
     borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
-    transform: [{ rotate: '1.5deg' }],
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  visibleCount: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
+  visibleCount: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 11.5,
+    lineHeight: 15,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
 
   listMotion: { flex: 1, minHeight: 0 },
-  listContent: { flexGrow: 1, paddingTop: 4 },
-  lessonSeparator: { height: 13 },
+  listContent: { flexGrow: 1, paddingTop: 5 },
+  lessonSeparator: { height: 14 },
 
   lessonRowWrap: {
     position: 'relative',
-    paddingBottom: shadows.sm + 1,
+    paddingBottom: shadows.md,
   },
   lessonRowShadow: {
     position: 'absolute',
-    top: shadows.sm + 1,
+    top: shadows.md,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: 22,
+    borderRadius: 23,
     backgroundColor: colors.ink,
   },
   lessonCard: {
     overflow: 'hidden',
-    borderRadius: 22,
+    borderRadius: 23,
     borderWidth: borders.regular,
     borderColor: colors.ink,
     backgroundColor: colors.paper,
     flexDirection: 'row',
   },
   lessonCardPressed: {
-    transform: [{ translateY: 3 }, { scale: 0.992 }],
+    transform: [{ translateY: 3.5 }, { scale: 0.99 }],
   },
   lessonRail: {
-    width: 16,
+    width: 18,
     borderRightWidth: borders.thin,
     borderRightColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'space-evenly',
     paddingVertical: 16,
+    position: 'relative',
+  },
+  railGloss: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+    left: 2,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: colors.shine,
   },
   railHole: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 8.5,
+    height: 8.5,
+    borderRadius: 4.5,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.canvas,
   },
-  lessonBody: { flex: 1, minWidth: 0, paddingHorizontal: 13, paddingTop: 11, paddingBottom: 10, position: 'relative' },
+  lessonBody: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 13,
+    paddingTop: 12,
+    paddingBottom: 11,
+    position: 'relative',
+  },
   cardShine: {
     position: 'absolute',
     top: 3,
@@ -807,63 +1113,247 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.shine,
   },
-  lessonMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7 },
-  metaLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  bookmarkRibbon: {
+    position: 'absolute',
+    top: -1,
+    right: 16,
+    width: 15,
+    height: 17,
+    backgroundColor: colors.peach,
+    borderLeftWidth: 1.5,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: colors.ink,
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  bookmarkNotch: {
+    width: 6,
+    height: 4,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    backgroundColor: colors.paper,
+    marginBottom: -1,
+  },
+  cardWatermark: {
+    position: 'absolute',
+    right: 10,
+    bottom: 40,
+    fontFamily: fonts.display,
+    fontSize: 54,
+    lineHeight: 58,
+    color: 'rgba(124, 60, 255, 0.055)',
+  },
+  lessonMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  lessonMetaNewest: {
+    paddingRight: 20,
+  },
+  metaLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   modeStamp: {
+    minHeight: 23,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    transform: [{ rotate: '-1deg' }],
-  },
-  modeText: { ...typography.kicker, fontSize: 9.5, lineHeight: 12, color: colors.ink },
-  newDot: {
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.lime,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    transform: [{ rotate: '2.5deg' }],
-  },
-  newDotText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9.5, letterSpacing: 0.45 },
-  timeText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11 },
-  problemIdentity: { marginTop: 7, fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 23 },
-  topicRow: { minHeight: 24, marginTop: 7, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  topicTag: {
-    flexShrink: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 9,
     borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.paperTint,
+    borderColor: colors.ink,
   },
-  topicMarker: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.25, borderColor: colors.ink },
-  topicText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
-  verdictBadge: {
-    flexShrink: 0,
+  modeGlyph: {
+    fontFamily: fonts.display,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  modeText: {
+    ...typography.kicker,
+    fontSize: 9.5,
+    lineHeight: 14,
+    paddingHorizontal: 1,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  newDot: {
+    minHeight: 23,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  newDotText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 9.5,
+    lineHeight: 14,
+    letterSpacing: 0.4,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
+  timePill: {
     minHeight: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: colors.canvas,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeText: {
+    fontFamily: fonts.bodyMedium,
+    color: colors.inkSoft,
+    fontSize: 10.5,
+    lineHeight: 14,
+    includeFontPadding: false,
+  },
+
+  titleRow: {
+    marginTop: 9,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  pageNumBadge: {
+    minWidth: 28,
+    minHeight: 24,
+    marginTop: 1,
+    paddingHorizontal: 6,
     borderRadius: 8,
     borderWidth: 1.5,
     borderColor: colors.ink,
-    paddingHorizontal: 7,
+    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '1.2deg' }],
   },
-  verdictText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.45 },
+  pageNumBadgeNew: {
+    backgroundColor: colors.goldSoft,
+  },
+  pageNumText: {
+    fontFamily: fonts.display,
+    fontSize: 11.5,
+    lineHeight: 15,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  problemIdentity: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 18.5,
+    lineHeight: 23,
+  },
+
+  snippetBox: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5DAF7',
+    backgroundColor: '#F7F3FF',
+    overflow: 'hidden',
+  },
+  snippetAccent: {
+    width: 4.5,
+    alignSelf: 'stretch',
+  },
+  snippetFormulaBadge: {
+    width: 22,
+    height: 22,
+    marginLeft: 8,
+    borderRadius: 7,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  snippetFormulaGlyph: {
+    fontFamily: fonts.display,
+    fontSize: 12,
+    lineHeight: 15,
+    color: colors.violetDeep,
+    includeFontPadding: false,
+  },
+  snippetText: {
+    flex: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    fontFamily: fonts.bodyMedium,
+    color: colors.inkSoft,
+    fontSize: 12.5,
+    lineHeight: 16.5,
+  },
+
+  topicRow: { minHeight: 26, marginTop: 9, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  topicTag: {
+    flexShrink: 1,
+    minHeight: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 9,
+    borderWidth: 1.25,
+    borderColor: colors.line,
+    backgroundColor: colors.paperTint,
+  },
+  topicMarker: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+  },
+  topicText: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 11.5,
+    lineHeight: 15,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
+  verdictBadge: {
+    flexShrink: 0,
+    minHeight: 25,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: colors.ink,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verdictText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0.35,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
 
   lessonFooter: {
-    marginTop: 10,
-    paddingTop: 8,
+    marginTop: 11,
+    paddingTop: 9,
     borderTopWidth: 1.5,
     borderTopColor: '#EFEAF8',
     flexDirection: 'row',
@@ -873,45 +1363,86 @@ const styles = StyleSheet.create({
   },
   detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
   detailChip: {
+    minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 8,
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 9,
     backgroundColor: colors.canvas,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  detailText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
-  detailDot: { width: 5, height: 5, borderRadius: 3 },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  removeAction: {
-    minHeight: 32,
-    borderRadius: 10,
     borderWidth: 1.25,
     borderColor: colors.line,
-    flexDirection: 'row',
+  },
+  detailDot: {
+    width: 5.5,
+    height: 5.5,
+    borderRadius: 3,
+    backgroundColor: colors.violet,
+  },
+  detailText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.inkSoft,
+    fontSize: 11,
+    lineHeight: 14,
+    includeFontPadding: false,
+  },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  removeAction: {
+    minHeight: 35,
+    borderRadius: 11,
+    borderWidth: 1.25,
+    borderColor: colors.line,
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    justifyContent: 'center',
+    paddingHorizontal: 9,
     backgroundColor: colors.paperTint,
   },
-  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11 },
+  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5, lineHeight: 15, includeFontPadding: false },
   openPill: {
-    minWidth: 88,
-    height: 32,
-    paddingHorizontal: 10,
-    borderRadius: 11,
+    minWidth: 106,
+    height: 36,
+    paddingLeft: 11,
+    paddingRight: 5,
+    borderRadius: 12,
     borderWidth: 1.5,
+    borderBottomWidth: 3.5,
     borderColor: colors.ink,
     backgroundColor: colors.violet,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 6,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  openPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
+  openPillShine: {
+    position: 'absolute',
+    top: 2,
+    left: 8,
+    right: 8,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  openPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 15, includeFontPadding: false },
+  openArrowBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  openArrowGlyph: {
+    fontFamily: fonts.display,
+    fontSize: 13,
+    lineHeight: 16,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
 
   loadingState: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 34 },
   stateChip: { marginTop: 12 },
@@ -940,10 +1471,30 @@ const styles = StyleSheet.create({
   secondaryEmptyAction: { minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   secondaryEmptyText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
 
-  filterEmpty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingTop: 34, paddingBottom: 24 },
-  filterEmptyTitle: { marginTop: 8, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 24, textAlign: 'center' },
+  filterEmpty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingTop: 28, paddingBottom: 24 },
+  filterEmptyBadge: {
+    width: 104,
+    height: 104,
+    borderRadius: 34,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterEmptyOwl: { width: 88, height: 88 },
+  filterEmptyTitle: { marginTop: 12, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 24, textAlign: 'center' },
   filterEmptyText: { maxWidth: 300, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 19, textAlign: 'center' },
-  filterEmptyActionWrap: { marginTop: 16 },
+  filterEmptyActionWrap: { marginTop: 16, position: 'relative', paddingBottom: shadows.sm },
+  filterEmptyActionShadow: {
+    position: 'absolute',
+    top: shadows.sm,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 14,
+    backgroundColor: colors.ink,
+  },
   filterEmptyAction: {
     minHeight: 44,
     paddingHorizontal: 18,
@@ -954,6 +1505,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  filterEmptyActionPressed: { transform: [{ translateY: 2.5 }] },
   filterEmptyActionText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13 },
 
   listFooter: { height: 10 },

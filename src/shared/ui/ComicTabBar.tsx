@@ -89,12 +89,13 @@ function ComicTabItem<T extends string>({
         </Text>
         {option.badge !== undefined ? (
           <View
+            collapsable={false}
             style={[
               styles.badge,
               compact && styles.badgeCompact,
               {
                 backgroundColor: active ? badgeFill : colors.violetSoft,
-                borderColor: active ? colors.ink : 'transparent',
+                borderColor: active ? colors.ink : colors.violetSoft,
               },
             ]}
           >
@@ -261,6 +262,7 @@ const styles = StyleSheet.create({
     top: TRACK_PADDING,
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
+    zIndex: 1,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.ink,
@@ -280,6 +282,7 @@ const styles = StyleSheet.create({
   },
   tabsRow: {
     flex: 1,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'stretch',
   },
@@ -302,36 +305,43 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: 12.5,
     lineHeight: 16,
+    includeFontPadding: false,
   },
   labelCompact: {
     fontSize: 12,
-    lineHeight: 15,
+    lineHeight: 16,
   },
   badge: {
+    flexShrink: 0,
     minWidth: 22,
-    height: 20,
+    minHeight: 20,
     borderRadius: 7,
     borderWidth: 1.25,
-    borderColor: 'transparent',
+    borderColor: colors.violetSoft,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
+    paddingVertical: 1,
   },
   badgeCompact: {
     minWidth: 20,
-    height: 18,
+    minHeight: 19,
     borderRadius: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
   },
   badgeText: {
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
     fontSize: 11,
-    lineHeight: 13,
+    lineHeight: 14,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   badgeTextCompact: {
     fontSize: 10.5,
+    lineHeight: 14,
   },
   disabled: {
     opacity: 0.5,

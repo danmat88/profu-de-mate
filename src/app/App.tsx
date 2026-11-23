@@ -161,6 +161,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
 function AppRoot() {
   const [startup, setStartup] = useState<AppStartup>();
   const [visualsReady, setVisualsReady] = useState(false);
+  const [splashIntroDone, setSplashIntroDone] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [homeRevealReady, setHomeRevealReady] = useState(false);
@@ -169,9 +170,11 @@ function AppRoot() {
   const [retrying, setRetrying] = useState(false);
   const [openingNotebook, setOpeningNotebook] = useState(false);
   const reducedMotion = useReducedMotion();
+  const markSplashIntroDone = useCallback(() => setSplashIntroDone(true), []);
   const markNavigationReady = useCallback(() => setNavigationReady(true), []);
   const startHomeReveal = useCallback(() => setHomeRevealReady(true), []);
   const finishLaunch = useCallback(() => {
+    setSplashIntroDone(true);
     setHomeRevealReady(true);
     setShowLaunchSplash(false);
   }, []);
@@ -182,6 +185,7 @@ function AppRoot() {
     const startedAt = Date.now();
     if (attempt === 0) setFailure(null);
     setStartup(undefined);
+    setSplashIntroDone(false);
     setNavigationReady(false);
     setHomeRevealReady(false);
     setShowLaunchSplash(true);
@@ -234,6 +238,7 @@ function AppRoot() {
       const session = currentStartupSession();
       if (!session) return;
       setVisualsReady(true);
+      setSplashIntroDone(false);
       setNavigationReady(false);
       setHomeRevealReady(false);
       setShowLaunchSplash(true);
@@ -258,7 +263,7 @@ function AppRoot() {
 
   return (
     <View style={styles.app}>
-      {startup ? <CommercialProvider initialAccess={startup.initialAccess} initialVerifiedAt={startup.verifiedAt} initiallyOffline={startup.offline}>
+      {startup && (splashIntroDone || reducedMotion) ? <CommercialProvider initialAccess={startup.initialAccess} initialVerifiedAt={startup.verifiedAt} initiallyOffline={startup.offline}>
         <AppExperience
           startup={startup}
           interactive={!showLaunchSplash}
@@ -266,7 +271,7 @@ function AppRoot() {
           onReady={markNavigationReady}
         />
       </CommercialProvider> : null}
-      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} startupReady={Boolean(startup)} reducedMotion={reducedMotion} onRevealStart={startHomeReveal} onFinish={finishLaunch} /> : null}
+      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} startupReady={Boolean(startup)} reducedMotion={reducedMotion} onIntroSettled={markSplashIntroDone} onRevealStart={startHomeReveal} onFinish={finishLaunch} /> : null}
     </View>
   );
 }
