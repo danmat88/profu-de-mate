@@ -7,6 +7,7 @@ import {
   isCurrentCommercialRefreshGeneration,
   shouldAutomaticallyRefreshCommercialAccess,
 } from '../../src/features/access/services/commercialRefreshPolicy.ts';
+import { resolveSplashMood } from '../../src/app/utils/splashMood.ts';
 
 const appSource = await readFile(new URL('../../src/app/App.tsx', import.meta.url), 'utf8');
 const splashSource = await readFile(new URL('../../src/app/components/LaunchSplash.tsx', import.meta.url), 'utf8');
@@ -76,6 +77,10 @@ test('React splash restores the branded comic scene on Home’s canvas with a bo
   assert.match(splashSource, /useNativeDriver: true/);
   assert.match(splashSource, /notifyIntroSettledOnce\(\)/);
   assert.match(splashSource, /notifyRevealOnce\(\)/);
+  assert.equal(resolveSplashMood(8, 0).period, 'morning');
+  assert.equal(resolveSplashMood(14, 1).period, 'day');
+  assert.equal(resolveSplashMood(21, 2).period, 'evening');
+  assert.notEqual(resolveSplashMood(14, 0).formula, resolveSplashMood(14, 1).formula);
 });
 
 test('native splash hands off only after the branded scene and image are painted', () => {

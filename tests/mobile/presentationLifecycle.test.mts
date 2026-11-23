@@ -40,6 +40,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
     },
     'expo-splash-screen': {}, 'expo-status-bar': { StatusBar: () => null },
     'src/shared/services/bundledImages.ts': { bundledImageSource: (id: number) => id },
+    'src/shared/services/haptics.ts': { selection() {} },
     'src/shared/ui/Typography.tsx': { Text: ({ style, children }: any) => {
       textMounts++;
       return React.createElement('span', { 'data-typeface': flatten(style).fontFamily }, children);
