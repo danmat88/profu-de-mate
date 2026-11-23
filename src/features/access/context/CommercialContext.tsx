@@ -280,8 +280,8 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         if (!user) return null;
         const next = await refresh();
         if (!next) {
-          const current = getAuth(getApp()).currentUser;
-          if (firebaseUserSessionKey(current) !== previousSessionKey) {
+          const current = getAuth(getApp()).currentUser ?? user;
+          if (firebaseUserSessionKey(current) !== previousSessionKey || identityFromUser(current) === 'google') {
             syncAuthUiState(current);
             clearAccessForIdentityChange('unavailable');
           }
@@ -292,9 +292,16 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         const current = getAuth(getApp()).currentUser;
         if (firebaseUserSessionKey(current) !== previousSessionKey) {
           const next = await refresh();
+          const active = getAuth(getApp()).currentUser ?? current;
           if (!next) {
-            syncAuthUiState(getAuth(getApp()).currentUser);
+            syncAuthUiState(active);
             clearAccessForIdentityChange('unavailable');
+          }
+          // Firebase Auth already switched to Google; never surface a false
+          // sign-in failure banner over an authenticated account.
+          if (identityFromUser(active) === 'google') {
+            recordDiagnosticError('google_connect', error);
+            return next;
           }
         }
         throw error;

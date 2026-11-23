@@ -9,6 +9,7 @@ const access = {
 const hooks = {
   useCallback: (fn: unknown) => fn,
   useContext: () => true,
+  useMemo: (fn: () => unknown) => fn(),
   useRef: (current: unknown) => ({ current }),
   useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, () => {}],
   useEffect() {},
@@ -215,6 +216,7 @@ function statefulSurfaceFixture(initialHeight = 802) {
     react: {
       useCallback: (fn: unknown) => fn,
       useContext: () => true,
+      useMemo: (fn: () => unknown) => fn(),
       useRef: (initial: unknown) => {
         const index = refCursor++;
         if (!refs[index]) refs[index] = { current: initial };

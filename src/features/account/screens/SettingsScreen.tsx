@@ -42,6 +42,8 @@ import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { Text } from '../../../shared/ui/Typography';
 import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
+import { isCurrentUserGoogle } from '../../access/services/commercial';
+import { friendlyGoogleConnectError, isGoogleSignInCancelledError } from '../../access/services/googleAuthErrors';
 import { GoogleAccountButton } from '../components/GoogleAccountButton';
 import { DataDeletionCancelledError } from '../services/dataManagement';
 
@@ -217,6 +219,7 @@ export function SettingsScreen({ navigation }: Props) {
     if (previousGoogleState.current === hasGoogleAccount) return;
     previousGoogleState.current = hasGoogleAccount;
     setHasSwappedAccount(true);
+    if (hasGoogleAccount) setAccountError(null);
     if (reducedMotion) return;
     identityPulse.set(withSequence(
       withTiming(0.985, { duration: 90, easing: Easing.out(Easing.quad) }),
@@ -314,12 +317,15 @@ export function SettingsScreen({ navigation }: Props) {
     setStatusNotice(null);
     try {
       const next = await connectGoogle();
-      if (next?.identity === 'google') {
+      if (next?.identity === 'google' || isCurrentUserGoogle()) {
         Haptics.notification(Haptics.NotificationFeedbackType.Success);
         showStatusNotice('Contul Google este conectat.', 'connected', 200);
       }
-    } catch {
-      setAccountError('Conectarea nu a reușit. Verifică internetul și încearcă din nou.');
+    } catch (error) {
+      if (isGoogleSignInCancelledError(error)) return;
+      recordDiagnosticError('google_connect', error);
+      setAccountError(friendlyGoogleConnectError(error));
+      Haptics.notification(Haptics.NotificationFeedbackType.Error);
     } finally {
       connectLocked.current = false;
       setConnectingGoogle(false);

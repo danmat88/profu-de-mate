@@ -71,6 +71,8 @@ test('React splash restores the branded comic scene on Home’s canvas with a bo
   assert.match(splashSource, /<ComicBackdrop \/>/);
   assert.match(splashSource, /const SplashProgressHeader = memo\(/);
   assert.match(splashSource, /translateX: progressFill\.interpolate\(/);
+  assert.doesNotMatch(splashSource, /Animated\.loop\(\s*Animated\.sequence/);
+  assert.doesNotMatch(splashSource, /setBarWidth/);
   assert.match(splashSource, /useNativeDriver: true/);
   assert.match(splashSource, /notifyIntroSettledOnce\(\)/);
   assert.match(splashSource, /notifyRevealOnce\(\)/);
@@ -250,6 +252,8 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   assert.match(pressableScaleSource, /deferPressMs = 0/);
   assert.doesNotMatch(pressableScaleSource, /react-native-reanimated/);
   assert.doesNotMatch(homeSurfaceSource, /react-native-reanimated/);
+  assert.doesNotMatch(homeSurfaceSource, /Animated\.loop\(\s*Animated\.sequence/);
+  assert.match(homeSurfaceSource, /COS_PING_PONG/);
   assert.doesNotMatch(homeSurfaceSource, /deferPressMs=/);
   assert.doesNotMatch(homeSurfaceSource, /useIsFocused/);
   assert.match(homeSource, /focused=\{homeFocused\}/);

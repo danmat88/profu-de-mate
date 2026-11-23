@@ -21,6 +21,7 @@ import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled
 import { createLatestTask, type TaskState } from '../../../shared/utils/latestTask';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { isCommercialAccessExpired } from '../services/commercialRefreshPolicy';
+import { friendlyGoogleConnectError, isGoogleSignInCancelledError } from '../services/googleAuthErrors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Paywall'>;
 function friendlyPurchaseError(error: unknown): string {
@@ -126,7 +127,9 @@ export function PaywallScreen({ navigation, route }: Props) {
     try {
       await connectGoogle();
     } catch (connectError) {
-      setError(friendlyPurchaseError(connectError));
+      if (!isGoogleSignInCancelledError(connectError)) {
+        setError(friendlyGoogleConnectError(connectError));
+      }
     } finally {
       setBusy(null);
     }

@@ -4,6 +4,7 @@ import {
   getIdToken,
   GoogleAuthProvider,
   linkWithCredential,
+  onIdTokenChanged,
   reauthenticateWithCredential,
   signOut,
   signInWithCredential,
@@ -26,7 +27,14 @@ import { initializePurchases, resetPurchasesForSignedOutUser } from './purchases
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { discardPendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { clearMathDrafts } from '../../math/services/mathDraft';
-import { assertSessionActive, captureSession, invalidateSessionOperations } from '../../../shared/services/sessionGuard';
+import {
+  assertSessionActive,
+  captureSession,
+  currentSessionGeneration,
+  invalidateSessionOperations,
+  SessionChangedError,
+} from '../../../shared/services/sessionGuard';
+import { isGoogleSignInCancelledError } from './googleAuthErrors';
 
 type PrepareMergeResponse = { ticket: string };
 type CompleteMergeResponse = { merged: true; copiedLessons: number };
@@ -350,7 +358,64 @@ function isCredentialCollision(error: unknown): boolean {
   return code === 'auth/credential-already-in-use' || code === 'auth/account-exists-with-different-credential';
 }
 
-export async function connectWithGoogle(): Promise<User | null> {
+function isGoogleFirebaseUser(user: User | null | undefined): boolean {
+  return Boolean(
+    user
+    && !user.isAnonymous
+    && user.providerData.some((provider) => provider.providerId === 'google.com'),
+  );
+}
+
+export function isCurrentUserGoogle(): boolean {
+  try {
+    return isGoogleFirebaseUser(getAuth(getApp()).currentUser);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * React Native Firebase resolves linkWithCredential / signInWithCredential
+ * slightly before its native auth_state_changed bridge event updates
+ * auth.currentUser. Wait briefly for auth.currentUser to catch up so follow-up
+ * session checks and commercial refreshes see the newly signed-in Google user
+ * instead of tripping a false SessionChangedError.
+ */
+async function waitForFirebaseCurrentUser(
+  expectedUid: string,
+  expectGoogle: boolean,
+  timeoutMs = 1_500,
+): Promise<User | null> {
+  const auth = getAuth(getApp());
+  const matches = (candidate: User | null | undefined): candidate is User => Boolean(
+    candidate
+    && candidate.uid === expectedUid
+    && (!expectGoogle || isGoogleFirebaseUser(candidate)),
+  );
+  if (matches(auth.currentUser)) return auth.currentUser;
+  if (typeof onIdTokenChanged !== 'function') return auth.currentUser ?? null;
+
+  return new Promise<User | null>((resolve) => {
+    let settled = false;
+    let unsubscribe: (() => void) | undefined;
+    const finish = (resolvedUser: User | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsubscribe?.();
+      resolve(resolvedUser);
+    };
+    const timer = setTimeout(() => {
+      finish(auth.currentUser ?? null);
+    }, timeoutMs);
+    unsubscribe = onIdTokenChanged(auth, (user) => {
+      if (matches(user)) finish(user);
+    });
+    if (matches(auth.currentUser)) finish(auth.currentUser);
+  });
+}
+
+async function promptGoogleIdToken(): Promise<string | null> {
   await configureGoogle();
   const {
     GoogleOneTapSignIn,
@@ -358,9 +423,37 @@ export async function connectWithGoogle(): Promise<User | null> {
     isNoSavedCredentialFoundResponse,
     isSuccessResponse,
   } = await googleSigninModule();
+  await GoogleOneTapSignIn.checkPlayServices(true);
+  let response;
+  try {
+    response = await GoogleOneTapSignIn.signIn();
+    if (isNoSavedCredentialFoundResponse(response)) {
+      response = await GoogleOneTapSignIn.createAccount();
+    }
+    if (
+      isNoSavedCredentialFoundResponse(response)
+      && typeof GoogleOneTapSignIn.presentExplicitSignIn === 'function'
+    ) {
+      response = await GoogleOneTapSignIn.presentExplicitSignIn();
+    }
+  } catch (error) {
+    if (isGoogleSignInCancelledError(error)) return null;
+    throw error;
+  }
+  if (isCancelledResponse(response)) {
+    return null;
+  }
+  if (!isSuccessResponse(response) || !response.data.idToken) {
+    throw new Error('Google nu a furnizat un token de conectare.');
+  }
+  return response.data.idToken;
+}
+
+export async function connectWithGoogle(): Promise<User | null> {
+  await configureGoogle();
   const sourceUser = await initializeVerifiedFirebaseServices();
   const sourceSession = captureSession(sourceUser.uid);
-  if (!sourceUser.isAnonymous && sourceUser.providerData.some((provider) => provider.providerId === 'google.com')) {
+  if (isGoogleFirebaseUser(sourceUser)) {
     await resumePendingMergeWithoutBlocking(sourceUser);
     return sourceUser;
   }
@@ -377,18 +470,11 @@ export async function connectWithGoogle(): Promise<User | null> {
     pending = { ticket: merge.ticket, sourceUserId: sourceUser.uid, createdAt: Date.now() };
     await writePendingMerges([...pendingMerges, pending]);
   }
-  await GoogleOneTapSignIn.checkPlayServices(true);
-  let response = await GoogleOneTapSignIn.signIn();
-  if (isNoSavedCredentialFoundResponse(response)) {
-    response = await GoogleOneTapSignIn.createAccount();
-  }
-  if (isCancelledResponse(response)) {
-    return null;
-  }
-  if (!isSuccessResponse(response) || !response.data.idToken) {
-    throw new Error('Google nu a furnizat un token de conectare.');
-  }
-  const credential = GoogleAuthProvider.credential(response.data.idToken);
+
+  const idToken = await promptGoogleIdToken();
+  if (!idToken) return null;
+
+  const credential = GoogleAuthProvider.credential(idToken);
   assertSessionActive(sourceSession);
   const auth = getAuth(getApp());
   let targetUser: User;
@@ -403,38 +489,39 @@ export async function connectWithGoogle(): Promise<User | null> {
     needsMerge = true;
   }
 
+  // Firebase Auth has now committed the Google identity. Keep post-auth
+  // housekeeping resilient against native currentUser bridge lag and transient
+  // Activity-resume network hiccups so a succeeded login never reports failure.
+  const postAuthGeneration = currentSessionGeneration();
   resetFirebaseInitialization();
   clearFavoriteLessonsCache();
   if (sourceUser.uid !== targetUser.uid) {
     discardPendingAnalysis();
     clearMathDrafts();
   }
-  const targetSession = captureSession(targetUser.uid);
   await writePendingMerges((await readPendingMerges()).map((merge) => (
     merge.ticket === pending.ticket ? { ...merge, targetUserId: targetUser.uid } : merge
   ))).catch((error) => recordDiagnosticError('google_account_merge', error));
-  await getIdToken(targetUser, true);
-  assertSessionActive(targetSession);
-  if (needsMerge) await resumePendingMergeWithoutBlocking(targetUser);
-  return targetUser;
+
+  const syncedUser = await waitForFirebaseCurrentUser(targetUser.uid, true) ?? targetUser;
+  if (currentSessionGeneration() !== postAuthGeneration) {
+    throw new SessionChangedError();
+  }
+
+  await getIdToken(syncedUser, true).catch((error) => {
+    recordDiagnosticError('google_connect', error);
+  });
+  if (currentSessionGeneration() !== postAuthGeneration) {
+    throw new SessionChangedError();
+  }
+  if (needsMerge) await resumePendingMergeWithoutBlocking(syncedUser);
+  return syncedUser;
 }
 
 async function googleCredentialFromPrompt(): Promise<ReturnType<typeof GoogleAuthProvider.credential> | null> {
-  await configureGoogle();
-  const {
-    GoogleOneTapSignIn,
-    isCancelledResponse,
-    isNoSavedCredentialFoundResponse,
-    isSuccessResponse,
-  } = await googleSigninModule();
-  await GoogleOneTapSignIn.checkPlayServices(true);
-  let response = await GoogleOneTapSignIn.signIn();
-  if (isNoSavedCredentialFoundResponse(response)) response = await GoogleOneTapSignIn.createAccount();
-  if (isCancelledResponse(response)) return null;
-  if (!isSuccessResponse(response) || !response.data.idToken) {
-    throw new Error('Google nu a furnizat un token de conectare.');
-  }
-  return GoogleAuthProvider.credential(response.data.idToken);
+  const idToken = await promptGoogleIdToken();
+  if (!idToken) return null;
+  return GoogleAuthProvider.credential(idToken);
 }
 
 export async function confirmGoogleIdentityForDeletion(): Promise<boolean> {

@@ -24,6 +24,10 @@ export function invalidateSessionOperations(): void {
   generation += 1;
 }
 
+export function currentSessionGeneration(): number {
+  return generation;
+}
+
 export function captureSession(expectedUserId?: string): ActiveSession {
   const user = getAuth(getApp()).currentUser;
   const sessionKey = authSessionIdentityKey(user);

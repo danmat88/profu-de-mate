@@ -10,6 +10,7 @@ export type DiagnosticContext =
   | 'data_deletion'
   | 'feedback_submission'
   | 'firebase_initialization'
+  | 'google_connect'
   | 'google_disconnect'
   | 'google_account_merge'
   | 'notebook_prewarm'

@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -119,6 +119,16 @@ const PENDING_MESSAGES: readonly TutorMessage[] = [
 
 const HERO_HALFTONE_DOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
 
+// Exact cosine wave samples so a single linear Animated.timing inside
+// Animated.loop executes via Android NativeAnimatedModule _startNativeLoop(-1)
+// with zero JS callbacks, zero pauses, and mathematically seamless turnaround.
+const WAVE_INPUT = [
+  0, 0.0625, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375,
+  0.5, 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1,
+];
+const COS_PING_PONG = WAVE_INPUT.map((t) => -Math.cos(2 * Math.PI * t));
+const COS_PULSE = WAVE_INPUT.map((t) => 0.5 - 0.5 * Math.cos(2 * Math.PI * t));
+
 function solveGreeting(hour: number): string {
   if (hour >= 6 && hour < 12) return 'Bună dimineața!';
   if (hour >= 18 && hour < 23) return 'Lucrăm ceva azi?';
@@ -190,7 +200,7 @@ export function HomeSurface({
   const stagePop = useRef(new Animated.Value(1)).current;
   const medallionPop = useRef(new Animated.Value(1)).current;
   const modeBlend = useRef(new Animated.Value(isSolve || hasPendingAnalysis ? 0 : 1)).current;
-  const beamProgress = useRef(new Animated.Value(0.5)).current;
+  const beamProgress = useRef(new Animated.Value(0)).current;
   const sparkPulse = useRef(new Animated.Value(0)).current;
   const arrowNudge = useRef(new Animated.Value(0)).current;
   const ctaSheen = useRef(new Animated.Value(0)).current;
@@ -213,7 +223,8 @@ export function HomeSurface({
     }
   }, [cheerScope]);
 
-  // Ambient studio loops run strictly on native RenderThread and stop instantly on blur or transitionStart.
+  // Ambient studio loops run strictly via single-timing native _startNativeLoop(-1)
+  // on Android RenderThread with zero JS callbacks, and stop instantly on blur/transition.
   useEffect(() => {
     if (!motionActive) {
       beamProgress.stopAnimation();
@@ -221,7 +232,7 @@ export function HomeSurface({
       arrowNudge.stopAnimation();
       ctaSheen.stopAnimation();
       mascotHaloSpin.stopAnimation();
-      beamProgress.setValue(0.5);
+      beamProgress.setValue(0.25);
       sparkPulse.setValue(0);
       arrowNudge.setValue(0);
       ctaSheen.setValue(0);
@@ -230,124 +241,41 @@ export function HomeSurface({
     }
 
     const loops: Animated.CompositeAnimation[] = [];
-    const startLoop = (anim: Animated.CompositeAnimation) => {
-      loops.push(anim);
-      anim.start();
-    };
-
-    mascotHaloSpin.setValue(0);
-    startLoop(Animated.sequence([
-      Animated.delay(340),
-      Animated.loop(
-        Animated.timing(mascotHaloSpin, {
+    const startNativeLoop = (value: Animated.Value, duration: number) => {
+      value.setValue(0);
+      const loop = Animated.loop(
+        Animated.timing(value, {
           toValue: 1,
-          duration: 28_000,
+          duration,
           easing: Easing.linear,
           useNativeDriver: true,
         }),
-      ),
-    ]));
+      );
+      loops.push(loop);
+      loop.start();
+    };
 
-    if (hasPendingAnalysis) {
-      beamProgress.stopAnimation();
-      sparkPulse.stopAnimation();
-      arrowNudge.stopAnimation();
-      ctaSheen.stopAnimation();
-      beamProgress.setValue(0.5);
-      sparkPulse.setValue(0);
-      arrowNudge.setValue(0);
-      ctaSheen.setValue(0);
-      return () => {
-        loops.forEach((loop) => loop.stop());
-        mascotHaloSpin.stopAnimation();
-      };
-    }
-
-    beamProgress.setValue(0);
-    startLoop(Animated.sequence([
-      Animated.delay(380),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(beamProgress, {
-            toValue: 1,
-            duration: 1850,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(beamProgress, {
-            toValue: 0,
-            duration: 1850,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-    ]));
-
-    sparkPulse.setValue(0);
-    startLoop(Animated.sequence([
-      Animated.delay(400),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(sparkPulse, {
-            toValue: 1,
-            duration: 1350,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(sparkPulse, {
-            toValue: 0,
-            duration: 1350,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-    ]));
-
-    arrowNudge.setValue(0);
-    startLoop(Animated.sequence([
-      Animated.delay(440),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(arrowNudge, {
-            toValue: 3.5,
-            duration: 880,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.timing(arrowNudge, {
-            toValue: 0,
-            duration: 880,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-    ]));
-
-    ctaSheen.setValue(0);
-    startLoop(Animated.sequence([
-      Animated.delay(850),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(ctaSheen, {
-            toValue: 1,
-            duration: 720,
-            easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.delay(2_700),
-          Animated.timing(ctaSheen, {
-            toValue: 0,
-            duration: 0,
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-    ]));
+    const startTimer = setTimeout(() => {
+      startNativeLoop(mascotHaloSpin, 28_000);
+      if (hasPendingAnalysis) {
+        beamProgress.stopAnimation();
+        sparkPulse.stopAnimation();
+        arrowNudge.stopAnimation();
+        ctaSheen.stopAnimation();
+        beamProgress.setValue(0.25);
+        sparkPulse.setValue(0);
+        arrowNudge.setValue(0);
+        ctaSheen.setValue(0);
+        return;
+      }
+      startNativeLoop(beamProgress, 3_200);
+      startNativeLoop(sparkPulse, 2_600);
+      startNativeLoop(arrowNudge, 1_750);
+      startNativeLoop(ctaSheen, 3_400);
+    }, 280);
 
     return () => {
+      clearTimeout(startTimer);
       loops.forEach((loop) => loop.stop());
       beamProgress.stopAnimation();
       sparkPulse.stopAnimation();
@@ -452,74 +380,81 @@ export function HomeSurface({
     cycleEncouragement();
   };
 
-  const stageAnimated = {
+  const stageAnimated = useMemo(() => ({
     transform: [{ scale: stagePop }],
-  };
+  }), [stagePop]);
 
-  const checkGradientStyle = {
+  const checkGradientStyle = useMemo(() => ({
     opacity: modeBlend,
-  };
+  }), [modeBlend]);
 
-  const medallionAnimated = {
+  const medallionAnimated = useMemo(() => ({
     transform: [{ scale: medallionPop }],
-  };
+  }), [medallionPop]);
 
   const beamRange = compact ? 22 : 34;
-  const beamStyle = {
+  const beamTranslateY = useMemo(
+    () => beamProgress.interpolate({
+      inputRange: WAVE_INPUT,
+      outputRange: COS_PING_PONG.map((value) => value * beamRange),
+    }),
+    [beamProgress, beamRange],
+  );
+  const beamStyle = useMemo(() => ({
     opacity: hasPendingAnalysis ? 0 : 0.96,
-    transform: [
-      {
-        translateY: beamProgress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-beamRange, beamRange],
-        }),
-      },
-    ],
-  };
+    transform: [{ translateY: beamTranslateY }],
+  }), [beamTranslateY, hasPendingAnalysis]);
 
-  const sparkStyle = {
+  const sparkStyle = useMemo(() => ({
     opacity: sparkPulse.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0.72, 1],
+      inputRange: WAVE_INPUT,
+      outputRange: COS_PULSE.map((value) => 0.72 + value * 0.28),
     }),
     transform: [
       {
         scale: sparkPulse.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.92, 1.12],
+          inputRange: WAVE_INPUT,
+          outputRange: COS_PULSE.map((value) => 0.92 + value * 0.2),
         }),
       },
       {
         rotate: sparkPulse.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['-8deg', '8deg'],
+          inputRange: WAVE_INPUT,
+          outputRange: COS_PULSE.map((value) => `${(-8 + value * 16).toFixed(2)}deg`),
         }),
       },
     ],
-  };
+  }), [sparkPulse]);
 
-  const arrowStyle = {
-    transform: [{ translateX: arrowNudge }],
-  };
+  const arrowStyle = useMemo(() => ({
+    transform: [
+      {
+        translateX: arrowNudge.interpolate({
+          inputRange: WAVE_INPUT,
+          outputRange: COS_PULSE.map((value) => value * 3.5),
+        }),
+      },
+    ],
+  }), [arrowNudge]);
 
-  const ctaSheenStyle = {
+  const ctaSheenStyle = useMemo(() => ({
     opacity: ctaSheen.interpolate({
-      inputRange: [0, 0.04, 0.96, 1],
-      outputRange: [0, 0.36, 0.36, 0],
+      inputRange: [0, 0.1, 0.14, 0.3, 0.34, 1],
+      outputRange: [0, 0, 0.36, 0.36, 0, 0],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         translateX: ctaSheen.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-90, 340],
+          inputRange: [0, 0.1, 0.34, 1],
+          outputRange: [-90, -90, 340, 340],
         }),
       },
       { skewX: '-22deg' },
     ],
-  };
+  }), [ctaSheen]);
 
-  const mascotHaloStyle = {
+  const mascotHaloStyle = useMemo(() => ({
     transform: [
       {
         rotate: mascotHaloSpin.interpolate({
@@ -528,103 +463,44 @@ export function HomeSurface({
         }),
       },
     ],
-  };
+  }), [mascotHaloSpin]);
 
-  const sparkArcOpacity = tapSpark.interpolate({
-    inputRange: [0, 0.22, 0.5, 0.78, 1],
-    outputRange: [0, 0.78, 1, 0.78, 0],
-    extrapolate: 'clamp',
-  });
-
-  const sparkTopStyle = {
-    opacity: sparkArcOpacity,
-    transform: [
-      {
-        translateX: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -14],
-        }),
+  const { sparkTopStyle, sparkRightStyle, sparkLeftStyle } = useMemo(() => {
+    const arcOpacity = tapSpark.interpolate({
+      inputRange: [0, 0.22, 0.5, 0.78, 1],
+      outputRange: [0, 0.78, 1, 0.78, 0],
+      extrapolate: 'clamp',
+    });
+    return {
+      sparkTopStyle: {
+        opacity: arcOpacity,
+        transform: [
+          { translateX: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0, -14] }) },
+          { translateY: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0, -22] }) },
+          { scale: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.2] }) },
+          { rotate: tapSpark.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '18deg'] }) },
+        ],
       },
-      {
-        translateY: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -22],
-        }),
+      sparkRightStyle: {
+        opacity: arcOpacity,
+        transform: [
+          { translateX: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0, 22] }) },
+          { translateY: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0, -16] }) },
+          { scale: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1.2] }) },
+          { rotate: tapSpark.interpolate({ inputRange: [0, 1], outputRange: ['18deg', '-18deg'] }) },
+        ],
       },
-      {
-        scale: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.5, 1.2],
-        }),
+      sparkLeftStyle: {
+        opacity: arcOpacity,
+        transform: [
+          { translateX: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0, -22] }) },
+          { translateY: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) },
+          { scale: tapSpark.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1.1] }) },
+          { rotate: tapSpark.interpolate({ inputRange: [0, 1], outputRange: ['-10deg', '18deg'] }) },
+        ],
       },
-      {
-        rotate: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['-16deg', '18deg'],
-        }),
-      },
-    ],
-  };
-
-  const sparkRightStyle = {
-    opacity: sparkArcOpacity,
-    transform: [
-      {
-        translateX: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 22],
-        }),
-      },
-      {
-        translateY: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -16],
-        }),
-      },
-      {
-        scale: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.45, 1.2],
-        }),
-      },
-      {
-        rotate: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['18deg', '-18deg'],
-        }),
-      },
-    ],
-  };
-
-  const sparkLeftStyle = {
-    opacity: sparkArcOpacity,
-    transform: [
-      {
-        translateX: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, -22],
-        }),
-      },
-      {
-        translateY: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, 6],
-        }),
-      },
-      {
-        scale: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.45, 1.1],
-        }),
-      },
-      {
-        rotate: tapSpark.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['-10deg', '18deg'],
-        }),
-      },
-    ],
-  };
+    };
+  }, [tapSpark]);
 
   const activeCheer = !galleryError && cheerIndex !== null
     ? cheerPool[cheerIndex]
