@@ -1,7 +1,7 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { bundledImageSource } from '../../shared/services/bundledImages';
 import { borders, colors, fonts, radii, shadows, typography } from '../../shared/theme';
 import { ComicBackdrop } from '../../shared/ui/ComicBackdrop';
@@ -9,6 +9,57 @@ import { Text } from '../../shared/ui/Typography';
 
 type Props = { children: ReactNode; onError?: (error: Error, info: ErrorInfo) => void };
 type State = { error: Error | null; resetKey: number };
+
+function ErrorFallback({ onRetry }: { onRetry: () => void }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[styles.safe, { paddingTop: insets.top ?? 0, paddingBottom: insets.bottom ?? 0 }]}>
+      <ComicBackdrop />
+      <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.content}>
+        <View style={styles.mascotWrap}>
+          <View style={styles.mascotShadow} />
+          <View style={styles.mascotHalo}>
+            <View pointerEvents="none" style={styles.haloShine} />
+            <Image
+              accessible={false}
+              source={bundledImageSource(require('../../../assets/mascot/owl_oops.png'))}
+              resizeMode="contain"
+              style={styles.mascot}
+            />
+          </View>
+          <View style={styles.oopsTag}>
+            <Text style={styles.oopsTagText}>HOPA!</Text>
+          </View>
+        </View>
+
+        <View style={styles.cardWrap}>
+          <View pointerEvents="none" style={styles.cardShadow} />
+          <View style={styles.card}>
+            <View pointerEvents="none" style={styles.cardShine} />
+            <Text style={styles.eyebrow}>APLICAȚIA A ÎNTÂMPINAT O PROBLEMĂ</Text>
+            <Text style={styles.title}>Ceva nu a mers.</Text>
+            <Text style={styles.message}>
+              Încearcă să încarci din nou ecranul. Dacă problema apare iar, închide complet aplicația și deschide-o din nou.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.buttonWrap}>
+          <View pointerEvents="none" style={styles.buttonShadow} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Încarcă din nou ecranul"
+            onPress={onRetry}
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          >
+            <View pointerEvents="none" style={styles.buttonShine} />
+            <Text style={styles.buttonText}>Încarcă din nou</Text>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = { error: null, resetKey: 0 };
@@ -31,53 +82,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       return <View key={this.state.resetKey} style={styles.app}>{this.props.children}</View>;
     }
 
-    return (
-      <SafeAreaView style={styles.safe}>
-        <ComicBackdrop />
-        <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.content}>
-          <View style={styles.mascotWrap}>
-            <View style={styles.mascotShadow} />
-            <View style={styles.mascotHalo}>
-              <View pointerEvents="none" style={styles.haloShine} />
-              <Image
-                accessible={false}
-                source={bundledImageSource(require('../../../assets/mascot/owl_oops.png'))}
-                resizeMode="contain"
-                style={styles.mascot}
-              />
-            </View>
-            <View style={styles.oopsTag}>
-              <Text style={styles.oopsTagText}>HOPA!</Text>
-            </View>
-          </View>
-
-          <View style={styles.cardWrap}>
-            <View pointerEvents="none" style={styles.cardShadow} />
-            <View style={styles.card}>
-              <View pointerEvents="none" style={styles.cardShine} />
-              <Text style={styles.eyebrow}>APLICAȚIA A ÎNTÂMPINAT O PROBLEMĂ</Text>
-              <Text style={styles.title}>Ceva nu a mers.</Text>
-              <Text style={styles.message}>
-                Încearcă să încarci din nou ecranul. Dacă problema apare iar, închide complet aplicația și deschide-o din nou.
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.buttonWrap}>
-            <View pointerEvents="none" style={styles.buttonShadow} />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Încarcă din nou ecranul"
-              onPress={this.retry}
-              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            >
-              <View pointerEvents="none" style={styles.buttonShine} />
-              <Text style={styles.buttonText}>Încarcă din nou</Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeAreaView>
-    );
+    return <ErrorFallback onRetry={this.retry} />;
   }
 }
 

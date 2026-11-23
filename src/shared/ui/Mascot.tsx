@@ -89,8 +89,14 @@ export function Mascot({
     if (reducedMotion || !active) {
       cancelAnimation(floatY);
       cancelAnimation(tilt);
+      cancelAnimation(hopY);
+      cancelAnimation(wiggle);
+      cancelAnimation(pop);
       floatY.set(0);
       tilt.set(0);
+      hopY.set(0);
+      wiggle.set(0);
+      pop.set(1);
       return;
     }
 

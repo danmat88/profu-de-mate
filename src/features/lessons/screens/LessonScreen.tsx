@@ -508,7 +508,14 @@ export function LessonScreen({ navigation, route }: Props) {
       </View>
 
       {alternate ? (
-        <Modal visible transparent animationType="none" onRequestClose={closeAlternate}>
+        <Modal
+          visible
+          transparent
+          animationType="none"
+          statusBarTranslucent
+          navigationBarTranslucent
+          onRequestClose={closeAlternate}
+        >
           <View style={styles.modalLayer}>
             <Animated.View pointerEvents="none" style={[styles.scrim, alternateScrimStyle]} />
             <Pressable accessible={false} onPress={closeAlternate} style={StyleSheet.absoluteFill} />
@@ -532,7 +539,14 @@ export function LessonScreen({ navigation, route }: Props) {
       ) : null}
 
       {problemOpen ? (
-        <Modal visible transparent animationType="none" onRequestClose={closeProblem}>
+        <Modal
+          visible
+          transparent
+          animationType="none"
+          statusBarTranslucent
+          navigationBarTranslucent
+          onRequestClose={closeProblem}
+        >
           <View style={styles.modalLayer}>
             <Animated.View pointerEvents="none" style={[styles.scrim, problemScrimStyle]} />
             <Pressable accessible={false} onPress={closeProblem} style={StyleSheet.absoluteFill} />

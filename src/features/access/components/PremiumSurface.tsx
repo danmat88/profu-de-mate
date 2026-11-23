@@ -8,7 +8,7 @@ import Animated, {
   FadeOutDown,
   LinearTransition,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -105,7 +105,8 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
 }
 
 export function PremiumSurface(props: Props) {
-  const { gutter, isVeryShort } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter, isVeryShort } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit, active = true } = props;

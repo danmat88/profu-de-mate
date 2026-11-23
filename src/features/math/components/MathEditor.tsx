@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import Svg, { Path, Polyline } from 'react-native-svg';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
@@ -596,7 +597,8 @@ export function MathEditor({
   referenceText,
   onPressReference,
 }: MathEditorProps) {
-  const { isVeryShort, isShort } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { isVeryShort, isShort } = useResponsiveLayout(frame);
   const compact = isVeryShort || isShort;
   const [showRelations, setShowRelations] = useState(false);
   const [expanded, setExpanded] = useState(false);

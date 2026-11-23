@@ -37,7 +37,11 @@ function render(contextAccess: CommercialAccess | null, loading: boolean, source
       withSpring: (v: unknown) => v,
       withTiming: (v: unknown) => v,
     },
-    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ bottom: 0 }) },
+    'react-native-safe-area-context': {
+      SafeAreaView: 'SafeAreaView',
+      useSafeAreaFrame: () => ({ x: 0, y: 0, width: 390, height: 844 }),
+      useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+    },
     'expo-linear-gradient': { LinearGradient: 'LinearGradient' },
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access: contextAccess, identity: options.identity, loading, refresh: () => { refreshCalls++; }, connectGoogle: noop, applyServerAccess: noop }) },

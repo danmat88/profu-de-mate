@@ -236,6 +236,7 @@ export function HomeSurface({
       sparkPulse.set(0);
       arrowNudge.set(0);
       ctaSheen.set(0);
+      mascotHaloSpin.set(0);
       return;
     }
 

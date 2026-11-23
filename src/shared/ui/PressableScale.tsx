@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -71,8 +72,11 @@ export function PressableScale({
   const deferTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (reducedMotion) pressed.set(0);
-  }, [pressed, reducedMotion]);
+    if (reducedMotion || disabled) {
+      cancelAnimation(pressed);
+      pressed.set(0);
+    }
+  }, [disabled, pressed, reducedMotion]);
 
   useEffect(() => () => {
     if (deferTimer.current) clearTimeout(deferTimer.current);

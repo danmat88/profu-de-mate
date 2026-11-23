@@ -6,12 +6,13 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { LaunchSplash } from './components/LaunchSplash';
 import { HomeMotionReadyContext } from '../features/home/context/HomeMotionContext';
 import { CommercialProvider, useCommercial } from '../features/access/context/CommercialContext';
 import { useReducedMotion } from '../shared/hooks/useReducedMotion';
+import { startImmersiveNavigationBarGuard } from '../shared/services/immersiveNavigationBar';
+import { StableSafeAreaProvider } from '../shared/ui/StableSafeAreaProvider';
 import { CaptureScreen } from '../features/capture/screens/CaptureScreen';
 import { HomeScreen } from '../features/home/screens/HomeScreen';
 import { MathInputScreen } from '../features/math/screens/MathInputScreen';
@@ -224,6 +225,8 @@ function AppRoot() {
     if (failure) void SplashScreen.hideAsync().catch(() => undefined);
   }, [failure]);
 
+  useEffect(() => startImmersiveNavigationBarGuard(), []);
+
   const retryStartup = () => {
     if (retrying || openingNotebook) return;
     setRetrying(true);
@@ -285,14 +288,14 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <GestureHandlerRootView style={styles.gestureRoot}>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <StableSafeAreaProvider>
         <AppErrorBoundary onError={(error) => {
           void SplashScreen.hideAsync();
           recordDiagnosticError('app_render', error);
         }}>
           <AppRoot />
         </AppErrorBoundary>
-      </SafeAreaProvider>
+      </StableSafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

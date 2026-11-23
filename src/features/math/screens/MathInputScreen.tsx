@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
@@ -104,7 +104,8 @@ function loadInitialDraft(mode: FlowMode, session: ActiveSession | null): MathDr
 }
 
 export function MathInputScreen({ navigation, route }: Props) {
-  const { gutter, isVeryShort, isShort, isNarrow } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { gutter, isVeryShort, isShort, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const compact = isVeryShort || isShort;
   const session = useRef<ActiveSession | null>(null);

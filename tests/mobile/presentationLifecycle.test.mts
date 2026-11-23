@@ -18,6 +18,9 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
       StyleSheet: { create: (styles: unknown) => styles }, View: view,
       useWindowDimensions: () => ({ width: 360, height: 802 }),
     },
+    'react-native-safe-area-context': {
+      useSafeAreaFrame: () => ({ x: 0, y: 0, width: 360, height: 802 }),
+    },
     'react-native-reanimated': {
       __esModule: true,
       default: { View: view },

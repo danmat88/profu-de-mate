@@ -1,7 +1,8 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
+import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -153,7 +154,7 @@ export function LaunchSplash({
   onRevealStart,
   onFinish,
 }: Props) {
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useSafeAreaFrame();
   const [sceneReady, setSceneReady] = useState(false);
   const [imageReady, setImageReady] = useState(false);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);

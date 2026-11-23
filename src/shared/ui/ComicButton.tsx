@@ -1,4 +1,5 @@
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { borders, colors, fonts, radii, shadows } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
@@ -53,7 +54,8 @@ export function ComicButton({
   onPress,
   style,
 }: Props) {
-  const { isNarrow, isLargeText } = useResponsiveLayout();
+  const frame = useSafeAreaFrame();
+  const { isNarrow, isLargeText } = useResponsiveLayout(frame);
   const light = tone === 'violet' || tone === 'ink';
   const condensed = (compact || isNarrow) && !isLargeText;
   const radius = condensed ? 18 : radii.lg;
