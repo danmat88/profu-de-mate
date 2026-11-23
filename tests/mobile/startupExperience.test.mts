@@ -274,6 +274,7 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   // Opening a problem from Caiet keeps Frame 0 free of Reanimated worklet bursts,
   // lazily mounts closed sheets/modals, and never stalls on detached Android WebView rAF.
   assert.doesNotMatch(lessonSource, /react-native-reanimated/);
+  assert.doesNotMatch(summarySource, /react-native-reanimated/);
   assert.doesNotMatch(progressDotsSource, /react-native-reanimated/);
   assert.doesNotMatch(playfulLoaderSource, /react-native-reanimated/);
   assert.doesNotMatch(mathDocumentViewSource, /react-native-reanimated/);

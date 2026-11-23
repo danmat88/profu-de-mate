@@ -1,23 +1,15 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { hasSeenSaveCoach, markSaveCoachSeen } from '../../../shared/storage/localPreferences';
-import { borders, colors, fonts, radii, shadows, springs, typography } from '../../../shared/theme';
+import { borders, colors, fonts, radii, shadows, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -67,18 +59,23 @@ export function SummaryScreen({ navigation, route }: Props) {
   });
   const activeTab = tabState.tab;
 
-  const heroPop = useSharedValue(reducedMotion ? 1 : 0.88);
-  const saveStamp = useSharedValue(1);
-  const coachReveal = useSharedValue(0);
+  const heroPop = useRef(new Animated.Value(reducedMotion ? 1 : 0.88)).current;
+  const saveStamp = useRef(new Animated.Value(1)).current;
+  const coachReveal = useRef(new Animated.Value(0)).current;
+  const cardShiftX = useRef(new Animated.Value(0)).current;
+  const cardScale = useRef(new Animated.Value(1)).current;
+  const ribbonSweep = useRef(new Animated.Value(0)).current;
 
   const coachCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveLocked = useRef(false);
+  const previousTab = useRef<SummaryTab>('answer');
   const lesson = route.params.lesson;
   const isCheck = lesson.mode === 'check';
   const isPositive = !isCheck || lesson.verdict === 'correct';
   const isPartial = lesson.verdict === 'partially_correct';
   const hasTakeaways = lesson.takeaways.length > 0;
   const bottomSpace = Math.max(insets.bottom, 8);
+  const stepCountLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas' : 'pași'}`;
 
   const mascotPose: MascotPose = isPositive ? 'cheer' : isPartial ? 'point' : 'oops';
   const verdictEyebrow = !isCheck
@@ -107,6 +104,18 @@ export function SummaryScreen({ navigation, route }: Props) {
       badgeText: colors.ink,
     },
   ], [lesson.takeaways.length]);
+
+  const playRibbonSweep = useCallback(() => {
+    if (reducedMotion) return;
+    ribbonSweep.stopAnimation();
+    ribbonSweep.setValue(0);
+    Animated.timing(ribbonSweep, {
+      toValue: 1,
+      duration: 560,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [reducedMotion, ribbonSweep]);
 
   const switchTab = useCallback((next: SummaryTab) => {
     setTabState((current) => (current.tab === next
@@ -213,36 +222,102 @@ export function SummaryScreen({ navigation, route }: Props) {
       ? Haptics.NotificationFeedbackType.Success
       : Haptics.NotificationFeedbackType.Warning);
     if (reducedMotion) {
-      heroPop.set(1);
+      heroPop.setValue(1);
       return;
     }
-    heroPop.set(withSpring(1, springs.bouncy));
-  }, [celebrationReady, heroPop, isPositive, reducedMotion]);
+    Animated.spring(heroPop, {
+      toValue: 1,
+      tension: 220,
+      friction: 14,
+      useNativeDriver: true,
+    }).start();
+    playRibbonSweep();
+  }, [celebrationReady, heroPop, isPositive, playRibbonSweep, reducedMotion]);
+
+  useEffect(() => {
+    if (previousTab.current === activeTab) return;
+    previousTab.current = activeTab;
+    if (reducedMotion || tabState.direction === 0) return;
+
+    cardShiftX.stopAnimation();
+    cardScale.stopAnimation();
+    cardShiftX.setValue(tabState.direction * 9);
+    cardScale.setValue(0.988);
+    Animated.parallel([
+      Animated.spring(cardShiftX, {
+        toValue: 0,
+        tension: 270,
+        friction: 22,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardScale, {
+        toValue: 1,
+        tension: 260,
+        friction: 20,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    playRibbonSweep();
+  }, [activeTab, cardScale, cardShiftX, playRibbonSweep, reducedMotion, tabState.direction]);
 
   useEffect(() => {
     if (!celebrationReady || saved || hasSeenSaveCoach()) return;
     const timer = setTimeout(() => {
       setShowSaveCoach(true);
-      if (reducedMotion) coachReveal.set(1);
-      else coachReveal.set(withSpring(1, springs.bouncy));
+      if (reducedMotion) {
+        coachReveal.setValue(1);
+      } else {
+        Animated.spring(coachReveal, {
+          toValue: 1,
+          tension: 240,
+          friction: 16,
+          useNativeDriver: true,
+        }).start();
+      }
     }, 700);
     return () => clearTimeout(timer);
   }, [celebrationReady, coachReveal, reducedMotion, saved]);
 
   useEffect(() => () => {
     if (coachCloseTimer.current) clearTimeout(coachCloseTimer.current);
-  }, []);
+    heroPop.stopAnimation();
+    saveStamp.stopAnimation();
+    coachReveal.stopAnimation();
+    cardShiftX.stopAnimation();
+    cardScale.stopAnimation();
+    ribbonSweep.stopAnimation();
+  }, [cardScale, cardShiftX, coachReveal, heroPop, ribbonSweep, saveStamp]);
 
   const dismissSaveCoach = () => {
     markSaveCoachSeen();
     if (coachCloseTimer.current) clearTimeout(coachCloseTimer.current);
     if (reducedMotion) {
-      coachReveal.set(0);
+      coachReveal.setValue(0);
       setShowSaveCoach(false);
       return;
     }
-    coachReveal.set(withTiming(0, { duration: 130, easing: Easing.in(Easing.quad) }));
+    Animated.timing(coachReveal, {
+      toValue: 0,
+      duration: 130,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start();
     coachCloseTimer.current = setTimeout(() => setShowSaveCoach(false), 135);
+  };
+
+  const closeSummary = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.popToTop();
+  };
+
+  const reviewSteps = () => {
+    Haptics.selection();
+    navigation.replace('Lesson', {
+      lesson,
+      lessonId: route.params.lessonId,
+      isFavorite: saved,
+      source: 'notebook',
+    });
   };
 
   const toggleSaved = async () => {
@@ -257,10 +332,21 @@ export function SummaryScreen({ navigation, route }: Props) {
     setSaved(true);
     setSaveBusy(true);
     if (!reducedMotion) {
-      saveStamp.set(withSequence(
-        withTiming(1.06, { duration: 95 }),
-        withSpring(1, springs.bouncy),
-      ));
+      saveStamp.stopAnimation();
+      Animated.sequence([
+        Animated.timing(saveStamp, {
+          toValue: 1.06,
+          duration: 90,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.spring(saveStamp, {
+          toValue: 1,
+          tension: 250,
+          friction: 15,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
     if (showSaveCoach) dismissSaveCoach();
     markSaveCoachSeen();
@@ -293,59 +379,64 @@ export function SummaryScreen({ navigation, route }: Props) {
     }
   };
 
-  const celebrationAnimated = useAnimatedStyle(() => ({
-    transform: [{ scale: heroPop.get() }],
-  }));
-
-  const saveStampAnimated = useAnimatedStyle(() => ({
-    transform: [{ scale: saveStamp.get() }],
-  }));
-
-  const coachAnimated = useAnimatedStyle(() => {
-    const p = coachReveal.get();
-    return {
-      opacity: Math.min(1, p * 1.25),
-      transform: [{ translateY: (1 - p) * 16 }, { scale: 0.94 + p * 0.06 }],
-    };
-  });
-
   const ribbonColor = activeTab === 'ideas' ? colors.cyan : isPositive ? colors.lime : colors.peach;
+  const ribbonBg = activeTab === 'ideas' ? '#E8FAFC' : isPositive ? '#F5FFD6' : '#FFF2EC';
+  const coachOpacity = coachReveal.interpolate({ inputRange: [0, 0.8, 1], outputRange: [0, 1, 1] });
+  const coachTranslateY = coachReveal.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+  const coachScale = coachReveal.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] });
+  const ribbonSweepTranslateX = ribbonSweep.interpolate({ inputRange: [0, 1], outputRange: [-90, 420] });
+  const ribbonSweepOpacity = ribbonSweep.interpolate({ inputRange: [0, 0.15, 0.85, 1], outputRange: [0, 0.78, 0.78, 0] });
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={[styles.main, { paddingHorizontal: gutter }]}>
-        <View style={[styles.hero, isShort && styles.heroShort]}>
-          <Animated.View style={[styles.celebration, isShort && styles.celebrationShort, celebrationAnimated]}>
-            {isPositive && celebrationReady ? <ConfettiBurst /> : null}
-            <View style={[styles.burstOuter, !isPositive && styles.burstOuterReview, isShort && styles.burstOuterShort]}>
-              <View pointerEvents="none" style={styles.burstShine} />
+        <View style={styles.heroCardWrap}>
+          <View pointerEvents="none" style={styles.heroCardShadow} />
+          <View style={[styles.heroCard, !isPositive && styles.heroCardReview, isShort && styles.heroCardShort]}>
+            <View pointerEvents="none" style={styles.heroCardShine} />
+            <Animated.View style={[styles.celebration, isShort && styles.celebrationShort, { transform: [{ scale: heroPop }] }]}>
+              {isPositive && celebrationReady ? <ConfettiBurst /> : null}
+              <View style={[styles.burstOuter, !isPositive && styles.burstOuterReview, isShort && styles.burstOuterShort]}>
+                <View pointerEvents="none" style={styles.burstShine} />
+              </View>
+              <Mascot pose={mascotPose} size={isShort ? 70 : 80} active interactive style={styles.mascot} />
+              <Chip
+                label={sticker}
+                tone={isPositive ? 'lime' : isPartial ? 'gold' : 'peach'}
+                tilt={6}
+                style={styles.doneSticker}
+              />
+            </Animated.View>
+
+            <View style={styles.heroCopy}>
+              <View style={styles.heroBadgeRow}>
+                <Text numberOfLines={1} style={styles.eyebrow}>{verdictEyebrow}</Text>
+              </View>
+              <Text
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+                numberOfLines={2}
+                style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}
+              >
+                {lesson.headline}
+              </Text>
+              <View style={styles.heroMetaRow}>
+                <View collapsable={false} style={styles.heroMetaPill}>
+                  <View style={[styles.heroMetaDot, { backgroundColor: ribbonColor }]} />
+                  <Text numberOfLines={1} style={styles.heroMetaText}>{lesson.topic}</Text>
+                </View>
+                <View collapsable={false} style={styles.heroMetaPill}>
+                  <Text style={styles.heroMetaText}>{stepCountLabel}</Text>
+                </View>
+              </View>
             </View>
-            <Mascot pose={mascotPose} size={isShort ? 74 : 84} active interactive style={styles.mascot} />
-            <Chip
-              label={sticker}
-              tone={isPositive ? 'lime' : isPartial ? 'gold' : 'peach'}
-              tilt={6}
-              style={styles.doneSticker}
-            />
-          </Animated.View>
 
-          <View style={styles.heroCopy}>
-            <Text numberOfLines={1} style={styles.eyebrow}>{verdictEyebrow}</Text>
-            <Text
-              adjustsFontSizeToFit
-              minimumFontScale={0.78}
-              numberOfLines={2}
-              style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}
-            >
-              {lesson.headline}
-            </Text>
+            <IconButton label="Închide recapitularea" onPress={closeSummary} size={40}>
+              <MiniGlyph name="close" size={19} color={colors.ink} />
+            </IconButton>
           </View>
-
-          <IconButton label="Închide recapitularea" onPress={() => navigation.popToTop()} size={42}>
-            <MiniGlyph name="close" size={20} color={colors.ink} />
-          </IconButton>
         </View>
 
         {hasTakeaways ? (
@@ -361,24 +452,67 @@ export function SummaryScreen({ navigation, route }: Props) {
 
         <View style={styles.documentCardWrap}>
           <GestureDetector gesture={swipeGesture}>
-            <View style={styles.cardMotion}>
+            <Animated.View
+              style={[
+                styles.cardMotion,
+                { transform: [{ translateX: cardShiftX }, { scale: cardScale }] },
+              ]}
+            >
               <View pointerEvents="none" style={styles.documentCardShadow} />
               <View style={styles.documentFrame}>
                 <View style={[styles.cardRibbon, { backgroundColor: ribbonColor }]}>
                   <View pointerEvents="none" style={styles.cardRibbonShine} />
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.cardRibbonSweep,
+                      {
+                        opacity: ribbonSweepOpacity,
+                        transform: [
+                          { translateX: ribbonSweepTranslateX },
+                          { skewX: '-24deg' },
+                        ],
+                      },
+                    ]}
+                  />
                 </View>
+
+                <View style={[styles.cardMetaBar, { backgroundColor: ribbonBg }]}>
+                  <View style={styles.cardMetaLeft}>
+                    <View style={styles.binderDots}>
+                      <View style={styles.binderDot} />
+                      <View style={styles.binderDot} />
+                    </View>
+                    <View collapsable={false} style={styles.pageStampPill}>
+                      <Text style={styles.pageStampText}>
+                        {activeTab === 'ideas' ? '✦ IDEI DE REȚINUT' : '★ REZULTAT FINAL'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Revezi pașii rezolvării"
+                    hitSlop={8}
+                    onPress={reviewSteps}
+                    style={({ pressed }) => [styles.reviewStepsPill, pressed && styles.reviewStepsPillPressed]}
+                  >
+                    <Text style={styles.reviewStepsText}>← Pași</Text>
+                  </Pressable>
+                </View>
+
                 <View style={styles.documentInner}>
                   <MathDocumentView definition={summaryDocument} transitionDirection={tabState.direction} testID="summary-math-document" />
                 </View>
               </View>
-            </View>
+            </Animated.View>
           </GestureDetector>
         </View>
       </View>
 
       <View style={[styles.actionDock, { paddingHorizontal: gutter, paddingBottom: bottomSpace }]}>
         <View style={styles.secondaryActions}>
-          <Animated.View style={[styles.saveActionWrap, saveStampAnimated]}>
+          <Animated.View style={[styles.saveActionWrap, { transform: [{ scale: saveStamp }] }]}>
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={saved ? 'Scoate lecția din Caiet' : 'Salvează lecția în Caiet'}
@@ -455,8 +589,9 @@ export function SummaryScreen({ navigation, route }: Props) {
               left: gutter,
               right: gutter,
               bottom: bottomSpace + (isLargeText ? 168 : 134),
+              opacity: coachOpacity,
+              transform: [{ translateY: coachTranslateY }, { scale: coachScale }],
             },
-            coachAnimated,
           ]}
         >
           <View style={styles.saveCoachPointer} />
@@ -503,18 +638,60 @@ export function SummaryScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  main: { flex: 1, minHeight: 0, paddingTop: 4 },
+  main: { flex: 1, minHeight: 0, paddingTop: 6 },
 
-  // Unified compact Celebration Banner
-  hero: { height: 92, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  heroShort: { height: 80, gap: 8 },
-  celebration: { width: 88, height: 88, alignItems: 'center', justifyContent: 'center' },
-  celebrationShort: { width: 76, height: 76 },
+  // Collectible victory studio banner
+  heroCardWrap: {
+    position: 'relative',
+    paddingBottom: shadows.sm + 1,
+  },
+  heroCardShadow: {
+    position: 'absolute',
+    top: shadows.sm + 1,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 22,
+    backgroundColor: colors.ink,
+  },
+  heroCard: {
+    minHeight: 96,
+    borderRadius: 22,
+    borderWidth: borders.regular,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroCardReview: {
+    backgroundColor: '#FFF9F4',
+  },
+  heroCardShort: {
+    minHeight: 84,
+    paddingVertical: 6,
+    gap: 8,
+  },
+  heroCardShine: {
+    position: 'absolute',
+    top: 3,
+    left: 14,
+    right: 14,
+    height: 4.5,
+    borderRadius: 3,
+    backgroundColor: colors.shine,
+  },
+  celebration: { width: 82, height: 82, alignItems: 'center', justifyContent: 'center' },
+  celebrationShort: { width: 72, height: 72 },
   burstOuter: {
     position: 'absolute',
-    width: 74,
-    height: 74,
-    borderRadius: 37,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: colors.violet,
     borderWidth: borders.regular,
     borderColor: colors.ink,
@@ -522,31 +699,65 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-5deg' }],
   },
   burstOuterReview: { backgroundColor: colors.peachSoft },
-  burstOuterShort: { width: 64, height: 64, borderRadius: 32 },
+  burstOuterShort: { width: 60, height: 60, borderRadius: 30 },
   burstShine: {
     position: 'absolute',
-    top: 6,
-    left: 12,
-    right: 12,
-    height: 11,
+    top: 5,
+    left: 11,
+    right: 11,
+    height: 10,
     borderRadius: 6,
     backgroundColor: colors.shineSoft,
   },
   mascot: { zIndex: 6 },
-  doneSticker: { position: 'absolute', zIndex: 7, right: -6, bottom: 0 },
-  heroCopy: { flex: 1, minWidth: 0 },
-  eyebrow: { ...typography.kicker, fontSize: 10.5, color: colors.violetDeep },
-  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23, marginTop: 2 },
-  titleNarrow: { fontSize: 18.5, lineHeight: 21.5 },
-  titleShort: { fontSize: 17.5, lineHeight: 20.5 },
+  doneSticker: { position: 'absolute', zIndex: 7, right: -6, bottom: -1 },
+  heroCopy: { flex: 1, minWidth: 0, gap: 3 },
+  heroBadgeRow: { flexDirection: 'row', alignItems: 'center' },
+  eyebrow: { ...typography.kicker, fontSize: 10, color: colors.violetDeep, includeFontPadding: false },
+  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 21.5 },
+  titleNarrow: { fontSize: 17, lineHeight: 20 },
+  titleShort: { fontSize: 16.5, lineHeight: 19.5 },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 5,
+    marginTop: 1,
+  },
+  heroMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#D9CEF2',
+    backgroundColor: colors.paperTint,
+  },
+  heroMetaDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: colors.ink,
+  },
+  heroMetaText: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: colors.inkSoft,
+    fontSize: 10,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
 
-  tabsWrap: { marginTop: 6, marginBottom: 6 },
+  tabsWrap: { marginTop: 8, marginBottom: 6 },
 
   // Summary comic card
   documentCardWrap: {
     flex: 1,
     minHeight: 0,
-    marginTop: 2,
+    marginTop: 4,
     paddingBottom: 2,
   },
   cardMotion: {
@@ -571,13 +782,14 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     borderWidth: borders.regular,
     borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: '#FFFDF9',
   },
   cardRibbon: {
-    height: 9,
+    height: 10,
     borderBottomWidth: borders.thin,
     borderBottomColor: colors.ink,
     position: 'relative',
+    overflow: 'hidden',
   },
   cardRibbonShine: {
     position: 'absolute',
@@ -588,7 +800,82 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.shine,
   },
-  documentInner: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
+  cardRibbonSweep: {
+    position: 'absolute',
+    top: -2,
+    bottom: -2,
+    left: 0,
+    width: 72,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+  },
+  cardMetaBar: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E8DFF7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cardMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  binderDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  binderDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.canvas,
+  },
+  pageStampPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+  },
+  pageStampText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 0.4,
+    includeFontPadding: false,
+  },
+  reviewStepsPill: {
+    minHeight: 24,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 2.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewStepsPillPressed: {
+    transform: [{ translateY: 1.5 }],
+  },
+  reviewStepsText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 10.5,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
+  documentInner: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: '#FFFDF9' },
 
   actionDock: { backgroundColor: colors.canvas, paddingTop: 6, gap: 6 },
   secondaryActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -691,12 +978,12 @@ const styles = StyleSheet.create({
   },
   saveCoachCopy: { flex: 1, minWidth: 0 },
   saveCoachEyebrow: { ...typography.kicker, color: colors.violetDeep },
-  saveCoachTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15.5, lineHeight: 19, marginTop: 1 },
-  saveCoachText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 17 },
+  saveCoachTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16, lineHeight: 19, marginTop: 1 },
+  saveCoachText: { fontFamily: fonts.bodyMedium, color: '#2E2A47', fontSize: 12, lineHeight: 16, marginTop: 2 },
   saveCoachClose: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: 30,
+    height: 30,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.ink,
     backgroundColor: colors.paper,

@@ -98,7 +98,7 @@ export function ComicButton({
           {title}
         </Text>
         {subtitle ? (
-          <Text style={[styles.subtitle, light && styles.lightSoft]}>{subtitle}</Text>
+          <Text numberOfLines={compact ? 1 : 2} style={[styles.subtitle, light && styles.lightSoft]}>{subtitle}</Text>
         ) : null}
       </View>
       {trailingIcon ? (

@@ -11,7 +11,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
-import type { CapturedImage, RichContent, RootStackParamList } from '../../../shared/types';
+import type { AnalysisVerdict, CapturedImage, RichContent, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
@@ -45,10 +45,25 @@ const ribbonColors: Record<MathDocumentTone, string> = {
   rose: colors.rose,
 };
 
+const ribbonSoftBg: Record<MathDocumentTone, string> = {
+  cyan: '#E8FAFC',
+  peach: '#FFF2EC',
+  lime: '#F5FFD6',
+  violet: '#F3ECFF',
+  rose: '#FFE8EC',
+};
+
 const problemViewTabs: readonly ComicTabOption<ProblemView>[] = [
   { value: 'statement', label: 'Enunț citit', activeFill: colors.violet, activeText: colors.paper },
   { value: 'photo', label: 'Fotografia ta', activeFill: colors.cyan, activeText: colors.ink },
 ];
+
+function verdictChipMeta(verdict: AnalysisVerdict, isCheck: boolean): { label: string; bg: string; color: string } | null {
+  if (!isCheck || verdict === 'not_applicable') return null;
+  if (verdict === 'correct') return { label: '✓ Corectă', bg: colors.lime, color: colors.ink };
+  if (verdict === 'partially_correct') return { label: '★ Aproape', bg: colors.gold, color: colors.ink };
+  return { label: '! De corectat', bg: colors.roseSoft, color: '#991F33' };
+}
 
 function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; reducedMotion: boolean }) {
   const reveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -86,7 +101,7 @@ function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; r
     >
       <MiniGlyph name={kind === 'saved' ? 'check' : 'wrong'} size={15} color={colors.ink} />
       <Text style={styles.savedText}>
-        {kind === 'saved' ? 'Lecție salvată' : 'Scoasă din Caiet'}
+        {kind === 'saved' ? 'Lecție salvată în Caiet' : 'Scoasă din Caiet'}
       </Text>
     </Animated.View>
   );
@@ -94,11 +109,13 @@ function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; r
 
 /** Lazily mounted alternate explanation sheet so Frame 0 carries zero hidden sheet worklets. */
 function LessonAlternateModal({
+  stepNumber,
   alternative,
   bottomSpace,
   reducedMotion,
   onClosed,
 }: {
+  stepNumber: number;
   alternative: RichContent;
   bottomSpace: number;
   reducedMotion: boolean;
@@ -171,27 +188,38 @@ function LessonAlternateModal({
           ]}
         >
           <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeading}>
-            <Mascot pose="point" size={56} active />
+          <View style={styles.sheetBanner}>
+            <View style={styles.sheetMascotBadge}>
+              <Mascot pose="point" size={52} active />
+            </View>
             <View style={styles.sheetCopy}>
-              <Text style={styles.sheetEyebrow}>PROFU’ ÎȚI ARATĂ ALTFEL</Text>
-              <Text style={styles.sheetTitle}>O explicație mai simplă</Text>
+              <View style={styles.sheetTagRow}>
+                <View collapsable={false} style={styles.sheetLimeStamp}>
+                  <Text style={styles.sheetLimeStampText}>PASUL {stepNumber} · ALTFEL</Text>
+                </View>
+              </View>
+              <Text style={styles.sheetTitle}>Profu’ explică mai simplu</Text>
             </View>
             <IconButton label="Închide explicația" onPress={requestClose} size={40}>
               <MiniGlyph name="close" size={19} color={colors.ink} />
             </IconButton>
           </View>
-          <MathDocumentView definition={alternateDocument} style={styles.sheetDocument} testID="alternate-math-document" />
-          <ComicButton compact title="Am înțeles" trailingIcon="check" tone="lime" onPress={requestClose} />
+          <View style={styles.sheetPaper}>
+            <MathDocumentView definition={alternateDocument} style={styles.sheetDocument} testID="alternate-math-document" />
+          </View>
+          <ComicButton compact title="Am înțeles!" trailingIcon="check" tone="lime" onPress={requestClose} />
         </Animated.View>
       </View>
     </Modal>
   );
 }
 
-/** Lazily mounted full problem sheet so Frame 0 avoids hidden document & tab worklets. */
+/** Lazily mounted full problem sheet so Frame 0 avoids hidden document and tab worklets. */
 function LessonProblemModal({
   title,
+  topic,
+  isCheck,
+  stepCount,
   problem,
   problemAccessible,
   sourceImage,
@@ -200,6 +228,9 @@ function LessonProblemModal({
   onClosed,
 }: {
   title: string;
+  topic: string;
+  isCheck: boolean;
+  stepCount: number;
   problem: RichContent;
   problemAccessible: string;
   sourceImage?: CapturedImage;
@@ -298,12 +329,19 @@ function LessonProblemModal({
           ]}
         >
           <View style={styles.sheetHandle} />
-          <View style={styles.sheetHeading}>
+          <View style={styles.sheetBanner}>
             <View style={[styles.sheetIcon, styles.problemSheetIcon]}>
-              <AppIcon name="notebook" size={34} />
+              <AppIcon name="notebook" size={32} />
             </View>
             <View style={styles.sheetCopy}>
-              <Text style={styles.sheetEyebrow}>PROBLEMA TA</Text>
+              <View style={styles.sheetTagRow}>
+                <View collapsable={false} style={[styles.sheetModePill, isCheck && styles.sheetModePillCheck]}>
+                  <Text style={styles.sheetModePillText}>{isCheck ? 'VERIFICARE' : 'ENUNȚ COMPLET'}</Text>
+                </View>
+                <View collapsable={false} style={styles.sheetTopicPill}>
+                  <Text numberOfLines={1} style={styles.sheetTopicPillText}>{topic} · {stepCount} {stepCount === 1 ? 'pas' : 'pași'}</Text>
+                </View>
+              </View>
               <Text numberOfLines={2} style={styles.sheetTitle}>{title}</Text>
             </View>
             <IconButton label="Închide enunțul" onPress={requestClose} size={40}>
@@ -349,7 +387,7 @@ function LessonProblemModal({
 
 export function LessonScreen({ navigation, route }: Props) {
   const frame = useSafeAreaFrame();
-  const { gutter } = useResponsiveLayout(frame);
+  const { gutter, isNarrow, isShort } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const screenFocused = useIsFocused();
@@ -393,11 +431,21 @@ export function LessonScreen({ navigation, route }: Props) {
   const previousStep = useRef(0);
 
   const current = lesson.steps[step];
+  const nextStep = lesson.steps[step + 1];
   const tone = documentTones[step % documentTones.length];
+  const verdictChip = verdictChipMeta(lesson.verdict, isCheck);
   const bottomSpace = Math.max(insets.bottom, 8);
   const problemAccessible = useMemo(() => contentToAccessibleText(lesson.problem), [lesson.problem]);
   const isLastStep = step === lesson.steps.length - 1;
-  const nextTitle = isLastStep ? 'Vezi rezultatul' : 'Continuă';
+  const nextTitle = isLastStep ? 'Vezi rezultatul' : 'Pasul următor';
+  const nextSubtitle = isShort
+    ? undefined
+    : isLastStep
+      ? (lesson.takeaways.length > 0 ? 'Răspuns final și idei cheie' : 'Răspunsul final și concluzia')
+      : nextStep?.title
+        ? `Urmează: ${nextStep.title}`
+        : undefined;
+  const stepStamp = `PASUL ${String(step + 1).padStart(2, '0')} / ${String(lesson.steps.length).padStart(2, '0')}`;
 
   const lessonDocument = useMemo<MathDocumentDefinition>(() => ({
     accessibilityLabel: `${current.title}. ${contentToAccessibleText(current.explanation)}. ${contentToAccessibleText(current.note)}`,
@@ -432,7 +480,7 @@ export function LessonScreen({ navigation, route }: Props) {
     playRibbonSweep();
   }, [playRibbonSweep, reducedMotion, screenFocused, transitionSettled]);
 
-  // Tactile page-turn spring & ribbon shimmer whenever moving between steps.
+  // Tactile page-turn spring and ribbon shimmer whenever moving between steps.
   useEffect(() => {
     if (previousStep.current === step) return;
     previousStep.current = step;
@@ -490,6 +538,20 @@ export function LessonScreen({ navigation, route }: Props) {
     return true;
   }, []);
 
+  const openSummary = useCallback(() => {
+    if (isFromNotebook) {
+      navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
+      return;
+    }
+    navigation.reset({
+      index: 1,
+      routes: [
+        { name: 'Home' },
+        { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved } },
+      ],
+    });
+  }, [isFromNotebook, lesson, navigation, route.params.lessonId, saved]);
+
   const jumpToStep = useCallback((target: number) => {
     if (target < 0 || target >= lesson.steps.length || target === step) return;
     if (!lockPaging()) return;
@@ -503,18 +565,8 @@ export function LessonScreen({ navigation, route }: Props) {
       setStepState((current) => ({ step: current.step + 1, direction: 1 }));
       return;
     }
-    if (isFromNotebook) {
-      navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
-      return;
-    }
-    navigation.reset({
-      index: 1,
-      routes: [
-        { name: 'Home' },
-        { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved } },
-      ],
-    });
-  }, [isFromNotebook, lesson, lockPaging, navigation, route.params.lessonId, saved, step]);
+    openSummary();
+  }, [lesson.steps.length, lockPaging, openSummary, step]);
 
   const back = useCallback(() => {
     if (!lockPaging()) return;
@@ -559,6 +611,12 @@ export function LessonScreen({ navigation, route }: Props) {
   const openFeedback = () => {
     setFeedbackEverOpened(true);
     setFeedbackOpen(true);
+  };
+
+  const jumpToResult = () => {
+    if (!lockPaging()) return;
+    Haptics.selection();
+    openSummary();
   };
 
   const showNotebookToast = useCallback((kind: 'saved' | 'removed') => {
@@ -631,7 +689,7 @@ export function LessonScreen({ navigation, route }: Props) {
       <ScreenHeader
         compact
         title={isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'}
-        eyebrow={`PASUL ${step + 1} DIN ${lesson.steps.length}`}
+        eyebrow={isFromNotebook ? 'DIN CAIETUL TĂU' : `PASUL ${step + 1} DIN ${lesson.steps.length}`}
         onBack={back}
         rightIcon="bookmark"
         rightLabel={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'}
@@ -654,20 +712,31 @@ export function LessonScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel={`Deschide enunțul: ${problemAccessible}`}
           depth={shadows.sm}
-          radius={14}
+          radius={16}
           shadowColor={colors.ink}
           haptic="selection"
           onPress={openProblem}
           style={styles.problemWrap}
           contentStyle={styles.problemRow}
         >
-          <View style={styles.problemIcon}>
-            <Text style={styles.problemIconText}>x²</Text>
+          <View pointerEvents="none" style={styles.problemShine} />
+          <View style={[styles.problemIcon, isCheck && styles.problemIconCheck]}>
+            <Text style={styles.problemIconText}>{isCheck ? '✓' : 'ƒ'}</Text>
           </View>
-          <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
+          <View style={styles.problemCopy}>
+            <View style={styles.problemMetaRow}>
+              <Text numberOfLines={1} style={styles.problemTopic}>{lesson.topic}</Text>
+              {verdictChip ? (
+                <View collapsable={false} style={[styles.verdictMicroChip, { backgroundColor: verdictChip.bg }]}>
+                  <Text style={[styles.verdictMicroText, { color: verdictChip.color }]}>{verdictChip.label}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text numberOfLines={1} style={styles.problem}>{lesson.title}</Text>
+          </View>
           <View collapsable={false} style={styles.problemActionPill}>
             <Text style={styles.problemAction}>Enunț</Text>
-            <MiniGlyph name="next" size={13} color={colors.violetDeep} />
+            <MiniGlyph name="next" size={12} color={colors.paper} />
           </View>
         </PressableScale>
 
@@ -696,6 +765,38 @@ export function LessonScreen({ navigation, route }: Props) {
                   ]}
                 />
               </View>
+
+              <View style={[styles.cardMetaBar, { backgroundColor: ribbonSoftBg[tone] }]}>
+                <View style={styles.cardMetaLeft}>
+                  <View style={styles.binderDots}>
+                    <View style={styles.binderDot} />
+                    <View style={styles.binderDot} />
+                  </View>
+                  <View collapsable={false} style={styles.stepStampPill}>
+                    <View style={[styles.stepStampDot, { backgroundColor: ribbonColors[tone] }]} />
+                    <Text style={styles.stepStampText}>{stepStamp}</Text>
+                  </View>
+                </View>
+
+                {isFromNotebook && !isLastStep ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Sari direct la rezultatul final"
+                    hitSlop={8}
+                    onPress={jumpToResult}
+                    style={({ pressed }) => [styles.quickResultPill, pressed && styles.quickResultPillPressed]}
+                  >
+                    <Text style={styles.quickResultText}>★ Rezultat</Text>
+                  </Pressable>
+                ) : (
+                  <View collapsable={false} style={[styles.cardCuePill, isLastStep && styles.cardCuePillFinal]}>
+                    <Text style={[styles.cardCueText, isLastStep && styles.cardCueTextFinal]}>
+                      {isLastStep ? '★ Ultimul pas' : lesson.steps.length > 1 ? '← Glisează →' : 'Explicație'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
               <View style={styles.documentFrame}>
                 <MathDocumentView definition={lessonDocument}
                   transitionDirection={stepState.direction}
@@ -737,11 +838,20 @@ export function LessonScreen({ navigation, route }: Props) {
             style={styles.secondaryActionWrap}
             contentStyle={styles.secondaryAction}
           >
-            <AppIcon name="hint" size={24} />
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.secondaryTitle}>
+            <View pointerEvents="none" style={styles.secondaryActionShine} />
+            <View style={styles.hintIconBadge}>
+              <AppIcon name="hint" size={21} />
+            </View>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.secondaryTitle}>
               Explică-mi altfel
             </Text>
-            <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+            {!isNarrow ? (
+              <View collapsable={false} style={styles.secondaryTag}>
+                <Text style={styles.secondaryTagText}>Mai simplu</Text>
+              </View>
+            ) : (
+              <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+            )}
           </PressableScale>
 
           <PressableScale
@@ -761,14 +871,17 @@ export function LessonScreen({ navigation, route }: Props) {
         <ComicButton
           compact
           title={nextTitle}
+          subtitle={nextSubtitle}
+          icon={isLastStep ? 'trophy' : undefined}
           trailingIcon={isLastStep ? 'check' : 'next'}
-          tone="lime"
+          tone={isLastStep ? 'gold' : 'lime'}
           onPress={next}
         />
       </View>
 
       {alternate ? (
         <LessonAlternateModal
+          stepNumber={step + 1}
           alternative={current.alternative}
           bottomSpace={bottomSpace}
           reducedMotion={reducedMotion}
@@ -779,6 +892,9 @@ export function LessonScreen({ navigation, route }: Props) {
       {problemOpen ? (
         <LessonProblemModal
           title={lesson.title}
+          topic={lesson.topic}
+          isCheck={isCheck}
+          stepCount={lesson.steps.length}
           problem={lesson.problem}
           problemAccessible={problemAccessible}
           sourceImage={sourceImage}
@@ -813,7 +929,7 @@ export function LessonScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  progress: { marginBottom: 7 },
+  progress: { marginBottom: 8 },
   savedToast: {
     position: 'absolute',
     zIndex: 20,
@@ -826,8 +942,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
+    gap: 6,
+    paddingHorizontal: 12,
     shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 1,
@@ -838,45 +954,122 @@ const styles = StyleSheet.create({
     backgroundColor: colors.peachSoft,
   },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
-  stage: { flex: 1, minHeight: 0, gap: 7, paddingBottom: 2 },
+  stage: { flex: 1, minHeight: 0, gap: 8, paddingBottom: 2 },
 
+  // Collectible topic and statement header bar
   problemWrap: {},
   problemRow: {
-    height: 38,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    borderRadius: 14,
-    borderWidth: borders.thin,
+    gap: 9,
+    borderRadius: 16,
+    borderWidth: borders.regular,
     borderColor: colors.ink,
-    backgroundColor: colors.paperTint,
-    paddingHorizontal: 8,
+    backgroundColor: colors.paper,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  problemShine: {
+    position: 'absolute',
+    top: 2,
+    left: 12,
+    right: 12,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: colors.shine,
   },
   problemIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 1.5,
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 1.75,
+    borderBottomWidth: 3,
     borderColor: colors.ink,
-    backgroundColor: colors.violetSoft,
+    backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
+    transform: [{ rotate: '-4deg' }],
   },
-  problemIconText: { fontFamily: fonts.display, color: colors.ink, fontSize: 12.5 },
-  problem: { flex: 1, minWidth: 0, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5, lineHeight: 16 },
-  problemActionPill: {
+  problemIconCheck: {
+    backgroundColor: colors.gold,
+  },
+  problemIconText: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 15,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  problemCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  problemMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 9,
-    backgroundColor: colors.violetSoft,
+    gap: 6,
   },
-  problemAction: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
+  problemTopic: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 10.5,
+    lineHeight: 13,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    includeFontPadding: false,
+  },
+  verdictMicroChip: {
+    flexShrink: 0,
+    minHeight: 18,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verdictMicroText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    lineHeight: 12,
+    includeFontPadding: false,
+  },
+  problem: {
+    fontFamily: fonts.displaySemi,
+    color: colors.ink,
+    fontSize: 13.5,
+    lineHeight: 17,
+    includeFontPadding: false,
+  },
+  problemActionPill: {
+    flexShrink: 0,
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: colors.ink,
+    backgroundColor: colors.violet,
+  },
+  problemAction: {
+    fontFamily: fonts.bodyBold,
+    color: colors.paper,
+    fontSize: 11.5,
+    lineHeight: 14,
+    includeFontPadding: false,
+  },
 
-  // Illustrated step card deck
+  // Illustrated comic notebook card
   cardWrap: {
     flex: 1,
     minHeight: 0,
@@ -898,11 +1091,11 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     borderWidth: borders.regular,
     borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: '#FFFDF9',
     overflow: 'hidden',
   },
   cardRibbon: {
-    height: 9,
+    height: 10,
     borderBottomWidth: borders.thin,
     borderBottomColor: colors.ink,
     position: 'relative',
@@ -925,14 +1118,117 @@ const styles = StyleSheet.create({
     width: 72,
     backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
-  documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper },
+  cardMetaBar: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#E8DFF7',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cardMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  binderDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  binderDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.canvas,
+  },
+  stepStampPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+  },
+  stepStampDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.ink,
+  },
+  stepStampText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 0.4,
+    includeFontPadding: false,
+  },
+  quickResultPill: {
+    minHeight: 24,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 2.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickResultPillPressed: {
+    transform: [{ translateY: 1.5 }],
+  },
+  quickResultText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 10.5,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
+  cardCuePill: {
+    minHeight: 22,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D6C9F2',
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardCuePillFinal: {
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+  },
+  cardCueText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.inkSoft,
+    fontSize: 10,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
+  cardCueTextFinal: {
+    color: colors.ink,
+  },
+  documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: '#FFFDF9' },
 
   // Action dock
-  actionDock: { backgroundColor: colors.canvas, paddingTop: 5, gap: 6 },
+  actionDock: { backgroundColor: colors.canvas, paddingTop: 6, gap: 6 },
   secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prevStepAction: {
-    width: 42,
-    height: 40,
+    width: 44,
+    height: 42,
     borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
@@ -942,20 +1238,58 @@ const styles = StyleSheet.create({
   },
   secondaryActionWrap: { flex: 1 },
   secondaryAction: {
-    height: 40,
+    height: 42,
     borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
-    backgroundColor: colors.violetSoft,
+    backgroundColor: '#F2EAFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  secondaryActionShine: {
+    position: 'absolute',
+    top: 2,
+    left: 10,
+    right: 10,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: colors.shine,
+  },
+  hintIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-4deg' }],
   },
   secondaryTitle: { flex: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
+  secondaryTag: {
+    flexShrink: 0,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+  },
+  secondaryTagText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 10,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
   reportAction: {
-    width: 42,
-    height: 40,
+    width: 44,
+    height: 42,
     borderRadius: 14,
     borderWidth: borders.thin,
     borderColor: colors.ink,
@@ -966,7 +1300,7 @@ const styles = StyleSheet.create({
 
   // Bottom sheets
   modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
-  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.5)' },
+  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.52)' },
   sheet: {
     width: '100%',
     maxWidth: 640,
@@ -977,7 +1311,7 @@ const styles = StyleSheet.create({
     borderWidth: borders.thick,
     borderBottomWidth: 0,
     borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.canvas,
     paddingHorizontal: 16,
     paddingTop: 10,
   },
@@ -991,32 +1325,123 @@ const styles = StyleSheet.create({
     borderWidth: borders.thick,
     borderBottomWidth: 0,
     borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.canvas,
     paddingHorizontal: 16,
     paddingTop: 10,
   },
-  sheetHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: colors.line, alignSelf: 'center', marginBottom: 10 },
-  sheetHeading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  sheetIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  sheetHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: '#CBBFE8', alignSelf: 'center', marginBottom: 10 },
+  sheetBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: 18,
     borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+  },
+  sheetMascotBadge: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    borderWidth: 1.75,
+    borderColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-3deg' }],
+  },
+  sheetIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    borderWidth: borders.thin,
+    borderBottomWidth: 3,
     borderColor: colors.ink,
     backgroundColor: colors.cyanSoft,
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ rotate: '-3deg' }],
   },
-  problemSheetIcon: { backgroundColor: colors.violetSoft },
-  sheetCopy: { flex: 1, minWidth: 0 },
-  sheetEyebrow: { ...typography.kicker, color: colors.violetDeep },
-  sheetTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18, lineHeight: 22, marginTop: 1 },
-  sheetDocument: { marginBottom: 10 },
+  problemSheetIcon: { backgroundColor: colors.lime },
+  sheetCopy: { flex: 1, minWidth: 0, gap: 3 },
+  sheetTagRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
+  sheetLimeStamp: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+  },
+  sheetLimeStampText: {
+    ...typography.kicker,
+    fontSize: 9.5,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  sheetModePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 8,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    backgroundColor: colors.cyanSoft,
+  },
+  sheetModePillCheck: {
+    backgroundColor: colors.peachSoft,
+  },
+  sheetModePillText: {
+    ...typography.kicker,
+    fontSize: 9.5,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  sheetTopicPill: {
+    flexShrink: 1,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 7,
+    backgroundColor: colors.violetSoft,
+  },
+  sheetTopicPillText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    lineHeight: 13,
+    color: colors.violetDeep,
+    includeFontPadding: false,
+  },
+  sheetTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17.5, lineHeight: 21 },
+  sheetPaper: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 20,
+    borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
+    borderColor: colors.ink,
+    backgroundColor: '#FFFDF9',
+    overflow: 'hidden',
+    marginBottom: 10,
+    paddingHorizontal: 6,
+  },
+  sheetDocument: { flex: 1 },
   problemTabs: { marginBottom: 10 },
-  problemContent: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: colors.paper, position: 'relative' },
+  problemContent: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 20,
+    borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
+    borderColor: colors.ink,
+    overflow: 'hidden',
+    backgroundColor: '#FFFDF9',
+    position: 'relative',
+    paddingHorizontal: 6,
+  },
   problemPane: { flex: 1 },
-  problemPaneOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  problemPaneOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, padding: 8 },
   sourceImageCard: { flex: 1, padding: 8, borderRadius: 16, borderWidth: borders.thin, borderColor: colors.line, backgroundColor: '#F4EEFF' },
   sourceImage: { width: '100%', height: '100%', borderRadius: 12 },
 });
