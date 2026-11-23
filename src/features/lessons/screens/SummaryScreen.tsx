@@ -1,14 +1,24 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
-import { hasSeenSaveCoach, markSaveCoachSeen } from '../../../shared/storage/localPreferences';
+import {
+  getMathReadingScale,
+  hasSeenSaveCoach,
+  markSaveCoachSeen,
+  mathReadingScaleBadge,
+  nextMathReadingScale,
+  setMathReadingScale,
+  type MathReadingScale,
+} from '../../../shared/storage/localPreferences';
 import { borders, colors, fonts, radii, shadows, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -28,6 +38,7 @@ import { contentToAccessibleText } from '../../math/utils/mathContent';
 import type { MathDocumentDefinition, MathDocumentTone } from '../../math/utils/mathDocument';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { setLessonFavorite } from '../services/lessons';
+import { formatLessonShareMessage } from '../utils/lessonShare';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Summary'>;
 type SummaryTab = 'answer' | 'ideas';
@@ -39,6 +50,9 @@ export function SummaryScreen({ navigation, route }: Props) {
   const { gutter, isNarrow, isShort, isLargeText } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { beginTransition } = useTransitionMotion();
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
+  const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackEverOpened, setFeedbackEverOpened] = useState(false);
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
@@ -52,6 +66,7 @@ export function SummaryScreen({ navigation, route }: Props) {
   const [removingFromNotebook, setRemovingFromNotebook] = useState(false);
   const [removeError, setRemoveError] = useState(false);
   const [showSaveCoach, setShowSaveCoach] = useState(false);
+  const [readingScale, setReadingScale] = useState<MathReadingScale>(() => getMathReadingScale());
   const [celebrationReady, setCelebrationReady] = useState(reducedMotion);
   const [tabState, setTabState] = useState<{ tab: SummaryTab; direction: -1 | 0 | 1 }>({
     tab: 'answer',
@@ -63,10 +78,10 @@ export function SummaryScreen({ navigation, route }: Props) {
   const saveStamp = useRef(new Animated.Value(1)).current;
   const coachReveal = useRef(new Animated.Value(0)).current;
   const cardShiftX = useRef(new Animated.Value(0)).current;
-  const cardScale = useRef(new Animated.Value(1)).current;
   const ribbonSweep = useRef(new Animated.Value(0)).current;
 
   const coachCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveLocked = useRef(false);
   const previousTab = useRef<SummaryTab>('answer');
   const lesson = route.params.lesson;
@@ -106,7 +121,7 @@ export function SummaryScreen({ navigation, route }: Props) {
   ], [lesson.takeaways.length]);
 
   const playRibbonSweep = useCallback(() => {
-    if (reducedMotion) return;
+    if (reducedMotion || !motionActive) return;
     ribbonSweep.stopAnimation();
     ribbonSweep.setValue(0);
     Animated.timing(ribbonSweep, {
@@ -115,7 +130,7 @@ export function SummaryScreen({ navigation, route }: Props) {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [reducedMotion, ribbonSweep]);
+  }, [motionActive, reducedMotion, ribbonSweep]);
 
   const switchTab = useCallback((next: SummaryTab) => {
     setTabState((current) => (current.tab === next
@@ -188,36 +203,29 @@ export function SummaryScreen({ navigation, route }: Props) {
     };
   }, [activeTab, hasTakeaways, isCheck, lesson.finalAnswer, lesson.summary, lesson.takeaways]);
 
+  // Immediately stop all Summary animations whenever a screen transition begins.
   useEffect(() => {
-    if (reducedMotion) {
-      setCelebrationReady(true);
-      return undefined;
+    if (motionActive) return;
+    if (turnTimer.current) {
+      clearTimeout(turnTimer.current);
+      turnTimer.current = null;
     }
-    let settled = false;
-    let raf1 = 0;
-    let raf2 = 0;
-    const settle = () => {
-      if (settled) return;
-      settled = true;
-      raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => setCelebrationReady(true));
-      });
-    };
-    const unsubscribe = navigation.addListener('transitionEnd', (event) => {
-      if (!event.data.closing) settle();
-    });
-    const fallback = setTimeout(settle, 460);
-    return () => {
-      settled = true;
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      clearTimeout(fallback);
-      unsubscribe();
-    };
-  }, [navigation, reducedMotion]);
+    heroPop.stopAnimation();
+    saveStamp.stopAnimation();
+    cardShiftX.stopAnimation();
+    ribbonSweep.stopAnimation();
+    cardShiftX.setValue(0);
+    ribbonSweep.setValue(0);
+  }, [cardShiftX, heroPop, motionActive, ribbonSweep, saveStamp]);
 
   useEffect(() => {
-    if (!celebrationReady) return;
+    if (reducedMotion || motionActive) {
+      setCelebrationReady(true);
+    }
+  }, [motionActive, reducedMotion]);
+
+  useEffect(() => {
+    if (!celebrationReady || !motionActive) return;
     Haptics.notification(isPositive
       ? Haptics.NotificationFeedbackType.Success
       : Haptics.NotificationFeedbackType.Warning);
@@ -232,33 +240,38 @@ export function SummaryScreen({ navigation, route }: Props) {
       useNativeDriver: true,
     }).start();
     playRibbonSweep();
-  }, [celebrationReady, heroPop, isPositive, playRibbonSweep, reducedMotion]);
+  }, [celebrationReady, heroPop, isPositive, motionActive, playRibbonSweep, reducedMotion]);
 
   useEffect(() => {
     if (previousTab.current === activeTab) return;
     previousTab.current = activeTab;
-    if (reducedMotion || tabState.direction === 0) return;
+    if (turnTimer.current) {
+      clearTimeout(turnTimer.current);
+      turnTimer.current = null;
+    }
+    if (reducedMotion || !motionActive || tabState.direction === 0) return;
 
+    const direction = tabState.direction;
     cardShiftX.stopAnimation();
-    cardScale.stopAnimation();
-    cardShiftX.setValue(tabState.direction * 9);
-    cardScale.setValue(0.988);
-    Animated.parallel([
+    Animated.timing(cardShiftX, {
+      toValue: -direction * 6,
+      duration: 58,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    turnTimer.current = setTimeout(() => {
+      turnTimer.current = null;
+      cardShiftX.setValue(direction * 10);
       Animated.spring(cardShiftX, {
         toValue: 0,
-        tension: 270,
-        friction: 22,
+        tension: 275,
+        friction: 23,
         useNativeDriver: true,
-      }),
-      Animated.spring(cardScale, {
-        toValue: 1,
-        tension: 260,
-        friction: 20,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    playRibbonSweep();
-  }, [activeTab, cardScale, cardShiftX, playRibbonSweep, reducedMotion, tabState.direction]);
+      }).start();
+      playRibbonSweep();
+    }, 60);
+  }, [activeTab, cardShiftX, motionActive, playRibbonSweep, reducedMotion, tabState.direction]);
 
   useEffect(() => {
     if (!celebrationReady || saved || hasSeenSaveCoach()) return;
@@ -280,13 +293,13 @@ export function SummaryScreen({ navigation, route }: Props) {
 
   useEffect(() => () => {
     if (coachCloseTimer.current) clearTimeout(coachCloseTimer.current);
+    if (turnTimer.current) clearTimeout(turnTimer.current);
     heroPop.stopAnimation();
     saveStamp.stopAnimation();
     coachReveal.stopAnimation();
     cardShiftX.stopAnimation();
-    cardScale.stopAnimation();
     ribbonSweep.stopAnimation();
-  }, [cardScale, cardShiftX, coachReveal, heroPop, ribbonSweep, saveStamp]);
+  }, [cardShiftX, coachReveal, heroPop, ribbonSweep, saveStamp]);
 
   const dismissSaveCoach = () => {
     markSaveCoachSeen();
@@ -306,18 +319,38 @@ export function SummaryScreen({ navigation, route }: Props) {
   };
 
   const closeSummary = () => {
+    beginTransition();
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.popToTop();
   };
 
   const reviewSteps = () => {
     Haptics.selection();
+    beginTransition();
     navigation.replace('Lesson', {
       lesson,
       lessonId: route.params.lessonId,
       isFavorite: saved,
       source: 'notebook',
     });
+  };
+
+  const cycleReadingScale = () => {
+    Haptics.selection();
+    setReadingScale((currentScale) => {
+      const nextScale = nextMathReadingScale(currentScale);
+      setMathReadingScale(nextScale);
+      return nextScale;
+    });
+    playRibbonSweep();
+  };
+
+  const shareLesson = () => {
+    Haptics.selection();
+    void Share.share({
+      title: lesson.title,
+      message: formatLessonShareMessage(lesson),
+    }).catch(() => undefined);
   };
 
   const toggleSaved = async () => {
@@ -397,11 +430,11 @@ export function SummaryScreen({ navigation, route }: Props) {
           <View style={[styles.heroCard, !isPositive && styles.heroCardReview, isShort && styles.heroCardShort]}>
             <View pointerEvents="none" style={styles.heroCardShine} />
             <Animated.View style={[styles.celebration, isShort && styles.celebrationShort, { transform: [{ scale: heroPop }] }]}>
-              {isPositive && celebrationReady ? <ConfettiBurst /> : null}
+              {isPositive && celebrationReady && motionActive ? <ConfettiBurst /> : null}
               <View style={[styles.burstOuter, !isPositive && styles.burstOuterReview, isShort && styles.burstOuterShort]}>
                 <View pointerEvents="none" style={styles.burstShine} />
               </View>
-              <Mascot pose={mascotPose} size={isShort ? 70 : 80} active interactive style={styles.mascot} />
+              <Mascot pose={mascotPose} size={isShort ? 70 : 80} active={motionActive} interactive style={styles.mascot} />
               <Chip
                 label={sticker}
                 tone={isPositive ? 'lime' : isPartial ? 'gold' : 'peach'}
@@ -453,13 +486,14 @@ export function SummaryScreen({ navigation, route }: Props) {
         <View style={styles.documentCardWrap}>
           <GestureDetector gesture={swipeGesture}>
             <Animated.View
+              collapsable={false}
               style={[
                 styles.cardMotion,
-                { transform: [{ translateX: cardShiftX }, { scale: cardScale }] },
+                { transform: [{ translateX: cardShiftX }] },
               ]}
             >
               <View pointerEvents="none" style={styles.documentCardShadow} />
-              <View style={styles.documentFrame}>
+              <View collapsable={false} style={styles.documentFrame}>
                 <View style={[styles.cardRibbon, { backgroundColor: ribbonColor }]}>
                   <View pointerEvents="none" style={styles.cardRibbonShine} />
                   <Animated.View
@@ -477,32 +511,61 @@ export function SummaryScreen({ navigation, route }: Props) {
                   />
                 </View>
 
-                <View style={[styles.cardMetaBar, { backgroundColor: ribbonBg }]}>
+                <View collapsable={false} style={[styles.cardMetaBar, { backgroundColor: ribbonBg }]}>
                   <View style={styles.cardMetaLeft}>
                     <View style={styles.binderDots}>
                       <View style={styles.binderDot} />
                       <View style={styles.binderDot} />
                     </View>
                     <View collapsable={false} style={styles.pageStampPill}>
+                      <Text style={styles.pageStampGlyph}>{activeTab === 'ideas' ? '✦' : '★'}</Text>
                       <Text style={styles.pageStampText}>
-                        {activeTab === 'ideas' ? '✦ IDEI DE REȚINUT' : '★ REZULTAT FINAL'}
+                        {activeTab === 'ideas' ? 'IDEI DE REȚINUT' : 'REZULTAT FINAL'}
                       </Text>
                     </View>
                   </View>
 
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Revezi pașii rezolvării"
-                    hitSlop={8}
-                    onPress={reviewSteps}
-                    style={({ pressed }) => [styles.reviewStepsPill, pressed && styles.reviewStepsPillPressed]}
-                  >
-                    <Text style={styles.reviewStepsText}>← Pași</Text>
-                  </Pressable>
+                  <View style={styles.cardMetaRight}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Mărime text ${mathReadingScaleBadge(readingScale)}. Apasă pentru a mări sau reseta`}
+                      hitSlop={6}
+                      onPress={cycleReadingScale}
+                      style={({ pressed }) => [
+                        styles.scalePill,
+                        readingScale > 1 && styles.scalePillActive,
+                        pressed && styles.reviewStepsPillPressed,
+                      ]}
+                    >
+                      <View collapsable={false} style={styles.pillInner}>
+                        <Text style={[styles.scalePillText, readingScale > 1 && styles.scalePillTextActive]}>
+                          {mathReadingScaleBadge(readingScale)}
+                        </Text>
+                      </View>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Revezi pașii rezolvării"
+                      hitSlop={6}
+                      onPress={reviewSteps}
+                      style={({ pressed }) => [styles.reviewStepsPill, pressed && styles.reviewStepsPillPressed]}
+                    >
+                      <View collapsable={false} style={styles.pillInner}>
+                        <Text style={styles.reviewStepsText}>← Pași</Text>
+                      </View>
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View style={styles.documentInner}>
-                  <MathDocumentView definition={summaryDocument} transitionDirection={tabState.direction} testID="summary-math-document" />
+                  {transitionSettled ? (
+                    <MathDocumentView definition={summaryDocument}
+                      readingScale={readingScale}
+                      transitionDirection={tabState.direction}
+                      testID="summary-math-document"
+                    />
+                  ) : null}
                 </View>
               </View>
             </Animated.View>
@@ -541,17 +604,17 @@ export function SummaryScreen({ navigation, route }: Props) {
 
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Înapoi la început"
+            accessibilityLabel="Distribuie rezolvarea"
             depth={shadows.sm}
             radius={15}
             shadowColor={colors.ink}
             haptic="selection"
-            onPress={() => navigation.popToTop()}
+            onPress={shareLesson}
             style={styles.homeActionWrap}
-            contentStyle={[styles.homeAction, isLargeText && styles.secondaryActionLargeText]}
+            contentStyle={[styles.shareAction, isLargeText && styles.secondaryActionLargeText]}
           >
-            <MiniGlyph name="back" size={15} color={colors.ink} />
-            <Text numberOfLines={isLargeText ? 2 : 1} style={styles.homeLinkText}>Acasă</Text>
+            <Text style={styles.shareGlyph}>↗</Text>
+            <Text numberOfLines={isLargeText ? 2 : 1} style={styles.shareLinkText}>Trimite</Text>
           </PressableScale>
 
           <PressableScale
@@ -820,11 +883,53 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardMetaLeft: {
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  cardMetaRight: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pillInner: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scalePill: {
+    flexShrink: 0,
+    minWidth: 36,
+    minHeight: 28,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 2.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scalePillActive: {
+    backgroundColor: colors.violetSoft,
+    borderColor: colors.violetDeep,
+  },
+  scalePillText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
+  scalePillTextActive: {
+    color: colors.violetDeep,
+  },
   binderDots: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -838,25 +943,38 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   pageStampPill: {
+    flexShrink: 1,
+    minHeight: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1.25,
+    paddingVertical: 4,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 2.5,
     borderColor: colors.ink,
     backgroundColor: colors.paper,
+  },
+  pageStampGlyph: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 11,
+    lineHeight: 15,
+    includeFontPadding: false,
   },
   pageStampText: {
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 0.4,
+    fontSize: 10.5,
+    lineHeight: 15,
+    letterSpacing: 0.3,
+    paddingHorizontal: 1,
     includeFontPadding: false,
   },
   reviewStepsPill: {
-    minHeight: 24,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    flexShrink: 0,
+    minHeight: 28,
     borderRadius: 9,
     borderWidth: 1.5,
     borderBottomWidth: 2.5,
@@ -871,8 +989,9 @@ const styles = StyleSheet.create({
   reviewStepsText: {
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
-    fontSize: 10.5,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 1,
     includeFontPadding: false,
   },
   documentInner: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: '#FFFDF9' },
@@ -906,19 +1025,21 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.ink,
   },
-  homeActionWrap: { flex: 0.78 },
-  homeAction: {
+  homeActionWrap: { flex: 0.85 },
+  shareAction: {
     height: 42,
     borderRadius: 15,
     borderWidth: borders.thin,
     borderColor: colors.ink,
-    backgroundColor: colors.paperTint,
+    backgroundColor: colors.violetSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     paddingHorizontal: 9,
   },
+  shareGlyph: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 14, lineHeight: 16, includeFontPadding: false },
+  shareLinkText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12.5 },
   reportButton: {
     width: 42,
     height: 42,
@@ -931,7 +1052,6 @@ const styles = StyleSheet.create({
   },
   secondaryActionLargeText: { height: 54 },
   secondaryText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
-  homeLinkText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
 
   // Save coach tooltip
   saveCoach: {

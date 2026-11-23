@@ -20,6 +20,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
@@ -172,7 +173,8 @@ export function SettingsScreen({ navigation }: Props) {
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
-  const ambientActive = focused && transitionSettled;
+  const { isTransitioning } = useTransitionMotion();
+  const ambientActive = focused && transitionSettled && !isTransitioning;
   const crashlytics = getCrashlytics(getApp());
   const [diagnostics, setDiagnostics] = useState(crashlytics.isCrashlyticsCollectionEnabled);
   const [confirmDelete, setConfirmDelete] = useState(false);

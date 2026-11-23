@@ -10,12 +10,13 @@ type DotProps = {
   total: number;
   active: boolean;
   completed: boolean;
+  motionActive: boolean;
   reducedMotion: boolean;
   pulseSignal: number;
   onSelect?: (index: number) => void;
 };
 
-function StepPill({ index, total, active, completed, reducedMotion, pulseSignal, onSelect }: DotProps) {
+function StepPill({ index, total, active, completed, motionActive, reducedMotion, pulseSignal, onSelect }: DotProps) {
   const pop = useRef(new Animated.Value(active ? 1 : 0)).current;
   const previousActive = useRef(active);
   const previousPulse = useRef(pulseSignal);
@@ -27,7 +28,7 @@ function StepPill({ index, total, active, completed, reducedMotion, pulseSignal,
     previousPulse.current = pulseSignal;
 
     pop.stopAnimation();
-    if (reducedMotion) {
+    if (reducedMotion || !motionActive) {
       pop.setValue(active ? 1 : 0);
       return undefined;
     }
@@ -52,7 +53,7 @@ function StepPill({ index, total, active, completed, reducedMotion, pulseSignal,
     return () => {
       pop.stopAnimation();
     };
-  }, [active, pop, pulseSignal, reducedMotion]);
+  }, [active, motionActive, pop, pulseSignal, reducedMotion]);
 
   const scaleY = pop.interpolate({
     inputRange: [0, 1],
@@ -120,6 +121,8 @@ function StepPill({ index, total, active, completed, reducedMotion, pulseSignal,
 type Props = {
   total: number;
   current: number;
+  /** Pauses pill springs immediately when a screen transition is active. */
+  active?: boolean;
   /** Increment to give the active step pill a joyful arrival spring pop. */
   pulseSignal?: number;
   onSelectStep?: (index: number) => void;
@@ -130,7 +133,7 @@ type Props = {
  * Interactive numbered comic step journey powered by native-driver GPU springs
  * (zero Reanimated worklets and zero per-frame Yoga flex recalculations).
  */
-export function ProgressDots({ total, current, pulseSignal = 0, onSelectStep, style }: Props) {
+export function ProgressDots({ total, current, active = true, pulseSignal = 0, onSelectStep, style }: Props) {
   const reducedMotion = useReducedMotion();
   if (total <= 0) return null;
 
@@ -148,6 +151,7 @@ export function ProgressDots({ total, current, pulseSignal = 0, onSelectStep, st
           total={total}
           active={index === current}
           completed={index < current}
+          motionActive={active}
           reducedMotion={reducedMotion}
           pulseSignal={pulseSignal}
           onSelect={onSelectStep}

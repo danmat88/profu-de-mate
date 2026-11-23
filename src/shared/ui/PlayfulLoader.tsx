@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useTransitionMotion } from '../context/TransitionMotionContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors, fonts } from '../theme';
 import { Text } from './Typography';
@@ -10,6 +11,8 @@ type Props = {
   inverse?: boolean;
   compact?: boolean;
   micro?: boolean;
+  /** Pauses bounce loops when false or while a stack transition is running. */
+  active?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -20,19 +23,19 @@ function BounceDot({
   index,
   compact,
   micro,
-  reducedMotion,
+  animate,
 }: {
   color: string;
   index: number;
   compact: boolean;
   micro: boolean;
-  reducedMotion: boolean;
+  animate: boolean;
 }) {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     progress.stopAnimation();
-    if (reducedMotion) {
+    if (!animate) {
       progress.setValue(0);
       return undefined;
     }
@@ -65,7 +68,7 @@ function BounceDot({
       loop.stop();
       progress.setValue(0);
     };
-  }, [index, progress, reducedMotion]);
+  }, [animate, index, progress]);
 
   const hop = micro ? 3 : compact ? 5 : 7;
   const maxBoost = hop / 28;
@@ -116,9 +119,12 @@ export function PlayfulLoader({
   inverse = false,
   compact = false,
   micro = false,
+  active = true,
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
+  const { isTransitioning } = useTransitionMotion();
+  const animate = active && !reducedMotion && !isTransitioning;
 
   return (
     <View
@@ -135,7 +141,7 @@ export function PlayfulLoader({
             index={index}
             compact={compact}
             micro={micro}
-            reducedMotion={reducedMotion}
+            animate={animate}
           />
         ))}
       </View>

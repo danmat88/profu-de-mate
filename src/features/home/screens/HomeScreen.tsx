@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { HomeSurface } from '../components/HomeSurface';
 import { ReadinessScreen } from '../../../shared/ui/ReadinessScreen';
 import { useCommercial } from '../../access/context/CommercialContext';
+import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
+import { useScreenMotionActive } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { getCachedFavoriteLessons } from '../../lessons/services/lessons';
@@ -47,18 +49,15 @@ export function HomeScreen() {
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
   const [notebookPreview, setNotebookPreview] = useState<NotebookPreview>(() => readNotebookPreview());
   const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
-  const [homeFocused, setHomeFocused] = useState(true);
+  const { beginTransition } = useTransitionMotion();
+  const homeFocused = useScreenMotionActive(navigation, false, { initiallySettled: true });
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
   const mounted = useRef(true);
   const focused = useRef(true);
-  const focusTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
     mounted.current = false;
-    if (focusTimer.current) clearTimeout(focusTimer.current);
-    if (blurTimer.current) clearTimeout(blurTimer.current);
   }, []);
 
   useEffect(() => {
@@ -71,18 +70,6 @@ export function HomeScreen() {
     focused.current = true;
     navigationLocked.current = false;
     galleryLocked.current = false;
-    if (blurTimer.current) {
-      clearTimeout(blurTimer.current);
-      blurTimer.current = null;
-    }
-    if (focusTimer.current) {
-      clearTimeout(focusTimer.current);
-      focusTimer.current = null;
-    }
-    focusTimer.current = setTimeout(() => {
-      focusTimer.current = null;
-      if (active && mounted.current) setHomeFocused(true);
-    }, 220);
     setGalleryBusy(false);
     setNotebookPreview((previous) => {
       const next = readNotebookPreview();
@@ -105,15 +92,6 @@ export function HomeScreen() {
       active = false;
       focused.current = false;
       cancelAnimationFrame(warmFrame);
-      if (focusTimer.current) {
-        clearTimeout(focusTimer.current);
-        focusTimer.current = null;
-      }
-      // Pause Home ambient loops quietly only after the pushed screen has slid in.
-      blurTimer.current = setTimeout(() => {
-        blurTimer.current = null;
-        if (mounted.current && !focused.current) setHomeFocused(false);
-      }, 320);
     };
   }, [refreshCommercialAccessIfStale]));
 
@@ -146,18 +124,21 @@ export function HomeScreen() {
   const openCapture = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
+    beginTransition();
     if (!resume()) navigation.navigate('Capture', { mode });
   };
 
   const openMath = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
+    beginTransition();
     if (!resume()) navigation.navigate('MathInput', { mode });
   };
 
   const openNotebook = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
+    beginTransition();
     navigation.navigate('Notebook');
   };
 
@@ -195,11 +176,13 @@ export function HomeScreen() {
   const openAllowance = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
+    beginTransition();
     navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) });
   };
   const openSettings = () => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
+    beginTransition();
     navigation.navigate('Settings');
   };
 

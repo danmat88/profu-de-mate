@@ -10,15 +10,17 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   View,
   type ListRenderItem,
 } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
+import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
@@ -36,12 +38,13 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
-import { beginLessonPresentation, forgetLessonPresentation, waitForLessonPresentation } from '../services/lessonPresentation';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
+import { formatLessonShareMessage } from '../utils/lessonShare';
 import {
   filterNotebookLessons,
   notebookFilterCounts,
   notebookProblemPresentation,
+  notebookTopicCounts,
   notebookVerdictPresentation,
   type NotebookFilter,
 } from '../utils/notebookPresentation';
@@ -50,10 +53,25 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Notebook'>;
 
 const FILTER_ORDER: Record<NotebookFilter, number> = { all: 0, solve: 1, check: 2 };
 
+const TOPIC_DOT_TONES = [
+  colors.violet,
+  colors.cyan,
+  colors.peach,
+  colors.limeDeep,
+  colors.gold,
+  colors.mintDeep,
+] as const;
+
 const verdictTones = {
   correct: { bg: colors.lime, color: colors.ink, mark: '✓' },
   partial: { bg: colors.gold, color: colors.ink, mark: '◐' },
   incorrect: { bg: colors.roseSoft, color: colors.berryDeep, mark: '!' },
+} as const;
+
+const answerPreviewTones = {
+  default: { bg: '#F4FFD6', border: '#CBE289', badgeBg: colors.lime, text: colors.ink },
+  partial: { bg: '#FFF8DB', border: '#EAD07D', badgeBg: colors.gold, text: colors.ink },
+  incorrect: { bg: '#FFF1EC', border: '#F0BFB0', badgeBg: colors.peach, text: colors.peachDeep },
 } as const;
 
 const SHORT_MONTHS_RO = ['ian', 'feb', 'mar', 'apr', 'mai', 'iun', 'iul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const;
@@ -86,6 +104,7 @@ function sameLessonList(previous: StoredLesson[], next: StoredLesson[]): boolean
       || a.mode !== b.mode
       || a.verdict !== b.verdict
       || a.steps.length !== b.steps.length
+      || a.takeaways.length !== b.takeaways.length
       || a.createdAt?.toDate?.().getTime() !== b.createdAt?.toDate?.().getTime()
     ) {
       return false;
@@ -98,7 +117,10 @@ function sameProblemPreview(previous: StoredLesson, next: StoredLesson) {
   const previousPreview = notebookProblemPresentation(previous);
   const nextPreview = notebookProblemPresentation(next);
   return previousPreview.identity === nextPreview.identity
-    && previousPreview.title === nextPreview.title;
+    && previousPreview.title === nextPreview.title
+    && previousPreview.prettySnippet === nextPreview.prettySnippet
+    && previousPreview.answerPreview === nextPreview.answerPreview
+    && previousPreview.takeawayCount === nextPreview.takeawayCount;
 }
 
 /**
@@ -112,20 +134,28 @@ function StaggerCardSlot({
   index,
   generation,
   direction,
+  motionActive,
   reducedMotion,
   children,
 }: {
   index: number;
   generation: number;
   direction: -1 | 0 | 1;
+  motionActive: boolean;
   reducedMotion: boolean;
   children: ReactNode;
 }) {
-  const animateOnMount = generation > 0 && !reducedMotion && index < 4;
+  const animateOnMount = generation > 0 && motionActive && !reducedMotion && index < 4;
   const progress = useRef(new Animated.Value(animateOnMount ? 0 : 1)).current;
   const lastGeneration = useRef(animateOnMount ? -1 : generation);
 
   useLayoutEffect(() => {
+    if (!motionActive) {
+      progress.stopAnimation();
+      progress.setValue(1);
+      lastGeneration.current = generation;
+      return undefined;
+    }
     if (generation === 0 || reducedMotion || index >= 4 || lastGeneration.current === generation) {
       lastGeneration.current = generation;
       progress.setValue(1);
@@ -148,7 +178,7 @@ function StaggerCardSlot({
     return () => {
       anim.stop();
     };
-  }, [generation, index, progress, reducedMotion]);
+  }, [generation, index, motionActive, progress, reducedMotion]);
 
   if (reducedMotion || index >= 4) {
     return <>{children}</>;
@@ -183,18 +213,31 @@ type LessonRowProps = {
   lesson: StoredLesson;
   cardNumber: number;
   newest: boolean;
-  opening: boolean;
+  motionActive: boolean;
+  isNarrow: boolean;
   onOpen: (lesson: StoredLesson) => void;
+  onOpenSummary: (lesson: StoredLesson) => void;
+  onShare: (lesson: StoredLesson) => void;
   onRemove: (lesson: StoredLesson) => void;
 };
 
 /**
  * Collectible 3D comic notebook page card: color-coded spiral spine, bookmark
- * ribbon on the newest entry, numbered page stamp, formula snippet callout,
- * collapsable-safe badges (immune to Android Fabric text clipping), and zero
- * Reanimated worklets or per-row image decodes.
+ * ribbon on the newest entry, tilted page stamp, readable Unicode formula
+ * snippet, final answer preview pedestal, collapsable-safe study chips, quick
+ * result/share/remove controls, and zero Reanimated worklets.
  */
-const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening, onOpen, onRemove }: LessonRowProps) {
+const LessonRow = memo(function LessonRow({
+  lesson,
+  cardNumber,
+  newest,
+  motionActive,
+  isNarrow,
+  onOpen,
+  onOpenSummary,
+  onShare,
+  onRemove,
+}: LessonRowProps) {
   const presentation = notebookProblemPresentation(lesson);
   const verdict = notebookVerdictPresentation(lesson);
   const checked = lesson.mode === 'check';
@@ -205,30 +248,36 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
       : verdict?.tone === 'partial'
         ? colors.gold
         : checked ? colors.peach : colors.cyan;
+  const answerTone = verdict?.tone === 'incorrect'
+    ? answerPreviewTones.incorrect
+    : verdict?.tone === 'partial'
+      ? answerPreviewTones.partial
+      : answerPreviewTones.default;
   const modePillBg = checked ? colors.peachSoft : colors.cyanSoft;
   const modeGlyph = checked ? '✓' : '✦';
   const modeLabel = checked ? 'VERIFICATĂ' : 'REZOLVATĂ';
   const watermarkGlyph = verdict?.tone === 'correct' ? '✓' : checked ? '∑' : 'π';
   const actionLabel = checked ? 'Vezi verificarea' : 'Vezi rezolvarea';
   const stepLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas' : 'pași'}`;
+  const takeawayLabel = presentation.takeawayCount > 0
+    ? `${presentation.takeawayCount} ${presentation.takeawayCount === 1 ? 'idee' : 'idei'}`
+    : null;
   const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : null;
+  const snippetDisplay = presentation.prettySnippet ?? presentation.snippet;
   const pressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    pressAnim.stopAnimation();
-    Animated.spring(pressAnim, {
-      toValue: opening ? 0.6 : 0,
-      tension: 260,
-      friction: 22,
-      useNativeDriver: true,
-    }).start();
+    if (!motionActive) {
+      pressAnim.stopAnimation();
+      pressAnim.setValue(0);
+    }
     return () => {
       pressAnim.stopAnimation();
     };
-  }, [opening, pressAnim]);
+  }, [motionActive, pressAnim]);
 
   const animatePress = (pressed: boolean) => {
-    if (opening) return;
+    if (!motionActive) return;
     pressAnim.stopAnimation();
     Animated.spring(pressAnim, {
       toValue: pressed ? 1 : 0,
@@ -249,7 +298,7 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
 
   return (
     <View style={styles.lessonRowWrap}>
-      <View pointerEvents="none" style={[styles.lessonRowShadow, opening && styles.lessonRowShadowOpening]} />
+      <View pointerEvents="none" style={styles.lessonRowShadow} />
       <Animated.View style={{ transform: [{ translateY: cardTranslateY }, { scale: cardScale }] }}>
         <Pressable
           accessibilityRole="button"
@@ -258,10 +307,12 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
           onPressIn={() => animatePress(true)}
           onPressOut={() => animatePress(false)}
           onPress={() => {
+            pressAnim.stopAnimation();
+            pressAnim.setValue(0);
             Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
             onOpen(lesson);
           }}
-          style={[styles.lessonCard, opening && styles.lessonCardOpening]}
+          style={styles.lessonCard}
         >
         <View style={[styles.lessonRail, { backgroundColor: spineTone }]}>
           <View pointerEvents="none" style={styles.railGloss} />
@@ -303,13 +354,30 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
             <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
           </View>
 
-          {presentation.snippet ? (
+          {snippetDisplay ? (
             <View style={styles.snippetBox}>
               <View style={[styles.snippetAccent, { backgroundColor: spineTone }]} />
               <View collapsable={false} style={styles.snippetFormulaBadge}>
                 <Text style={styles.snippetFormulaGlyph}>ƒ</Text>
               </View>
-              <Text numberOfLines={2} style={styles.snippetText}>{presentation.snippet}</Text>
+              <Text numberOfLines={2} style={styles.snippetText}>{snippetDisplay}</Text>
+            </View>
+          ) : null}
+
+          {presentation.answerPreview ? (
+            <View
+              collapsable={false}
+              style={[
+                styles.answerStrip,
+                { backgroundColor: answerTone.bg, borderColor: answerTone.border },
+              ]}
+            >
+              <View collapsable={false} style={[styles.answerBadge, { backgroundColor: answerTone.badgeBg }]}>
+                <Text style={styles.answerBadgeText}>★ RĂSPUNS</Text>
+              </View>
+              <Text numberOfLines={1} style={[styles.answerPreviewText, { color: answerTone.text }]}>
+                {presentation.answerPreview}
+              </Text>
             </View>
           ) : null}
 
@@ -325,49 +393,91 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
                 </Text>
               </View>
             ) : null}
+            <View collapsable={false} style={styles.detailChip}>
+              <View style={styles.detailDot} />
+              <Text style={styles.detailText}>{stepLabel}</Text>
+            </View>
+            {takeawayLabel ? (
+              <View collapsable={false} style={styles.detailChip}>
+                <Text style={styles.detailSpark}>✦</Text>
+                <Text style={styles.detailText}>{takeawayLabel}</Text>
+              </View>
+            ) : null}
+            {requestLabel ? (
+              <View collapsable={false} style={styles.detailChip}>
+                <Text style={styles.detailText}>{requestLabel}</Text>
+              </View>
+            ) : null}
           </View>
 
           <View style={styles.lessonFooter}>
-            <View style={styles.detailCluster}>
-              <View collapsable={false} style={styles.detailChip}>
-                <View style={styles.detailDot} />
-                <Text style={styles.detailText}>{stepLabel}</Text>
-              </View>
-              {requestLabel ? (
-                <View collapsable={false} style={styles.detailChip}>
-                  <Text style={styles.detailText}>{requestLabel}</Text>
+            <View style={styles.quickActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Vezi rezultatul pentru ${presentation.title}`}
+                hitSlop={6}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onOpenSummary(lesson);
+                }}
+                style={({ pressed }) => [
+                  styles.summaryAction,
+                  isNarrow && styles.summaryActionNarrow,
+                  pressed && styles.actionPressed,
+                ]}
+              >
+                <View collapsable={false} style={styles.summaryActionInner}>
+                  <Text style={styles.summaryActionStar}>★</Text>
+                  <Text style={styles.summaryActionText}>Rezultat</Text>
                 </View>
-              ) : null}
-            </View>
+              </Pressable>
 
-            <View style={styles.rowActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Trimite ${presentation.title}`}
+                hitSlop={6}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onShare(lesson);
+                }}
+                style={({ pressed }) => [
+                  styles.shareIconAction,
+                  isNarrow && styles.iconActionNarrow,
+                  pressed && styles.actionPressed,
+                ]}
+              >
+                <Text style={styles.shareIconGlyph}>↗</Text>
+              </Pressable>
+
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Scoate ${presentation.title} din Caiet`}
-                hitSlop={8}
+                hitSlop={6}
                 onPress={(event) => {
                   event.stopPropagation();
                   onRemove(lesson);
                 }}
-                style={({ pressed }) => [styles.removeAction, pressed && styles.actionPressed]}
+                style={({ pressed }) => [
+                  styles.removeIconAction,
+                  isNarrow && styles.iconActionNarrow,
+                  pressed && styles.actionPressed,
+                ]}
               >
-                <Text style={styles.removeText}>× Scoate</Text>
+                <MiniGlyph name="close" size={13} color={colors.berryDeep} />
               </Pressable>
-              <View collapsable={false} style={[styles.openPill, opening && styles.openPillOpening]}>
-                <View pointerEvents="none" style={styles.openPillShine} />
-                {opening ? (
-                  <>
-                    <PlayfulLoader micro inverse />
-                    <Text style={styles.openPillText}>Deschid</Text>
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.openPillText}>Deschide</Text>
-                    <View collapsable={false} style={styles.openArrowBadge}>
-                      <Text style={styles.openArrowGlyph}>→</Text>
-                    </View>
-                  </>
-                )}
+            </View>
+
+            <View
+              collapsable={false}
+              style={[
+                styles.openPill,
+                isNarrow && styles.openPillNarrow,
+              ]}
+            >
+              <View pointerEvents="none" style={styles.openPillShine} />
+              <Text style={styles.openPillText}>Deschide</Text>
+              <View collapsable={false} style={styles.openArrowBadge}>
+                <Text style={styles.openArrowGlyph}>→</Text>
               </View>
             </View>
           </View>
@@ -383,10 +493,14 @@ const LessonRow = memo(function LessonRow({ lesson, cardNumber, newest, opening,
   && previous.lesson.mode === next.lesson.mode
   && previous.lesson.verdict === next.lesson.verdict
   && previous.lesson.steps.length === next.lesson.steps.length
+  && previous.lesson.takeaways.length === next.lesson.takeaways.length
   && previous.lesson.createdAt?.toDate?.().getTime() === next.lesson.createdAt?.toDate?.().getTime()
   && previous.newest === next.newest
-  && previous.opening === next.opening
+  && previous.motionActive === next.motionActive
+  && previous.isNarrow === next.isNarrow
   && previous.onOpen === next.onOpen
+  && previous.onOpenSummary === next.onOpenSummary
+  && previous.onShare === next.onShare
   && previous.onRemove === next.onRemove
   && sameProblemPreview(previous.lesson, next.lesson)
 ));
@@ -473,20 +587,31 @@ function FullNotebookState({ kind, active, onPrimary, onSecondary }: FullStatePr
 type FilterEmptyProps = {
   filter: NotebookFilter;
   query: string;
+  topic: string | null;
   onReset: () => void;
   onStart: (mode: FlowMode) => void;
 };
 
 /** Zero-worklet empty state so switching to an empty filter tab stays instant. */
-const FilterEmpty = memo(function FilterEmpty({ filter, query, onReset, onStart }: FilterEmptyProps) {
+const FilterEmpty = memo(function FilterEmpty({ filter, query, topic, onReset, onStart }: FilterEmptyProps) {
   const searching = Boolean(query);
+  const filteredByTopic = Boolean(topic);
   const check = filter === 'check';
   const title = searching
     ? `Nicio problemă pentru „${query}”`
-    : check ? 'Nicio verificare salvată' : 'Nicio problemă rezolvată';
+    : filteredByTopic
+      ? check
+        ? `Nicio verificare la „${topic}”`
+        : filter === 'solve'
+          ? `Nicio rezolvare la „${topic}”`
+          : `Nicio problemă la „${topic}”`
+      : check ? 'Nicio verificare salvată' : 'Nicio problemă rezolvată';
   const description = searching
     ? 'Încearcă un capitol, o formulă sau un alt cuvânt din enunț.'
-    : check ? 'Verifică o rezolvare, apoi păstreaz-o aici pentru recapitulare.' : 'Rezolvă o problemă, apoi salveaz-o în Caiet.';
+    : filteredByTopic
+      ? 'Încearcă un alt capitol sau revino la toate problemele din Caiet.'
+      : check ? 'Verifică o rezolvare, apoi păstreaz-o aici pentru recapitulare.' : 'Rezolvă o problemă, apoi salveaz-o în Caiet.';
+  const shouldReset = searching || filteredByTopic;
 
   return (
     <View style={styles.filterEmpty}>
@@ -507,13 +632,13 @@ const FilterEmpty = memo(function FilterEmpty({ filter, query, onReset, onStart 
           accessibilityRole="button"
           onPress={() => {
             Haptics.selection();
-            if (searching) onReset();
+            if (shouldReset) onReset();
             else onStart(check ? 'check' : 'solve');
           }}
           style={({ pressed }) => [styles.filterEmptyAction, pressed && styles.filterEmptyActionPressed]}
         >
           <Text style={styles.filterEmptyActionText}>
-            {searching ? 'Șterge căutarea' : check ? 'Verifică o rezolvare' : 'Rezolvă o problemă'}
+            {searching ? 'Șterge căutarea' : filteredByTopic ? 'Arată toate problemele' : check ? 'Verifică o rezolvare' : 'Rezolvă o problemă'}
           </Text>
         </Pressable>
       </View>
@@ -526,13 +651,16 @@ export function NotebookScreen({ navigation }: Props) {
   const { gutter, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { beginTransition } = useTransitionMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
+  const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const [tabState, setTabState] = useState<{
     filter: NotebookFilter;
     direction: -1 | 0 | 1;
     generation: number;
   }>({ filter: 'all', direction: 0, generation: 0 });
   const [queryText, setQueryText] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchActivated, setSearchActivated] = useState(false);
   const deferredQueryText = useDeferredValue(queryText);
@@ -545,24 +673,12 @@ export function NotebookScreen({ navigation }: Props) {
   const [removeVisible, setRemoveVisible] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
-  const [openingNoteId, setOpeningNoteId] = useState<string | null>(null);
 
   const listRef = useRef<FlatList<StoredLesson>>(null);
   const openingNoteRef = useRef(false);
-  const openFrameRef = useRef(0);
-  const focusedRef = useRef(true);
 
   useFocusEffect(useCallback(() => {
-    focusedRef.current = true;
     openingNoteRef.current = false;
-    setOpeningNoteId(null);
-    return () => {
-      focusedRef.current = false;
-      if (openFrameRef.current) {
-        cancelAnimationFrame(openFrameRef.current);
-        openFrameRef.current = 0;
-      }
-    };
   }, []));
 
   useEffect(() => {
@@ -598,9 +714,17 @@ export function NotebookScreen({ navigation }: Props) {
 
   const { filter, direction, generation } = tabState;
   const normalizedQuery = deferredQueryText.trim();
+  const topicCounts = useMemo(() => notebookTopicCounts(notes), [notes]);
+  const effectiveTopic = useMemo(() => {
+    if (!selectedTopic) return null;
+    const needle = selectedTopic.toLocaleLowerCase('ro-RO');
+    return topicCounts.some((item) => item.topic.toLocaleLowerCase('ro-RO') === needle)
+      ? selectedTopic
+      : null;
+  }, [selectedTopic, topicCounts]);
   const visibleNotes = useMemo(
-    () => filterNotebookLessons(notes, filter, normalizedQuery),
-    [filter, normalizedQuery, notes],
+    () => filterNotebookLessons(notes, filter, normalizedQuery, effectiveTopic),
+    [effectiveTopic, filter, normalizedQuery, notes],
   );
   // Keep 100% of the visible viewport filled on Frame 0 while preventing
   // off-screen list items from inflating mid-transition.
@@ -653,38 +777,59 @@ export function NotebookScreen({ navigation }: Props) {
     });
   }, []);
 
+  const chooseTopic = useCallback((nextTopic: string | null) => {
+    Haptics.selection();
+    setSelectedTopic((current) => {
+      if (
+        current
+        && nextTopic
+        && current.toLocaleLowerCase('ro-RO') === nextTopic.toLocaleLowerCase('ro-RO')
+      ) {
+        return null;
+      }
+      return nextTopic;
+    });
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    setTabState((current) => ({
+      ...current,
+      direction: 0,
+      generation: current.generation + 1,
+    }));
+  }, []);
+
   const openNote = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
     openingNoteRef.current = true;
-    setOpeningNoteId(lesson.id);
-    const params: RootStackParamList['Lesson'] = {
+    // Pause all animations on Caiet immediately and launch the native slide
+    // without blocking the main thread on WebView preloading.
+    beginTransition();
+    navigation.navigate('Lesson', {
       lesson,
       lessonId: lesson.id,
       isFavorite: true,
       source: 'notebook',
-    };
-    // Paint the card press and active pill on Frame 0 first, then preload and
-    // transition once the math view is ready (bounded so detached Android WebView never stalls).
-    openFrameRef.current = requestAnimationFrame(() => {
-      openFrameRef.current = 0;
-      if (!focusedRef.current) {
-        openingNoteRef.current = false;
-        setOpeningNoteId(null);
-        return;
-      }
-      beginLessonPresentation(lesson.id);
-      navigation.preload('Lesson', params);
-      void waitForLessonPresentation(lesson.id, 240).then(() => {
-        if (!focusedRef.current) {
-          forgetLessonPresentation(lesson.id);
-          openingNoteRef.current = false;
-          setOpeningNoteId(null);
-          return;
-        }
-        navigation.navigate('Lesson', params);
-      });
     });
-  }, [navigation]);
+  }, [beginTransition, navigation]);
+
+  const openSummary = useCallback((lesson: StoredLesson) => {
+    if (openingNoteRef.current) return;
+    openingNoteRef.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    beginTransition();
+    navigation.navigate('Summary', {
+      lesson,
+      lessonId: lesson.id,
+      isFavorite: true,
+    });
+  }, [beginTransition, navigation]);
+
+  const shareNote = useCallback((lesson: StoredLesson) => {
+    Haptics.selection();
+    void Share.share({
+      title: lesson.title,
+      message: formatLessonShareMessage(lesson),
+    }).catch(() => undefined);
+  }, []);
 
   const requestRemove = useCallback((lesson: StoredLesson) => {
     Haptics.selection();
@@ -725,11 +870,13 @@ export function NotebookScreen({ navigation }: Props) {
   const startMode = useCallback((mode: FlowMode) => {
     if (openingNoteRef.current) return;
     openingNoteRef.current = true;
+    beginTransition();
     navigation.navigate('Capture', { mode });
-  }, [navigation]);
+  }, [beginTransition, navigation]);
   const clearSearch = useCallback(() => setQueryText(''), []);
   const resetFilters = useCallback(() => {
     setQueryText('');
+    setSelectedTopic(null);
     chooseFilter('all');
   }, [chooseFilter]);
   const retrySubscription = useCallback(() => {
@@ -738,28 +885,48 @@ export function NotebookScreen({ navigation }: Props) {
     setSubscriptionAttempt((attempt) => attempt + 1);
   }, [notes.length]);
 
-  const newestNoteId = filter === 'all' && !normalizedQuery ? notes[0]?.id : undefined;
+  const newestNoteId = filter === 'all' && !normalizedQuery && !effectiveTopic ? notes[0]?.id : undefined;
   const renderLesson = useCallback<ListRenderItem<StoredLesson>>(({ item, index }) => (
     <StaggerCardSlot
       index={index}
       generation={generation}
       direction={direction}
+      motionActive={motionActive}
       reducedMotion={reducedMotion}
     >
       <LessonRow
         lesson={item}
         cardNumber={index + 1}
         newest={item.id === newestNoteId}
-        opening={item.id === openingNoteId}
+        motionActive={motionActive}
+        isNarrow={isNarrow}
         onOpen={openNote}
+        onOpenSummary={openSummary}
+        onShare={shareNote}
         onRemove={requestRemove}
       />
     </StaggerCardSlot>
-  ), [direction, generation, newestNoteId, openNote, openingNoteId, reducedMotion, requestRemove]);
+  ), [direction, generation, isNarrow, motionActive, newestNoteId, openNote, openSummary, reducedMotion, requestRemove, shareNote]);
   const keyExtractor = useCallback((item: StoredLesson) => item.id, []);
   const activeTabLabel = tabOptions.find((tab) => tab.value === filter)?.label ?? 'Toate';
-  const resultLabel = normalizedQuery ? 'Rezultatele căutării' : filter === 'all' ? 'Probleme salvate' : activeTabLabel;
-  const headerCount = loading && notes.length === 0 ? 'LECȚII SALVATE' : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
+  const resultLabel = normalizedQuery
+    ? `„${normalizedQuery}”`
+    : effectiveTopic
+      ? effectiveTopic
+      : filter === 'all'
+        ? 'Probleme salvate'
+        : activeTabLabel;
+  const shelfEyebrow = normalizedQuery
+    ? 'CĂUTARE ACTIVĂ'
+    : effectiveTopic
+      ? 'CAPITOL SELECTAT'
+      : 'CAIETUL TĂU';
+  const hasResettableFilter = Boolean(normalizedQuery || effectiveTopic);
+  const headerCount = loading && notes.length === 0
+    ? 'LECȚII SALVATE'
+    : topicCounts.length > 1
+      ? `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ' : 'PROBLEME'} · ${topicCounts.length} CAPITOLE`
+      : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
   const searchPlaceholder = isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole';
   const mountSearchInput = transitionSettled || searchActivated;
@@ -770,7 +937,7 @@ export function NotebookScreen({ navigation }: Props) {
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        <NotebookLoading active={transitionSettled} />
+        <NotebookLoading active={motionActive} />
       </View>
     );
   }
@@ -781,7 +948,7 @@ export function NotebookScreen({ navigation }: Props) {
         <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        <FullNotebookState kind={loadError ? 'error' : 'empty'} active={transitionSettled} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
+        <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
       </View>
     );
   }
@@ -838,6 +1005,64 @@ export function NotebookScreen({ navigation }: Props) {
           />
         </View>
 
+        {topicCounts.length >= 2 ? (
+          <View style={styles.topicStripWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={[styles.topicStripContent, { paddingHorizontal: gutter }]}
+            >
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: effectiveTopic === null }}
+                onPress={() => chooseTopic(null)}
+                style={({ pressed }) => [
+                  styles.topicFilterPill,
+                  effectiveTopic === null && styles.topicFilterPillActive,
+                  pressed && styles.actionPressed,
+                ]}
+              >
+                <View collapsable={false} style={styles.topicFilterPillInner}>
+                  <Text style={[styles.topicFilterText, effectiveTopic === null && styles.topicFilterTextActive]}>
+                    Toate capitolele
+                  </Text>
+                </View>
+              </Pressable>
+
+              {topicCounts.map((item, index) => {
+                const active = effectiveTopic?.toLocaleLowerCase('ro-RO') === item.topic.toLocaleLowerCase('ro-RO');
+                const dotColor = TOPIC_DOT_TONES[index % TOPIC_DOT_TONES.length];
+                return (
+                  <Pressable
+                    key={item.topic}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                    onPress={() => chooseTopic(item.topic)}
+                    style={({ pressed }) => [
+                      styles.topicFilterPill,
+                      active && styles.topicFilterPillActive,
+                      pressed && styles.actionPressed,
+                    ]}
+                  >
+                    <View collapsable={false} style={styles.topicFilterPillInner}>
+                      <View style={[styles.topicFilterDot, { backgroundColor: active ? colors.lime : dotColor }]} />
+                      <Text numberOfLines={1} style={[styles.topicFilterText, active && styles.topicFilterTextActive]}>
+                        {item.topic}
+                      </Text>
+                      <View collapsable={false} style={[styles.topicFilterCount, active && styles.topicFilterCountActive]}>
+                        <Text style={[styles.topicFilterCountText, active && styles.topicFilterCountTextActive]}>
+                          {item.count}
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {loadError ? (
           <Pressable accessibilityRole="button" onPress={retrySubscription} style={[styles.syncWarning, { marginHorizontal: gutter }]}>
             <MiniGlyph name="spark" size={14} color={colors.ink} />
@@ -853,15 +1078,33 @@ export function NotebookScreen({ navigation }: Props) {
             </View>
             <View style={styles.listHeadingCopy}>
               <Text numberOfLines={1} style={styles.listEyebrow}>
-                {normalizedQuery ? `CĂUTARE: ${normalizedQuery.toLocaleUpperCase('ro-RO')}` : 'CAIETUL TĂU'}
+                {shelfEyebrow}
               </Text>
               <Text numberOfLines={1} style={styles.listTitle}>{resultLabel}</Text>
             </View>
           </View>
-          <View collapsable={false} style={styles.visibleCountPill}>
-            <Text style={styles.visibleCount}>
-              ★ {visibleNotes.length} {visibleNotes.length === 1 ? 'lecție' : 'lecții'}
-            </Text>
+          <View style={styles.listHeadingRight}>
+            {hasResettableFilter ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Resetează filtrele"
+                hitSlop={6}
+                onPress={() => {
+                  Haptics.selection();
+                  resetFilters();
+                }}
+                style={({ pressed }) => [styles.resetFilterPill, pressed && styles.actionPressed]}
+              >
+                <View collapsable={false} style={styles.resetFilterInner}>
+                  <Text style={styles.resetFilterText}>× Resetează</Text>
+                </View>
+              </Pressable>
+            ) : null}
+            <View collapsable={false} style={styles.visibleCountPill}>
+              <Text style={styles.visibleCount}>
+                ★ {visibleNotes.length} {visibleNotes.length === 1 ? 'lecție' : 'lecții'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -877,9 +1120,16 @@ export function NotebookScreen({ navigation }: Props) {
                 index={0}
                 generation={generation}
                 direction={direction}
+                motionActive={motionActive}
                 reducedMotion={reducedMotion}
               >
-                <FilterEmpty filter={filter} query={normalizedQuery} onReset={resetFilters} onStart={startMode} />
+                <FilterEmpty
+                  filter={filter}
+                  query={normalizedQuery}
+                  topic={effectiveTopic}
+                  onReset={resetFilters}
+                  onStart={startMode}
+                />
               </StaggerCardSlot>
             ) : null}
             ListFooterComponent={<View style={styles.listFooter} />}
@@ -914,7 +1164,71 @@ export function NotebookScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1, minHeight: 0 },
-  controls: { paddingTop: 4, gap: 9 },
+  controls: { paddingTop: 4, gap: 8 },
+
+  topicStripWrap: { marginTop: 7 },
+  topicStripContent: { gap: 7, paddingVertical: 2, alignItems: 'center' },
+  topicFilterPill: {
+    minHeight: 31,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: colors.line,
+    backgroundColor: colors.paper,
+    justifyContent: 'center',
+  },
+  topicFilterPillActive: {
+    borderColor: colors.ink,
+    backgroundColor: colors.violet,
+  },
+  topicFilterPillInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  topicFilterDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+  },
+  topicFilterText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.inkSoft,
+    fontSize: 11.5,
+    lineHeight: 15,
+    includeFontPadding: false,
+  },
+  topicFilterTextActive: {
+    color: colors.paper,
+  },
+  topicFilterCount: {
+    minWidth: 18,
+    minHeight: 18,
+    paddingHorizontal: 5,
+    borderRadius: 6,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topicFilterCountActive: {
+    backgroundColor: colors.lime,
+    borderWidth: 1,
+    borderColor: colors.ink,
+  },
+  topicFilterCountText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 10,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
+  topicFilterCountTextActive: {
+    color: colors.ink,
+  },
 
   searchShadow: { borderRadius: 17, backgroundColor: colors.ink, paddingBottom: shadows.sm },
   searchShadowFocused: { backgroundColor: colors.violetShadow },
@@ -1004,6 +1318,30 @@ const styles = StyleSheet.create({
   listHeadingCopy: { flex: 1, minWidth: 0 },
   listEyebrow: { ...typography.kicker, fontSize: 10.5, lineHeight: 14, color: colors.violetDeep },
   listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 23, marginTop: 1 },
+  listHeadingRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  resetFilterPill: {
+    minHeight: 26,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: colors.ink,
+    backgroundColor: colors.goldSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetFilterInner: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetFilterText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 11,
+    lineHeight: 15,
+    includeFontPadding: false,
+  },
   visibleCountPill: {
     minHeight: 26,
     paddingHorizontal: 10,
@@ -1042,9 +1380,6 @@ const styles = StyleSheet.create({
     borderRadius: 23,
     backgroundColor: colors.ink,
   },
-  lessonRowShadowOpening: {
-    backgroundColor: colors.violetDeep,
-  },
   lessonCard: {
     overflow: 'hidden',
     borderRadius: 23,
@@ -1052,10 +1387,6 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
     backgroundColor: colors.paper,
     flexDirection: 'row',
-  },
-  lessonCardOpening: {
-    borderColor: colors.violet,
-    backgroundColor: '#FCF9FF',
   },
   lessonRail: {
     width: 18,
@@ -1153,6 +1484,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 9,
     borderWidth: 1.5,
+    borderBottomWidth: 2.5,
     borderColor: colors.ink,
   },
   modeGlyph: {
@@ -1176,6 +1508,7 @@ const styles = StyleSheet.create({
     minHeight: 24,
     borderRadius: 9,
     borderWidth: 1.5,
+    borderBottomWidth: 2.5,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
     paddingHorizontal: 8,
@@ -1221,15 +1554,17 @@ const styles = StyleSheet.create({
   pageNumBadge: {
     flexShrink: 0,
     minWidth: 30,
-    minHeight: 24,
+    minHeight: 25,
     marginTop: 1,
     paddingHorizontal: 6,
-    borderRadius: 8,
+    borderRadius: 9,
     borderWidth: 1.5,
+    borderBottomWidth: 2.5,
     borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    transform: [{ rotate: '-3deg' }],
   },
   pageNumBadgeNew: {
     backgroundColor: colors.goldSoft,
@@ -1287,9 +1622,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 7,
     fontFamily: fonts.bodyMedium,
-    color: colors.inkSoft,
+    color: colors.ink,
+    fontSize: 13,
+    lineHeight: 17.5,
+  },
+
+  answerStrip: {
+    marginTop: 7,
+    minHeight: 33,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 6,
+    paddingRight: 10,
+    paddingVertical: 5,
+    borderRadius: 11,
+    borderWidth: 1.5,
+  },
+  answerBadge: {
+    flexShrink: 0,
+    minHeight: 21,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 7,
+    borderWidth: 1.25,
+    borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  answerBadgeText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 9.5,
+    lineHeight: 13,
+    letterSpacing: 0.25,
+    includeFontPadding: false,
+  },
+  answerPreviewText: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.bodyBold,
     fontSize: 12.5,
-    lineHeight: 16.5,
+    lineHeight: 16,
+    includeFontPadding: false,
   },
 
   topicRow: { minHeight: 26, marginTop: 9, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
@@ -1344,16 +1719,15 @@ const styles = StyleSheet.create({
   },
 
   lessonFooter: {
-    marginTop: 11,
+    marginTop: 10,
     paddingTop: 9,
     borderTopWidth: 1.5,
     borderTopColor: '#EFEAF8',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: 6,
   },
-  detailCluster: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
   detailChip: {
     flexShrink: 0,
     minHeight: 25,
@@ -1373,6 +1747,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.violet,
   },
+  detailSpark: {
+    fontFamily: fonts.display,
+    color: colors.violetDeep,
+    fontSize: 10.5,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
   detailText: {
     fontFamily: fonts.bodyBold,
     color: colors.inkSoft,
@@ -1380,18 +1761,73 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     includeFontPadding: false,
   },
-  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  removeAction: {
-    minHeight: 35,
+  quickActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  summaryAction: {
+    height: 36,
     borderRadius: 11,
-    borderWidth: 1.25,
-    borderColor: colors.line,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: colors.ink,
+    backgroundColor: colors.goldSoft,
+    paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 9,
-    backgroundColor: colors.paperTint,
   },
-  removeText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 11.5, lineHeight: 15, includeFontPadding: false },
+  summaryActionNarrow: {
+    paddingHorizontal: 8,
+  },
+  summaryActionInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  summaryActionStar: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 12,
+    lineHeight: 15,
+    includeFontPadding: false,
+  },
+  summaryActionText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 11.5,
+    lineHeight: 15,
+    includeFontPadding: false,
+  },
+  shareIconAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareIconGlyph: {
+    fontFamily: fonts.display,
+    color: colors.violetDeep,
+    fontSize: 15,
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  removeIconAction: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderBottomWidth: 3,
+    borderColor: '#C98A9C',
+    backgroundColor: '#FFF1F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconActionNarrow: {
+    width: 33,
+    height: 35,
+  },
   openPill: {
     minWidth: 106,
     height: 36,
@@ -1409,9 +1845,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  openPillOpening: {
-    paddingRight: 11,
-    backgroundColor: colors.violetDeep,
+  openPillNarrow: {
+    minWidth: 96,
+    height: 35,
+    paddingLeft: 9,
+    gap: 5,
   },
   openPillShine: {
     position: 'absolute',

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
+import { useTransitionMotion } from '../context/TransitionMotionContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { borders, colors, fonts, radii, typography } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
@@ -36,9 +37,14 @@ export function ScreenHeader({
 }: Props) {
   const color = dark ? colors.paper : colors.ink;
   const frame = useSafeAreaFrame();
+  const { beginTransition } = useTransitionMotion();
   const { gutter, isNarrow, isLargeText } = useResponsiveLayout(frame);
   const buttonSize = compact && !isLargeText ? 42 : 46;
   const badgeRadius = Math.min(radii.md, Math.round(buttonSize * 0.34));
+  const handleBack = () => {
+    beginTransition();
+    onBack();
+  };
 
   return (
     <View
@@ -50,7 +56,7 @@ export function ScreenHeader({
         isLargeText && styles.rowLargeText,
       ]}
     >
-      <IconButton label="Înapoi" deferPressMs={45} onPress={onBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
+      <IconButton label="Înapoi" deferPressMs={45} onPress={handleBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
         <MiniGlyph name="back" size={compact && !isLargeText ? 22 : 25} color={color} />
       </IconButton>
       <View style={styles.copy}>

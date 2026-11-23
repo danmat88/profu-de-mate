@@ -10,6 +10,7 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { LaunchSplash } from './components/LaunchSplash';
 import { HomeMotionReadyContext } from '../features/home/context/HomeMotionContext';
 import { CommercialProvider, useCommercial } from '../features/access/context/CommercialContext';
+import { TransitionMotionProvider, useTransitionMotion } from '../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../shared/hooks/useReducedMotion';
 import { startImmersiveNavigationBarGuard } from '../shared/services/immersiveNavigationBar';
 import { StableSafeAreaProvider } from '../shared/ui/StableSafeAreaProvider';
@@ -83,6 +84,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const initialRoute: keyof RootStackParamList = startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home';
   const reducedMotion = useReducedMotion();
+  const { beginTransition, endTransition } = useTransitionMotion();
   const { authSessionKey } = useCommercial();
   const previousSessionKey = useRef(authSessionKey);
   const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
@@ -95,6 +97,14 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
     contentStyle: { backgroundColor: colors.canvas },
     animation: (reducedMotion ? 'none' : 'ios_from_right') as 'none' | 'ios_from_right',
   }), [reducedMotion]);
+  const stackScreenListeners = useMemo(() => ({
+    transitionStart: () => {
+      beginTransition();
+    },
+    transitionEnd: () => {
+      endTransition();
+    },
+  }), [beginTransition, endTransition]);
   const handleNavigationReady = useCallback(() => {
     requestAnimationFrame(() => requestAnimationFrame(onReady));
   }, [onReady]);
@@ -131,7 +141,11 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
             theme={NAVIGATION_THEME}
             onReady={handleNavigationReady}
           >
-            <Stack.Navigator initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'} screenOptions={defaultScreenOptions}>
+            <Stack.Navigator
+              initialRouteName={activePending?.schemaVersion === 3 ? 'MathProcessing' : activePending ? 'Processing' : 'Home'}
+              screenOptions={defaultScreenOptions}
+              screenListeners={stackScreenListeners}
+            >
               <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
               <Stack.Screen name="MathInput" component={MathInputScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom' }} />
               <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade', contentStyle: { backgroundColor: colors.ink } }} />
@@ -293,7 +307,9 @@ export default function App() {
           void SplashScreen.hideAsync();
           recordDiagnosticError('app_render', error);
         }}>
-          <AppRoot />
+          <TransitionMotionProvider>
+            <AppRoot />
+          </TransitionMotionProvider>
         </AppErrorBoundary>
       </StableSafeAreaProvider>
     </GestureHandlerRootView>

@@ -2,14 +2,22 @@ import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Image, Modal, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
+import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
+import {
+  getMathReadingScale,
+  mathReadingScaleBadge,
+  nextMathReadingScale,
+  setMathReadingScale,
+  type MathReadingScale,
+} from '../../../shared/storage/localPreferences';
 import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
 import type { AnalysisVerdict, CapturedImage, RichContent, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -29,9 +37,11 @@ import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { MathDocumentView } from '../../math/components/MathDocumentView';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import type { MathDocumentDefinition, MathDocumentTone } from '../../math/utils/mathDocument';
+import { LessonRoadmapModal } from '../components/LessonRoadmapModal';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { forgetLessonPresentation, markLessonPresentationReady } from '../services/lessonPresentation';
 import { setLessonFavorite } from '../services/lessons';
+import { formatLessonShareMessage } from '../utils/lessonShare';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Lesson'>;
 type ProblemView = 'statement' | 'photo';
@@ -111,12 +121,14 @@ function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; r
 function LessonAlternateModal({
   stepNumber,
   alternative,
+  readingScale,
   bottomSpace,
   reducedMotion,
   onClosed,
 }: {
   stepNumber: number;
   alternative: RichContent;
+  readingScale: MathReadingScale;
   bottomSpace: number;
   reducedMotion: boolean;
   onClosed: () => void;
@@ -205,7 +217,7 @@ function LessonAlternateModal({
             </IconButton>
           </View>
           <View style={styles.sheetPaper}>
-            <MathDocumentView definition={alternateDocument} style={styles.sheetDocument} testID="alternate-math-document" />
+            <MathDocumentView definition={alternateDocument} readingScale={readingScale} style={styles.sheetDocument} testID="alternate-math-document" />
           </View>
           <ComicButton compact title="Am înțeles!" trailingIcon="check" tone="lime" onPress={requestClose} />
         </Animated.View>
@@ -222,9 +234,11 @@ function LessonProblemModal({
   stepCount,
   problem,
   problemAccessible,
+  readingScale,
   sourceImage,
   bottomSpace,
   reducedMotion,
+  onShare,
   onClosed,
 }: {
   title: string;
@@ -233,9 +247,11 @@ function LessonProblemModal({
   stepCount: number;
   problem: RichContent;
   problemAccessible: string;
+  readingScale: MathReadingScale;
   sourceImage?: CapturedImage;
   bottomSpace: number;
   reducedMotion: boolean;
+  onShare: () => void;
   onClosed: () => void;
 }) {
   const [problemView, setProblemView] = useState<ProblemView>('statement');
@@ -364,7 +380,7 @@ function LessonProblemModal({
               importantForAccessibility={problemView === 'statement' ? 'yes' : 'no-hide-descendants'}
               style={[styles.problemPane, { opacity: statementOpacity, transform: [{ translateX: statementShift }] }]}
             >
-              <MathDocumentView definition={problemDocument} testID="problem-math-document" />
+              <MathDocumentView definition={problemDocument} readingScale={readingScale} testID="problem-math-document" />
             </Animated.View>
             {sourceImage ? (
               <Animated.View
@@ -379,6 +395,24 @@ function LessonProblemModal({
               </Animated.View>
             ) : null}
           </View>
+          <View style={styles.problemSheetFooter}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Distribuie problema și rezolvarea"
+              onPress={onShare}
+              style={({ pressed }) => [styles.sheetShareButton, pressed && styles.quickResultPillPressed]}
+            >
+              <Text style={styles.sheetShareText}>↗ Trimite lecția</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Înapoi la rezolvare"
+              onPress={requestClose}
+              style={({ pressed }) => [styles.sheetDoneButton, pressed && styles.quickResultPillPressed]}
+            >
+              <Text style={styles.sheetDoneText}>Înapoi la pași</Text>
+            </Pressable>
+          </View>
         </Animated.View>
       </View>
     </Modal>
@@ -391,12 +425,15 @@ export function LessonScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const screenFocused = useIsFocused();
+  const { beginTransition } = useTransitionMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
+  const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const { refresh: refreshCommercialAccess } = useCommercial();
   const lesson = route.params.lesson;
   const sourceImage = route.params.sourceImage;
   const isCheck = lesson.mode === 'check';
   const isFromNotebook = route.params.source === 'notebook';
+  const mountMathDocument = !isFromNotebook || transitionSettled;
   const [stepState, setStepState] = useState<{ step: number; direction: -1 | 0 | 1 }>({
     step: 0,
     direction: 0,
@@ -404,6 +441,8 @@ export function LessonScreen({ navigation, route }: Props) {
   const step = stepState.step;
   const [alternate, setAlternate] = useState(false);
   const [problemOpen, setProblemOpen] = useState(false);
+  const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [readingScale, setReadingScale] = useState<MathReadingScale>(() => getMathReadingScale());
   const [saved, setSaved] = useState(route.params.isFavorite ?? false);
   const [saveToast, setSaveToast] = useState<'saved' | 'removed' | null>(null);
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
@@ -419,7 +458,6 @@ export function LessonScreen({ navigation, route }: Props) {
   }
 
   const cardShiftX = useRef(new Animated.Value(0)).current;
-  const cardScale = useRef(new Animated.Value(1)).current;
   const ribbonSweep = useRef(new Animated.Value(0)).current;
 
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -427,6 +465,7 @@ export function LessonScreen({ navigation, route }: Props) {
   const removedToastPending = useRef(false);
   const pagingLocked = useRef(false);
   const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const arrivalPlayed = useRef(false);
   const previousStep = useRef(0);
 
@@ -460,61 +499,79 @@ export function LessonScreen({ navigation, route }: Props) {
   }), [current, tone]);
 
   const playRibbonSweep = useCallback(() => {
-    if (reducedMotion) return;
+    if (reducedMotion || !motionActive) return;
     ribbonSweep.stopAnimation();
     ribbonSweep.setValue(0);
     Animated.timing(ribbonSweep, {
       toValue: 1,
-      duration: 560,
+      duration: 540,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [reducedMotion, ribbonSweep]);
+  }, [motionActive, reducedMotion, ribbonSweep]);
 
-  // Choreographed arrival flourish once the native slide transition lands cleanly.
+  // Immediately halt all animations whenever a transition begins out of LessonScreen.
   useEffect(() => {
-    if (!transitionSettled || !screenFocused || arrivalPlayed.current) return;
+    if (motionActive) return;
+    if (turnTimer.current) {
+      clearTimeout(turnTimer.current);
+      turnTimer.current = null;
+    }
+    cardShiftX.stopAnimation();
+    ribbonSweep.stopAnimation();
+    cardShiftX.setValue(0);
+    ribbonSweep.setValue(0);
+  }, [cardShiftX, motionActive, ribbonSweep]);
+
+  // Choreographed arrival flourish strictly AFTER the native slide transition finishes.
+  useEffect(() => {
+    if (!motionActive || arrivalPlayed.current) return;
     arrivalPlayed.current = true;
     if (reducedMotion) return;
     setArrivalPulse((value) => value + 1);
     playRibbonSweep();
-  }, [playRibbonSweep, reducedMotion, screenFocused, transitionSettled]);
+  }, [motionActive, playRibbonSweep, reducedMotion]);
 
-  // Tactile page-turn spring and ribbon shimmer whenever moving between steps.
+  // Synchronized 2-phase page-turn choreography matching MathDocumentView's 60ms swap.
   useEffect(() => {
     if (previousStep.current === step) return;
     previousStep.current = step;
     setAlternate(false);
-    if (reducedMotion || stepState.direction === 0) return;
+    if (turnTimer.current) {
+      clearTimeout(turnTimer.current);
+      turnTimer.current = null;
+    }
+    if (reducedMotion || !motionActive || stepState.direction === 0) return;
 
+    const direction = stepState.direction;
     cardShiftX.stopAnimation();
-    cardScale.stopAnimation();
-    cardShiftX.setValue(stepState.direction * 9);
-    cardScale.setValue(0.988);
-    Animated.parallel([
+    Animated.timing(cardShiftX, {
+      toValue: -direction * 6,
+      duration: 58,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    turnTimer.current = setTimeout(() => {
+      turnTimer.current = null;
+      cardShiftX.setValue(direction * 10);
       Animated.spring(cardShiftX, {
         toValue: 0,
         tension: 280,
-        friction: 22,
+        friction: 23,
         useNativeDriver: true,
-      }),
-      Animated.spring(cardScale, {
-        toValue: 1,
-        tension: 260,
-        friction: 20,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    playRibbonSweep();
-  }, [cardScale, cardShiftX, playRibbonSweep, reducedMotion, step, stepState.direction]);
+      }).start();
+      playRibbonSweep();
+    }, 60);
+  }, [cardShiftX, motionActive, playRibbonSweep, reducedMotion, step, stepState.direction]);
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
     if (pagingTimer.current) clearTimeout(pagingTimer.current);
+    if (turnTimer.current) clearTimeout(turnTimer.current);
     cardShiftX.stopAnimation();
-    cardScale.stopAnimation();
     ribbonSweep.stopAnimation();
-  }, [cardScale, cardShiftX, ribbonSweep]);
+  }, [cardShiftX, ribbonSweep]);
 
   useEffect(() => navigation.addListener('beforeRemove', () => {
     forgetLessonPresentation(route.params.lessonId);
@@ -534,11 +591,12 @@ export function LessonScreen({ navigation, route }: Props) {
   const lockPaging = useCallback(() => {
     if (pagingLocked.current) return false;
     pagingLocked.current = true;
-    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 260);
+    pagingTimer.current = setTimeout(() => { pagingLocked.current = false; }, 210);
     return true;
   }, []);
 
   const openSummary = useCallback(() => {
+    beginTransition();
     if (isFromNotebook) {
       navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
       return;
@@ -550,7 +608,7 @@ export function LessonScreen({ navigation, route }: Props) {
         { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved } },
       ],
     });
-  }, [isFromNotebook, lesson, navigation, route.params.lessonId, saved]);
+  }, [beginTransition, isFromNotebook, lesson, navigation, route.params.lessonId, saved]);
 
   const jumpToStep = useCallback((target: number) => {
     if (target < 0 || target >= lesson.steps.length || target === step) return;
@@ -575,10 +633,11 @@ export function LessonScreen({ navigation, route }: Props) {
       setStepState((current) => ({ step: current.step - 1, direction: -1 }));
       return;
     }
+    beginTransition();
     if (isFromNotebook) navigation.goBack();
     else if (navigation.canGoBack()) navigation.popToTop();
     else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-  }, [isFromNotebook, lockPaging, navigation, step]);
+  }, [beginTransition, isFromNotebook, lockPaging, navigation, step]);
 
   const swipePrev = useCallback(() => {
     if (step > 0) back();
@@ -586,12 +645,12 @@ export function LessonScreen({ navigation, route }: Props) {
 
   const swipeGesture = useMemo(
     () => Gesture.Pan()
-      .activeOffsetX([-36, 36])
-      .failOffsetY([-16, 16])
+      .activeOffsetX([-28, 28])
+      .failOffsetY([-14, 14])
       .onEnd((event) => {
-        if (event.translationX < -68 || event.velocityX < -580) {
+        if (event.translationX < -54 || event.velocityX < -480) {
           scheduleOnRN(next);
-        } else if (event.translationX > 68 || event.velocityX > 580) {
+        } else if (event.translationX > 54 || event.velocityX > 480) {
           scheduleOnRN(swipePrev);
         }
       }),
@@ -617,6 +676,29 @@ export function LessonScreen({ navigation, route }: Props) {
     if (!lockPaging()) return;
     Haptics.selection();
     openSummary();
+  };
+
+  const openRoadmap = () => {
+    Haptics.selection();
+    setRoadmapOpen(true);
+  };
+
+  const cycleReadingScale = () => {
+    Haptics.selection();
+    setReadingScale((currentScale) => {
+      const nextScale = nextMathReadingScale(currentScale);
+      setMathReadingScale(nextScale);
+      return nextScale;
+    });
+    playRibbonSweep();
+  };
+
+  const shareLesson = () => {
+    Haptics.selection();
+    void Share.share({
+      title: lesson.title,
+      message: formatLessonShareMessage(lesson),
+    }).catch(() => undefined);
   };
 
   const showNotebookToast = useCallback((kind: 'saved' | 'removed') => {
@@ -702,6 +784,7 @@ export function LessonScreen({ navigation, route }: Props) {
       <ProgressDots
         total={lesson.steps.length}
         current={step}
+        active={motionActive}
         pulseSignal={arrivalPulse}
         onSelectStep={jumpToStep}
         style={[styles.progress, { marginHorizontal: gutter }]}
@@ -742,13 +825,14 @@ export function LessonScreen({ navigation, route }: Props) {
 
         <GestureDetector gesture={swipeGesture}>
           <Animated.View
+            collapsable={false}
             style={[
               styles.cardWrap,
-              { transform: [{ translateX: cardShiftX }, { scale: cardScale }] },
+              { transform: [{ translateX: cardShiftX }] },
             ]}
           >
             <View pointerEvents="none" style={styles.cardShadow} />
-            <View style={styles.cardFace}>
+            <View collapsable={false} style={styles.cardFace}>
               <View style={[styles.cardRibbon, { backgroundColor: ribbonColors[tone] }]}>
                 <View pointerEvents="none" style={styles.cardRibbonShine} />
                 <Animated.View
@@ -766,44 +850,86 @@ export function LessonScreen({ navigation, route }: Props) {
                 />
               </View>
 
-              <View style={[styles.cardMetaBar, { backgroundColor: ribbonSoftBg[tone] }]}>
+              <View collapsable={false} style={[styles.cardMetaBar, { backgroundColor: ribbonSoftBg[tone] }]}>
                 <View style={styles.cardMetaLeft}>
                   <View style={styles.binderDots}>
                     <View style={styles.binderDot} />
                     <View style={styles.binderDot} />
                   </View>
-                  <View collapsable={false} style={styles.stepStampPill}>
-                    <View style={[styles.stepStampDot, { backgroundColor: ribbonColors[tone] }]} />
-                    <Text style={styles.stepStampText}>{stepStamp}</Text>
-                  </View>
-                </View>
-
-                {isFromNotebook && !isLastStep ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Sari direct la rezultatul final"
-                    hitSlop={8}
-                    onPress={jumpToResult}
-                    style={({ pressed }) => [styles.quickResultPill, pressed && styles.quickResultPillPressed]}
+                    accessibilityLabel={`Deschide harta pașilor: ${stepStamp}`}
+                    hitSlop={6}
+                    onPress={openRoadmap}
+                    style={({ pressed }) => [styles.stepStampPill, pressed && styles.quickResultPillPressed]}
                   >
-                    <Text style={styles.quickResultText}>★ Rezultat</Text>
+                    <View collapsable={false} style={styles.stepStampInner}>
+                      <View style={[styles.stepStampDot, { backgroundColor: ribbonColors[tone] }]} />
+                      <Text style={styles.stepStampText}>{stepStamp}</Text>
+                      <Text style={styles.stepStampCaret}>▾</Text>
+                    </View>
                   </Pressable>
-                ) : (
-                  <View collapsable={false} style={[styles.cardCuePill, isLastStep && styles.cardCuePillFinal]}>
-                    <Text style={[styles.cardCueText, isLastStep && styles.cardCueTextFinal]}>
-                      {isLastStep ? '★ Ultimul pas' : lesson.steps.length > 1 ? '← Glisează →' : 'Explicație'}
-                    </Text>
-                  </View>
-                )}
+                </View>
+
+                <View style={styles.cardMetaRight}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mărime text ${mathReadingScaleBadge(readingScale)}. Apasă pentru a mări sau reseta`}
+                    hitSlop={6}
+                    onPress={cycleReadingScale}
+                    style={({ pressed }) => [
+                      styles.scalePill,
+                      readingScale > 1 && styles.scalePillActive,
+                      pressed && styles.quickResultPillPressed,
+                    ]}
+                  >
+                    <View collapsable={false} style={styles.pillInner}>
+                      <Text style={[styles.scalePillText, readingScale > 1 && styles.scalePillTextActive]}>
+                        {mathReadingScaleBadge(readingScale)}
+                      </Text>
+                    </View>
+                  </Pressable>
+
+                  {isFromNotebook && !isLastStep ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Sari direct la rezultatul final"
+                      hitSlop={6}
+                      onPress={jumpToResult}
+                      style={({ pressed }) => [styles.quickResultPill, pressed && styles.quickResultPillPressed]}
+                    >
+                      <View collapsable={false} style={styles.pillRow}>
+                        <Text style={styles.quickResultStar}>★</Text>
+                        <Text style={styles.quickResultText}>Rezultat</Text>
+                      </View>
+                    </Pressable>
+                  ) : (
+                    <View collapsable={false} style={[styles.cardCuePill, isLastStep && styles.cardCuePillFinal]}>
+                      {isLastStep ? (
+                        <View collapsable={false} style={styles.pillRowCompact}>
+                          <Text style={styles.quickResultStar}>★</Text>
+                          <Text style={[styles.cardCueText, styles.cardCueTextFinal]}>Final</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.cardCueText}>
+                          {lesson.steps.length > 1 ? '← Glisează →' : 'Explicație'}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
               </View>
 
               <View style={styles.documentFrame}>
-                <MathDocumentView definition={lessonDocument}
-                  transitionDirection={stepState.direction}
-                  animateInitialReveal={screenFocused}
-                  testID="lesson-math-document"
-                  onReady={() => markLessonPresentationReady(route.params.lessonId)}
-                />
+                {mountMathDocument ? (
+                  <MathDocumentView definition={lessonDocument}
+                    transitionDirection={stepState.direction}
+                    readingScale={readingScale}
+                    animateInitialReveal={screenFocused}
+                    testID="lesson-math-document"
+                    onReady={() => markLessonPresentationReady(route.params.lessonId)}
+                  />
+                ) : null}
               </View>
             </View>
           </Animated.View>
@@ -883,6 +1009,7 @@ export function LessonScreen({ navigation, route }: Props) {
         <LessonAlternateModal
           stepNumber={step + 1}
           alternative={current.alternative}
+          readingScale={readingScale}
           bottomSpace={bottomSpace}
           reducedMotion={reducedMotion}
           onClosed={() => setAlternate(false)}
@@ -897,10 +1024,24 @@ export function LessonScreen({ navigation, route }: Props) {
           stepCount={lesson.steps.length}
           problem={lesson.problem}
           problemAccessible={problemAccessible}
+          readingScale={readingScale}
           sourceImage={sourceImage}
           bottomSpace={bottomSpace}
           reducedMotion={reducedMotion}
+          onShare={shareLesson}
           onClosed={() => setProblemOpen(false)}
+        />
+      ) : null}
+
+      {roadmapOpen ? (
+        <LessonRoadmapModal
+          lesson={lesson}
+          currentStep={step}
+          bottomSpace={bottomSpace}
+          reducedMotion={reducedMotion}
+          onSelectStep={jumpToStep}
+          onOpenSummary={openSummary}
+          onClosed={() => setRoadmapOpen(false)}
         />
       ) : null}
 
@@ -1025,10 +1166,10 @@ const styles = StyleSheet.create({
   },
   verdictMicroChip: {
     flexShrink: 0,
-    minHeight: 18,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    minHeight: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 7,
     borderWidth: 1.25,
     borderColor: colors.ink,
     alignItems: 'center',
@@ -1036,8 +1177,9 @@ const styles = StyleSheet.create({
   },
   verdictMicroText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9.5,
-    lineHeight: 12,
+    fontSize: 10,
+    lineHeight: 14,
+    paddingHorizontal: 1,
     includeFontPadding: false,
   },
   problem: {
@@ -1130,11 +1272,67 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardMetaLeft: {
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
+  cardMetaRight: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pillInner: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  pillRowCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  scalePill: {
+    flexShrink: 0,
+    minWidth: 36,
+    minHeight: 28,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 2.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scalePillActive: {
+    backgroundColor: colors.violetSoft,
+    borderColor: colors.violetDeep,
+  },
+  scalePillText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
+  scalePillTextActive: {
+    color: colors.violetDeep,
+  },
   binderDots: {
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -1148,17 +1346,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
   },
   stepStampPill: {
+    flexShrink: 1,
+    minHeight: 28,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderBottomWidth: 2.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.paper,
+    justifyContent: 'center',
+  },
+  stepStampInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    paddingVertical: 4,
   },
   stepStampDot: {
+    flexShrink: 0,
     width: 6.5,
     height: 6.5,
     borderRadius: 4,
@@ -1166,17 +1371,25 @@ const styles = StyleSheet.create({
     borderColor: colors.ink,
   },
   stepStampText: {
+    flexShrink: 1,
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 0.4,
+    fontSize: 10.5,
+    lineHeight: 15,
+    letterSpacing: 0.3,
+    paddingHorizontal: 1,
+    includeFontPadding: false,
+  },
+  stepStampCaret: {
+    fontFamily: fonts.bodyBold,
+    color: colors.inkSoft,
+    fontSize: 10.5,
+    lineHeight: 15,
     includeFontPadding: false,
   },
   quickResultPill: {
-    minHeight: 24,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    flexShrink: 0,
+    minHeight: 28,
     borderRadius: 9,
     borderWidth: 1.5,
     borderBottomWidth: 2.5,
@@ -1188,19 +1401,28 @@ const styles = StyleSheet.create({
   quickResultPillPressed: {
     transform: [{ translateY: 1.5 }],
   },
+  quickResultStar: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 11.5,
+    lineHeight: 15,
+    includeFontPadding: false,
+  },
   quickResultText: {
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 10.5,
-    lineHeight: 13,
+    fontSize: 11,
+    lineHeight: 15,
+    paddingHorizontal: 1,
     includeFontPadding: false,
   },
   cardCuePill: {
-    minHeight: 22,
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 8,
-    borderWidth: 1,
+    flexShrink: 0,
+    minHeight: 28,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 9,
+    borderWidth: 1.25,
     borderColor: '#D6C9F2',
     backgroundColor: colors.paper,
     alignItems: 'center',
@@ -1208,14 +1430,16 @@ const styles = StyleSheet.create({
   },
   cardCuePillFinal: {
     borderWidth: 1.5,
+    borderBottomWidth: 2.5,
     borderColor: colors.ink,
     backgroundColor: colors.lime,
   },
   cardCueText: {
     fontFamily: fonts.bodyBold,
     color: colors.inkSoft,
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 10.5,
+    lineHeight: 15,
+    paddingHorizontal: 1,
     includeFontPadding: false,
   },
   cardCueTextFinal: {
@@ -1442,6 +1666,50 @@ const styles = StyleSheet.create({
   },
   problemPane: { flex: 1 },
   problemPaneOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, padding: 8 },
+  problemSheetFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  sheetShareButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  sheetShareText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 13,
+    lineHeight: 16,
+    includeFontPadding: false,
+  },
+  sheetDoneButton: {
+    flex: 1.2,
+    minHeight: 44,
+    borderRadius: 14,
+    borderWidth: borders.thin,
+    borderBottomWidth: 3.5,
+    borderColor: colors.ink,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  sheetDoneText: {
+    fontFamily: fonts.displaySemi,
+    color: colors.ink,
+    fontSize: 14,
+    lineHeight: 17,
+    includeFontPadding: false,
+  },
   sourceImageCard: { flex: 1, padding: 8, borderRadius: 16, borderWidth: borders.thin, borderColor: colors.line, backgroundColor: '#F4EEFF' },
   sourceImage: { width: '100%', height: '100%', borderRadius: 12 },
 });

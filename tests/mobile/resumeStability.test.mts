@@ -237,6 +237,7 @@ test('all screens and modals are wired to stabilized safe-area metrics and trans
     premiumSurfaceSource,
     comicButtonSource,
     lessonSource,
+    roadmapModalSource,
   ] = await Promise.all([
     readFile(new URL('../../src/app/App.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/app/components/AppErrorBoundary.tsx', import.meta.url), 'utf8'),
@@ -246,6 +247,7 @@ test('all screens and modals are wired to stabilized safe-area metrics and trans
     readFile(new URL('../../src/features/access/components/PremiumSurface.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/shared/ui/ComicButton.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/lessons/screens/LessonScreen.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/lessons/components/LessonRoadmapModal.tsx', import.meta.url), 'utf8'),
   ]);
 
   assert.match(appSource, /<StableSafeAreaProvider>/);
@@ -266,4 +268,7 @@ test('all screens and modals are wired to stabilized safe-area metrics and trans
     assert.match(modalTag, /statusBarTranslucent/);
     assert.match(modalTag, /navigationBarTranslucent/);
   }
+  assert.match(roadmapModalSource, /statusBarTranslucent/);
+  assert.match(roadmapModalSource, /navigationBarTranslucent/);
+  assert.doesNotMatch(roadmapModalSource, /react-native-reanimated/);
 });

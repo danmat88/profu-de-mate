@@ -95,7 +95,7 @@ test('generated document becomes visible when browser font readiness hangs and e
     document: { getElementById: () => root, fonts: { ready: font.promise } },
     window: { ReactNativeWebView: { postMessage: (value: string) => messages.push(value) } },
     requestAnimationFrame: (callback: () => void) => callback(),
-    setTimeout: (callback: () => void, delay: number) => { assert.equal(delay, 1500); timeout = callback; return 1; },
+    setTimeout: (callback: () => void, delay: number) => { assert.equal(delay, 260); timeout = callback; return 1; },
     clearTimeout: () => undefined,
   });
   assert.equal(messages.length, 0);

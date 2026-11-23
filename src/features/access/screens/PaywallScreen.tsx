@@ -15,6 +15,7 @@ import {
   type PremiumOffer,
 } from '../services/purchases';
 import type { RootStackParamList } from '../../../shared/types';
+import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { createLatestTask, type TaskState } from '../../../shared/utils/latestTask';
@@ -62,8 +63,9 @@ export function PaywallScreen({ navigation, route }: Props) {
   const [successLimit, setSuccessLimit] = useState(30);
   const [screenFocused, setScreenFocused] = useState(() => navigation.isFocused?.() ?? true);
   const reducedMotion = useReducedMotion();
+  const { isTransitioning } = useTransitionMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
-  const ambientActive = screenFocused && transitionSettled;
+  const ambientActive = screenFocused && transitionSettled && !isTransitioning;
   const identity = sessionIdentity ?? access?.identity ?? null;
   const googleLinked = identity === 'google';
   const premium = access?.premium.active === true;

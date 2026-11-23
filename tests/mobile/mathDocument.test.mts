@@ -5,10 +5,13 @@ import type { MathContentBlock, RichContent, VisualContentBlock } from '../../sr
 import {
   buildMathDocumentHtml,
   buildMathDocumentMarkup,
+  buildMathDocumentScaleScript,
   buildMathDocumentUpdateScript,
+  deriveMathDocumentBaseUrl,
   renderRichMathDocument,
   sanitizeDocumentSvg,
 } from '../../src/features/math/utils/mathDocument.ts';
+import { formatLessonShareMessage } from '../../src/features/lessons/utils/lessonShare.ts';
 
 function math(latex: string, spoken: string, widthEx = 7, heightEx = 2): MathContentBlock {
   return {
@@ -223,4 +226,65 @@ test('uses one math document in the lesson and summary, while the notebook stays
 
 test('returns an empty string for a non-SVG payload', () => {
   assert.equal(sanitizeDocumentSvg('<img src=x>', 'safe'), '');
+});
+
+test('resolves local file:// font baseUrl without base64 bloat, supports live reading scale, and formats clean share text', async () => {
+  assert.equal(
+    deriveMathDocumentBaseUrl({ bodyRegular: 'file:///data/user/0/ro.profudemate.app/cache/ExponentAsset-1.ttf' }),
+    'file:///data/user/0/ro.profudemate.app/cache/',
+  );
+  assert.equal(deriveMathDocumentBaseUrl({ bodyRegular: 'https://example.com/font.ttf' }), 'about:blank');
+  assert.equal(deriveMathDocumentBaseUrl({}), 'about:blank');
+
+  const [documentFontsSource, mathDocumentViewSource] = await Promise.all([
+    readFile(new URL('../../src/features/math/services/documentFonts.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/math/components/MathDocumentView.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.doesNotMatch(documentFontsSource, /\.base64\(/);
+  assert.match(mathDocumentViewSource, /deriveMathDocumentBaseUrl\(fontsReady\)/);
+
+  const html = buildMathDocumentHtml(
+    { accessibilityLabel: 'Lecție', variant: 'lesson', sections: [{ kind: 'content', content: [{ type: 'text', text: 'Salut', latex: '', spoken: '' }] }] },
+    {
+      bodyRegular: 'data:font/ttf;base64,QUJD',
+      bodyMedium: 'data:font/ttf;base64,REVG',
+      bodySemibold: 'data:text/html;base64,PGltZz4=',
+      display: 'data:font/ttf;base64,R0hJ',
+    },
+    undefined,
+    1.14,
+  );
+
+  assert.match(html, /font-size:114%/);
+  assert.match(html, /data:font\/ttf;base64,QUJD/);
+  assert.match(html, /font-weight:500/);
+  assert.doesNotMatch(html, /data:text\/html/);
+  assert.match(buildMathDocumentScaleScript(1.28), /window\.__setScale\(128\)/);
+
+  const shared = formatLessonShareMessage({
+    schemaVersion: 4,
+    status: 'ready',
+    mode: 'solve',
+    title: 'Ecuație de gradul I',
+    topic: 'Algebră',
+    verdict: 'not_applicable',
+    headline: 'Rezultat găsit',
+    problem: [{ type: 'text', text: 'Rezolvă x + 2 = 5.', latex: '', spoken: '' }],
+    summary: [{ type: 'text', text: 'Scădem 2.', latex: '', spoken: '' }],
+    finalAnswer: [{ type: 'text', text: 'x = 3', latex: '', spoken: '' }],
+    steps: [{
+      kicker: 'PASUL 1',
+      title: 'Separăm necunoscuta',
+      explanation: [{ type: 'text', text: 'Scădem 2.', latex: '', spoken: '' }],
+      note: [{ type: 'text', text: 'Păstrăm egalitatea.', latex: '', spoken: '' }],
+      alternative: [{ type: 'text', text: 'Mutăm 2.', latex: '', spoken: '' }],
+    }],
+    takeaways: [{ content: [{ type: 'text', text: 'Verifică mereu soluția.', latex: '', spoken: '' }] }],
+  });
+
+  assert.match(shared, /Profu’ de mate — Ecuație de gradul I/);
+  assert.match(shared, /Algebră · Rezolvare pas cu pas/);
+  assert.match(shared, /1\. Separăm necunoscuta/);
+  assert.match(shared, /x = 3/);
+  assert.match(shared, /• Verifică mereu soluția\./);
 });

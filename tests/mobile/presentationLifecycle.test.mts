@@ -162,8 +162,9 @@ test('document fonts are downloaded once and become synchronously available to s
   const load = serviceLoader({
     '@expo-google-fonts/balsamiq-sans/700Bold': { BalsamiqSans_700Bold: 1 },
     '@expo-google-fonts/fira-sans/400Regular': { FiraSans_400Regular: 2 },
-    '@expo-google-fonts/fira-sans/600SemiBold': { FiraSans_600SemiBold: 3 },
-    'expo-asset': { Asset: { fromModule: (id: number) => ({ localUri: `file://font-${id}.ttf`, downloadAsync: async () => { downloads++; } }) } },
+    '@expo-google-fonts/fira-sans/500Medium': { FiraSans_500Medium: 3 },
+    '@expo-google-fonts/fira-sans/600SemiBold': { FiraSans_600SemiBold: 4 },
+    'expo-asset': { Asset: { fromModule: (id: number) => ({ localUri: `file:///font-${id}.ttf`, downloadAsync: async () => { downloads++; } }) } },
   });
   const fonts = load('src/features/math/services/documentFonts.ts');
   assert.equal(fonts.getCachedDocumentFonts(), undefined);
@@ -173,7 +174,9 @@ test('document fonts are downloaded once and become synchronously available to s
   const resolved = await first;
   assert.equal(fonts.getCachedDocumentFonts(), resolved);
   assert.equal(await fonts.preloadDocumentFonts(), resolved);
-  assert.equal(downloads, 3);
+  assert.equal(downloads, 4);
+  assert.equal(resolved.display, 'file:///font-1.ttf');
+  assert.equal(resolved.bodyMedium, 'file:///font-3.ttf');
 });
 
 test('failed font preparation can retry without retaining a rejected cache entry', async () => {
@@ -181,14 +184,15 @@ test('failed font preparation can retry without retaining a rejected cache entry
   const load = serviceLoader({
     '@expo-google-fonts/balsamiq-sans/700Bold': { BalsamiqSans_700Bold: 1 },
     '@expo-google-fonts/fira-sans/400Regular': { FiraSans_400Regular: 2 },
-    '@expo-google-fonts/fira-sans/600SemiBold': { FiraSans_600SemiBold: 3 },
-    'expo-asset': { Asset: { fromModule: () => ({ uri: 'file://font.ttf', downloadAsync: async () => { if (fail) throw Error('unavailable'); } }) } },
+    '@expo-google-fonts/fira-sans/500Medium': { FiraSans_500Medium: 3 },
+    '@expo-google-fonts/fira-sans/600SemiBold': { FiraSans_600SemiBold: 4 },
+    'expo-asset': { Asset: { fromModule: () => ({ uri: 'file:///font.ttf', downloadAsync: async () => { if (fail) throw Error('unavailable'); } }) } },
   });
   const fonts = load('src/features/math/services/documentFonts.ts');
   await assert.rejects(fonts.preloadDocumentFonts());
   assert.equal(fonts.getCachedDocumentFonts(), undefined);
   fail = false;
-  assert.ok((await fonts.preloadDocumentFonts()).display);
+  assert.equal((await fonts.preloadDocumentFonts()).display, 'file:///font.ttf');
 });
 
 test('all controls share one reduced-motion native listener and respond together to accessibility changes', async () => {

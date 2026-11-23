@@ -6,7 +6,9 @@ import {
   filterNotebookLessons,
   notebookFilterCounts,
   notebookProblemPresentation,
+  notebookTopicCounts,
   notebookVerdictPresentation,
+  prettyLatexText,
 } from '../../src/features/lessons/utils/notebookPresentation.ts';
 
 function math(latex: string, spoken: string): MathContentBlock {
@@ -128,9 +130,50 @@ test('keeps notebook rows formula-free and exposes direct removal with an in-app
   const modalSource = await readFile(new URL('../../src/features/lessons/components/RemoveFromNotebookModal.tsx', import.meta.url), 'utf8');
 
   assert.doesNotMatch(source, /MathFormula|InlineMathFormula|MathDocumentView/);
+  assert.doesNotMatch(source, /react-native-reanimated/);
   assert.match(source, /Scoate .* din Caiet/);
   assert.match(source, /setLessonFavorite\(lesson\.id, false\)/);
   assert.match(source, /<RemoveFromNotebookModal[\s\S]*visible=\{removeVisible && Boolean\(pendingRemoval\)\}/);
+  assert.match(source, /notebookTopicCounts\(notes\)/);
+  assert.match(source, /formatLessonShareMessage\(lesson\)/);
   assert.match(modalSource, /Scoți problema din Caiet\?/);
   assert.match(modalSource, /Păstreaz-o în Caiet/);
+});
+
+test('formats readable Unicode math previews, final answer snippets, and topic filters', () => {
+  assert.equal(prettyLatexText('3^0'), '3⁰');
+  assert.equal(prettyLatexText('x^2 - 4 = 0'), 'x² − 4 = 0');
+  assert.equal(prettyLatexText('\\frac{3}{4} + \\frac{5}{6}'), '3/4 + 5/6');
+  assert.equal(prettyLatexText('\\sqrt{18}'), '√18');
+  assert.equal(prettyLatexText('\\angle ABC = 60^\\circ'), '∠ABC = 60°');
+  assert.equal(prettyLatexText('S = \\{2, 5\\}'), 'S = {2, 5}');
+
+  const eq = lesson('eq', 'solve', [
+    { type: 'text', text: 'Rezolvați', latex: '', spoken: '' },
+    math('x^2-4=0', 'x la puterea a doua minus patru egal cu zero'),
+  ], 'Ecuații');
+  eq.finalAnswer = [math('S=\\{-2, 2\\}', 'S egal cu mulțimea minus doi și doi')];
+  eq.takeaways = [
+    { content: [{ type: 'text', text: 'Diferență de pătrate.', latex: '', spoken: '' }] },
+    { content: [{ type: 'text', text: 'Verifică ambele soluții.', latex: '', spoken: '' }] },
+  ];
+
+  const presentation = notebookProblemPresentation(eq);
+  assert.equal(presentation.prettySnippet, 'Rezolvați x² − 4 = 0');
+  assert.equal(presentation.answerPreview, 'S = {-2, 2}');
+  assert.equal(presentation.takeawayCount, 2);
+
+  const lessons = [
+    eq,
+    lesson('geo-1', 'check', [math('AB=6', 'A B egal cu șase')], 'Geometrie'),
+    lesson('geo-2', 'solve', [math('AC=8', 'A C egal cu opt')], 'Geometrie'),
+  ];
+
+  assert.deepEqual(notebookTopicCounts(lessons), [
+    { topic: 'Geometrie', count: 2 },
+    { topic: 'Ecuații', count: 1 },
+  ]);
+  assert.deepEqual(filterNotebookLessons(lessons, 'all', '', 'Geometrie').map((item) => item.id), ['geo-1', 'geo-2']);
+  assert.deepEqual(filterNotebookLessons(lessons, 'check', '', 'Geometrie').map((item) => item.id), ['geo-1']);
+  assert.deepEqual(filterNotebookLessons(lessons, 'all', 'S = {-2, 2}').map((item) => item.id), ['eq']);
 });

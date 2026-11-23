@@ -13,7 +13,9 @@ import type { MathDocumentDefinition, MathDocumentFonts } from '../utils/mathDoc
 import {
   buildMathDocumentHtml,
   buildMathDocumentMarkup,
+  buildMathDocumentScaleScript,
   buildMathDocumentUpdateScript,
+  deriveMathDocumentBaseUrl,
 } from '../utils/mathDocument';
 import { mathDocumentFallbackText } from '../utils/mathDocumentFallback';
 
@@ -21,6 +23,8 @@ type Props = {
   definition: MathDocumentDefinition;
   /** Optional slide direction when swapping document content (-1 = from left, 1 = from right). */
   transitionDirection?: -1 | 0 | 1;
+  /** Live user reading zoom multiplier (1, 1.14, 1.28) applied without reloading WebView. */
+  readingScale?: number;
   /**
    * True when the host screen is already visible on screen. Keeps preloaded
    * off-screen paints instant so the slide-in arrives fully painted on Frame 0,
@@ -31,6 +35,8 @@ type Props = {
   scrollEnabled?: boolean;
   testID?: string;
   onReady?: () => void;
+  /** Fires once the WebView has painted its initial document or fallback. */
+  onPainted?: () => void;
 };
 
 /**
@@ -40,25 +46,29 @@ type Props = {
 export function MathDocumentView({
   definition,
   transitionDirection = 0,
+  readingScale = 1,
   animateInitialReveal = true,
   style,
   scrollEnabled = true,
   testID,
   onReady,
+  onPainted,
 }: Props) {
   const { fontScale } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
   const webViewRef = useRef<WebViewHandle>(null);
   const latestDefinition = useRef(definition);
   const animateInitialRef = useRef(animateInitialReveal);
+  const onReadyRef = useRef(onReady);
+  const onPaintedRef = useRef(onPainted);
   const loaded = useRef(false);
   const initialMarkup = useRef<string | undefined>(undefined);
   const lastInjectedMarkup = useRef<string | undefined>(undefined);
   const revision = useRef(0);
+  const revealedRevision = useRef<string | null>(null);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const readyRaf1 = useRef(0);
-  const readyRaf2 = useRef(0);
+  const readyRaf = useRef(0);
   const [fontsReady, setFontsReady] = useState<MathDocumentFonts | undefined>(getCachedDocumentFonts);
   const [documentReady, setDocumentReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -72,7 +82,9 @@ export function MathDocumentView({
   useLayoutEffect(() => {
     latestDefinition.current = definition;
     animateInitialRef.current = animateInitialReveal;
-  }, [animateInitialReveal, definition]);
+    onReadyRef.current = onReady;
+    onPaintedRef.current = onPainted;
+  }, [animateInitialReveal, definition, onPainted, onReady]);
 
   const stopStageMotion = useCallback(() => {
     stageOpacity.stopAnimation();
@@ -80,7 +92,10 @@ export function MathDocumentView({
     stageShiftY.stopAnimation();
   }, [stageOpacity, stageShiftX, stageShiftY]);
 
-  const revealDocument = useCallback((initialGlide = false) => {
+  const revealDocument = useCallback((initialGlide = false, targetRevision?: string) => {
+    const revKey = targetRevision ?? (revision.current === 0 ? 'initial' : String(revision.current));
+    if (revealedRevision.current === revKey) return;
+    revealedRevision.current = revKey;
     if (revealTimer.current) {
       clearTimeout(revealTimer.current);
       revealTimer.current = null;
@@ -94,18 +109,18 @@ export function MathDocumentView({
     }
     if (initialGlide) {
       stageShiftX.setValue(0);
-      stageShiftY.setValue(10);
+      stageShiftY.setValue(8);
       Animated.parallel([
         Animated.timing(stageOpacity, {
           toValue: 1,
-          duration: 210,
+          duration: 185,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.spring(stageShiftY, {
           toValue: 0,
-          tension: 250,
-          friction: 22,
+          tension: 265,
+          friction: 24,
           useNativeDriver: true,
         }),
       ]).start();
@@ -115,14 +130,14 @@ export function MathDocumentView({
     Animated.parallel([
       Animated.timing(stageOpacity, {
         toValue: 1,
-        duration: 210,
+        duration: 195,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.spring(stageShiftX, {
         toValue: 0,
-        tension: 260,
-        friction: 22,
+        tension: 270,
+        friction: 23,
         useNativeDriver: true,
       }),
     ]).start();
@@ -131,8 +146,7 @@ export function MathDocumentView({
   useEffect(() => () => {
     if (revealTimer.current) clearTimeout(revealTimer.current);
     if (swapTimer.current) clearTimeout(swapTimer.current);
-    cancelAnimationFrame(readyRaf1.current);
-    cancelAnimationFrame(readyRaf2.current);
+    cancelAnimationFrame(readyRaf.current);
     stopStageMotion();
   }, [stopStageMotion]);
 
@@ -144,30 +158,44 @@ export function MathDocumentView({
 
   useEffect(() => {
     // The native fallback is readable even if WebView never sends its bridge event.
-    if (failed) onReady?.();
-  }, [failed, onReady]);
+    if (failed) {
+      onPaintedRef.current?.();
+      onReadyRef.current?.();
+    }
+  }, [failed]);
 
   useEffect(() => {
+    if (fontsReady) return undefined;
     let active = true;
     preloadDocumentFonts()
       .then((resolved) => { if (active) setFontsReady(resolved); })
       .catch(() => { if (active) setFontsReady({}); });
     return () => { active = false; };
-  }, []);
+  }, [fontsReady]);
 
   const markup = useMemo(() => buildMathDocumentMarkup(definition), [definition]);
+  const documentBaseUrl = useMemo(
+    () => deriveMathDocumentBaseUrl(fontsReady),
+    [fontsReady],
+  );
 
   const source = useMemo(() => {
     if (!fontsReady) return undefined;
     if (initialMarkup.current === undefined) initialMarkup.current = markup;
     return {
-      html: buildMathDocumentHtml(definition, fontsReady, initialMarkup.current),
-      baseUrl: 'about:blank',
+      html: buildMathDocumentHtml(definition, fontsReady, initialMarkup.current, readingScale),
+      baseUrl: documentBaseUrl,
     };
   // The first document becomes the immutable WebView shell. Later definitions
-  // are injected into the existing DOM so the native view never remounts.
+  // and reading-scale adjustments are injected into the existing DOM so the
+  // native WebView never remounts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fontsReady, webViewKey]);
+  }, [documentBaseUrl, fontsReady, webViewKey]);
+
+  useEffect(() => {
+    if (!loaded.current || !fontsReady || failed) return;
+    webViewRef.current?.injectJavaScript(buildMathDocumentScaleScript(readingScale));
+  }, [failed, fontsReady, readingScale]);
 
   useLayoutEffect(() => {
     if (!loaded.current || !fontsReady || failed) return;
@@ -188,11 +216,11 @@ export function MathDocumentView({
     const injectUpdatedDocument = () => {
       stageOpacity.setValue(0);
       stageShiftY.setValue(0);
-      stageShiftX.setValue(reducedMotion ? 0 : transitionDirection * 18);
+      stageShiftX.setValue(reducedMotion ? 0 : transitionDirection * 20);
       webViewRef.current?.injectJavaScript(
         buildMathDocumentUpdateScript(definition, targetRevision),
       );
-      revealTimer.current = setTimeout(() => revealDocument(false), 380);
+      revealTimer.current = setTimeout(() => revealDocument(false, targetRevision), 260);
     };
 
     if (reducedMotion || transitionDirection === 0) {
@@ -200,25 +228,26 @@ export function MathDocumentView({
       return;
     }
 
-    // Phase 1: crisp outgoing glide before swapping HTML, then spring-settle the next step in.
+    // Phase 1: crisp outgoing glide synchronized with the host card turn,
+    // followed by instant DOM swap and spring-settled arrival of the next step.
     Animated.parallel([
       Animated.timing(stageOpacity, {
         toValue: 0,
-        duration: 85,
-        easing: Easing.in(Easing.quad),
+        duration: 58,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(stageShiftX, {
-        toValue: -transitionDirection * 12,
-        duration: 85,
-        easing: Easing.in(Easing.quad),
+        toValue: -transitionDirection * 14,
+        duration: 58,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
     ]).start();
     swapTimer.current = setTimeout(() => {
       swapTimer.current = null;
       injectUpdatedDocument();
-    }, 88);
+    }, 60);
   }, [definition, failed, fontsReady, markup, reducedMotion, revealDocument, stageOpacity, stageShiftX, stageShiftY, stopStageMotion, transitionDirection]);
 
   const retry = () => {
@@ -234,6 +263,7 @@ export function MathDocumentView({
     initialMarkup.current = undefined;
     lastInjectedMarkup.current = undefined;
     revision.current = 0;
+    revealedRevision.current = null;
     stopStageMotion();
     stageOpacity.setValue(0);
     stageShiftX.setValue(0);
@@ -301,7 +331,11 @@ export function MathDocumentView({
           showsVerticalScrollIndicator={false}
           showsHorizontalScrollIndicator={false}
           textZoom={Math.round(Math.min(2, Math.max(1, fontScale)) * 100)}
-          onShouldStartLoadWithRequest={(request) => request.url === 'about:blank' || request.url.startsWith('data:text/html')}
+          onShouldStartLoadWithRequest={(request) => (
+            request.url === documentBaseUrl
+            || request.url === 'about:blank'
+            || request.url.startsWith('data:text/html')
+          )}
           onLoadEnd={() => {
             loaded.current = true;
             if (lastInjectedMarkup.current === undefined) {
@@ -315,11 +349,12 @@ export function MathDocumentView({
               stageOpacity.setValue(0);
               stageShiftX.setValue(0);
               stageShiftY.setValue(0);
+              const targetRev = String(revision.current);
               webViewRef.current?.injectJavaScript(
-                buildMathDocumentUpdateScript(latestDefinition.current, String(revision.current)),
+                buildMathDocumentUpdateScript(latestDefinition.current, targetRev),
               );
               if (revealTimer.current) clearTimeout(revealTimer.current);
-              revealTimer.current = setTimeout(() => revealDocument(false), 380);
+              revealTimer.current = setTimeout(() => revealDocument(false, targetRev), 260);
             }
           }}
           onMessage={(event) => {
@@ -331,24 +366,26 @@ export function MathDocumentView({
                 if (message.revision !== undefined && String(message.revision) !== expected) {
                   return;
                 }
+                if (revealedRevision.current === expected) {
+                  return;
+                }
                 if (lastInjectedMarkup.current === undefined) {
                   lastInjectedMarkup.current = initialMarkup.current;
                 }
                 setDocumentReady(true);
-                if (revision.current === 0 && onReady && !animateInitialRef.current) {
+                onPaintedRef.current?.();
+                if (revision.current === 0 && onReadyRef.current && !animateInitialRef.current) {
+                  revealedRevision.current = expected;
                   stopStageMotion();
                   stageOpacity.setValue(1);
                   stageShiftX.setValue(0);
                   stageShiftY.setValue(0);
-                  // Give Chromium two frames to upload GPU tiles before the screen slide starts.
-                  cancelAnimationFrame(readyRaf1.current);
-                  cancelAnimationFrame(readyRaf2.current);
-                  readyRaf1.current = requestAnimationFrame(() => {
-                    readyRaf2.current = requestAnimationFrame(() => onReady());
-                  });
+                  // Give Chromium one frame to upload GPU tiles before the screen slide starts.
+                  cancelAnimationFrame(readyRaf.current);
+                  readyRaf.current = requestAnimationFrame(() => onReadyRef.current?.());
                 } else {
-                  revealDocument(revision.current === 0);
-                  onReady?.();
+                  revealDocument(revision.current === 0, expected);
+                  onReadyRef.current?.();
                 }
               }
             } catch {

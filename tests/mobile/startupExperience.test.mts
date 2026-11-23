@@ -223,16 +223,22 @@ test('Settings, Paywall and Legal apply synchronous top insets, render complete 
   assert.match(enterSource, /clearTimeout\(watchdog\)/);
   assert.match(homeSource, /showGuide=\{!guideDismissed\}/);
   assert.match(homeSource, /setGalleryBusy\(false\)/);
-  assert.match(notebookSource, /navigation\.preload\('Lesson', params\)/);
-  assert.match(notebookSource, /waitForLessonPresentation\(lesson\.id/);
+  assert.doesNotMatch(notebookSource, /navigation\.preload\('Lesson'/);
+  assert.match(notebookSource, /beginTransition\(\)/);
+  assert.match(lessonSource, /const mountMathDocument = !isFromNotebook \|\| transitionSettled;/);
+  assert.match(summarySource, /\{transitionSettled \? \(\s*<MathDocumentView/);
 });
 
 test('taps rebound crisply, full screens mount with minimal worklets, and living animations wake on transitionEnd', () => {
   assert.match(appSource, /const NAVIGATION_THEME = \{/);
   assert.match(appSource, /function SystemBarChrome\(/);
+  assert.match(appSource, /<TransitionMotionProvider>/);
+  assert.match(appSource, /transitionStart:\s*\(\)\s*=>\s*\{[\s\S]*beginTransition\(\)/);
+  assert.match(appSource, /transitionEnd:\s*\(\)\s*=>\s*\{[\s\S]*endTransition\(\)/);
   assert.doesNotMatch(appSource, /setActiveRoute/);
 
   assert.match(pressableScaleSource, /deferPressMs = 0/);
+  assert.doesNotMatch(pressableScaleSource, /react-native-reanimated/);
   assert.match(homeSurfaceSource, /deferPressMs=\{55\}/);
   assert.doesNotMatch(homeSurfaceSource, /useIsFocused/);
   assert.match(homeSource, /focused=\{homeFocused\}/);
@@ -244,6 +250,7 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   assert.doesNotMatch(quotaTimerSource, /react-native-reanimated/);
   assert.doesNotMatch(tabPanelSource, /react-native-reanimated/);
   assert.match(tabPanelSource, /if \(reducedMotion \|\| direction === 0\) \{\s*return <View style=\{style\}>\{children\}<\/View>;/);
+  assert.doesNotMatch(mascotSource, /react-native-reanimated/);
   assert.match(mascotSource, /const justActivated = active && !previousActive\.current/);
 
   assert.match(notebookSource, /useTransitionSettled\(navigation, reducedMotion\)/);
@@ -271,18 +278,22 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   assert.match(mathEditorSource, /const RepeatEditorKey = memo\(/);
   assert.doesNotMatch(mathEditorSource, /keypadPlaceholder|<Enter[\s>]/);
 
-  // Opening a problem from Caiet keeps Frame 0 free of Reanimated worklet bursts,
-  // lazily mounts closed sheets/modals, and never stalls on detached Android WebView rAF.
+  // Opening a problem from Caiet keeps Frame 0 free of WebView construction and
+  // Reanimated worklet bursts, pauses animations on transitionStart, and wakes
+  // animations plus WebView strictly after transitionEnd.
   assert.doesNotMatch(lessonSource, /react-native-reanimated/);
   assert.doesNotMatch(summarySource, /react-native-reanimated/);
   assert.doesNotMatch(progressDotsSource, /react-native-reanimated/);
   assert.doesNotMatch(playfulLoaderSource, /react-native-reanimated/);
   assert.doesNotMatch(mathDocumentViewSource, /react-native-reanimated/);
+  assert.match(lessonSource, /useScreenMotionActive\(navigation, reducedMotion\)/);
+  assert.match(summarySource, /useScreenMotionActive\(navigation, reducedMotion\)/);
+  assert.match(notebookSource, /useScreenMotionActive\(navigation, reducedMotion\)/);
+  assert.match(homeSource, /useScreenMotionActive\(navigation,/);
   assert.match(lessonSource, /\{removeEverOpened \? \(/);
   assert.match(lessonSource, /\{feedbackEverOpened \? \(/);
   assert.match(lessonSource, /animateInitialReveal=\{screenFocused\}/);
   assert.match(summarySource, /\{removeEverOpened \? \(/);
   assert.match(summarySource, /\{feedbackEverOpened \? \(/);
-  assert.match(notebookSource, /requestAnimationFrame\(\(\) => \{[\s\S]*navigation\.preload\('Lesson', params\)[\s\S]*waitForLessonPresentation\(lesson\.id, 240\)/);
   assert.match(mathDocumentHtmlSource, /function afterPaint\(/);
 });
