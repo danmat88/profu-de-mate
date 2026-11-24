@@ -4,11 +4,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from '../../../shared/services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, BackHandler, Easing, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, BackHandler, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -18,11 +18,23 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import {
+  cosinePulseRange,
+  createNativeLoop,
+  SILKY_EASE_IN,
+  SILKY_EASE_OUT,
+  sineWaveRange,
+  WAVE_INPUT_17,
+} from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import { colors, fonts, shadows } from '../../../shared/theme';
 import type { CaptureSource, RootStackParamList } from '../../../shared/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Capture'>;
+
+const SHUTTER_AURA_OPACITY = cosinePulseRange(0.28, 0.58);
+const SHUTTER_AURA_SCALE = cosinePulseRange(0.98, 1.14);
+const SHUTTER_BUTTON_SCALE = cosinePulseRange(1, 1.03);
 
 function CloseGlyph() {
   return (
@@ -56,7 +68,7 @@ export function CaptureScreen({ navigation, route }: Props) {
   const [cameraSessionKey, setCameraSessionKey] = useState(0);
   const [working, setWorking] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const scan = useRef(new Animated.Value(0.5)).current;
+  const scan = useRef(new Animated.Value(0)).current;
   const shutterPulse = useRef(new Animated.Value(0)).current;
   const helpPop = useRef(new Animated.Value(0)).current;
   const cameraPreviewEntrance = useRef(new Animated.Value(0)).current;
@@ -89,17 +101,19 @@ export function CaptureScreen({ navigation, route }: Props) {
     setIsFocused(true);
     cameraPreviewEntrance.setValue(0);
     scanOpacity.setValue(0);
-    scan.setValue(0.5);
+    scan.setValue(0);
     return () => {
       setIsFocused(false);
       setCameraReady(false);
       setPreviewSettled(false);
       cameraPreviewEntrance.stopAnimation();
       scanOpacity.stopAnimation();
+      scan.stopAnimation();
+      shutterPulse.stopAnimation();
       cameraPreviewEntrance.setValue(0);
       scanOpacity.setValue(0);
     };
-  }, [cameraPreviewEntrance, scan, scanOpacity]));
+  }, [cameraPreviewEntrance, scan, scanOpacity, shutterPulse]));
 
   useEffect(() => {
     let active = true;
@@ -131,42 +145,44 @@ export function CaptureScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     if (reducedMotion || !isFocused || !previewSettled) {
+      shutterPulse.stopAnimation();
       shutterPulse.setValue(0);
       return;
     }
-    const breathing = Animated.loop(Animated.sequence([
-      Animated.timing(shutterPulse, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(shutterPulse, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]));
+    const breathing = createNativeLoop(shutterPulse, 2_600);
     breathing.start();
-    return () => { breathing.stop(); };
+    return () => {
+      breathing.stop();
+      shutterPulse.stopAnimation();
+    };
   }, [isFocused, previewSettled, reducedMotion, shutterPulse]);
 
   useEffect(() => {
     if (!isFocused || !previewSettled) {
-      scan.setValue(0.5);
+      scan.stopAnimation();
+      scan.setValue(0);
       scanOpacity.setValue(0);
       return;
     }
     if (reducedMotion) {
-      scan.setValue(0.5);
+      scan.setValue(0);
       scanOpacity.setValue(0.92);
       return;
     }
-    scan.setValue(0.5);
-    Animated.timing(scanOpacity, {
+    const fadeIn = Animated.timing(scanOpacity, {
       toValue: 0.96,
       duration: 280,
-      easing: Easing.out(Easing.cubic),
+      easing: SILKY_EASE_OUT,
       useNativeDriver: true,
-    }).start();
-    const scanning = Animated.loop(Animated.sequence([
-      Animated.timing(scan, { toValue: 0, duration: 1150, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(scan, { toValue: 1, duration: 2300, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(scan, { toValue: 0.5, duration: 1150, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-    ]));
+    });
+    const scanning = createNativeLoop(scan, 4_600);
+    fadeIn.start();
     scanning.start();
-    return () => { scanning.stop(); };
+    return () => {
+      fadeIn.stop();
+      scanning.stop();
+      scan.stopAnimation();
+    };
   }, [isFocused, previewSettled, reducedMotion, scan, scanOpacity]);
 
   const revealCamera = useCallback(() => {
@@ -181,7 +197,7 @@ export function CaptureScreen({ navigation, route }: Props) {
     Animated.timing(cameraPreviewEntrance, {
       toValue: 1,
       duration: 320,
-      easing: Easing.out(Easing.cubic),
+      easing: SILKY_EASE_OUT,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) setPreviewSettled(true);
@@ -201,6 +217,7 @@ export function CaptureScreen({ navigation, route }: Props) {
     setCaptureError(null);
     const image = { ...raw, source };
     Haptics.notification(Haptics.NotificationFeedbackType.Success);
+    beginAppTransition();
     navigation.navigate('Review', { mode: route.params.mode, image });
   }, [navigation, route.params.mode]);
 
@@ -277,7 +294,7 @@ export function CaptureScreen({ navigation, route }: Props) {
 
   const closeHelp = useCallback(() => {
     if (reducedMotion) { setShowHelp(false); return; }
-    Animated.timing(helpPop, { toValue: 0, duration: 130, useNativeDriver: true }).start(() => setShowHelp(false));
+    Animated.timing(helpPop, { toValue: 0, duration: 160, easing: SILKY_EASE_IN, useNativeDriver: true }).start(() => setShowHelp(false));
   }, [helpPop, reducedMotion]);
 
   useEffect(() => {
@@ -295,13 +312,73 @@ export function CaptureScreen({ navigation, route }: Props) {
       return;
     }
     helpPop.setValue(0);
-    Animated.timing(helpPop, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+    Animated.timing(helpPop, { toValue: 1, duration: 240, easing: SILKY_EASE_OUT, useNativeDriver: true }).start();
   };
+
+  const scanBeamStyle = useMemo(
+    () => ({
+      opacity: scanOpacity,
+      transform: [
+        {
+          translateY: scan.interpolate({
+            inputRange: WAVE_INPUT_17,
+            outputRange: sineWaveRange(0, -scanTravel),
+          }),
+        },
+      ],
+    }),
+    [scan, scanOpacity, scanTravel],
+  );
+
+  const shutterAuraStyle = useMemo(
+    () => ({
+      opacity: shutterPulse.interpolate({
+        inputRange: WAVE_INPUT_17,
+        outputRange: SHUTTER_AURA_OPACITY,
+      }),
+      transform: [
+        {
+          scale: shutterPulse.interpolate({
+            inputRange: WAVE_INPUT_17,
+            outputRange: SHUTTER_AURA_SCALE,
+          }),
+        },
+      ],
+    }),
+    [shutterPulse],
+  );
+
+  const shutterScaleStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          scale: shutterPulse.interpolate({
+            inputRange: WAVE_INPUT_17,
+            outputRange: SHUTTER_BUTTON_SCALE,
+          }),
+        },
+      ],
+    }),
+    [shutterPulse],
+  );
+
+  const helpBubbleStyle = useMemo(
+    () => ({
+      opacity: helpPop,
+      transform: [
+        {
+          translateY: helpPop.interpolate({
+            inputRange: [0, 1],
+            outputRange: [14, 0],
+          }),
+        },
+      ],
+    }),
+    [helpPop],
+  );
 
   return (
     <View style={styles.safe}>
-      <StatusBar style="light" />
-
       {permission?.granted && isFocused && transitionSettled ? (
         <Animated.View style={[styles.cameraLayer, { opacity: cameraPreviewEntrance }]}>
           <CameraView
@@ -330,7 +407,17 @@ export function CaptureScreen({ navigation, route }: Props) {
       </Animated.View>
 
       <View style={[styles.topBar, { top: topSpace + 4, paddingHorizontal: gutter }]}>
-        <IconButton label="Închide camera" disabled={working} dimWhenDisabled={false} onPress={() => navigation.goBack()} dark size={46}>
+        <IconButton
+          label="Închide camera"
+          disabled={working}
+          dimWhenDisabled={false}
+          onPress={() => {
+            beginAppTransition();
+            navigation.goBack();
+          }}
+          dark
+          size={46}
+        >
           <CloseGlyph />
         </IconButton>
         <View style={[styles.modeChipWrap, isNarrow && styles.modeChipNarrow]}>
@@ -366,13 +453,7 @@ export function CaptureScreen({ navigation, route }: Props) {
           <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finder, isCheck && styles.finderCheck]}>
             <Animated.View
               pointerEvents="none"
-              style={[
-                styles.scanBeamWrap,
-                {
-                  opacity: scanOpacity,
-                  transform: [{ translateY: scan.interpolate({ inputRange: [0, 1], outputRange: [-scanTravel, scanTravel] }) }],
-                },
-              ]}
+              style={[styles.scanBeamWrap, scanBeamStyle]}
             >
               <LinearGradient
                 colors={isCheck
@@ -462,13 +543,10 @@ export function CaptureScreen({ navigation, route }: Props) {
                 style={[
                   styles.shutterAura,
                   isCheck && styles.shutterAuraCheck,
-                  {
-                    opacity: shutterPulse.interpolate({ inputRange: [0, 1], outputRange: [0.28, 0.58] }),
-                    transform: [{ scale: shutterPulse.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.14] }) }],
-                  },
+                  shutterAuraStyle,
                 ]}
               />
-              <Animated.View style={{ transform: [{ scale: shutterPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.03] }) }] }}>
+              <Animated.View style={shutterScaleStyle}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={cameraFailed ? 'Repornește camera' : 'Fă fotografia'}
@@ -511,7 +589,7 @@ export function CaptureScreen({ navigation, route }: Props) {
       {captureError ? <View accessibilityRole="alert" style={[styles.errorBanner, { bottom: bottomSpace + (isCompact ? 151 : 169), left: gutter, right: gutter }]}><Text style={styles.errorText}>{captureError}</Text></View> : null}
 
       {showHelp ? (
-        <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 147 : 165), opacity: helpPop, transform: [{ translateY: helpPop.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]}>
+        <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 147 : 165) }, helpBubbleStyle]}>
           <View style={styles.helpIcon}><AppIcon name="hint" size={35} /></View>
           <View style={styles.helpCopy}><Text style={styles.helpTitle}>Pentru o fotografie clară</Text><Text style={styles.helpText}>Ține telefonul paralel cu foaia, evită umbrele și include tot exercițiul.</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Închide ajutorul" hitSlop={9} onPress={toggleHelp} style={styles.helpClose}><CloseGlyph /></Pressable>
@@ -529,24 +607,24 @@ const styles = StyleSheet.create({
   topGradient: { position: 'absolute', top: 0, left: 0, right: 0 },
   bottomGradient: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   topBar: { position: 'absolute', zIndex: 20, left: 0, right: 0, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modeChipWrap: { maxWidth: 228, paddingBottom: 3, position: 'relative' },
+  modeChipWrap: { maxWidth: 228, position: 'relative' },
   modeChipNarrow: { maxWidth: 202 },
-  modeChipShadow: { position: 'absolute', top: 3, left: 0, right: 0, bottom: 0, borderRadius: 20, backgroundColor: '#04030A' },
+  modeChipShadow: { position: 'absolute', top: 2, left: 4, right: 4, bottom: -1, borderRadius: 999, backgroundColor: 'rgba(4, 3, 10, 0.35)' },
   modeChip: {
     minHeight: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(30,22,68,0.92)',
-    borderWidth: borders.thin,
-    borderColor: '#7A68C8',
-    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(28, 21, 62, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
+    paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     overflow: 'hidden',
   },
-  modeChipCheck: { borderColor: colors.peach },
-  darkShine: { position: 'absolute', top: 2, left: 10, right: 10, height: 4, borderRadius: 3, backgroundColor: colors.shineSoft },
+  modeChipCheck: { borderColor: 'rgba(255, 184, 107, 0.42)' },
+  darkShine: { position: 'absolute', top: 0, left: 14, right: 14, height: 1.5, backgroundColor: 'rgba(255, 255, 255, 0.22)' },
   modeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   modeDotCheck: { backgroundColor: colors.peach },
   modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, letterSpacing: 0.75 },
@@ -555,12 +633,12 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 4 / 3,
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.24)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     backgroundColor: 'rgba(12,9,31,0.06)',
     overflow: 'hidden',
   },
-  finderCheck: { aspectRatio: 1.08, borderColor: 'rgba(255,184,107,0.34)' },
+  finderCheck: { aspectRatio: 1.08, borderColor: 'rgba(255,184,107,0.3)' },
   scanBeamWrap: {
     position: 'absolute',
     top: '50%',
@@ -580,14 +658,14 @@ const styles = StyleSheet.create({
   },
   scanLine: { height: 3, borderRadius: 2, backgroundColor: colors.lime },
   scanLineCheck: { backgroundColor: colors.peach },
-  corner: { position: 'absolute', width: 40, height: 40, borderColor: colors.lime },
+  corner: { position: 'absolute', width: 38, height: 38, borderColor: colors.lime },
   cornerCheck: { borderColor: colors.peach },
-  cornerTL: { left: 0, top: 0, borderLeftWidth: 5.5, borderTopWidth: 5.5, borderTopLeftRadius: 26 },
-  cornerTR: { right: 0, top: 0, borderRightWidth: 5.5, borderTopWidth: 5.5, borderTopRightRadius: 26 },
-  cornerBL: { left: 0, bottom: 0, borderLeftWidth: 5.5, borderBottomWidth: 5.5, borderBottomLeftRadius: 26 },
-  cornerBR: { right: 0, bottom: 0, borderRightWidth: 5.5, borderBottomWidth: 5.5, borderBottomRightRadius: 26 },
+  cornerTL: { left: 0, top: 0, borderLeftWidth: 4.5, borderTopWidth: 4.5, borderTopLeftRadius: 26 },
+  cornerTR: { right: 0, top: 0, borderRightWidth: 4.5, borderTopWidth: 4.5, borderTopRightRadius: 26 },
+  cornerBL: { left: 0, bottom: 0, borderLeftWidth: 4.5, borderBottomWidth: 4.5, borderBottomLeftRadius: 26 },
+  cornerBR: { right: 0, bottom: 0, borderRightWidth: 4.5, borderBottomWidth: 4.5, borderBottomRightRadius: 26 },
   bottomChrome: { position: 'absolute', zIndex: 20, left: 0, right: 0, alignItems: 'center', gap: 6 },
-  captureGuide: { minHeight: 34, borderRadius: 17, backgroundColor: 'rgba(24,18,56,0.92)', borderWidth: 1.5, borderColor: 'rgba(139,92,246,0.38)', paddingHorizontal: 14, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  captureGuide: { minHeight: 34, borderRadius: 999, backgroundColor: 'rgba(24,18,56,0.88)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.28)', paddingHorizontal: 15, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   captureGuideDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   captureGuideDotCheck: { backgroundColor: colors.peach },
   captureHint: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, lineHeight: 15, textAlign: 'center' },
@@ -597,49 +675,47 @@ const styles = StyleSheet.create({
     width: 54,
     height: 52,
     borderRadius: 18,
-    backgroundColor: 'rgba(37,29,79,0.94)',
-    borderWidth: borders.thin,
-    borderColor: '#6D5EB0',
+    backgroundColor: 'rgba(34,26,74,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.28)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  sideIconActive: { backgroundColor: colors.lime, borderColor: colors.ink },
+  sideIconActive: { backgroundColor: colors.lime, borderColor: 'rgba(23, 19, 55, 0.16)' },
   sideLabel: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
   shutterStage: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center' },
   shutterAura: {
     position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(201,255,59,0.22)',
+    width: 98,
+    height: 98,
+    borderRadius: 49,
+    backgroundColor: 'rgba(216,255,62,0.22)',
   },
   shutterAuraCheck: {
     backgroundColor: 'rgba(255,184,107,0.24)',
   },
   shutterOuter: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    borderWidth: 4,
-    borderColor: colors.paper,
-    backgroundColor: 'rgba(23,19,55,0.58)',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 3.5,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: 'rgba(23,19,55,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#04030A',
-    shadowOpacity: 0.85,
-    shadowRadius: 0,
-    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  shutterOuterCompact: { width: 78, height: 78, borderRadius: 39 },
+  shutterOuterCompact: { width: 76, height: 76, borderRadius: 38 },
   shutterInner: {
     width: 68,
     height: 68,
     borderRadius: 34,
     backgroundColor: colors.lime,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -650,32 +726,32 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    borderWidth: 2.5,
-    borderColor: 'rgba(27,20,61,0.32)',
+    borderWidth: 2.25,
+    borderColor: 'rgba(23,19,55,0.25)',
   },
   shutterShine: {
     position: 'absolute',
-    top: 6,
-    left: 14,
-    right: 14,
-    height: 8,
-    borderRadius: 5,
-    backgroundColor: colors.shine,
+    top: 4,
+    left: 16,
+    right: 16,
+    height: 4,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
   },
   shutterPressed: { transform: [{ scale: 0.91 }] },
   permissionPanel: { flex: 1, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#17132E' },
   permissionMascot: { width: 146, height: 146, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  permissionHalo: { position: 'absolute', width: 126, height: 126, borderRadius: 63, backgroundColor: '#2B2259', borderWidth: 2.5, borderStyle: 'dashed', borderColor: '#6D5EB0' },
+  permissionHalo: { position: 'absolute', width: 128, height: 128, borderRadius: 64, backgroundColor: 'rgba(124, 60, 255, 0.16)', borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(167, 139, 250, 0.4)' },
   permissionTitle: { fontFamily: fonts.display, color: colors.paper, fontSize: 27, lineHeight: 31, textAlign: 'center' },
   permissionText: { maxWidth: 300, marginTop: 5, fontFamily: fonts.body, color: '#CFC7E0', fontSize: 13.5, lineHeight: 19, textAlign: 'center' },
   permissionButtonWrap: { width: '100%', maxWidth: 330, marginTop: 20 },
   permissionGalleryWrap: { marginTop: 8 },
   permissionGallery: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18 },
   permissionGalleryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5 },
-  errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: borders.thin, borderColor: colors.paper, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
+  errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 22, borderWidth: borders.thick, borderColor: colors.ink, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, shadowColor: colors.ink, shadowOpacity: 1, shadowRadius: 0, shadowOffset: { width: 0, height: 6 }, elevation: 12 },
-  helpIcon: { width: 44, height: 44, borderRadius: 14, borderWidth: borders.thin, borderColor: colors.ink, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '-3deg' }] },
+  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 22, borderWidth: 1.25, borderColor: colors.borderHairline, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 12, shadowColor: '#171337', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  helpIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
   helpCopy: { flex: 1, minWidth: 0 },
   helpTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18 },
   helpText: { marginTop: 2, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 16.5 },

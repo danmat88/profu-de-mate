@@ -1,6 +1,6 @@
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import { colors, fonts, radii } from '../../../shared/theme';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -16,7 +16,7 @@ type Props = {
 
 function GoogleGlyph() {
   return (
-    <Svg accessible={false} width={25} height={25} viewBox="0 0 24 24">
+    <Svg accessible={false} width={24} height={24} viewBox="0 0 24 24">
       <Path fill="#4285F4" d="M21.35 12.21c0-.71-.06-1.4-.18-2.06H12v3.9h5.24a4.48 4.48 0 0 1-1.94 2.86v2.53h3.15c1.84-1.7 2.9-4.2 2.9-7.23Z" />
       <Path fill="#34A853" d="M12 21.72c2.63 0 4.84-.87 6.45-2.36l-3.15-2.53c-.88.59-2 .94-3.3.94-2.54 0-4.69-1.72-5.46-4.02H3.29v2.61A9.74 9.74 0 0 0 12 21.72Z" />
       <Path fill="#FBBC05" d="M6.54 13.75a5.87 5.87 0 0 1 0-3.5V7.64H3.29a9.75 9.75 0 0 0 0 8.72l3.25-2.61Z" />
@@ -34,15 +34,12 @@ export function GoogleAccountButton({ busy = false, disabled = false, note, onPr
       accessibilityState={{ busy, disabled: unavailable }}
       disabled={unavailable}
       dimWhenDisabled={!busy}
-      depth={shadows.md}
-      radius={20}
-      shadowColor={colors.ink}
+      pressedScale={0.97}
       haptic="medium"
       onPress={onPress}
       style={style}
       contentStyle={styles.button}
     >
-      <View pointerEvents="none" style={styles.shine} />
       <View style={styles.googleMark}><GoogleGlyph /></View>
       <View style={styles.copy}>
         <Text style={styles.title}>{busy ? 'Conectez contul…' : 'Continuă cu Google'}</Text>
@@ -50,54 +47,40 @@ export function GoogleAccountButton({ busy = false, disabled = false, note, onPr
       </View>
       {busy
         ? <PlayfulLoader micro />
-        : <View style={styles.arrow}><MiniGlyph name="next" size={18} color={colors.paper} /></View>}
+        : <View style={styles.arrow}><MiniGlyph name="next" size={17} color={colors.paper} /></View>}
     </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 64,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    borderRadius: 20,
-    backgroundColor: colors.paper,
+    minHeight: 62,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    gap: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
     overflow: 'hidden',
   },
-  shine: {
-    position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
-  },
   googleMark: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: '#F7F3FF',
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-2deg' }],
   },
   copy: { flex: 1, minWidth: 0 },
-  title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 20 },
+  title: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16.5, lineHeight: 20 },
   note: { marginTop: 2, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 16 },
   arrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
     backgroundColor: colors.violet,
     alignItems: 'center',
     justifyContent: 'center',

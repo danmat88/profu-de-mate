@@ -43,9 +43,15 @@ export const colors = {
   mintSoft: '#DCF8E7',
   mintDeep: '#177A43',
 
-  // Lines & cel-shading highlights
-  line: '#DACFE8',
-  shine: 'rgba(255, 255, 255, 0.48)',
+  // Lines, delicate studio hairlines & soft glows
+  line: '#E6DCF9',
+  borderHairline: '#E6DCF9',
+  borderSoft: '#DDD0F7',
+  borderDark: 'rgba(167, 139, 250, 0.24)',
+  surfaceDark: '#1B143B',
+  surfaceDarkCard: '#231B4B',
+  shadowTint: 'rgba(35, 22, 78, 0.10)',
+  shine: 'rgba(255, 255, 255, 0.55)',
   shineSoft: 'rgba(255, 255, 255, 0.16)',
 
   // Semantic aliases
@@ -86,15 +92,15 @@ export const radii = {
 } as const;
 
 export const borders = {
-  thin: 2,
-  regular: 2.5,
-  thick: 3,
+  thin: 1,
+  regular: 1.25,
+  thick: 1.5,
 } as const;
 
 export const shadows = {
-  sm: 3,
-  md: 5,
-  lg: 7,
+  sm: 2,
+  md: 3,
+  lg: 4,
 } as const;
 
 export const typography = {
@@ -113,7 +119,7 @@ export const layout = {
   sectionGap: 18,
   radius: 22,
   radiusSmall: 15,
-  border: 2.5,
+  border: 1.25,
 } as const;
 
 export const motion = {
@@ -132,12 +138,4 @@ export const springs = {
   snappy: { damping: 22, stiffness: 420, mass: 0.8 },
   gentle: { damping: 20, stiffness: 220, mass: 0.95 },
   pop: { damping: 12, stiffness: 420, mass: 0.75 },
-} as const;
-
-export const hardShadow = {
-  shadowColor: colors.ink,
-  shadowOffset: { width: 0, height: 7 },
-  shadowOpacity: 1,
-  shadowRadius: 0,
-  elevation: 8,
 } as const;

@@ -9,7 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows } from '../theme';
+import { colors, fonts, radii } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
 import { Text } from './Typography';
 
@@ -35,6 +35,7 @@ type Props<T extends string> = {
 };
 
 const TRACK_PADDING = 4;
+const TRACK_BORDER = 1;
 const PRESS_RETENTION = { top: 28, bottom: 28, left: 28, right: 28 };
 
 type SegmentItemProps<T extends string> = {
@@ -43,7 +44,6 @@ type SegmentItemProps<T extends string> = {
   disabled: boolean;
   compact: boolean;
   hasPill: boolean;
-  reducedMotion: boolean;
   onSelect: () => void;
 };
 
@@ -53,33 +53,8 @@ function SegmentItem<T extends string>({
   disabled,
   compact,
   hasPill,
-  reducedMotion,
   onSelect,
 }: SegmentItemProps<T>) {
-  const dotAnim = useRef(new Animated.Value(active ? 1 : 0)).current;
-
-  useEffect(() => {
-    dotAnim.stopAnimation();
-    if (reducedMotion) {
-      dotAnim.setValue(active ? 1 : 0);
-      return;
-    }
-    Animated.spring(dotAnim, {
-      toValue: active ? 1 : 0,
-      tension: 320,
-      friction: 22,
-      useNativeDriver: true,
-    }).start();
-    return () => {
-      dotAnim.stopAnimation();
-    };
-  }, [active, dotAnim, reducedMotion]);
-
-  const dotScale = dotAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.65, 1],
-  });
-
   return (
     <Pressable
       collapsable={false}
@@ -92,45 +67,19 @@ function SegmentItem<T extends string>({
         styles.tab,
         !hasPill && active && {
           backgroundColor: option.activeFill,
-          borderRadius: compact ? 12 : 15,
-          borderWidth: borders.thin,
-          borderColor: colors.ink,
+          borderRadius: radii.pill,
         },
       ]}
     >
       <View pointerEvents="none" style={styles.tabContent}>
-        <View style={styles.iconWrap}>
-          <View
-            style={[
-              styles.iconBadge,
-              compact && styles.iconBadgeCompact,
-              { backgroundColor: active ? colors.paper : colors.canvasDeep },
-            ]}
-          >
-            <AppIcon name={option.icon} size={compact ? 24 : 30} />
-          </View>
-          <Animated.View
-            style={[
-              styles.cornerDot,
-              {
-                backgroundColor: option.dotFill,
-                opacity: dotAnim,
-                transform: [{ scale: dotScale }],
-              },
-            ]}
-          >
-            <Text maxFontSizeMultiplier={1.1} style={[styles.dotText, { color: option.dotText }]}>
-              ✓
-            </Text>
-          </Animated.View>
-        </View>
+        <AppIcon name={option.icon} size={compact ? 22 : 26} />
         <Text
           maxFontSizeMultiplier={1.25}
           numberOfLines={1}
           style={[
             styles.label,
             compact && styles.labelCompact,
-            { color: active ? option.activeText : colors.ink },
+            { color: active ? option.activeText : colors.inkSoft },
           ]}
         >
           {option.label}
@@ -141,9 +90,8 @@ function SegmentItem<T extends string>({
 }
 
 /**
- * Snappy comic two-segment control driven by React state and native-driver
- * spring motion so screen detaches on Android Fabric can never freeze tabs
- * or desync active colors.
+ * Sleek floating studio pill switcher driven by pure native-driver spring
+ * motion with zero nested badge clutter and zero elevation overdraw.
  */
 export function SegmentedToggle<T extends string>({
   options,
@@ -158,7 +106,7 @@ export function SegmentedToggle<T extends string>({
   const [trackWidth, setTrackWidth] = useState(0);
   const activeIndex: 0 | 1 = value === options[1].value ? 1 : 0;
   const activeOption = options[activeIndex];
-  const innerWidth = trackWidth - borders.regular * 2 - TRACK_PADDING * 2;
+  const innerWidth = trackWidth - TRACK_BORDER * 2 - TRACK_PADDING * 2;
   const pillWidth = innerWidth > 0 ? innerWidth / 2 : 0;
 
   const slideX = useRef(new Animated.Value(0)).current;
@@ -180,7 +128,7 @@ export function SegmentedToggle<T extends string>({
     }
     Animated.spring(slideX, {
       toValue: target,
-      tension: 260,
+      tension: 250,
       friction: 24,
       useNativeDriver: true,
     }).start();
@@ -209,32 +157,22 @@ export function SegmentedToggle<T extends string>({
       ]}
     >
       <View
-        pointerEvents="none"
-        style={[
-          styles.shadow,
-          { backgroundColor: activeIndex === 0 ? colors.violetShadow : colors.peachShadow },
-        ]}
-      />
-      <View
         collapsable={false}
         onLayout={handleLayout}
-        style={[styles.track, compact && styles.trackCompact]}
+        style={styles.track}
       >
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.pill,
-              compact && styles.pillCompact,
               {
                 width: pillWidth,
                 backgroundColor: activeOption.activeFill,
                 transform: [{ translateX: slideX }],
               },
             ]}
-          >
-            <View pointerEvents="none" style={styles.pillShine} />
-          </Animated.View>
+          />
         ) : null}
 
         <View collapsable={false} style={styles.tabsRow}>
@@ -248,7 +186,6 @@ export function SegmentedToggle<T extends string>({
                 disabled={disabled}
                 compact={compact}
                 hasPill={pillWidth > 0}
-                reducedMotion={reducedMotion}
                 onSelect={() => {
                   if (disabled || option.value === value) return;
                   onChange(option.value);
@@ -264,35 +201,22 @@ export function SegmentedToggle<T extends string>({
 
 const styles = StyleSheet.create({
   outer: {
-    height: 60,
+    height: 48,
     position: 'relative',
-    paddingBottom: shadows.sm + 1,
     flexShrink: 0,
   },
   outerCompact: {
-    height: 50,
-  },
-  shadow: {
-    position: 'absolute',
-    top: shadows.sm + 1,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: radii.lg,
-    backgroundColor: colors.violetShadow,
+    height: 42,
   },
   track: {
     flex: 1,
     padding: TRACK_PADDING,
-    borderRadius: radii.lg,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    borderRadius: radii.pill,
+    borderWidth: TRACK_BORDER,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     position: 'relative',
     overflow: 'hidden',
-  },
-  trackCompact: {
-    borderRadius: radii.md + 2,
   },
   pill: {
     position: 'absolute',
@@ -300,22 +224,8 @@ const styles = StyleSheet.create({
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
     zIndex: 1,
-    borderRadius: 16,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
     overflow: 'hidden',
-  },
-  pillCompact: {
-    borderRadius: 12,
-  },
-  pillShine: {
-    position: 'absolute',
-    top: 2,
-    left: 10,
-    right: 10,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
   },
   tabsRow: {
     flex: 1,
@@ -333,56 +243,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 8,
-  },
-  iconWrap: {
-    position: 'relative',
-  },
-  iconBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: colors.canvasDeep,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
-  },
-  iconBadgeCompact: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-  },
-  cornerDot: {
-    position: 'absolute',
-    top: -4,
-    right: -5,
-    width: 15,
-    height: 15,
-    borderRadius: 6,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 9.5,
-    lineHeight: 12,
-    includeFontPadding: false,
+    gap: 7,
+    paddingHorizontal: 10,
   },
   label: {
     flexShrink: 1,
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 17,
-    lineHeight: 21,
+    fontSize: 16,
+    lineHeight: 20,
   },
   labelCompact: {
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14.5,
+    lineHeight: 18,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.48,
   },
 });

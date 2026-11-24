@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { borders, colors, radii, shadows } from '../theme';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { colors } from '../theme';
 import { PressableScale } from './PressableScale';
 
 type Props = {
@@ -16,12 +16,12 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Tactile 3D squircle icon button for headers and toolbars. */
+/** Featherlight frosted studio icon button with zero elevation overdraw. */
 export function IconButton({
   label,
   onPress,
   children,
-  size = 46,
+  size = 44,
   dark = false,
   active = false,
   disabled = false,
@@ -30,7 +30,7 @@ export function IconButton({
   style,
 }: Props) {
   const isDisabled = disabled || !onPress;
-  const radius = Math.min(radii.md, Math.round(size * 0.34));
+  const radius = Math.round(size / 2);
 
   return (
     <PressableScale
@@ -41,9 +41,8 @@ export function IconButton({
       dimWhenDisabled={dimWhenDisabled}
       deferPressMs={deferPressMs}
       hitSlop={6}
-      depth={shadows.sm}
+      pressedScale={0.92}
       radius={radius}
-      shadowColor={dark ? '#0B0721' : colors.ink}
       haptic="selection"
       onPress={onPress}
       style={style}
@@ -54,7 +53,6 @@ export function IconButton({
         active && styles.faceActive,
       ]}
     >
-      <View pointerEvents="none" style={[styles.shine, { borderRadius: Math.max(4, radius - 4) }]} />
       {children}
     </PressableScale>
   );
@@ -62,26 +60,19 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   face: {
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   faceDark: {
-    backgroundColor: '#292052',
-    borderColor: colors.paper,
+    backgroundColor: 'rgba(255, 255, 255, 0.11)',
+    borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   faceActive: {
     backgroundColor: colors.lime,
-  },
-  shine: {
-    position: 'absolute',
-    top: 2,
-    left: 6,
-    right: 6,
-    height: 4,
-    backgroundColor: colors.shine,
+    borderColor: 'rgba(86, 120, 0, 0.22)',
   },
 });

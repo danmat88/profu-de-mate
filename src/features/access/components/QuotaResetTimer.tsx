@@ -1,9 +1,10 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { memo, useEffect, useMemo, useRef } from 'react';
+import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows, typography } from '../../../shared/theme';
+import { cosinePulseRange, createNativeLoop, SILKY_EASE_OUT, WAVE_INPUT_17 } from '../../../shared/motion/nativeMotion';
+import { colors, fonts, radii, shadows, typography } from '../../../shared/theme';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
 import { useQuotaResetCountdown } from '../hooks/useQuotaResetCountdown';
@@ -73,7 +74,7 @@ const FlipDigitTile = memo(function FlipDigitTile({
     if (reducedMotion) return undefined;
     pop.stopAnimation();
     Animated.sequence([
-      Animated.timing(pop, { toValue: 1.055, duration: 70, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pop, { toValue: 1.055, duration: 70, easing: SILKY_EASE_OUT, useNativeDriver: true }),
       Animated.spring(pop, { toValue: 1, tension: 320, friction: 20, useNativeDriver: true }),
     ]).start();
     return () => {
@@ -188,7 +189,7 @@ export function QuotaResetTimer({
 }: Props) {
   const reducedMotion = useReducedMotion();
   const snapshot = useQuotaResetCountdown(resetAt, active);
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulsePhase = useRef(new Animated.Value(0)).current;
   const isHero = variant === 'hero';
   const isEmbedded = variant === 'embedded';
   const isExhausted = remaining <= 0;
@@ -198,27 +199,39 @@ export function QuotaResetTimer({
 
   useEffect(() => {
     if (!active || reducedMotion || !hasLiveCountdown) {
-      pulse.stopAnimation();
-      pulse.setValue(1);
+      pulsePhase.stopAnimation();
+      pulsePhase.setValue(0);
       return undefined;
     }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.38, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
+    const loop = createNativeLoop(pulsePhase, 1_050);
     loop.start();
     return () => {
       loop.stop();
-      pulse.stopAnimation();
+      pulsePhase.stopAnimation();
     };
-  }, [active, hasLiveCountdown, pulse, reducedMotion]);
+  }, [active, hasLiveCountdown, pulsePhase, reducedMotion]);
 
-  const colonStyle = { opacity: pulse };
-  const liveDotOpacity = pulse.interpolate({ inputRange: [0.38, 1], outputRange: [0.66, 1] });
-  const liveDotScale = pulse.interpolate({ inputRange: [0.38, 1], outputRange: [0.94, 1.08] });
-  const liveDotStyle = { opacity: liveDotOpacity, transform: [{ scale: liveDotScale }] };
+  const colonStyle = useMemo(() => ({
+    opacity: pulsePhase.interpolate({
+      inputRange: WAVE_INPUT_17,
+      outputRange: cosinePulseRange(1, 0.38),
+    }),
+  }), [pulsePhase]);
+
+  const liveDotStyle = useMemo(() => ({
+    opacity: pulsePhase.interpolate({
+      inputRange: WAVE_INPUT_17,
+      outputRange: cosinePulseRange(1, 0.66),
+    }),
+    transform: [
+      {
+        scale: pulsePhase.interpolate({
+          inputRange: WAVE_INPUT_17,
+          outputRange: cosinePulseRange(1.08, 0.94),
+        }),
+      },
+    ],
+  }), [pulsePhase]);
 
   if (!snapshot) return null;
 
@@ -395,7 +408,6 @@ export function QuotaResetTimer({
 
   return (
     <View accessible accessibilityLabel={accessibleLabel} style={[styles.compactOuter, style]}>
-      <View pointerEvents="none" style={styles.compactShadow} />
       <View style={[styles.compactCard, isExhausted && styles.compactCardExhausted]}>
         {compactInner}
       </View>
@@ -430,17 +442,22 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: radii.xl,
-    backgroundColor: '#09061B',
+    backgroundColor: 'rgba(26, 17, 68, 0.14)',
   },
   heroCard: {
-    borderRadius: radii.xl - 1,
-    borderWidth: borders.thick,
-    borderColor: colors.ink,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(198, 184, 255, 0.24)',
     backgroundColor: '#1E1547',
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
+    paddingTop: 15,
+    paddingBottom: 15,
     overflow: 'hidden',
+    elevation: 6,
+    shadowColor: '#1B1142',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
   },
   heroCardFree: {
     backgroundColor: '#23164B',
@@ -452,16 +469,15 @@ const styles = StyleSheet.create({
     borderRadius: 110,
     top: -96,
     right: -46,
-    backgroundColor: 'rgba(139, 92, 246, 0.28)',
+    backgroundColor: 'rgba(139, 92, 246, 0.26)',
   },
   heroShine: {
     position: 'absolute',
-    top: 4,
-    left: 18,
-    right: 18,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: colors.shineSoft,
+    top: 0,
+    left: 20,
+    right: 20,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.24)',
   },
   heroHeader: {
     flexDirection: 'row',
@@ -473,12 +489,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    transform: [{ rotate: '-1.5deg' }],
+    paddingHorizontal: 11,
+    paddingVertical: 4.5,
+    borderRadius: 999,
   },
   heroBadgeDot: {
     width: 6.5,
@@ -496,12 +509,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: 'rgba(198, 184, 255, 0.35)',
-    backgroundColor: 'rgba(12, 8, 34, 0.58)',
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(198, 184, 255, 0.28)',
+    backgroundColor: 'rgba(12, 8, 34, 0.45)',
   },
   heroBonusText: {
     fontFamily: fonts.bodyBold,
@@ -525,22 +538,21 @@ const styles = StyleSheet.create({
   flipWrap: {
     width: '100%',
     position: 'relative',
-    paddingBottom: 4,
   },
   flipShadow: {
     position: 'absolute',
-    top: 4,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 2,
+    left: 3,
+    right: 3,
+    bottom: -1,
     borderRadius: 16,
-    backgroundColor: '#0A061C',
+    backgroundColor: 'rgba(8, 5, 22, 0.35)',
   },
   flipFace: {
     height: 58,
-    borderRadius: 15,
-    borderWidth: borders.regular,
-    borderColor: '#6F5AC8',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
     backgroundColor: '#2B1F60',
     alignItems: 'center',
     justifyContent: 'center',
@@ -553,32 +565,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: '50%',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   flipShine: {
     position: 'absolute',
-    top: 3,
-    left: 10,
-    right: 10,
-    height: 3.5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    top: 0,
+    left: 12,
+    right: 12,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
   flipSeam: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: '50%',
-    height: 1.25,
-    backgroundColor: 'rgba(10, 6, 28, 0.65)',
+    height: 1,
+    backgroundColor: 'rgba(10, 6, 28, 0.35)',
   },
   flipNotch: {
     position: 'absolute',
     top: '50%',
-    marginTop: -3.5,
-    width: 4,
-    height: 7,
-    backgroundColor: '#0E0925',
+    marginTop: -3,
+    width: 3,
+    height: 6,
+    backgroundColor: 'rgba(14, 9, 37, 0.55)',
   },
   flipNotchLeft: { left: 0, borderTopRightRadius: 3, borderBottomRightRadius: 3 },
   flipNotchRight: { right: 0, borderTopLeftRadius: 3, borderBottomLeftRadius: 3 },
@@ -612,9 +623,9 @@ const styles = StyleSheet.create({
     marginTop: 14,
     height: 76,
     borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(201, 255, 59, 0.45)',
-    backgroundColor: 'rgba(12, 8, 34, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(201, 255, 59, 0.35)',
+    backgroundColor: 'rgba(12, 8, 34, 0.45)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -629,11 +640,9 @@ const styles = StyleSheet.create({
   },
   heroProgressTrack: {
     marginTop: 12,
-    height: 9,
+    height: 7,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: '#0B0720',
-    backgroundColor: '#120C30',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     overflow: 'hidden',
   },
   heroProgressFill: {
@@ -644,16 +653,16 @@ const styles = StyleSheet.create({
   },
   barShine: {
     position: 'absolute',
-    top: 1,
+    top: 0,
     left: 4,
     right: 6,
-    height: 2,
+    height: 1.5,
     borderRadius: 2,
     backgroundColor: 'rgba(255, 255, 255, 0.45)',
   },
   barTipDot: {
     position: 'absolute',
-    right: 2,
+    right: 1.5,
     width: 4.5,
     height: 4.5,
     borderRadius: 3,
@@ -671,51 +680,41 @@ const styles = StyleSheet.create({
   compactOuter: {
     width: '100%',
     position: 'relative',
-    paddingBottom: shadows.sm,
-  },
-  compactShadow: {
-    position: 'absolute',
-    top: shadows.sm,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 19,
-    backgroundColor: colors.ink,
   },
   compactCard: {
-    borderRadius: 18,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     overflow: 'hidden',
   },
   compactCardExhausted: {
-    backgroundColor: '#FFF5E8',
+    backgroundColor: '#FFF7F2',
+    borderColor: '#FFD3C2',
   },
   compactInner: {
-    paddingHorizontal: 12,
-    paddingTop: 11,
-    paddingBottom: 10,
+    paddingHorizontal: 13,
+    paddingTop: 12,
+    paddingBottom: 11,
     gap: 9,
     position: 'relative',
   },
   compactShine: {
     position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   embeddedHost: {
     width: '100%',
   },
   embeddedDivider: {
-    height: 1.5,
-    borderTopWidth: 1.5,
+    height: 1,
+    borderTopWidth: 1,
     borderStyle: 'dashed',
-    borderColor: colors.line,
+    borderColor: colors.borderHairline,
     marginBottom: 10,
   },
   embeddedWrap: {
@@ -724,17 +723,14 @@ const styles = StyleSheet.create({
   compactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 10,
   },
   compactClockBadge: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
     flexShrink: 0,
   },
   compactClockBadgeDefault: { backgroundColor: colors.violetSoft },
@@ -781,10 +777,8 @@ const styles = StyleSheet.create({
   miniTile: {
     minWidth: 28,
     height: 28,
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
     borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
@@ -804,16 +798,14 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 13,
     lineHeight: 16,
-    color: colors.ink,
+    color: colors.inkMuted,
     width: 6,
     textAlign: 'center',
   },
   compactTrack: {
     height: 6,
     borderRadius: radii.pill,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    backgroundColor: colors.canvasDeep,
+    backgroundColor: '#EDE5FC',
     overflow: 'hidden',
   },
   compactFill: {

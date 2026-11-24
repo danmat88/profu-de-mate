@@ -1,6 +1,5 @@
 import * as Haptics from '../../../shared/services/haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -17,7 +16,7 @@ import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { cropCapturedImage, rotateCapturedImage } from '../services/imagePipeline';
 import { deleteCapturedImageFiles, isManagedTemporaryImage } from '../services/temporaryImages';
-import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import { colors, fonts, shadows } from '../../../shared/theme';
 import type { CapturedImage, FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -461,7 +460,6 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
 
   return (
     <View style={[styles.safe, { height, paddingTop: topSpace }]}>
-      <StatusBar style="light" />
       <View accessibilityViewIsModal style={styles.screen}>
         <View style={[styles.header, isLargeText && styles.headerLargeText, { paddingHorizontal: gutter }]}>
           <IconButton label="Renunță la fotografie" disabled={busy} dimWhenDisabled={false} onPress={cancelEditing} dark size={42}>
@@ -666,20 +664,20 @@ const styles = StyleSheet.create({
   headerSubtitleDot: { width: 6.5, height: 6.5, borderRadius: 4, backgroundColor: colors.lime, flexShrink: 0 },
   headerSubtitleDotCheck: { backgroundColor: colors.peach },
   headerSubtitle: { flexShrink: 1, fontFamily: fonts.bodyMedium, color: '#C6BEE0', fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
-  headerBadgeWrap: { width: 42, height: 45, paddingBottom: 3, position: 'relative', flexShrink: 0 },
-  headerBadgeShadow: { position: 'absolute', top: 3, left: 0, right: 0, bottom: 0, borderRadius: 14, backgroundColor: '#04030A' },
+  headerBadgeWrap: { width: 42, height: 42, position: 'relative', flexShrink: 0 },
+  headerBadgeShadow: { position: 'absolute', top: 2, left: 2, right: 2, bottom: -1, borderRadius: 14, backgroundColor: 'rgba(4, 3, 10, 0.35)' },
   headerBadge: {
     width: 42,
     height: 42,
     borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: '#7A68C8',
-    backgroundColor: '#251D4F',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.28)',
+    backgroundColor: 'rgba(38, 30, 78, 0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  headerBadgeCheck: { borderColor: 'rgba(255,184,107,0.7)' },
+  headerBadgeCheck: { borderColor: 'rgba(255,184,107,0.45)' },
   workspace: { flex: 1, minHeight: 260, overflow: 'hidden', backgroundColor: '#080516' },
   workspaceShort: { minHeight: 200 },
   photoSurface: { position: 'absolute', zIndex: 1, borderRadius: CROP_RADIUS, overflow: 'hidden', backgroundColor: '#0D0B16' },
@@ -741,12 +739,12 @@ const styles = StyleSheet.create({
   workspaceError: { backgroundColor: 'rgba(110,27,48,0.96)', borderColor: colors.rose },
   workspaceErrorText: { color: '#FFE1E5' },
   dock: {
-    paddingTop: 12,
+    paddingTop: 14,
     backgroundColor: '#150F33',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    borderTopWidth: 1.5,
-    borderTopColor: 'rgba(139,92,246,0.34)',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(167,139,250,0.24)',
     overflow: 'hidden',
   },
   dockTopHighlight: {
@@ -754,7 +752,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 28,
     right: 28,
-    height: 2,
+    height: 1.5,
     backgroundColor: 'rgba(255,255,255,0.16)',
   },
   dockInner: {
@@ -772,9 +770,9 @@ const styles = StyleSheet.create({
   toolPill: {
     height: 44,
     borderRadius: 16,
-    borderWidth: borders.thin,
-    borderColor: '#7A68C8',
-    backgroundColor: '#251D4F',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.28)',
+    backgroundColor: 'rgba(38, 30, 78, 0.88)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -784,12 +782,11 @@ const styles = StyleSheet.create({
   },
   toolShine: {
     position: 'absolute',
-    top: 2,
-    left: 10,
-    right: 10,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shineSoft,
+    top: 0,
+    left: 14,
+    right: 14,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
   toolPillText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 17 },
   applyWrap: { width: '100%' },
@@ -797,43 +794,41 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 58,
     borderRadius: 20,
-    borderWidth: borders.thick,
-    borderColor: colors.ink,
+    borderWidth: 1,
+    borderColor: 'rgba(23, 19, 55, 0.1)',
     backgroundColor: colors.lime,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
     overflow: 'hidden',
+    elevation: 4,
   },
   buttonLargeText: { height: 64, borderRadius: 22 },
   applyButtonCheck: { backgroundColor: colors.peach },
   applyShine: {
     position: 'absolute',
-    top: 3,
-    left: 14,
-    right: 14,
-    height: 6,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
   },
   applyIcon: {
     width: 40,
     height: 40,
     borderRadius: 13,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23, textAlign: 'center' },
+  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 23, textAlign: 'center' },
   applyArrow: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 999,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',

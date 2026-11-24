@@ -4,7 +4,7 @@ const saveCoachMarker = new File(Paths.document, 'save-coach-v1.seen');
 const homeGuideMarker = new File(Paths.document, 'home-guide-v1.seen');
 const readingScaleFile = new File(Paths.document, 'math-reading-scale-v1.txt');
 
-export const MATH_READING_SCALES = [1, 1.14, 1.28] as const;
+const MATH_READING_SCALES = [1, 1.14, 1.28] as const;
 export type MathReadingScale = (typeof MATH_READING_SCALES)[number];
 
 let cachedReadingScale: MathReadingScale | undefined;

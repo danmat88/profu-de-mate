@@ -2,11 +2,11 @@ import * as Application from 'expo-application';
 
 const FALLBACK_VERSION = '1.0.0';
 
-export function getNativeAppVersion(): string {
+function getNativeAppVersion(): string {
   return Application.nativeApplicationVersion?.trim() || FALLBACK_VERSION;
 }
 
-export function getNativeBuildVersion(): string | null {
+function getNativeBuildVersion(): string | null {
   return Application.nativeBuildVersion?.trim() || null;
 }
 

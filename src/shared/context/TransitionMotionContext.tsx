@@ -13,16 +13,36 @@ export type TransitionMotionValue = {
  * Maximum time a transition lock can stay active if a screen uses `animation: 'none'`,
  * replaces synchronously, or Android skips a transitionEnd callback.
  */
-const TRANSITION_WATCHDOG_MS = 380;
+const TRANSITION_WATCHDOG_MS = 560;
 
 type Listener = () => void;
 
 let activeTransition = false;
 let watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingEmitFrame: number | null = null;
 const listeners = new Set<Listener>();
 
 function emitTransitionState() {
   listeners.forEach((listener) => listener());
+}
+
+function cancelPendingEmit() {
+  if (pendingEmitFrame !== null && typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(pendingEmitFrame);
+    pendingEmitFrame = null;
+  }
+}
+
+function scheduleEmitTransitionState() {
+  if (typeof requestAnimationFrame !== 'function') {
+    emitTransitionState();
+    return;
+  }
+  if (pendingEmitFrame !== null) return;
+  pendingEmitFrame = requestAnimationFrame(() => {
+    pendingEmitFrame = null;
+    emitTransitionState();
+  });
 }
 
 function clearTransitionWatchdog() {
@@ -32,28 +52,28 @@ function clearTransitionWatchdog() {
   }
 }
 
-export function isAppTransitioning(): boolean {
-  return activeTransition;
-}
-
 export function endAppTransition(): void {
   clearTransitionWatchdog();
+  cancelPendingEmit();
   if (!activeTransition) return;
   activeTransition = false;
-  emitTransitionState();
+  scheduleEmitTransitionState();
 }
 
 export function beginAppTransition(): void {
   clearTransitionWatchdog();
   if (!activeTransition) {
     activeTransition = true;
-    emitTransitionState();
+    // Defer notifying subscribed screens to the next animation frame so an
+    // incoming navigation.navigate() commits immediately with zero wasted
+    // synchronous re-renders of the outgoing screen on the tap frame.
+    scheduleEmitTransitionState();
   }
   watchdogTimer = setTimeout(() => {
     watchdogTimer = null;
     if (!activeTransition) return;
     activeTransition = false;
-    emitTransitionState();
+    scheduleEmitTransitionState();
   }, TRANSITION_WATCHDOG_MS);
 }
 

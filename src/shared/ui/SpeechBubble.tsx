@@ -1,18 +1,18 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows } from '../theme';
+import { SILKY_EASE_OUT } from '../motion/nativeMotion';
+import { colors, fonts, radii } from '../theme';
 import { Text } from './Typography';
 
 export type SpeechBubbleTone = 'paper' | 'limeSoft' | 'peachSoft' | 'roseSoft' | 'violetSoft';
 
-const fills: Record<SpeechBubbleTone, string> = {
-  paper: colors.paper,
-  limeSoft: colors.limeSoft,
-  peachSoft: colors.peachSoft,
-  roseSoft: colors.roseSoft,
-  violetSoft: colors.violetSoft,
+const palettes: Record<SpeechBubbleTone, { bg: string; border: string; accent: string }> = {
+  paper: { bg: 'rgba(255, 255, 255, 0.9)', border: 'rgba(124, 60, 255, 0.11)', accent: colors.violet },
+  limeSoft: { bg: 'rgba(246, 255, 224, 0.94)', border: 'rgba(86, 120, 0, 0.18)', accent: colors.limeDeep },
+  peachSoft: { bg: 'rgba(255, 244, 238, 0.94)', border: 'rgba(255, 141, 107, 0.28)', accent: colors.peach },
+  roseSoft: { bg: 'rgba(255, 240, 243, 0.95)', border: 'rgba(255, 87, 109, 0.28)', accent: colors.rose },
+  violetSoft: { bg: 'rgba(244, 238, 255, 0.94)', border: 'rgba(124, 60, 255, 0.18)', accent: colors.violet },
 };
 
 type Props = {
@@ -21,19 +21,22 @@ type Props = {
   tone?: SpeechBubbleTone;
   tail?: 'left' | 'none';
   compact?: boolean;
-  /** Change this key to trigger a subtle comic pop when the copy updates. */
+  /** Change this key to trigger a subtle editorial settle when the copy updates. */
   messageKey?: string;
-  /** Optional tap handler to cycle or dismiss messages directly from the bubble. */
+  /** Optional tap handler to cycle or dismiss messages directly from the card. */
   onPress?: () => void;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
 
+/**
+ * Airy frosted editorial companion card replacing dated comic speech tails
+ * with a clean studio accent bar and whisper-smooth native motion.
+ */
 export function SpeechBubble({
   title,
   body,
   tone = 'paper',
-  tail = 'left',
   compact = false,
   messageKey,
   onPress,
@@ -43,33 +46,20 @@ export function SpeechBubble({
   const reducedMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
   const previousKey = useRef(messageKey);
-  const fill = fills[tone];
+  const { bg: fill, border, accent } = palettes[tone];
 
   useEffect(() => {
     if (!messageKey || previousKey.current === messageKey) return undefined;
     previousKey.current = messageKey;
     if (reducedMotion) return undefined;
     scale.stopAnimation();
-    const anim = Animated.sequence([
-      Animated.timing(scale, {
-        toValue: 0.97,
-        duration: 55,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 1.032,
-        duration: 85,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.spring(scale, {
-        toValue: 1,
-        tension: 240,
-        friction: 14,
-        useNativeDriver: true,
-      }),
-    ]);
+    scale.setValue(0.97);
+    const anim = Animated.timing(scale, {
+      toValue: 1,
+      duration: 210,
+      easing: SILKY_EASE_OUT,
+      useNativeDriver: true,
+    });
     anim.start();
     return () => {
       anim.stop();
@@ -77,124 +67,97 @@ export function SpeechBubble({
     };
   }, [messageKey, reducedMotion, scale]);
 
+  const animatedStyle = useMemo(() => ({ transform: [{ scale }] }), [scale]);
+
   const cardInner = (
-    <>
-      <View pointerEvents="none" style={styles.shine} />
-      <Text
-        maxFontSizeMultiplier={1.3}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.82}
-        style={[styles.title, compact && styles.titleCompact, tone === 'roseSoft' && styles.titleError]}
-      >
-        {title}
-      </Text>
-      {body ? (
+    <View style={styles.innerRow}>
+      <View style={[styles.accentBar, { backgroundColor: accent }]} />
+      <View style={styles.copy}>
         <Text
           maxFontSizeMultiplier={1.3}
-          numberOfLines={compact ? 1 : 2}
-          style={[styles.body, compact && styles.bodyCompact, tone === 'roseSoft' && styles.bodyError]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+          style={[styles.title, compact && styles.titleCompact, tone === 'roseSoft' && styles.titleError]}
         >
-          {body}
+          {title}
         </Text>
-      ) : null}
-    </>
+        {body ? (
+          <Text
+            maxFontSizeMultiplier={1.3}
+            numberOfLines={compact ? 1 : 2}
+            style={[styles.body, compact && styles.bodyCompact, tone === 'roseSoft' && styles.bodyError]}
+          >
+            {body}
+          </Text>
+        ) : null}
+      </View>
+    </View>
   );
 
   return (
-    <Animated.View
-      style={[
-        styles.outer,
-        tail === 'left' && styles.outerWithLeftTail,
-        { transform: [{ scale }] },
-        style,
-      ]}
-    >
-      <View style={styles.shadowWrap}>
-        <View pointerEvents="none" style={styles.shadow} />
-        {onPress ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={accessibilityLabel ?? (body ? `${title}. ${body}` : title)}
-            onPress={onPress}
-            style={({ pressed }) => [
-              styles.bubble,
-              compact && styles.bubbleCompact,
-              { backgroundColor: fill },
-              pressed && styles.bubblePressed,
-            ]}
-          >
-            {cardInner}
-          </Pressable>
-        ) : (
-          <View style={[styles.bubble, compact && styles.bubbleCompact, { backgroundColor: fill }]}>
-            {cardInner}
-          </View>
-        )}
-      </View>
-
-      {tail === 'left' ? (
-        <View pointerEvents="none" style={[styles.leftTail, compact && styles.leftTailCompact]}>
-          <Svg width={15} height={18} viewBox="0 0 15 18">
-            <Path d="M14.5 3 L2.2 9.5 L14.5 15 Z" fill={fill} />
-            <Path
-              d="M11.5 3 L2.2 9.5 L11.5 15"
-              fill="none"
-              stroke={colors.ink}
-              strokeWidth={2.5}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          </Svg>
+    <Animated.View style={[styles.outer, animatedStyle, style]}>
+      {onPress ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? (body ? `${title}. ${body}` : title)}
+          onPress={onPress}
+          style={({ pressed }) => [
+            styles.card,
+            compact && styles.cardCompact,
+            { backgroundColor: fill, borderColor: border },
+            pressed && styles.cardPressed,
+          ]}
+        >
+          {cardInner}
+        </Pressable>
+      ) : (
+        <View style={[styles.card, compact && styles.cardCompact, { backgroundColor: fill, borderColor: border }]}>
+          {cardInner}
         </View>
-      ) : null}
+      )}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  outer: { flex: 1, minWidth: 0, position: 'relative' },
-  outerWithLeftTail: { paddingLeft: 10 },
-  shadowWrap: { position: 'relative', paddingBottom: shadows.sm },
-  shadow: {
-    position: 'absolute',
-    top: shadows.sm,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: radii.lg,
-    backgroundColor: colors.ink,
-  },
-  bubble: {
-    borderRadius: radii.lg,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    paddingHorizontal: 14,
+  outer: { flex: 1, minWidth: 0 },
+  card: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 13,
     paddingVertical: 10,
     overflow: 'hidden',
   },
-  bubbleCompact: {
+  cardCompact: {
     borderRadius: radii.md,
     paddingHorizontal: 11,
     paddingVertical: 7,
   },
-  bubblePressed: {
-    transform: [{ translateY: 2 }],
+  cardPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.985 }],
   },
-  shine: {
-    position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
+  innerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  accentBar: {
+    width: 3.5,
+    alignSelf: 'stretch',
+    minHeight: 28,
+    borderRadius: radii.pill,
+  },
+  copy: {
+    flex: 1,
+    minWidth: 0,
   },
   title: {
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 17.5,
+    lineHeight: 21,
   },
   titleCompact: {
     fontSize: 15,
@@ -205,11 +168,11 @@ const styles = StyleSheet.create({
   },
   body: {
     marginTop: 2,
-    minHeight: 33,
+    minHeight: 32,
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 12.5,
-    lineHeight: 16.5,
+    lineHeight: 16,
   },
   bodyCompact: {
     marginTop: 1,
@@ -219,14 +182,5 @@ const styles = StyleSheet.create({
   },
   bodyError: {
     color: colors.ink,
-  },
-  leftTail: {
-    position: 'absolute',
-    left: 0,
-    top: '50%',
-    marginTop: -11,
-  },
-  leftTailCompact: {
-    marginTop: -10,
   },
 });

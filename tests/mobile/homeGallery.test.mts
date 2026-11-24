@@ -7,6 +7,7 @@ const access = {
   premium: { active: false },
 };
 const hooks = {
+  memo: (fn: unknown) => fn,
   useCallback: (fn: unknown) => fn,
   useContext: () => true,
   useMemo: (fn: () => unknown) => fn(),
@@ -73,6 +74,7 @@ function surfaceFixture() {
     'src/shared/ui/PressableScale.tsx': { PressableScale: 'PressableScale' },
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
+    'src/shared/ui/SpotlightAura.tsx': { SpotlightAura: 'SpotlightAura' },
     'src/shared/ui/Typography.tsx': { Text: 'Text' },
     'src/features/access/components/QuotaResetTimer.tsx': {
       ComicClockIcon: 'ComicClockIcon',
@@ -97,11 +99,11 @@ function find(node: any, predicate: (node: any) => boolean): any {
 }
 
 function geometry(root: any) {
-  const page = root.props.children[2].props.children;
+  const page = root.props.children[1].props.children;
   const sections = page.props.children;
   const gallery = find(root, node => node.props?.accessibilityLabel === 'Alege o fotografie din galerie');
-  const galleryIcon = gallery.props.children[1];
-  const galleryCopy = gallery.props.children[2];
+  const galleryIcon = gallery.props.children[0];
+  const galleryCopy = gallery.props.children[1];
   return JSON.parse(JSON.stringify({
     root: flatten(root.props.style), page: flatten(page.props.style),
     header: flatten(sections[0].props.style), tutor: flatten(sections[1].props.style),
@@ -214,6 +216,7 @@ function statefulSurfaceFixture(initialHeight = 802) {
   let refCursor = 0;
   const load = serviceLoader({
     react: {
+      memo: (fn: unknown) => fn,
       useCallback: (fn: unknown) => fn,
       useContext: () => true,
       useMemo: (fn: () => unknown) => fn(),
@@ -254,6 +257,7 @@ function statefulSurfaceFixture(initialHeight = 802) {
     'src/shared/ui/PressableScale.tsx': { PressableScale: 'PressableScale' },
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
+    'src/shared/ui/SpotlightAura.tsx': { SpotlightAura: 'SpotlightAura' },
     'src/shared/ui/Typography.tsx': { Text: 'Text' },
     'src/features/access/components/QuotaResetTimer.tsx': {
       ComicClockIcon: 'ComicClockIcon',

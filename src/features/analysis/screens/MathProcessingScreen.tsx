@@ -1,11 +1,12 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { createNativeLoop } from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
 import { borders, colors, fonts, shadows } from '../../../shared/theme';
@@ -52,6 +53,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
   const [feedback, setFeedback] = useState(false);
   const [preparingLesson, setPreparingLesson] = useState(false);
   const [sceneReady, setSceneReady] = useState(reducedMotion);
+  const haloSpin = useRef(new Animated.Value(0)).current;
   const returningFromPaywall = useRef(false);
   const { mode, math, requestId, userId, origin } = route.params;
   const [preview] = useState(() => {
@@ -63,8 +65,36 @@ export function MathProcessingScreen({ route, navigation }: Props) {
   });
   const goHome = () => {
     if (state.kind !== 'working') clearPendingAnalysis(requestId);
+    beginAppTransition();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
+
+  useEffect(() => {
+    if (!focused || !sceneReady || reducedMotion || state.kind !== 'working') {
+      haloSpin.stopAnimation();
+      return undefined;
+    }
+    const loop = createNativeLoop(haloSpin, 26_000);
+    loop.start();
+    return () => {
+      loop.stop();
+      haloSpin.stopAnimation();
+    };
+  }, [focused, haloSpin, reducedMotion, sceneReady, state.kind]);
+
+  const haloSpinStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          rotate: haloSpin.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0deg', '360deg'],
+          }),
+        },
+      ],
+    }),
+    [haloSpin],
+  );
 
   useEffect(() => {
     if (reducedMotion) {
@@ -101,6 +131,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       return;
     }
     clearPendingAnalysis(requestId);
+    beginAppTransition();
     if (origin === 'editor' && navigation.canGoBack()) navigation.goBack();
     else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   });
@@ -110,6 +141,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       return;
     }
     clearPendingAnalysis(requestId);
+    beginAppTransition();
     if (origin === 'editor' && navigation.canGoBack()) navigation.goBack();
     else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
@@ -146,6 +178,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
           await celebrationBeat;
           if (!active()) return;
           clearPendingAnalysis(requestId);
+          beginAppTransition();
           navigation.replace('Lesson', params);
         } else if (result.status !== 'ready') {
           clearPendingAnalysis(requestId);
@@ -164,6 +197,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
 
   const edit = () => {
     clearPendingAnalysis(requestId);
+    beginAppTransition();
     if (origin === 'editor' && navigation.canGoBack()) navigation.goBack();
     else navigation.reset({ index: 1, routes: [{ name: 'Home' }, { name: 'MathInput', params: { mode } }] });
   };
@@ -189,10 +223,12 @@ export function MathProcessingScreen({ route, navigation }: Props) {
 
   return (
     <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.header}>
-        <Text style={styles.brand}>Profu’ de mate</Text>
+        <View style={styles.brandRow}>
+          {working ? <View style={[styles.brandDot, isCheck && styles.brandDotCheck]} /> : null}
+          <Text style={styles.brand}>{working ? 'Profu’ lucrează' : 'Profu’ de mate'}</Text>
+        </View>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={working ? 'Continuă analiza în fundal și revino acasă' : 'Înapoi acasă'}
@@ -217,6 +253,12 @@ export function MathProcessingScreen({ route, navigation }: Props) {
         <View style={[styles.stage, isVeryShort && styles.stageCompact, !working && styles.messageStage]}>
           <View style={[styles.halo, !working && styles.messageHalo]} />
           {working ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.haloOrbit, isCheck && styles.haloOrbitCheck, preparingLesson && styles.haloOrbitReady, haloSpinStyle]}
+            />
+          ) : null}
+          {working ? (
             <View style={[styles.paper, isVeryShort && styles.paperCompact]}>
               <View style={styles.paperTopBand}>
                 <View style={styles.paperDot} />
@@ -236,7 +278,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
                 <Text numberOfLines={1} style={styles.bubbleText}>{preparingLesson ? 'Gata! O așez…' : 'Hai să vedem!'}</Text>
               </View>
             ) : null}
-            <Mascot pose={mascotPose} size={working ? (isVeryShort ? 124 : 146) : 148} active={working ? sceneReady : true} />
+            <Mascot pose={mascotPose} size={working ? (isVeryShort ? 124 : 146) : 148} active={focused && (working ? sceneReady : true)} />
           </View>
         </View>
 
@@ -291,7 +333,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       </ScrollView>
 
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {working ? <AnalysisActivity preparing={preparingLesson} check={isCheck} active={sceneReady} /> : null}
+        {working ? <AnalysisActivity preparing={preparingLesson} check={isCheck} active={focused && sceneReady} /> : null}
         {state.kind === 'error' ? (
           <ComicButton
             compact
@@ -309,6 +351,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
             tone="lime"
             onPress={() => {
               returningFromPaywall.current = true;
+              beginAppTransition();
               navigation.navigate('Paywall', { source: 'quota', ...(state.access ? { access: state.access } : {}) });
             }}
           />
@@ -330,18 +373,21 @@ export function MathProcessingScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.ink, overflow: 'hidden' },
   header: { minHeight: 66, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  brand: { flex: 1, fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
+  brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  brandDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.lime },
+  brandDotCheck: { backgroundColor: colors.peach },
+  brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
   home: {
-    height: 44,
-    paddingHorizontal: 12,
+    height: 42,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: borders.thin,
-    borderColor: '#6D5EB0',
-    backgroundColor: '#2B2259',
-    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
+    backgroundColor: 'rgba(38, 30, 78, 0.88)',
+    borderRadius: 999,
   },
   homeText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
   scroll: { flex: 1 },
@@ -349,30 +395,42 @@ const styles = StyleSheet.create({
   contentCompact: { paddingVertical: 10, gap: 14 },
   stage: { height: 244, justifyContent: 'center', alignItems: 'center' },
   stageCompact: { height: 186 },
-  halo: { position: 'absolute', width: 224, height: 224, borderRadius: 112, backgroundColor: '#352275', right: 0, top: 6 },
+  halo: { position: 'absolute', width: 224, height: 224, borderRadius: 112, backgroundColor: 'rgba(124, 60, 255, 0.22)', right: 0, top: 6 },
+  haloOrbit: {
+    position: 'absolute',
+    width: 244,
+    height: 244,
+    borderRadius: 122,
+    right: -10,
+    top: -4,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(167, 139, 250, 0.42)',
+  },
+  haloOrbitCheck: { borderColor: 'rgba(255, 184, 107, 0.5)' },
+  haloOrbitReady: { borderColor: colors.lime },
   paper: {
     width: '86%',
     alignSelf: 'flex-start',
     minHeight: 172,
-    padding: 16,
+    padding: 17,
     paddingRight: 72,
-    borderRadius: 23,
-    borderWidth: borders.thick,
-    borderColor: '#080615',
+    borderRadius: 24,
+    borderWidth: 1.25,
+    borderColor: colors.borderHairline,
     backgroundColor: colors.canvas,
-    transform: [{ rotate: '-3.5deg' }],
     shadowColor: '#080615',
-    shadowOffset: { width: 0, height: 7 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.34,
+    shadowRadius: 18,
+    elevation: 8,
   },
   paperCompact: { minHeight: 146, paddingVertical: 12 },
   paperTopBand: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  paperDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.violetSoft, borderWidth: 1.5, borderColor: colors.ink },
+  paperDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.violetSoft },
   paperLabel: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11, letterSpacing: 0.8 },
   formula: { minHeight: 82, maxHeight: 108, justifyContent: 'center', overflow: 'hidden' },
-  paperRule: { height: 2, backgroundColor: colors.violetSoft },
+  paperRule: { height: 1.5, backgroundColor: colors.borderHairline },
   mascotWrap: { position: 'absolute', bottom: -6, right: -8, alignItems: 'center' },
   bubble: {
     marginBottom: -10,
@@ -382,12 +440,10 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 11,
-    borderRadius: 13,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    paddingHorizontal: 13,
+    borderRadius: 999,
     backgroundColor: colors.lime,
-    transform: [{ rotate: '4deg' }],
+    elevation: 4,
   },
   bubbleCheck: { backgroundColor: colors.peach },
   bubbleReady: { backgroundColor: colors.lime },
@@ -409,10 +465,10 @@ const styles = StyleSheet.create({
     borderRadius: 76,
     right: undefined,
     top: 8,
-    borderWidth: 3,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: '#7566BD',
-    backgroundColor: '#2E2266',
+    borderColor: 'rgba(167, 139, 250, 0.42)',
+    backgroundColor: 'rgba(124, 60, 255, 0.18)',
   },
   messageMascotWrap: { position: 'relative', right: 0, bottom: 0 },
   messageCard: { padding: 20 },

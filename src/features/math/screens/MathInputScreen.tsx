@@ -1,6 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +7,7 @@ import { beginAppTransition } from '../../../shared/context/TransitionMotionCont
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
-import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, shadows, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
@@ -329,7 +328,6 @@ export function MathInputScreen({ navigation, route }: Props) {
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="dark" />
       <ComicBackdrop />
 
       <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
@@ -497,37 +495,32 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.ink,
     backgroundColor: colors.mint,
   },
   saveDotError: { backgroundColor: colors.rose },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 20.5, lineHeight: 24 },
   titleNarrow: { fontSize: 18.5, lineHeight: 21.5 },
   modeSwitchPill: {
-    minHeight: 34,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: colors.violetSoft,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
   },
-  modeSwitchPillCheck: { backgroundColor: colors.peachSoft },
+  modeSwitchPillCheck: { backgroundColor: colors.peachSoft, borderColor: 'rgba(255, 141, 107, 0.34)' },
   modeSwitchDot: {
     width: 7,
     height: 7,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.ink,
     backgroundColor: colors.violet,
   },
   modeSwitchDotCheck: { backgroundColor: colors.peach },
   modeSwitchText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5 },
-  pillPressed: { transform: [{ translateY: 1.5 }], borderBottomWidth: 2 },
+  pillPressed: { transform: [{ scale: 0.96 }] },
   workspace: { flex: 1, minHeight: 0, overflow: 'hidden', maxWidth: 560, width: '100%', alignSelf: 'center', paddingTop: 2 },
 
   tabs: { flexShrink: 0, flexDirection: 'row', gap: 8, marginBottom: 7 },
@@ -535,33 +528,30 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     height: 40,
-    paddingHorizontal: 9,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.line,
-    borderRadius: 14,
-    backgroundColor: colors.paper,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
   },
-  tabActive: { borderColor: colors.ink, backgroundColor: colors.violetSoft },
-  tabActiveCheck: { borderColor: colors.ink, backgroundColor: colors.peachSoft },
-  tabPressed: { transform: [{ translateY: 1.5 }], borderBottomWidth: 2 },
+  tabActive: { borderColor: colors.violet, backgroundColor: '#F4EEFF' },
+  tabActiveCheck: { borderColor: colors.peach, backgroundColor: '#FFF2EC' },
+  tabPressed: { transform: [{ scale: 0.97 }] },
   step: {
     width: 22,
     height: 22,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    borderRadius: 999,
+    backgroundColor: colors.paperTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
   stepActive: { backgroundColor: colors.lime },
   stepActiveCheck: { backgroundColor: colors.peach },
-  stepDone: { backgroundColor: colors.mint },
+  stepDone: { backgroundColor: colors.mintSoft },
   stepText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11 },
   tabText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12.5 },
   tabTextActive: { color: colors.ink },
@@ -572,11 +562,11 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     minHeight: 34,
     marginTop: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.rose,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#FBC4CE',
     backgroundColor: colors.roseSoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -589,33 +579,30 @@ const styles = StyleSheet.create({
   submitDock: { flexShrink: 0, paddingTop: 7 },
   submit: {
     minHeight: 54,
-    paddingHorizontal: 10,
-    borderWidth: borders.thick,
-    borderColor: colors.ink,
-    borderRadius: 18,
+    paddingHorizontal: 11,
+    borderWidth: 1,
+    borderColor: 'rgba(86, 120, 0, 0.16)',
+    borderRadius: 999,
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
+    gap: 10,
     overflow: 'hidden',
   },
-  submitCompact: { minHeight: 46, borderRadius: 15, gap: 8 },
-  submitCheck: { backgroundColor: '#FFB86B' },
+  submitCompact: { minHeight: 46, gap: 8 },
+  submitCheck: { backgroundColor: '#FFC26E', borderColor: 'rgba(179, 59, 34, 0.16)' },
   submitShine: {
     position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
+    top: 0,
+    left: 16,
+    right: 16,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
   },
   submitIcon: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
@@ -628,10 +615,10 @@ const styles = StyleSheet.create({
   submitArrow: {
     width: 34,
     height: 34,
-    borderRadius: 11,
+    borderRadius: 999,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitArrowCompact: { width: 30, height: 30, borderRadius: 9 },
+  submitArrowCompact: { width: 30, height: 30 },
 });

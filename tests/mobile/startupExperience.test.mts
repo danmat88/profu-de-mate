@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
 import test from 'node:test';
 import { authSessionIdentityKey } from '../../src/shared/services/authSessionIdentity.ts';
 import {
@@ -218,7 +219,8 @@ test('Settings, Paywall and Legal apply synchronous top insets, render complete 
   }
   assert.doesNotMatch(settingsSource, /sectionLocked/);
   assert.doesNotMatch(premiumSurfaceSource, /contentLocked/);
-  assert.match(settingsSource, /LinearTransition\.duration\(/);
+  assert.doesNotMatch(settingsSource, /react-native-reanimated/);
+  assert.doesNotMatch(premiumSurfaceSource, /react-native-reanimated/);
   assert.match(settingsSource, /styles\.busyPill/);
   assert.match(settingsSource, /removeClippedSubviews=\{false\}/);
   assert.match(settingsSource, /backDisabled=\{accountBusy\}/);
@@ -283,7 +285,7 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
 
   assert.match(notebookSource, /useTransitionSettled\(navigation, reducedMotion\)/);
   assert.match(notebookSource, /if \(initialWarmCache && !transitionSettled\) return undefined;/);
-  assert.match(notebookSource, /styles\.lessonRowShadow/);
+  assert.match(notebookSource, /styles\.lessonRowWrap/);
   assert.match(notebookSource, /visibleNotes\.slice\(0, 3\)/);
   assert.match(notebookSource, /function StaggerCardSlot\(/);
   assert.match(notebookSource, /const mountSearchInput = transitionSettled \|\| searchActivated/);
@@ -293,12 +295,12 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
 
   assert.match(settingsSource, /useTransitionSettled\(navigation, reducedMotion\)/);
   assert.match(settingsSource, /if \(!everOpened\) return null;/);
-  assert.match(settingsSource, /reducedMotion \|\| !ambientActive\s*\?\s*undefined\s*:\s*LinearTransition\.duration\(/);
+  assert.doesNotMatch(settingsSource, /react-native-reanimated/);
 
   assert.match(paywallSource, /useTransitionSettled\(navigation, reducedMotion\)/);
   assert.match(paywallSource, /if \(!ambientActive\) return undefined;/);
   assert.match(paywallSource, /active=\{ambientActive\}/);
-  assert.match(premiumSurfaceSource, /const smoothLayout = active && !reducedMotion/);
+  assert.doesNotMatch(premiumSurfaceSource, /react-native-reanimated/);
   assert.doesNotMatch(premiumSurfaceSource, /useSharedValue|useAnimatedStyle/);
 
   assert.doesNotMatch(mathInputSource, /keypadReady/);
@@ -324,4 +326,50 @@ test('taps rebound crisply, full screens mount with minimal worklets, and living
   assert.match(summarySource, /\{removeEverOpened \? \(/);
   assert.match(summarySource, /\{feedbackEverOpened \? \(/);
   assert.match(mathDocumentHtmlSource, /function afterPaint\(/);
+});
+
+async function walkSourceFiles(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) return walkSourceFiles(full);
+    return /\.(ts|tsx)$/.test(entry.name) ? [full] : [];
+  }));
+  return nested.flat();
+}
+
+test('app-wide cohesion: zero JS-driven sequence loops, unified native ComicBottomSheet modals, and strict shared boundary', async () => {
+  const allSrcFiles = await walkSourceFiles(path.resolve('src'));
+  for (const file of allSrcFiles) {
+    const source = await readFile(file, 'utf8');
+    const rel = path.relative(process.cwd(), file);
+    assert.doesNotMatch(
+      source,
+      /Animated\.loop\(\s*Animated\.sequence\(/,
+      `${rel} must use createNativeLoop + WAVE_INPUT_17 instead of JS-restarted Animated.loop(Animated.sequence(...))`,
+    );
+  }
+
+  const modalPaths = [
+    'src/features/lessons/components/RemoveFromNotebookModal.tsx',
+    'src/features/feedback/components/FeedbackSheet.tsx',
+    'src/features/lessons/components/LessonRoadmapModal.tsx',
+  ];
+  for (const rel of modalPaths) {
+    const source = await readFile(path.resolve(rel), 'utf8');
+    assert.match(source, /<ComicBottomSheet/, `${rel} should reuse the unified ComicBottomSheet`);
+    assert.doesNotMatch(source, /react-native-reanimated/, `${rel} should stay free of Reanimated worklets`);
+  }
+  assert.match(settingsSource, /<ComicBottomSheet/);
+
+  const sharedFiles = await walkSourceFiles(path.resolve('src/shared'));
+  for (const file of sharedFiles) {
+    const source = await readFile(file, 'utf8');
+    const rel = path.relative(process.cwd(), file);
+    assert.doesNotMatch(
+      source,
+      /from\s+['"][^'"]*(?:\/app\/|\/features\/)/,
+      `${rel} in src/shared must not import from src/app or src/features`,
+    );
+  }
 });

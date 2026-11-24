@@ -1,6 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
@@ -24,7 +23,7 @@ import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hoo
 import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -36,6 +35,7 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
+import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
@@ -180,29 +180,40 @@ function StaggerCardSlot({
     };
   }, [generation, index, motionActive, progress, reducedMotion]);
 
+  const slotStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          translateX: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [direction * 26, 0],
+          }),
+        },
+        {
+          translateY: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [8, 0],
+          }),
+        },
+        {
+          scale: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.968, 1],
+          }),
+        },
+      ],
+    }),
+    [direction, progress],
+  );
+
   if (reducedMotion || index >= 4) {
     return <>{children}</>;
   }
 
-  const translateX = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [direction * 26, 0],
-  });
-  const translateY = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [8, 0],
-  });
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.968, 1],
-  });
-
   return (
     <Animated.View
       collapsable={false}
-      style={{
-        transform: [{ translateX }, { translateY }, { scale }],
-      }}
+      style={slotStyle}
     >
       {children}
     </Animated.View>
@@ -222,14 +233,12 @@ type LessonRowProps = {
 };
 
 /**
- * Collectible 3D comic notebook page card: color-coded spiral spine, bookmark
- * ribbon on the newest entry, tilted page stamp, readable Unicode formula
- * snippet, final answer preview pedestal, collapsable-safe study chips, quick
- * result/share/remove controls, and zero Reanimated worklets.
+ * Flagship editorial study card: slim color-coded accent bar, single crisp
+ * meta line, bold title, clean formula preview, highlighted final answer,
+ * minimal chapter/step footer, and zero elevation overdraw for locked 60fps.
  */
 const LessonRow = memo(function LessonRow({
   lesson,
-  cardNumber,
   newest,
   motionActive,
   isNarrow,
@@ -242,27 +251,20 @@ const LessonRow = memo(function LessonRow({
   const verdict = notebookVerdictPresentation(lesson);
   const checked = lesson.mode === 'check';
   const spineTone = verdict?.tone === 'correct'
-    ? colors.lime
+    ? colors.limeDeep
     : verdict?.tone === 'incorrect'
       ? colors.rose
       : verdict?.tone === 'partial'
         ? colors.gold
-        : checked ? colors.peach : colors.cyan;
+        : checked ? colors.peach : colors.violet;
   const answerTone = verdict?.tone === 'incorrect'
     ? answerPreviewTones.incorrect
     : verdict?.tone === 'partial'
       ? answerPreviewTones.partial
       : answerPreviewTones.default;
-  const modePillBg = checked ? colors.peachSoft : colors.cyanSoft;
-  const modeGlyph = checked ? '✓' : '✦';
-  const modeLabel = checked ? 'VERIFICATĂ' : 'REZOLVATĂ';
-  const watermarkGlyph = verdict?.tone === 'correct' ? '✓' : checked ? '∑' : 'π';
+  const modeLabel = checked ? 'Verificată' : 'Rezolvată';
   const actionLabel = checked ? 'Vezi verificarea' : 'Vezi rezolvarea';
   const stepLabel = `${lesson.steps.length} ${lesson.steps.length === 1 ? 'pas' : 'pași'}`;
-  const takeawayLabel = presentation.takeawayCount > 0
-    ? `${presentation.takeawayCount} ${presentation.takeawayCount === 1 ? 'idee' : 'idei'}`
-    : null;
-  const requestLabel = presentation.requestCount > 1 ? `${presentation.requestCount} cerințe` : null;
   const snippetDisplay = presentation.prettySnippet ?? presentation.snippet;
   const pressAnim = useRef(new Animated.Value(0)).current;
 
@@ -279,87 +281,72 @@ const LessonRow = memo(function LessonRow({
   const animatePress = (pressed: boolean) => {
     if (!motionActive) return;
     pressAnim.stopAnimation();
-    Animated.spring(pressAnim, {
+    Animated.timing(pressAnim, {
       toValue: pressed ? 1 : 0,
-      tension: pressed ? 340 : 250,
-      friction: pressed ? 24 : 18,
+      duration: pressed ? 90 : 180,
       useNativeDriver: true,
     }).start();
   };
 
-  const cardTranslateY = pressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 3.5],
-  });
-  const cardScale = pressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0.986],
-  });
+  const cardPressStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          scale: pressAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [1, 0.982],
+          }),
+        },
+      ],
+    }),
+    [pressAnim],
+  );
 
   return (
-    <View style={styles.lessonRowWrap}>
-      <View pointerEvents="none" style={styles.lessonRowShadow} />
-      <Animated.View style={{ transform: [{ translateY: cardTranslateY }, { scale: cardScale }] }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
-          accessibilityHint={actionLabel}
-          onPressIn={() => animatePress(true)}
-          onPressOut={() => animatePress(false)}
-          onPress={() => {
-            pressAnim.stopAnimation();
-            pressAnim.setValue(0);
-            Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-            onOpen(lesson);
-          }}
-          style={styles.lessonCard}
-        >
-        <View style={[styles.lessonRail, { backgroundColor: spineTone }]}>
-          <View pointerEvents="none" style={styles.railGloss} />
-          <View style={styles.railHole} />
-          <View style={styles.railHole} />
-          <View style={styles.railHole} />
-        </View>
+    <Animated.View style={[styles.lessonRowWrap, cardPressStyle]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
+        accessibilityHint={actionLabel}
+        onPressIn={() => animatePress(true)}
+        onPressOut={() => animatePress(false)}
+        onPress={() => {
+          pressAnim.stopAnimation();
+          pressAnim.setValue(0);
+          Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+          onOpen(lesson);
+        }}
+        style={styles.lessonCard}
+      >
+        <View style={[styles.lessonRail, { backgroundColor: spineTone }]} />
 
         <View style={styles.lessonBody}>
-          <View pointerEvents="none" style={styles.cardShine} />
-          {newest ? (
-            <View pointerEvents="none" style={styles.bookmarkRibbon}>
-              <View style={styles.bookmarkNotch} />
-            </View>
-          ) : null}
-          <Text accessible={false} style={styles.cardWatermark}>{watermarkGlyph}</Text>
-
-          <View style={[styles.lessonMeta, newest && styles.lessonMetaNewest]}>
+          <View style={styles.lessonMeta}>
             <View style={styles.metaLeft}>
-              <View collapsable={false} style={[styles.modeStamp, { backgroundColor: modePillBg }]}>
-                <Text style={styles.modeGlyph}>{modeGlyph}</Text>
-                <Text style={styles.modeText}>{modeLabel}</Text>
-              </View>
+              <View style={[styles.metaDot, { backgroundColor: spineTone }]} />
+              <Text numberOfLines={1} style={styles.metaKindText}>
+                {modeLabel}
+              </Text>
+              {verdict ? (
+                <View collapsable={false} style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].bg }]}>
+                  <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>
+                    {verdictTones[verdict.tone].mark} {verdict.label}
+                  </Text>
+                </View>
+              ) : null}
               {newest ? (
                 <View collapsable={false} style={styles.newDot}>
-                  <Text style={styles.newDotText}>★ NOUĂ</Text>
+                  <Text style={styles.newDotText}>NOUĂ</Text>
                 </View>
               ) : null}
             </View>
-            <View collapsable={false} style={styles.timePill}>
-              <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
-            </View>
+            <Text style={styles.timeText}>{lessonTime(lesson)}</Text>
           </View>
 
-          <View style={styles.titleRow}>
-            <View collapsable={false} style={[styles.pageNumBadge, newest && styles.pageNumBadgeNew]}>
-              <Text style={styles.pageNumText}>#{cardNumber}</Text>
-            </View>
-            <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
-          </View>
+          <Text numberOfLines={2} style={styles.problemIdentity}>{presentation.title}</Text>
 
           {snippetDisplay ? (
             <View style={styles.snippetBox}>
-              <View style={[styles.snippetAccent, { backgroundColor: spineTone }]} />
-              <View collapsable={false} style={styles.snippetFormulaBadge}>
-                <Text style={styles.snippetFormulaGlyph}>ƒ</Text>
-              </View>
               <Text numberOfLines={2} style={styles.snippetText}>{snippetDisplay}</Text>
             </View>
           ) : null}
@@ -372,45 +359,18 @@ const LessonRow = memo(function LessonRow({
                 { backgroundColor: answerTone.bg, borderColor: answerTone.border },
               ]}
             >
-              <View collapsable={false} style={[styles.answerBadge, { backgroundColor: answerTone.badgeBg }]}>
-                <Text style={styles.answerBadgeText}>★ RĂSPUNS</Text>
-              </View>
+              <Text style={styles.answerStar}>★</Text>
               <Text numberOfLines={1} style={[styles.answerPreviewText, { color: answerTone.text }]}>
                 {presentation.answerPreview}
               </Text>
             </View>
           ) : null}
 
-          <View style={styles.topicRow}>
-            <View collapsable={false} style={styles.topicTag}>
-              <View style={[styles.topicMarker, { backgroundColor: spineTone }]} />
-              <Text numberOfLines={1} style={styles.topicText}>{lesson.topic}</Text>
-            </View>
-            {verdict ? (
-              <View collapsable={false} style={[styles.verdictBadge, { backgroundColor: verdictTones[verdict.tone].bg }]}>
-                <Text style={[styles.verdictText, { color: verdictTones[verdict.tone].color }]}>
-                  {verdictTones[verdict.tone].mark} {verdict.label}
-                </Text>
-              </View>
-            ) : null}
-            <View collapsable={false} style={styles.detailChip}>
-              <View style={styles.detailDot} />
-              <Text style={styles.detailText}>{stepLabel}</Text>
-            </View>
-            {takeawayLabel ? (
-              <View collapsable={false} style={styles.detailChip}>
-                <Text style={styles.detailSpark}>✦</Text>
-                <Text style={styles.detailText}>{takeawayLabel}</Text>
-              </View>
-            ) : null}
-            {requestLabel ? (
-              <View collapsable={false} style={styles.detailChip}>
-                <Text style={styles.detailText}>{requestLabel}</Text>
-              </View>
-            ) : null}
-          </View>
-
           <View style={styles.lessonFooter}>
+            <Text numberOfLines={1} style={styles.footerMetaText}>
+              {lesson.topic} · {stepLabel}
+            </Text>
+
             <View style={styles.quickActions}>
               <Pressable
                 accessibilityRole="button"
@@ -426,10 +386,7 @@ const LessonRow = memo(function LessonRow({
                   pressed && styles.actionPressed,
                 ]}
               >
-                <View collapsable={false} style={styles.summaryActionInner}>
-                  <Text style={styles.summaryActionStar}>★</Text>
-                  <Text style={styles.summaryActionText}>Rezultat</Text>
-                </View>
+                <Text style={styles.summaryActionText}>★ Rezultat</Text>
               </Pressable>
 
               <Pressable
@@ -442,7 +399,6 @@ const LessonRow = memo(function LessonRow({
                 }}
                 style={({ pressed }) => [
                   styles.shareIconAction,
-                  isNarrow && styles.iconActionNarrow,
                   pressed && styles.actionPressed,
                 ]}
               >
@@ -459,32 +415,16 @@ const LessonRow = memo(function LessonRow({
                 }}
                 style={({ pressed }) => [
                   styles.removeIconAction,
-                  isNarrow && styles.iconActionNarrow,
                   pressed && styles.actionPressed,
                 ]}
               >
-                <MiniGlyph name="close" size={13} color={colors.berryDeep} />
+                <MiniGlyph name="close" size={12} color={colors.berryDeep} />
               </Pressable>
-            </View>
-
-            <View
-              collapsable={false}
-              style={[
-                styles.openPill,
-                isNarrow && styles.openPillNarrow,
-              ]}
-            >
-              <View pointerEvents="none" style={styles.openPillShine} />
-              <Text style={styles.openPillText}>Deschide</Text>
-              <View collapsable={false} style={styles.openArrowBadge}>
-                <Text style={styles.openArrowGlyph}>→</Text>
-              </View>
             </View>
           </View>
         </View>
       </Pressable>
-      </Animated.View>
-    </View>
+    </Animated.View>
   );
 }, (previous, next) => (
   previous.lesson.id === next.lesson.id
@@ -513,7 +453,10 @@ function NotebookLoading({ active }: { active: boolean }) {
   const showProgress = useDelayedBusy(active, 300);
   return (
     <View style={styles.loadingState}>
-      <Mascot pose="thinking" size={132} active={active} />
+      <View style={styles.emptyMascotStage}>
+        <SpotlightAura size={146} tone="violet" active={active} />
+        <Mascot pose="thinking" size={132} active={active} />
+      </View>
       <Chip label="CAIETUL TĂU" tone="violetSoft" outlined={false} style={styles.stateChip} />
       <Text style={styles.loadingTitle}>Lecțiile tale, la un loc.</Text>
       <View style={styles.notebookProgress}>
@@ -539,14 +482,13 @@ function FullNotebookState({ kind, active, onPrimary, onSecondary }: FullStatePr
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.emptyMascotStage}>
-        <View style={[styles.emptyHalo, error && styles.emptyHaloError]} />
-        <Mascot pose={error ? 'oops' : 'wave'} size={142} active={active} interactive />
+        <SpotlightAura size={156} tone={error ? 'peach' : 'violet'} active={active} />
+        <Mascot pose={error ? 'oops' : 'wave'} size={140} active={active} interactive />
       </View>
       <View>
         <Chip
           label={error ? 'CONEXIUNE ÎNTRERUPTĂ' : 'PRIMA PAGINĂ E LIBERĂ'}
           tone={error ? 'peach' : 'lime'}
-          tilt={-2}
         />
       </View>
       <View style={styles.emptyCopyWrap}>
@@ -933,7 +875,6 @@ export function NotebookScreen({ navigation }: Props) {
   if (loading && notes.length === 0) {
     return (
       <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-        <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
         <NotebookLoading active={motionActive} />
@@ -944,7 +885,6 @@ export function NotebookScreen({ navigation }: Props) {
   if (notes.length === 0) {
     return (
       <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-        <StatusBar style="dark" />
         <ComicBackdrop />
         <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
         <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
@@ -954,46 +894,42 @@ export function NotebookScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader compact title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.controls, { paddingHorizontal: gutter }]}>
-          <View style={[styles.searchShadow, searchFocused && styles.searchShadowFocused]}>
-            <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
-              <View pointerEvents="none" style={styles.searchShine} />
-              <AppIcon name="search" size={26} />
-              {mountSearchInput ? (
-                <TextInput
-                  autoFocus={searchActivated}
-                  autoCorrect={false}
-                  returnKeyType="search"
-                  value={queryText}
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
-                  onChangeText={setQueryText}
-                  placeholder={searchPlaceholder}
-                  placeholderTextColor={colors.inkSoft}
-                  selectionColor={colors.violet}
-                  style={styles.searchInput}
-                />
-              ) : (
-                <Pressable
-                  accessibilityRole="search"
-                  accessibilityLabel={searchPlaceholder}
-                  onPress={() => setSearchActivated(true)}
-                  style={styles.searchPlaceholderTouch}
-                >
-                  <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
-                </Pressable>
-              )}
-              {queryText ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
-                  <MiniGlyph name="close" size={14} color={colors.ink} />
-                </Pressable>
-              ) : null}
-            </View>
+          <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+            <AppIcon name="search" size={24} />
+            {mountSearchInput ? (
+              <TextInput
+                autoFocus={searchActivated}
+                autoCorrect={false}
+                returnKeyType="search"
+                value={queryText}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                onChangeText={setQueryText}
+                placeholder={searchPlaceholder}
+                placeholderTextColor={colors.inkSoft}
+                selectionColor={colors.violet}
+                style={styles.searchInput}
+              />
+            ) : (
+              <Pressable
+                accessibilityRole="search"
+                accessibilityLabel={searchPlaceholder}
+                onPress={() => setSearchActivated(true)}
+                style={styles.searchPlaceholderTouch}
+              >
+                <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
+              </Pressable>
+            )}
+            {queryText ? (
+              <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
+                <MiniGlyph name="close" size={14} color={colors.ink} />
+              </Pressable>
+            ) : null}
           </View>
 
           <ComicTabBar
@@ -1163,36 +1099,33 @@ export function NotebookScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1, minHeight: 0 },
-  controls: { paddingTop: 4, gap: 8 },
+  controls: { paddingTop: 4, gap: 9 },
 
-  topicStripWrap: { marginTop: 7 },
+  topicStripWrap: { marginTop: 8 },
   topicStripContent: { gap: 7, paddingVertical: 2, alignItems: 'center' },
   topicFilterPill: {
-    minHeight: 31,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.line,
-    backgroundColor: colors.paper,
+    minHeight: 32,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     justifyContent: 'center',
   },
   topicFilterPillActive: {
-    borderColor: colors.ink,
+    borderColor: colors.violet,
     backgroundColor: colors.violet,
   },
   topicFilterPillInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
   },
   topicFilterDot: {
-    width: 7,
-    height: 7,
+    width: 6.5,
+    height: 6.5,
     borderRadius: 4,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
   },
   topicFilterText: {
     fontFamily: fonts.bodyBold,
@@ -1208,15 +1141,13 @@ const styles = StyleSheet.create({
     minWidth: 18,
     minHeight: 18,
     paddingHorizontal: 5,
-    borderRadius: 6,
+    borderRadius: radii.pill,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   topicFilterCountActive: {
     backgroundColor: colors.lime,
-    borderWidth: 1,
-    borderColor: colors.ink,
   },
   topicFilterCountText: {
     fontFamily: fonts.bodyBold,
@@ -1229,52 +1160,39 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
 
-  searchShadow: { borderRadius: 17, backgroundColor: colors.ink, paddingBottom: shadows.sm },
-  searchShadowFocused: { backgroundColor: colors.violetShadow },
   searchBox: {
     height: 46,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    borderRadius: 16,
-    backgroundColor: colors.paper,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    gap: 6,
+    paddingHorizontal: 14,
+    gap: 8,
     overflow: 'hidden',
   },
   searchBoxFocused: { borderColor: colors.violet },
-  searchShine: {
-    position: 'absolute',
-    top: 2,
-    left: 12,
-    right: 12,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
-  },
   searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
   searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center' },
-  searchPlaceholderText: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 13.5 },
+  searchPlaceholderText: { fontFamily: fonts.bodyMedium, color: colors.inkMuted, fontSize: 13.5 },
   clearSearch: {
-    width: 28,
-    height: 28,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    width: 26,
+    height: 26,
+    borderRadius: radii.pill,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   syncWarning: {
-    minHeight: 40,
+    minHeight: 38,
     marginTop: 8,
-    borderRadius: 13,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 141, 107, 0.35)',
     backgroundColor: colors.peachSoft,
-    paddingHorizontal: 10,
+    paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1283,53 +1201,38 @@ const styles = StyleSheet.create({
   syncWarningText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 15 },
 
   listHeading: {
-    minHeight: 54,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
     paddingTop: 6,
-    paddingBottom: 3,
+    paddingBottom: 2,
   },
   listHeadingLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
   miniMascotBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    backgroundColor: '#F3FFD2',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    transform: [{ rotate: '-3deg' }],
   },
-  miniMascotShine: {
-    position: 'absolute',
-    top: 2,
-    left: 6,
-    right: 6,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
-  },
+  miniMascotShine: { display: 'none' },
   listHeadingCopy: { flex: 1, minWidth: 0 },
-  listEyebrow: { ...typography.kicker, fontSize: 10.5, lineHeight: 14, color: colors.violetDeep },
-  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 23, marginTop: 1 },
+  listEyebrow: { ...typography.kicker, fontSize: 10, lineHeight: 13, color: colors.violetDeep },
+  listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 22, marginTop: 1 },
   listHeadingRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   resetFilterPill: {
-    minHeight: 26,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    minHeight: 28,
+    borderRadius: radii.pill,
     backgroundColor: colors.goldSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   resetFilterInner: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1342,13 +1245,10 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   visibleCountPill: {
-    minHeight: 26,
-    paddingHorizontal: 10,
+    minHeight: 28,
+    paddingHorizontal: 11,
     paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1363,105 +1263,28 @@ const styles = StyleSheet.create({
   },
 
   listMotion: { flex: 1, minHeight: 0 },
-  listContent: { flexGrow: 1, paddingTop: 5 },
-  lessonSeparator: { height: 14 },
+  listContent: { flexGrow: 1, paddingTop: 6 },
+  lessonSeparator: { height: 11 },
 
-  lessonRowWrap: {
-    position: 'relative',
-    paddingBottom: shadows.md,
-  },
-  lessonRowShadow: {
-    position: 'absolute',
-    top: shadows.md,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 23,
-    backgroundColor: colors.ink,
-  },
+  lessonRowWrap: { position: 'relative' },
   lessonCard: {
     overflow: 'hidden',
-    borderRadius: 23,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     flexDirection: 'row',
   },
   lessonRail: {
-    width: 18,
-    borderRightWidth: borders.thin,
-    borderRightColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: 16,
-    position: 'relative',
-  },
-  railGloss: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 2,
-    width: 3,
-    borderRadius: 2,
-    backgroundColor: colors.shine,
-  },
-  railHole: {
-    width: 8.5,
-    height: 8.5,
-    borderRadius: 4.5,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.canvas,
+    width: 4.5,
+    alignSelf: 'stretch',
   },
   lessonBody: {
     flex: 1,
     minWidth: 0,
-    paddingHorizontal: 13,
-    paddingTop: 12,
+    paddingHorizontal: 14,
+    paddingTop: 13,
     paddingBottom: 11,
-    position: 'relative',
-  },
-  cardShine: {
-    position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
-  },
-  bookmarkRibbon: {
-    position: 'absolute',
-    top: -1,
-    right: 16,
-    width: 15,
-    height: 17,
-    backgroundColor: colors.peach,
-    borderLeftWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderColor: colors.ink,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  bookmarkNotch: {
-    width: 6,
-    height: 4,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    backgroundColor: colors.paper,
-    marginBottom: -1,
-  },
-  cardWatermark: {
-    position: 'absolute',
-    right: 10,
-    bottom: 40,
-    fontFamily: fonts.display,
-    fontSize: 54,
-    lineHeight: 58,
-    color: 'rgba(124, 60, 255, 0.055)',
   },
   lessonMeta: {
     flexDirection: 'row',
@@ -1469,157 +1292,74 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  lessonMetaNewest: {
-    paddingRight: 20,
-  },
   metaLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  modeStamp: {
-    flexShrink: 0,
-    minHeight: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
-  },
-  modeGlyph: {
-    fontFamily: fonts.display,
+  metaDot: { width: 7, height: 7, borderRadius: 4 },
+  metaKindText: {
+    fontFamily: fonts.bodyBold,
     fontSize: 11,
-    lineHeight: 15,
-    color: colors.ink,
+    lineHeight: 14,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: colors.inkSoft,
     includeFontPadding: false,
   },
-  modeText: {
+  verdictBadge: {
+    flexShrink: 0,
+    minHeight: 21,
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  verdictText: {
     fontFamily: fonts.bodyBold,
     fontSize: 10,
-    lineHeight: 15,
-    letterSpacing: 0.2,
-    paddingHorizontal: 1,
-    color: colors.ink,
+    lineHeight: 14,
     includeFontPadding: false,
   },
   newDot: {
     flexShrink: 0,
-    minHeight: 24,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
+    minHeight: 20,
+    borderRadius: radii.pill,
     backgroundColor: colors.lime,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   newDotText: {
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 10,
-    lineHeight: 15,
-    letterSpacing: 0.2,
-    paddingHorizontal: 1,
+    fontSize: 9.5,
+    lineHeight: 13,
+    letterSpacing: 0.3,
     includeFontPadding: false,
-  },
-  timePill: {
-    flexShrink: 0,
-    minHeight: 23,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    backgroundColor: colors.canvas,
-    borderWidth: 1,
-    borderColor: colors.line,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   timeText: {
     fontFamily: fonts.bodyMedium,
-    color: colors.inkSoft,
-    fontSize: 10.5,
-    lineHeight: 15,
+    color: colors.inkMuted,
+    fontSize: 11,
+    lineHeight: 14,
     includeFontPadding: false,
   },
 
-  titleRow: {
-    marginTop: 9,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  pageNumBadge: {
-    flexShrink: 0,
-    minWidth: 30,
-    minHeight: 25,
-    marginTop: 1,
-    paddingHorizontal: 6,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.violetSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
-  },
-  pageNumBadgeNew: {
-    backgroundColor: colors.goldSoft,
-  },
-  pageNumText: {
-    fontFamily: fonts.display,
-    fontSize: 11.5,
-    lineHeight: 15,
-    color: colors.ink,
-    includeFontPadding: false,
-  },
   problemIdentity: {
-    flex: 1,
-    minWidth: 0,
+    marginTop: 7,
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 18.5,
-    lineHeight: 23,
+    fontSize: 18,
+    lineHeight: 22.5,
   },
 
   snippetBox: {
     marginTop: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#E5DAF7',
-    backgroundColor: '#F7F3FF',
-    overflow: 'hidden',
-  },
-  snippetAccent: {
-    width: 4.5,
-    alignSelf: 'stretch',
-  },
-  snippetFormulaBadge: {
-    width: 22,
-    height: 22,
-    marginLeft: 8,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  snippetFormulaGlyph: {
-    fontFamily: fonts.display,
-    fontSize: 12,
-    lineHeight: 15,
-    color: colors.violetDeep,
-    includeFontPadding: false,
+    borderRadius: 14,
+    backgroundColor: '#F8F4FF',
+    paddingHorizontal: 11,
+    paddingVertical: 8,
   },
   snippetText: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
     fontFamily: fonts.bodyMedium,
     color: colors.ink,
     fontSize: 13,
@@ -1631,30 +1371,17 @@ const styles = StyleSheet.create({
     minHeight: 33,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingLeft: 6,
-    paddingRight: 10,
-    paddingVertical: 5,
-    borderRadius: 11,
-    borderWidth: 1.5,
+    gap: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 13,
+    borderWidth: 1,
   },
-  answerBadge: {
-    flexShrink: 0,
-    minHeight: 21,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  answerBadgeText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.ink,
-    fontSize: 9.5,
-    lineHeight: 13,
-    letterSpacing: 0.25,
+  answerStar: {
+    fontFamily: fonts.display,
+    color: colors.limeDeep,
+    fontSize: 12,
+    lineHeight: 15,
     includeFontPadding: false,
   },
   answerPreviewText: {
@@ -1666,126 +1393,35 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 
-  topicRow: { minHeight: 26, marginTop: 9, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  topicTag: {
-    flexShrink: 1,
-    minHeight: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
-    borderRadius: 9,
-    borderWidth: 1.25,
-    borderColor: colors.line,
-    backgroundColor: colors.paperTint,
-  },
-  topicMarker: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-  },
-  topicText: {
-    flexShrink: 1,
-    fontFamily: fonts.bodyBold,
-    color: colors.violetDeep,
-    fontSize: 11.5,
-    lineHeight: 15,
-    paddingHorizontal: 1,
-    includeFontPadding: false,
-  },
-  verdictBadge: {
-    flexShrink: 0,
-    minHeight: 25,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verdictText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    lineHeight: 15,
-    letterSpacing: 0.2,
-    paddingHorizontal: 1,
-    includeFontPadding: false,
-  },
-
   lessonFooter: {
     marginTop: 10,
     paddingTop: 9,
-    borderTopWidth: 1.5,
-    borderTopColor: '#EFEAF8',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(124, 60, 255, 0.07)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 6,
+    gap: 8,
   },
-  detailChip: {
-    flexShrink: 0,
-    minHeight: 25,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: 9,
-    backgroundColor: colors.canvas,
-    borderWidth: 1.25,
-    borderColor: colors.line,
-  },
-  detailDot: {
-    width: 5.5,
-    height: 5.5,
-    borderRadius: 3,
-    backgroundColor: colors.violet,
-  },
-  detailSpark: {
-    fontFamily: fonts.display,
-    color: colors.violetDeep,
-    fontSize: 10.5,
-    lineHeight: 13,
-    includeFontPadding: false,
-  },
-  detailText: {
+  footerMetaText: {
+    flex: 1,
+    minWidth: 0,
     fontFamily: fonts.bodyBold,
-    color: colors.inkSoft,
-    fontSize: 11,
-    lineHeight: 14,
-    includeFontPadding: false,
+    color: colors.inkMuted,
+    fontSize: 11.5,
+    lineHeight: 15,
   },
   quickActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   summaryAction: {
-    height: 36,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    height: 32,
+    borderRadius: radii.pill,
     backgroundColor: colors.goldSoft,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     alignItems: 'center',
     justifyContent: 'center',
   },
   summaryActionNarrow: {
-    paddingHorizontal: 8,
-  },
-  summaryActionInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  summaryActionStar: {
-    fontFamily: fonts.display,
-    color: colors.ink,
-    fontSize: 12,
-    lineHeight: 15,
-    includeFontPadding: false,
+    paddingHorizontal: 9,
   },
   summaryActionText: {
     fontFamily: fonts.bodyBold,
@@ -1795,12 +1431,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   shareIconAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1808,74 +1441,17 @@ const styles = StyleSheet.create({
   shareIconGlyph: {
     fontFamily: fonts.display,
     color: colors.violetDeep,
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 17,
     includeFontPadding: false,
   },
   removeIconAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: '#C98A9C',
-    backgroundColor: '#FFF1F4',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFF0F3',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconActionNarrow: {
-    width: 33,
-    height: 35,
-  },
-  openPill: {
-    minWidth: 106,
-    height: 36,
-    paddingLeft: 11,
-    paddingRight: 5,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.violet,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  openPillNarrow: {
-    minWidth: 96,
-    height: 35,
-    paddingLeft: 9,
-    gap: 5,
-  },
-  openPillShine: {
-    position: 'absolute',
-    top: 2,
-    left: 8,
-    right: 8,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  openPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 15, includeFontPadding: false },
-  openArrowBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  openArrowGlyph: {
-    fontFamily: fonts.display,
-    fontSize: 13,
-    lineHeight: 16,
-    color: colors.ink,
-    includeFontPadding: false,
   },
 
   loadingState: { flex: 1, minHeight: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 34 },
@@ -1885,21 +1461,10 @@ const styles = StyleSheet.create({
   notebookLoader: { marginTop: 16 },
 
   fullState: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingTop: 14, paddingBottom: 32 },
-  emptyMascotStage: { width: 170, height: 158, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  emptyHalo: {
-    position: 'absolute',
-    width: 132,
-    height: 132,
-    borderRadius: 66,
-    backgroundColor: colors.violetSoft,
-    borderWidth: 2.5,
-    borderStyle: 'dashed',
-    borderColor: colors.violet,
-  },
-  emptyHaloError: { backgroundColor: colors.peachSoft, borderColor: colors.peach },
+  emptyMascotStage: { width: 168, height: 158, alignItems: 'center', justifyContent: 'center', marginBottom: 10, position: 'relative' },
   emptyCopyWrap: { alignItems: 'center' },
-  fullStateTitle: { marginTop: 10, fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center' },
-  fullStateText: { maxWidth: 330, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
+  fullStateTitle: { marginTop: 12, fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, textAlign: 'center' },
+  fullStateText: { maxWidth: 320, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
   emptyActions: { width: '100%', maxWidth: 340, marginTop: 22, gap: 6 },
   secondaryEmptyWrap: { alignSelf: 'center' },
   secondaryEmptyAction: { minHeight: 44, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
@@ -1907,39 +1472,27 @@ const styles = StyleSheet.create({
 
   filterEmpty: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingTop: 28, paddingBottom: 24 },
   filterEmptyBadge: {
-    width: 104,
-    height: 104,
-    borderRadius: 34,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.violetSoft,
+    width: 102,
+    height: 102,
+    borderRadius: 51,
+    backgroundColor: 'rgba(124, 60, 255, 0.09)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterEmptyOwl: { width: 88, height: 88 },
+  filterEmptyOwl: { width: 86, height: 86 },
   filterEmptyTitle: { marginTop: 12, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 20, lineHeight: 24, textAlign: 'center' },
   filterEmptyText: { maxWidth: 300, marginTop: 6, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 19, textAlign: 'center' },
-  filterEmptyActionWrap: { marginTop: 16, position: 'relative', paddingBottom: shadows.sm },
-  filterEmptyActionShadow: {
-    position: 'absolute',
-    top: shadows.sm,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 14,
-    backgroundColor: colors.ink,
-  },
+  filterEmptyActionWrap: { marginTop: 16 },
+  filterEmptyActionShadow: { display: 'none' },
   filterEmptyAction: {
     minHeight: 44,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    paddingHorizontal: 22,
+    borderRadius: radii.pill,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  filterEmptyActionPressed: { transform: [{ translateY: 2.5 }] },
+  filterEmptyActionPressed: { transform: [{ scale: 0.96 }] },
   filterEmptyActionText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13 },
 
   listFooter: { height: 10 },

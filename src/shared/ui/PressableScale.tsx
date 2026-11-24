@@ -1,17 +1,15 @@
 import type { ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Pressable,
   StyleSheet,
-  View,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
-import { colors, radii } from '../theme';
 
 export type PressHaptic = 'none' | 'selection' | 'light' | 'medium';
 
@@ -19,18 +17,18 @@ type Props = Omit<PressableProps, 'style' | 'children'> & {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
-  /** Extruded 3D comic base height in dp. Pass 0 for flat scale-only press. */
+  /** Legacy visual depth hint (maps to gentle tactile press scale). */
   depth?: number;
-  /** Border radius of the extruded comic shadow base. */
+  /** Legacy border radius hint kept for caller compatibility. */
   radius?: number;
-  /** Fill color of the extruded comic shadow base. */
+  /** Legacy shadow color hint kept for caller compatibility. */
   shadowColor?: string;
-  /** Scale factor when pressed in flat mode (depth === 0). */
+  /** Scale factor when pressed. */
   pressedScale?: number;
   haptic?: PressHaptic;
   /** Dim control opacity when disabled (default true). Set false for crisp transient locks. */
   dimWhenDisabled?: boolean;
-  /** Optional micro-delay (ms) after tap so the rebound spring completes visibly before navigation. */
+  /** Optional micro-delay (ms) after tap before invoking onPress. */
   deferPressMs?: number;
 };
 
@@ -41,18 +39,16 @@ function triggerHaptic(kind: PressHaptic) {
 }
 
 /**
- * Tactile cartoon press container powered by pure native-driver Animated
- * springs (zero Reanimated worklet mount cost). When depth > 0, renders a solid
- * extruded 3D comic base and squashes the face down with bouncy rebound.
+ * Featherlight, zero-jank press container powered by a single native-driver
+ * Animated scale node (no extra shadow wrapper views, no layout shifts, zero
+ * Reanimated worklet overhead).
  */
 export function PressableScale({
   children,
   style,
   contentStyle,
   depth = 0,
-  radius = radii.lg,
-  shadowColor = colors.ink,
-  pressedScale = 0.96,
+  pressedScale,
   haptic = 'none',
   dimWhenDisabled = true,
   deferPressMs = 0,
@@ -64,10 +60,13 @@ export function PressableScale({
 }: Props) {
   const reducedMotion = useReducedMotion();
   const pressed = useRef(new Animated.Value(0)).current;
+  const isPressedRef = useRef(false);
   const deferTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const targetScale = pressedScale ?? (depth > 0 ? 0.972 : 0.96);
 
   useEffect(() => {
     if (reducedMotion || disabled) {
+      isPressedRef.current = false;
       pressed.stopAnimation();
       pressed.setValue(0);
     }
@@ -78,41 +77,24 @@ export function PressableScale({
     pressed.stopAnimation();
   }, [pressed]);
 
-  const animatedFaceStyle = depth > 0
-    ? {
-      transform: [
-        {
-          translateY: pressed.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, Math.max(2, depth - 1)],
-          }),
-        },
-        {
-          scale: pressed.interpolate({
-            inputRange: [0, 1],
-            outputRange: [1, 0.978],
-          }),
-        },
-      ],
-    }
-    : {
-      transform: [
-        {
-          scale: pressed.interpolate({
-            inputRange: [0, 1],
-            outputRange: [1, pressedScale],
-          }),
-        },
-      ],
-    };
+  const animatedStyle = useMemo(() => ({
+    transform: [
+      {
+        scale: pressed.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, targetScale],
+        }),
+      },
+    ],
+  }), [pressed, targetScale]);
 
   const handlePressIn: PressableProps['onPressIn'] = (event) => {
     if (!disabled && !reducedMotion) {
+      isPressedRef.current = true;
       pressed.stopAnimation();
-      Animated.spring(pressed, {
+      Animated.timing(pressed, {
         toValue: 1,
-        tension: 500,
-        friction: 28,
+        duration: 85,
         useNativeDriver: true,
       }).start();
     }
@@ -120,12 +102,13 @@ export function PressableScale({
   };
 
   const handlePressOut: PressableProps['onPressOut'] = (event) => {
-    if (!reducedMotion) {
+    if (isPressedRef.current && !reducedMotion) {
+      isPressedRef.current = false;
       pressed.stopAnimation();
       Animated.spring(pressed, {
         toValue: 0,
-        tension: 300,
-        friction: 15,
+        tension: 310,
+        friction: 22,
         useNativeDriver: true,
       }).start();
     }
@@ -147,46 +130,33 @@ export function PressableScale({
   };
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.wrap,
-        depth > 0 && { paddingBottom: depth },
         disabled && dimWhenDisabled && styles.disabled,
+        animatedStyle,
         style,
       ]}
     >
-      {depth > 0 ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.base,
-            { top: depth, borderRadius: radius, backgroundColor: shadowColor },
-          ]}
-        />
-      ) : null}
-      <Animated.View style={[styles.faceWrap, animatedFaceStyle]}>
-        <Pressable
-          {...rest}
-          disabled={disabled}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          onPress={handlePress}
-          style={({ pressed: isPressed }) => [
-            contentStyle,
-            reducedMotion && isPressed && styles.reducedPressed,
-          ]}
-        >
-          {children}
-        </Pressable>
-      </Animated.View>
-    </View>
+      <Pressable
+        {...rest}
+        disabled={disabled}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={handlePress}
+        style={({ pressed: isPressed }) => [
+          contentStyle,
+          reducedMotion && isPressed && styles.reducedPressed,
+        ]}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'relative', minWidth: 0 },
-  base: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  faceWrap: { minWidth: 0 },
-  disabled: { opacity: 0.5 },
+  wrap: { minWidth: 0 },
+  disabled: { opacity: 0.48 },
   reducedPressed: { opacity: 0.88 },
 });

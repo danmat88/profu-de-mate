@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { borders, colors, fonts } from '../theme';
+import { colors, fonts, radii } from '../theme';
 import { Chip } from './Chip';
 import { ComicBackdrop } from './ComicBackdrop';
 import { ComicButton } from './ComicButton';
@@ -9,6 +9,7 @@ import { Enter } from './Enter';
 import { Mascot } from './Mascot';
 import { PlayfulLoader } from './PlayfulLoader';
 import { PressableScale } from './PressableScale';
+import { SpotlightAura } from './SpotlightAura';
 import { Text } from './Typography';
 
 type Props = {
@@ -19,7 +20,7 @@ type Props = {
   onNotebook?: () => void;
 };
 
-/** An explicit preparation/error boundary, never a partially populated Home. */
+/** An explicit preparation/error boundary matching LaunchSplash studio craft. */
 export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: Props) {
   const insets = useSafeAreaInsets();
   return (
@@ -27,20 +28,22 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
       <ComicBackdrop />
       <View style={styles.content}>
         <Enter delay={0} distance={10}>
-          <Text style={styles.brand}>Profu’ de mate</Text>
+          <View style={styles.brandWrap}>
+            <View pointerEvents="none" style={styles.brandHighlight} />
+            <Text style={styles.brand}>Profu’ <Text style={styles.brandAccent}>de mate</Text></Text>
+          </View>
         </Enter>
 
-        <Enter delay={50} distance={16} scaleFrom={0.86} style={styles.mascotWrap}>
-          <View style={[styles.halo, !busy && styles.haloError]} />
-          <Mascot pose={busy ? 'thinking' : 'oops'} size={138} active interactive />
+        <Enter delay={50} distance={16} scaleFrom={0.9} style={styles.mascotWrap}>
+          <SpotlightAura size={150} tone={busy ? 'violet' : 'peach'} active />
+          <Mascot pose={busy ? 'thinking' : 'oops'} size={136} active interactive />
         </Enter>
 
         <Enter delay={100} distance={14} style={styles.cardWrap}>
-          <ComicCard tone="paper" depth={5} radius={24} borderWidth={borders.thick} shine contentStyle={styles.card}>
+          <ComicCard tone="paper" radius={26} shine contentStyle={styles.card}>
             <Chip
               label={busy ? 'PREGĂTIM TOTUL' : 'O MICĂ PAUZĂ'}
               tone={busy ? 'lime' : 'peach'}
-              tilt={-2}
             />
             <Text accessibilityRole="header" style={styles.title}>{title}</Text>
             <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text>
@@ -85,22 +88,18 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22 },
-  brand: { fontFamily: fonts.display, fontSize: 22, color: colors.violetDeep, marginBottom: 10 },
-  mascotWrap: { width: 158, height: 148, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  halo: {
+  brandWrap: { position: 'relative', alignItems: 'center', marginBottom: 12 },
+  brandHighlight: {
     position: 'absolute',
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: colors.violetSoft,
-    borderWidth: 2.5,
-    borderStyle: 'dashed',
-    borderColor: colors.violet,
+    bottom: 1,
+    width: 96,
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(216, 255, 62, 0.72)',
   },
-  haloError: {
-    backgroundColor: colors.peachSoft,
-    borderColor: colors.peach,
-  },
+  brand: { fontFamily: fonts.display, fontSize: 23, color: colors.ink },
+  brandAccent: { color: colors.violet },
+  mascotWrap: { width: 162, height: 152, alignItems: 'center', justifyContent: 'center', marginBottom: 10, position: 'relative' },
   cardWrap: { width: '100%', maxWidth: 356 },
   card: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 },
   title: { fontFamily: fonts.display, fontSize: 23, lineHeight: 28, color: colors.ink, textAlign: 'center', marginTop: 10 },

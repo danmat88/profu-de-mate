@@ -17,8 +17,6 @@ test('design system supports Android font scaling without unbounded text growth'
   const typographyPath = path.resolve('src/shared/ui/Typography.tsx');
   const typography = await readFile(typographyPath, 'utf8');
   assert.equal((typography.match(/allowFontScaling maxFontSizeMultiplier=\{props\.maxFontSizeMultiplier \?\? 2\}/g) ?? []).length, 2);
-  const mathFormula = await readFile(path.resolve('src/features/math/components/MathFormula.tsx'), 'utf8');
-  assert.equal(mathFormula.includes('.fontScale'), false, 'legacy formula components must not own system scaling');
   const mathDocument = await readFile(path.resolve('src/features/math/components/MathDocumentView.tsx'), 'utf8');
   assert.match(mathDocument, /textZoom=\{Math\.round\(Math\.min\(2, Math\.max\(1, fontScale\)\) \* 100\)\}/);
 

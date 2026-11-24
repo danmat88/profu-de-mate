@@ -27,7 +27,7 @@ function render(contextAccess: CommercialAccess | null, loading: boolean, source
   const jsx = (type: any, props: Record<string, any>): Node => typeof type === 'function' ? type(props) : ({ type, props });
   const load = serviceLoader({
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
-    react: { useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, noop], useEffect: noop, useMemo: (fn: () => unknown) => fn() },
+    react: { memo: (fn: unknown) => fn, useState: (initial: any) => [typeof initial === 'function' ? initial() : initial, noop], useEffect: noop, useMemo: (fn: () => unknown) => fn() },
     'react-native': { StyleSheet: { create: (s: unknown) => s }, View: 'View', Image: 'Image', ScrollView: 'ScrollView', Pressable: 'Pressable' },
     'react-native-reanimated': {
       default: { View: 'View' },
@@ -63,6 +63,7 @@ function render(contextAccess: CommercialAccess | null, loading: boolean, source
     'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
     'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'MiniGlyph' },
     'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'PlayfulLoader' },
+    'src/shared/ui/SpotlightAura.tsx': { SpotlightAura: 'SpotlightAura' },
     'src/features/access/components/QuotaResetTimer.tsx': { QuotaResetTimer: 'QuotaResetTimer' },
     'src/features/account/components/GoogleAccountButton.tsx': { GoogleAccountButton: 'GoogleAccountButton' },
     'assets/profu_mascot_v2.png': 0,

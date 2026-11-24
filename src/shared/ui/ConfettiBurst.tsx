@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors } from '../theme';
@@ -40,71 +40,78 @@ function ConfettiPiece({
   piece: Piece;
   index: number;
 }) {
-  const start = piece.delay / BURST_DURATION_MS;
-  const span = 1 - start;
-  const peakScale = 1 + (index % 3) * 0.1;
-  const at = (u: number) => start + u * span;
-  const arcY = (u: number) => u * piece.y + u * u * 44;
+  const animatedStyle = useMemo(() => {
+    const start = piece.delay / BURST_DURATION_MS;
+    const span = 1 - start;
+    const peakScale = 1 + (index % 3) * 0.1;
+    const at = (u: number) => start + u * span;
+    const arcY = (u: number) => u * piece.y + u * u * 44;
 
-  const opacity = start > 0
-    ? burst.interpolate({
-      inputRange: [0, start, at(0.08), at(0.74), 1],
-      outputRange: [0, 0, 1, 1, 0],
-      extrapolate: 'clamp',
-    })
-    : burst.interpolate({
-      inputRange: [0, 0.08, 0.74, 1],
-      outputRange: [0, 1, 1, 0],
-      extrapolate: 'clamp',
-    });
+    const opacity = start > 0
+      ? burst.interpolate({
+        inputRange: [0, start, at(0.08), at(0.74), 1],
+        outputRange: [0, 0, 1, 1, 0],
+        extrapolate: 'clamp',
+      })
+      : burst.interpolate({
+        inputRange: [0, 0.08, 0.74, 1],
+        outputRange: [0, 1, 1, 0],
+        extrapolate: 'clamp',
+      });
 
-  const translateX = start > 0
-    ? burst.interpolate({
-      inputRange: [0, start, 1],
-      outputRange: [0, 0, piece.x],
-      extrapolate: 'clamp',
-    })
-    : burst.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, piece.x],
-      extrapolate: 'clamp',
-    });
+    const translateX = start > 0
+      ? burst.interpolate({
+        inputRange: [0, start, 1],
+        outputRange: [0, 0, piece.x],
+        extrapolate: 'clamp',
+      })
+      : burst.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, piece.x],
+        extrapolate: 'clamp',
+      });
 
-  const translateY = start > 0
-    ? burst.interpolate({
-      inputRange: [0, start, at(0.35), at(0.7), 1],
-      outputRange: [0, 0, arcY(0.35), arcY(0.7), arcY(1)],
-      extrapolate: 'clamp',
-    })
-    : burst.interpolate({
-      inputRange: [0, 0.35, 0.7, 1],
-      outputRange: [0, arcY(0.35), arcY(0.7), arcY(1)],
-      extrapolate: 'clamp',
-    });
+    const translateY = start > 0
+      ? burst.interpolate({
+        inputRange: [0, start, at(0.35), at(0.7), 1],
+        outputRange: [0, 0, arcY(0.35), arcY(0.7), arcY(1)],
+        extrapolate: 'clamp',
+      })
+      : burst.interpolate({
+        inputRange: [0, 0.35, 0.7, 1],
+        outputRange: [0, arcY(0.35), arcY(0.7), arcY(1)],
+        extrapolate: 'clamp',
+      });
 
-  const rotate = start > 0
-    ? burst.interpolate({
-      inputRange: [0, start, 1],
-      outputRange: ['0deg', '0deg', `${piece.rotateDeg}deg`],
-      extrapolate: 'clamp',
-    })
-    : burst.interpolate({
-      inputRange: [0, 1],
-      outputRange: ['0deg', `${piece.rotateDeg}deg`],
-      extrapolate: 'clamp',
-    });
+    const rotate = start > 0
+      ? burst.interpolate({
+        inputRange: [0, start, 1],
+        outputRange: ['0deg', '0deg', `${piece.rotateDeg}deg`],
+        extrapolate: 'clamp',
+      })
+      : burst.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', `${piece.rotateDeg}deg`],
+        extrapolate: 'clamp',
+      });
 
-  const scale = start > 0
-    ? burst.interpolate({
-      inputRange: [0, start, at(0.14), 1],
-      outputRange: [0.25, 0.25, peakScale, 0.78],
-      extrapolate: 'clamp',
-    })
-    : burst.interpolate({
-      inputRange: [0, 0.14, 1],
-      outputRange: [0.25, peakScale, 0.78],
-      extrapolate: 'clamp',
-    });
+    const scale = start > 0
+      ? burst.interpolate({
+        inputRange: [0, start, at(0.14), 1],
+        outputRange: [0.25, 0.25, peakScale, 0.78],
+        extrapolate: 'clamp',
+      })
+      : burst.interpolate({
+        inputRange: [0, 0.14, 1],
+        outputRange: [0.25, peakScale, 0.78],
+        extrapolate: 'clamp',
+      });
+
+    return {
+      opacity,
+      transform: [{ translateX }, { translateY }, { rotate }, { scale }],
+    };
+  }, [burst, index, piece]);
 
   return (
     <Animated.View
@@ -112,11 +119,8 @@ function ConfettiPiece({
         styles.piece,
         piece.shape === 'pill' && styles.pill,
         piece.shape === 'circle' && styles.circle,
-        {
-          backgroundColor: piece.color,
-          opacity,
-          transform: [{ translateX }, { translateY }, { rotate }, { scale }],
-        },
+        { backgroundColor: piece.color },
+        animatedStyle,
       ]}
     />
   );

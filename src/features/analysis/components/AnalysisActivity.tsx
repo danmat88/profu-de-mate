@@ -1,10 +1,19 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
-import { borders, colors, fonts, radii, shadows } from '../../../shared/theme';
+import {
+  cosinePulseRange,
+  createNativeLoop,
+  SILKY_EASE_OUT,
+  WAVE_INPUT_17,
+} from '../../../shared/motion/nativeMotion';
+import { colors, fonts, radii } from '../../../shared/theme';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
+
+const PULSE_SCALE_OUTPUT = cosinePulseRange(0.95, 1.11);
+const SWEEP_SMOOTHSTEP = WAVE_INPUT_17.map((t) => t * t * (3 - 2 * t));
 
 /** The provider exposes no intermediate progress. Only a received result changes this state. */
 export function AnalysisActivity({
@@ -19,7 +28,7 @@ export function AnalysisActivity({
   const reducedMotion = useReducedMotion();
   const [trackWidth, setTrackWidth] = useState(0);
   const sweep = useRef(new Animated.Value(0)).current;
-  const pulse = useRef(new Animated.Value(1)).current;
+  const pulsePhase = useRef(new Animated.Value(0)).current;
   const readyFill = useRef(new Animated.Value(preparing ? 1 : 0)).current;
   const accent = check ? colors.peach : colors.lime;
   const label = preparing ? 'Pregătesc lecția' : 'Analiză în curs';
@@ -29,16 +38,16 @@ export function AnalysisActivity({
   useEffect(() => {
     if (preparing) {
       sweep.stopAnimation();
-      pulse.stopAnimation();
-      pulse.setValue(1);
+      pulsePhase.stopAnimation();
+      pulsePhase.setValue(0);
       if (reducedMotion) {
         readyFill.setValue(1);
         return undefined;
       }
       const fillAnim = Animated.timing(readyFill, {
         toValue: 1,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
+        duration: 320,
+        easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       });
       fillAnim.start();
@@ -52,37 +61,14 @@ export function AnalysisActivity({
     readyFill.setValue(0);
     if (reducedMotion || !active) {
       sweep.stopAnimation();
-      pulse.stopAnimation();
+      pulsePhase.stopAnimation();
       sweep.setValue(reducedMotion ? 0.5 : 0);
-      pulse.setValue(1);
+      pulsePhase.setValue(0);
       return undefined;
     }
 
-    sweep.setValue(0);
-    const sweepLoop = Animated.loop(
-      Animated.timing(sweep, {
-        toValue: 1,
-        duration: 1_550,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
-    );
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.12,
-          duration: 680,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0.94,
-          duration: 680,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
+    const sweepLoop = createNativeLoop(sweep, 1_550);
+    const pulseLoop = createNativeLoop(pulsePhase, 1_360);
     sweepLoop.start();
     pulseLoop.start();
 
@@ -90,46 +76,63 @@ export function AnalysisActivity({
       sweepLoop.stop();
       pulseLoop.stop();
       sweep.stopAnimation();
-      pulse.stopAnimation();
+      pulsePhase.stopAnimation();
     };
-  }, [active, preparing, pulse, readyFill, reducedMotion, sweep]);
+  }, [active, preparing, pulsePhase, readyFill, reducedMotion, sweep]);
 
-  const sweepStyle = {
-    opacity: readyFill.interpolate({
-      inputRange: [0, 0.5, 1],
-      outputRange: [1, 0, 0],
-      extrapolate: 'clamp',
+  const sweepStyle = useMemo(
+    () => ({
+      opacity: readyFill.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [1, 0, 0],
+        extrapolate: 'clamp',
+      }),
+      transform: [
+        {
+          translateX: sweep.interpolate({
+            inputRange: WAVE_INPUT_17,
+            outputRange: SWEEP_SMOOTHSTEP.map((p) => -barWidth + (effectiveWidth + barWidth) * p),
+          }),
+        },
+      ],
     }),
-    transform: [
-      {
-        translateX: sweep.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-barWidth, effectiveWidth],
-        }),
-      },
-    ],
-  };
+    [barWidth, effectiveWidth, readyFill, sweep],
+  );
 
-  const readyFillStyle = {
-    opacity: readyFill.interpolate({
-      inputRange: [0, 0.02, 1],
-      outputRange: [0, 1, 1],
-      extrapolate: 'clamp',
+  const readyFillStyle = useMemo(
+    () => ({
+      opacity: readyFill.interpolate({
+        inputRange: [0, 0.02, 1],
+        outputRange: [0, 1, 1],
+        extrapolate: 'clamp',
+      }),
+      transform: [
+        {
+          translateX: readyFill.interpolate({
+            inputRange: [0, 1],
+            outputRange: [-effectiveWidth, 0],
+            extrapolate: 'clamp',
+          }),
+        },
+      ],
     }),
-    transform: [
-      {
-        translateX: readyFill.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-effectiveWidth, 0],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  };
+    [effectiveWidth, readyFill],
+  );
 
-  const glyphStyle = {
-    transform: [{ rotate: '-6deg' }, { scale: pulse }],
-  };
+  const glyphStyle = useMemo(
+    () => ({
+      transform: [
+        { rotate: '-6deg' },
+        {
+          scale: pulsePhase.interpolate({
+            inputRange: WAVE_INPUT_17,
+            outputRange: PULSE_SCALE_OUTPUT,
+          }),
+        },
+      ],
+    }),
+    [pulsePhase],
+  );
 
   return (
     <View
@@ -140,7 +143,6 @@ export function AnalysisActivity({
       accessibilityLiveRegion="polite"
       style={styles.outer}
     >
-      <View pointerEvents="none" style={styles.shadow} />
       <View style={[styles.card, check && styles.cardCheck]}>
         <View pointerEvents="none" style={styles.shine} />
         <View style={styles.heading}>
@@ -184,16 +186,24 @@ export function AnalysisActivity({
           <Animated.View style={[styles.sweep, sweepStyle]}>
             <LinearGradient
               colors={check
-                ? ['rgba(255,184,107,0.18)', colors.peach, '#FFE0B8', colors.peach, 'rgba(255,184,107,0.18)']
-                : ['rgba(201,255,59,0.16)', colors.lime, '#E9FF9E', colors.lime, 'rgba(201,255,59,0.16)']}
+                ? ['rgba(255,141,107,0.2)', colors.peach, colors.gold, colors.peach, 'rgba(255,141,107,0.2)']
+                : ['#7C3CFF', '#5C9DFF', '#43D6E6', colors.lime]}
               start={{ x: 0, y: 0.5 }}
               end={{ x: 1, y: 0.5 }}
               style={styles.sweepGradient}
             />
             <View style={styles.sweepShine} />
+            <View style={styles.sweepTip} />
           </Animated.View>
-          <Animated.View style={[styles.readyFill, { backgroundColor: accent }, readyFillStyle]}>
+          <Animated.View style={[styles.readyFill, readyFillStyle]}>
+            <LinearGradient
+              colors={check ? [colors.peach, colors.gold] : ['#7C3CFF', '#5C9DFF', '#43D6E6', colors.lime]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.sweepGradient}
+            />
             <View style={styles.sweepShine} />
+            <View style={styles.sweepTip} />
           </Animated.View>
         </View>
         <View style={styles.pillsRow}>
@@ -216,45 +226,33 @@ export function AnalysisActivity({
 }
 
 const styles = StyleSheet.create({
-  outer: { width: '100%', position: 'relative', paddingBottom: shadows.sm + 2 },
-  shadow: {
-    position: 'absolute',
-    top: shadows.sm + 2,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: radii.xl,
-    backgroundColor: '#070414',
-  },
+  outer: { width: '100%', position: 'relative' },
   card: {
-    borderRadius: radii.xl,
-    borderWidth: 1.5,
-    borderColor: '#6956B8',
-    backgroundColor: '#221A4B',
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.24)',
+    backgroundColor: 'rgba(34, 26, 75, 0.9)',
+    paddingHorizontal: 16,
+    paddingVertical: 15,
     overflow: 'hidden',
   },
   cardCheck: {
-    borderColor: '#9C5482',
-    backgroundColor: '#2A1A48',
+    borderColor: 'rgba(255, 184, 107, 0.34)',
+    backgroundColor: 'rgba(42, 26, 72, 0.92)',
   },
   shine: {
     position: 'absolute',
-    top: 3,
-    left: 14,
-    right: 14,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: colors.shineSoft,
+    top: 0,
+    left: 18,
+    right: 18,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  heading: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  heading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   glyph: {
     width: 38,
     height: 38,
     borderRadius: 13,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -300,12 +298,10 @@ const styles = StyleSheet.create({
     color: '#CFC8EB',
   },
   track: {
-    height: 11,
-    marginTop: 11,
+    height: 8,
+    marginTop: 12,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: '#120D2B',
-    backgroundColor: '#140F32',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     overflow: 'hidden',
     position: 'relative',
   },
@@ -327,6 +323,15 @@ const styles = StyleSheet.create({
     height: 2.5,
     borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.55)',
+  },
+  sweepTip: {
+    position: 'absolute',
+    right: 1,
+    top: 1,
+    bottom: 1,
+    width: 7,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255,255,255,0.72)',
   },
   readyFill: {
     position: 'absolute',

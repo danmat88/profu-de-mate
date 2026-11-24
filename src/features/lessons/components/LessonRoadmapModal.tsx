@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, typography } from '../../../shared/theme';
 import type { MathAnalysis } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
@@ -20,84 +21,43 @@ type Props = {
 
 /**
  * Lazily mounted comic roadmap sheet showing every step of the problem plus
- * direct access to the final answer and takeaways. Zero Reanimated worklets.
+ * direct access to the final answer and takeaways. Built on ComicBottomSheet.
  */
 export function LessonRoadmapModal({
   lesson,
   currentStep,
   bottomSpace,
-  reducedMotion,
   onSelectStep,
   onOpenSummary,
   onClosed,
 }: Props) {
-  const reveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const closingRef = useRef(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (reducedMotion) {
-      reveal.setValue(1);
-    } else {
-      Animated.spring(reveal, {
-        toValue: 1,
-        tension: 250,
-        friction: 24,
-        useNativeDriver: true,
-      }).start();
-    }
-    return () => {
-      if (closeTimer.current) clearTimeout(closeTimer.current);
-      reveal.stopAnimation();
-    };
-  }, [reducedMotion, reveal]);
+  const [open, setOpen] = useState(true);
+  const pendingActionRef = useRef<(() => void) | undefined>(undefined);
 
   const closeAndRun = useCallback((after?: () => void) => {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    const finish = () => {
-      onClosed();
-      after?.();
-    };
-    if (reducedMotion) {
-      reveal.setValue(0);
-      finish();
-      return;
-    }
-    Animated.timing(reveal, {
-      toValue: 0,
-      duration: 145,
-      easing: Easing.in(Easing.quad),
-      useNativeDriver: true,
-    }).start();
-    closeTimer.current = setTimeout(finish, 150);
-  }, [onClosed, reducedMotion, reveal]);
+    if (!open) return;
+    pendingActionRef.current = after;
+    setOpen(false);
+  }, [open]);
 
-  const sheetOpacity = reveal.interpolate({ inputRange: [0, 0.78, 1], outputRange: [0, 1, 1] });
-  const sheetTranslateY = reveal.interpolate({ inputRange: [0, 1], outputRange: [64, 0] });
+  const handleAfterClose = useCallback(() => {
+    const action = pendingActionRef.current;
+    pendingActionRef.current = undefined;
+    onClosed();
+    action?.();
+  }, [onClosed]);
+
   const completedCount = currentStep + 1;
 
   return (
-    <Modal
-      visible
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={() => closeAndRun()}
+    <ComicBottomSheet
+      visible={open}
+      onClose={() => closeAndRun()}
+      onAfterClose={handleAfterClose}
+      maxHeight="84%"
+      sheetStyle={[styles.sheet, { paddingBottom: bottomSpace + 14 }]}
     >
-      <View style={styles.modalLayer}>
-        <Animated.View pointerEvents="none" style={[styles.scrim, { opacity: reveal }]} />
-        <Pressable accessible={false} onPress={() => closeAndRun()} style={StyleSheet.absoluteFill} />
-        <Animated.View
-          accessibilityViewIsModal
-          style={[
-            styles.sheet,
-            { paddingBottom: bottomSpace + 14, opacity: sheetOpacity, transform: [{ translateY: sheetTranslateY }] },
-          ]}
-        >
-          <View style={styles.handle} />
-          <View style={styles.banner}>
+      <View style={styles.banner}>
             <View style={styles.bannerIcon}>
               <AppIcon name="explain" size={30} />
             </View>
@@ -223,62 +183,44 @@ export function LessonRoadmapModal({
               </Pressable>
             </View>
           </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
+    </ComicBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 35, justifyContent: 'flex-end' },
-  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.52)' },
   sheet: {
-    width: '100%',
-    maxWidth: 640,
-    maxHeight: '84%',
-    alignSelf: 'center',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: borders.thick,
-    borderBottomWidth: 0,
-    borderColor: colors.ink,
-    backgroundColor: colors.canvas,
     paddingHorizontal: 16,
-    paddingTop: 10,
   },
-  handle: { width: 46, height: 5, borderRadius: 3, backgroundColor: '#CBBFE8', alignSelf: 'center', marginBottom: 10 },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 11,
     marginBottom: 12,
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    padding: 12,
+    borderRadius: 20,
+    borderWidth: 1.25,
+    borderColor: colors.borderHairline,
     backgroundColor: colors.paper,
+    elevation: 2,
+    shadowColor: '#261758',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
   bannerIcon: {
-    width: 46,
-    height: 46,
+    width: 44,
+    height: 44,
     borderRadius: 14,
-    borderWidth: 1.75,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
   bannerCopy: { flex: 1, minWidth: 0, gap: 3 },
   bannerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bannerTag: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 2.5,
-    borderRadius: 8,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.lime,
   },
   bannerTagText: {
@@ -288,9 +230,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   progressChip: {
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2.5,
-    borderRadius: 7,
+    borderRadius: 999,
     backgroundColor: colors.violetSoft,
   },
   progressChipText: {
@@ -302,54 +244,52 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 21 },
 
-  listContent: { gap: 10, paddingBottom: 8 },
-  stepCardWrap: { position: 'relative', paddingBottom: shadows.sm },
+  listContent: { gap: 9, paddingBottom: 8 },
+  stepCardWrap: { position: 'relative' },
   stepCardShadow: {
     position: 'absolute',
-    top: shadows.sm,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 17,
-    backgroundColor: colors.ink,
+    top: 2,
+    left: 4,
+    right: 4,
+    bottom: -1,
+    borderRadius: 18,
+    backgroundColor: 'rgba(38, 23, 88, 0.05)',
   },
-  stepCardShadowActive: { backgroundColor: colors.violetDeep },
+  stepCardShadowActive: { backgroundColor: 'rgba(124, 60, 255, 0.14)' },
   stepCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    borderRadius: 17,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 18,
+    borderWidth: 1.25,
+    borderColor: colors.borderHairline,
     backgroundColor: colors.paper,
+    elevation: 1,
   },
   stepCardActive: {
-    borderWidth: borders.regular,
+    borderWidth: 1.5,
     borderColor: colors.violet,
     backgroundColor: '#FBF8FF',
   },
   stepCardDone: {
-    backgroundColor: '#F8FFF9',
+    borderColor: '#C9F0D8',
+    backgroundColor: '#F7FFF9',
   },
   stepCardPressed: {
-    transform: [{ translateY: 2.5 }],
+    transform: [{ scale: 0.985 }],
   },
   stepIndex: {
     width: 34,
     height: 34,
     borderRadius: 11,
-    borderWidth: 1.75,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
     backgroundColor: colors.paperTint,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
   stepIndexActive: { backgroundColor: colors.violet },
-  stepIndexDone: { backgroundColor: colors.mint },
+  stepIndexDone: { backgroundColor: colors.mintSoft },
   stepIndexText: {
     fontFamily: fonts.display,
     color: colors.ink,
@@ -371,11 +311,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   hereBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
     backgroundColor: colors.lime,
   },
   hereBadgeText: {
@@ -387,9 +325,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   tipBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
     backgroundColor: colors.limeSoft,
   },
   tipBadgeText: {
@@ -401,38 +339,35 @@ const styles = StyleSheet.create({
   },
   stepTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 19 },
 
-  finaleWrap: { position: 'relative', paddingBottom: shadows.md, marginTop: 4 },
+  finaleWrap: { position: 'relative', marginTop: 4 },
   finaleShadow: {
     position: 'absolute',
-    top: shadows.md,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 19,
-    backgroundColor: colors.violetDeep,
+    top: 3,
+    left: 4,
+    right: 4,
+    bottom: -2,
+    borderRadius: 20,
+    backgroundColor: 'rgba(184, 138, 0, 0.14)',
   },
   finaleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 19,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.gold,
+    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 13,
+    borderRadius: 20,
+    borderWidth: 1.25,
+    borderColor: '#F2D672',
+    backgroundColor: '#FFF5C4',
+    elevation: 2,
   },
   finaleIcon: {
     width: 42,
     height: 42,
-    borderRadius: 13,
-    borderWidth: 1.75,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    borderRadius: 14,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
   },
   finaleKicker: {
     ...typography.kicker,
@@ -441,13 +376,11 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   finaleTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16, lineHeight: 19 },
-  finaleNote: { fontFamily: fonts.bodyMedium, color: '#2F274B', fontSize: 11.5, lineHeight: 15 },
+  finaleNote: { fontFamily: fonts.bodyMedium, color: '#4A3F68', fontSize: 11.5, lineHeight: 15 },
   finaleArrow: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    width: 32,
+    height: 32,
+    borderRadius: 999,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',

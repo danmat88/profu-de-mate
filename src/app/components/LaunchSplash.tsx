@@ -3,6 +3,15 @@ import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
+import {
+  cosinePulseRange,
+  createNativeLoop,
+  SILKY_EASE_IN_OUT,
+  SILKY_EASE_OUT,
+  sineDegreeRange,
+  sineWaveRange,
+  WAVE_INPUT_17,
+} from '../../shared/motion/nativeMotion';
 import { bundledImageSource } from '../../shared/services/bundledImages';
 import * as Haptics from '../../shared/services/haptics';
 import { colors, fonts, radii } from '../../shared/theme';
@@ -29,26 +38,20 @@ type VictorySparkSpec = {
   size: number;
 };
 
-// Critically-damped ease-out curve matching SplashProgressHeader 1 - (1 - t)^3 exactly.
-const SILKY_EASE_OUT = Easing.out(Easing.cubic);
-
-// 17-point exact sinusoidal tables so single-timing Animated.loop calls execute
-// natively via Android _startNativeLoop(-1) with zero JS callbacks and seamless wrap.
-const WAVE_INPUT = [
-  0, 0.0625, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375,
-  0.5, 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1,
-];
+// 17-point sinusoidal tables from the unified nativeMotion engine so single-timing
+// Animated.loop calls execute natively via Android _startNativeLoop(-1).
+const WAVE_INPUT = WAVE_INPUT_17;
 // Owl floats calmly between -7dp (peak) and +2.5dp (rest) with a charming gentle sway.
-const OWL_FLOAT_Y = WAVE_INPUT.map((t) => -2.2 - Math.sin(2 * Math.PI * t) * 4.8);
-const OWL_TILT_DEG = WAVE_INPUT.map((t) => `${(Math.sin(2 * Math.PI * t + 0.65) * 2.2).toFixed(2)}deg`);
+const OWL_FLOAT_Y = sineWaveRange(-2.2, -4.8);
+const OWL_TILT_DEG = sineDegreeRange(2.2, 0.65);
 // Ground shadow responds in exact inverse phase: narrower/softer when owl rises, wider when owl lowers.
-const SHADOW_SCALE_X = WAVE_INPUT.map((t) => 0.96 + Math.sin(2 * Math.PI * t) * 0.13);
-const SHADOW_OPACITY = WAVE_INPUT.map((t) => 0.14 + Math.sin(2 * Math.PI * t) * 0.045);
+const SHADOW_SCALE_X = sineWaveRange(0.96, 0.13);
+const SHADOW_OPACITY = sineWaveRange(0.14, 0.045);
 // Luminous spotlight halo and twinkling glints breathe calmly behind the character.
-const AURA_SCALE = WAVE_INPUT.map((t) => 0.95 + 0.09 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)));
-const AURA_OPACITY = WAVE_INPUT.map((t) => 0.78 + 0.22 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)));
-const SPARKLE_SCALE = WAVE_INPUT.map((t) => 0.8 + 0.34 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)));
-const SPARKLE_OPACITY = WAVE_INPUT.map((t) => 0.45 + 0.55 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t)));
+const AURA_SCALE = cosinePulseRange(0.95, 1.04);
+const AURA_OPACITY = cosinePulseRange(0.78, 1.0);
+const SPARKLE_SCALE = cosinePulseRange(0.8, 1.14);
+const SPARKLE_OPACITY = cosinePulseRange(0.45, 1.0);
 
 // Unhurried, breathable native progress glide duration.
 const PROGRESS_GLIDE_MS = 2_400;
@@ -267,15 +270,7 @@ export function LaunchSplash({
     };
 
     const startNativeLoop = (value: Animated.Value, duration: number) => {
-      value.setValue(0);
-      const loop = Animated.loop(
-        Animated.timing(value, {
-          toValue: 1,
-          duration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
+      const loop = createNativeLoop(value, duration);
       loops.push(loop);
       loop.start();
     };
@@ -396,15 +391,7 @@ export function LaunchSplash({
       barSheenPhase.setValue(0);
       return undefined;
     }
-    barSheenPhase.setValue(0);
-    const sheenLoop = Animated.loop(
-      Animated.timing(barSheenPhase, {
-        toValue: 1,
-        duration: 1_450,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    );
+    const sheenLoop = createNativeLoop(barSheenPhase, 1_450);
     sheenLoop.start();
     return () => {
       sheenLoop.stop();
@@ -453,21 +440,21 @@ export function LaunchSplash({
       startAnim(Animated.timing(progressExit, {
         toValue: 1,
         duration: 340,
-        easing: Easing.inOut(Easing.cubic),
+        easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(chromeExit, {
         toValue: 1,
         duration: 380,
         delay: 70,
-        easing: Easing.inOut(Easing.cubic),
+        easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(owlExit, {
         toValue: 1,
         duration: 480,
         delay: 110,
-        easing: Easing.inOut(Easing.cubic),
+        easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(backdropOpacity, {

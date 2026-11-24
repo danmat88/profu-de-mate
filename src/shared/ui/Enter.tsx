@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Animated, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { SILKY_EASE_OUT } from '../motion/nativeMotion';
 
 type Props = {
   children: ReactNode;
@@ -16,10 +17,8 @@ type Props = {
 
 /**
  * Staggered comic panel entrance powered by pure native-driver Animated
- * springs (zero Reanimated worklet mount cost). Stays cleanly hidden while
- * ready is false (unless reduced motion is enabled) and pops in smoothly when
- * its turn arrives. Includes a bounded watchdog so a paused/resumed Android
- * Choreographer can never leave content stuck invisible.
+ * transforms (zero Reanimated worklets) with memoized Fabric interpolations
+ * and the app unified critically-damped ease curve.
  */
 export function Enter({
   children,
@@ -53,20 +52,28 @@ export function Enter({
     played.current = true;
 
     let anim: Animated.CompositeAnimation | undefined;
-    const springAnim = Animated.spring(progress, {
-      toValue: 1,
-      tension: bouncy ? 210 : 280,
-      friction: bouncy ? 15 : 21,
-      useNativeDriver: true,
-    });
     const frame = requestAnimationFrame(() => {
-      anim = delay > 0 ? Animated.sequence([Animated.delay(delay), springAnim]) : springAnim;
+      anim = bouncy
+        ? Animated.timing(progress, {
+          toValue: 1,
+          duration: 380,
+          delay,
+          easing: SILKY_EASE_OUT,
+          useNativeDriver: true,
+        })
+        : Animated.timing(progress, {
+          toValue: 1,
+          duration: 300,
+          delay,
+          easing: SILKY_EASE_OUT,
+          useNativeDriver: true,
+        });
       anim.start();
     });
     const watchdog = setTimeout(() => {
       progress.stopAnimation();
       progress.setValue(1);
-    }, delay + 550);
+    }, delay + 580);
 
     return () => {
       cancelAnimationFrame(frame);
@@ -76,31 +83,37 @@ export function Enter({
     };
   }, [bouncy, delay, progress, ready, reducedMotion]);
 
-  const opacity = progress.interpolate({
-    inputRange: [0, 0.68, 1],
-    outputRange: [0, 1, 1],
-    extrapolate: 'clamp',
-  });
-  const translateY = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [distance, 0],
-  });
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [scaleFrom, 1],
-  });
-  const transform = tiltFrom !== 0
-    ? [
-      { translateY },
-      { scale },
-      {
-        rotate: progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [`${tiltFrom}deg`, '0deg'],
-        }),
-      },
-    ]
-    : [{ translateY }, { scale }];
+  const animatedStyle = useMemo(() => {
+    const opacity = progress.interpolate({
+      inputRange: [0, 0.65, 1],
+      outputRange: [0, 1, 1],
+      extrapolate: 'clamp',
+    });
+    const translateY = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [distance, 0],
+      extrapolate: 'clamp',
+    });
+    const scale = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [scaleFrom, 1],
+      extrapolate: 'clamp',
+    });
+    const transform = tiltFrom !== 0
+      ? [
+        { translateY },
+        { scale },
+        {
+          rotate: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [`${tiltFrom}deg`, '0deg'],
+            extrapolate: 'clamp',
+          }),
+        },
+      ]
+      : [{ translateY }, { scale }];
+    return { opacity, transform };
+  }, [distance, progress, scaleFrom, tiltFrom]);
 
-  return <Animated.View style={[{ opacity, transform }, style]}>{children}</Animated.View>;
+  return <Animated.View style={[animatedStyle, style]}>{children}</Animated.View>;
 }

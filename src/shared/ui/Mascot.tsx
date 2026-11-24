@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Animated, Easing, Image, Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, Image, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import {
+  createNativeLoop,
+  SILKY_EASE_OUT,
+  sineDegreeRange,
+  sineWaveRange,
+  WAVE_INPUT_17,
+} from '../motion/nativeMotion';
 import { bundledImageSource } from '../services/bundledImages';
 import * as Haptics from '../services/haptics';
 
@@ -14,6 +21,9 @@ export const mascotAssets = {
 } as const;
 
 export type MascotPose = keyof typeof mascotAssets;
+
+const FLOAT_OUTPUT = sineWaveRange(3.6, -1.0);
+const TILT_OUTPUT = sineDegreeRange(2.1, 0.7);
 
 type Props = {
   pose?: MascotPose;
@@ -30,9 +40,9 @@ type Props = {
 };
 
 /**
- * Branded Profu mascot powered by pure native-driver Animated transforms (zero
- * Reanimated worklet mount cost). Stops every animation immediately when
- * `active` turns false during a screen transition.
+ * Branded Profu mascot powered by a single pure-native RenderThread loop
+ * (_startNativeLoop(-1), zero JS callbacks, zero Reanimated worklets) sharing
+ * the exact gentle float-and-sway feel of LaunchSplash across every screen.
  */
 export function Mascot({
   pose = 'wave',
@@ -44,8 +54,7 @@ export function Mascot({
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
-  const floatY = useRef(new Animated.Value(0)).current;
-  const tilt = useRef(new Animated.Value(0)).current;
+  const idlePhase = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(1)).current;
   const hopY = useRef(new Animated.Value(0)).current;
   const wiggle = useRef(new Animated.Value(0)).current;
@@ -53,24 +62,20 @@ export function Mascot({
   const previousNudge = useRef<number | undefined>(nudgeSignal);
   const previousActive = useRef<boolean>(active);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const floatLoop = useRef<Animated.CompositeAnimation | null>(null);
-  const tiltLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const idleLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const stopAllMotion = useCallback(() => {
     if (idleTimer.current) {
       clearTimeout(idleTimer.current);
       idleTimer.current = null;
     }
-    floatLoop.current?.stop();
-    tiltLoop.current?.stop();
-    floatLoop.current = null;
-    tiltLoop.current = null;
-    floatY.stopAnimation();
-    tilt.stopAnimation();
+    idleLoop.current?.stop();
+    idleLoop.current = null;
+    idlePhase.stopAnimation();
     hopY.stopAnimation();
     wiggle.stopAnimation();
     pop.stopAnimation();
-  }, [floatY, hopY, pop, tilt, wiggle]);
+  }, [hopY, idlePhase, pop, wiggle]);
 
   const playHopWiggle = useCallback(() => {
     if (reducedMotion || !active) return;
@@ -82,32 +87,32 @@ export function Mascot({
         Animated.timing(hopY, {
           toValue: -11,
           duration: 110,
-          easing: Easing.out(Easing.quad),
+          easing: SILKY_EASE_OUT,
           useNativeDriver: true,
         }),
         Animated.spring(hopY, {
           toValue: 0,
-          tension: 260,
-          friction: 14,
+          tension: 270,
+          friction: 15,
           useNativeDriver: true,
         }),
       ]),
       Animated.sequence([
-        Animated.timing(wiggle, { toValue: -8, duration: 75, useNativeDriver: true }),
-        Animated.timing(wiggle, { toValue: 8, duration: 105, useNativeDriver: true }),
+        Animated.timing(wiggle, { toValue: -7.5, duration: 75, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(wiggle, { toValue: 7.5, duration: 105, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
         Animated.spring(wiggle, {
           toValue: 0,
-          tension: 260,
-          friction: 14,
+          tension: 270,
+          friction: 15,
           useNativeDriver: true,
         }),
       ]),
       Animated.sequence([
-        Animated.timing(pop, { toValue: 1.08, duration: 95, useNativeDriver: true }),
+        Animated.timing(pop, { toValue: 1.075, duration: 95, easing: SILKY_EASE_OUT, useNativeDriver: true }),
         Animated.spring(pop, {
           toValue: 1,
-          tension: 260,
-          friction: 14,
+          tension: 270,
+          friction: 15,
           useNativeDriver: true,
         }),
       ]),
@@ -125,100 +130,33 @@ export function Mascot({
     previousActive.current = active;
     stopAllMotion();
     if (reducedMotion || !active) {
-      floatY.setValue(0);
-      tilt.setValue(0);
+      idlePhase.setValue(0);
       hopY.setValue(0);
       wiggle.setValue(0);
       pop.setValue(1);
       return undefined;
     }
 
-    // Joyful welcome hop and wave when a screen settles and wakes up its mascot.
     if (justActivated) {
-      Animated.parallel([
-        Animated.sequence([
-          Animated.timing(hopY, {
-            toValue: -7,
-            duration: 115,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.spring(hopY, {
-            toValue: 0,
-            tension: 250,
-            friction: 14,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.timing(wiggle, { toValue: -4.5, duration: 80, useNativeDriver: true }),
-          Animated.timing(wiggle, { toValue: 3.5, duration: 95, useNativeDriver: true }),
-          Animated.spring(wiggle, {
-            toValue: 0,
-            tension: 250,
-            friction: 14,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.sequence([
-          Animated.timing(pop, {
-            toValue: 1.06,
-            duration: 100,
-            easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
-          }),
-          Animated.spring(pop, {
-            toValue: 1,
-            tension: 280,
-            friction: 20,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start();
+      pop.setValue(0.965);
+      Animated.spring(pop, {
+        toValue: 1,
+        tension: 210,
+        friction: 18,
+        useNativeDriver: true,
+      }).start();
     }
 
     const startIdle = () => {
-      floatLoop.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(floatY, {
-            toValue: -4.5,
-            duration: 1550,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(floatY, {
-            toValue: 2.5,
-            duration: 1550,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-      tiltLoop.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(tilt, {
-            toValue: -2.2,
-            duration: 2100,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(tilt, {
-            toValue: 2.4,
-            duration: 2100,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-        ]),
-      );
-      floatLoop.current.start();
-      tiltLoop.current.start();
+      idleLoop.current = createNativeLoop(idlePhase, 3_600);
+      idleLoop.current.start();
     };
 
     if (justActivated) {
       idleTimer.current = setTimeout(() => {
         idleTimer.current = null;
         startIdle();
-      }, 210);
+      }, 180);
     } else {
       startIdle();
     }
@@ -226,7 +164,7 @@ export function Mascot({
     return () => {
       stopAllMotion();
     };
-  }, [active, floatY, hopY, pop, reducedMotion, stopAllMotion, tilt, wiggle]);
+  }, [active, hopY, idlePhase, pop, reducedMotion, stopAllMotion, wiggle]);
 
   useEffect(() => {
     if (previousPose.current === pose) return;
@@ -237,7 +175,7 @@ export function Mascot({
       Animated.timing(pop, {
         toValue: 1.06,
         duration: 85,
-        easing: Easing.out(Easing.quad),
+        easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       }),
       Animated.spring(pop, {
@@ -249,11 +187,35 @@ export function Mascot({
     ]).start();
   }, [active, pop, pose, reducedMotion]);
 
-  const combinedTranslateY = Animated.add(floatY, hopY);
-  const combinedRotate = Animated.add(tilt, wiggle).interpolate({
-    inputRange: [-20, 20],
-    outputRange: ['-20deg', '20deg'],
-  });
+  const idleMotionStyle = useMemo(() => ({
+    transform: [
+      {
+        translateY: idlePhase.interpolate({
+          inputRange: WAVE_INPUT_17,
+          outputRange: FLOAT_OUTPUT,
+        }),
+      },
+      {
+        rotate: idlePhase.interpolate({
+          inputRange: WAVE_INPUT_17,
+          outputRange: TILT_OUTPUT,
+        }),
+      },
+    ],
+  }), [idlePhase]);
+
+  const actionMotionStyle = useMemo(() => ({
+    transform: [
+      { translateY: hopY },
+      {
+        rotate: wiggle.interpolate({
+          inputRange: [-20, 20],
+          outputRange: ['-20deg', '20deg'],
+        }),
+      },
+      { scale: pop },
+    ],
+  }), [hopY, pop, wiggle]);
 
   const handleTap = () => {
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
@@ -262,29 +224,19 @@ export function Mascot({
   };
 
   const visual = (
-    <Animated.View
-      style={[
-        styles.stage,
-        { width: size, height: size },
-        {
-          transform: [
-            { translateY: combinedTranslateY },
-            { rotate: combinedRotate },
-            { scale: pop },
-          ],
-        },
-        style,
-      ]}
-    >
-      <Image
-        accessible={false}
-        accessibilityIgnoresInvertColors
-        fadeDuration={0}
-        source={bundledImageSource(mascotAssets[pose])}
-        resizeMode="contain"
-        style={styles.image}
-      />
-    </Animated.View>
+    <View style={[styles.wrap, { width: size, height: size }, !interactive && style]}>
+      <Animated.View style={[styles.layer, actionMotionStyle]}>
+        <Animated.View style={[styles.layer, idleMotionStyle]}>
+          <Image
+            accessible={false}
+            source={bundledImageSource(mascotAssets[pose])}
+            resizeMode="contain"
+            fadeDuration={0}
+            style={{ width: size, height: size }}
+          />
+        </Animated.View>
+      </Animated.View>
+    </View>
   );
 
   if (!interactive) return visual;
@@ -292,9 +244,10 @@ export function Mascot({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Profu’ te salută"
+      accessibilityLabel="Salută-l pe Profu’"
       onPress={handleTap}
-      hitSlop={6}
+      hitSlop={8}
+      style={style}
     >
       {visual}
     </Pressable>
@@ -302,6 +255,6 @@ export function Mascot({
 }
 
 const styles = StyleSheet.create({
-  stage: { alignItems: 'center', justifyContent: 'center' },
-  image: { width: '100%', height: '100%' },
+  wrap: { alignItems: 'center', justifyContent: 'center' },
+  layer: { alignItems: 'center', justifyContent: 'center' },
 });

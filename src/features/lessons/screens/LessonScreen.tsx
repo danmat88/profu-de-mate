@@ -1,6 +1,5 @@
 import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -18,13 +17,14 @@ import {
   setMathReadingScale,
   type MathReadingScale,
 } from '../../../shared/storage/localPreferences';
-import { borders, colors, fonts, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { AnalysisVerdict, CapturedImage, RichContent, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { IconButton } from '../../../shared/ui/IconButton';
+import { LiquidProgressBar } from '../../../shared/ui/LiquidProgressBar';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -754,18 +754,27 @@ export function LessonScreen({ navigation, route }: Props) {
     }
   }, [showNotebookToast]);
 
-  const ribbonSweepTranslateX = ribbonSweep.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-90, 420],
-  });
-  const ribbonSweepOpacity = ribbonSweep.interpolate({
-    inputRange: [0, 0.15, 0.85, 1],
-    outputRange: [0, 0.78, 0.78, 0],
-  });
+  const ribbonSweepStyle = useMemo(
+    () => ({
+      opacity: ribbonSweep.interpolate({
+        inputRange: [0, 0.15, 0.85, 1],
+        outputRange: [0, 0.78, 0.78, 0],
+      }),
+      transform: [
+        {
+          translateX: ribbonSweep.interpolate({
+            inputRange: [0, 1],
+            outputRange: [-90, 420],
+          }),
+        },
+        { skewX: '-24deg' },
+      ],
+    }),
+    [ribbonSweep],
+  );
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader
         compact
@@ -780,28 +789,32 @@ export function LessonScreen({ navigation, route }: Props) {
 
       {saveToast ? <LessonSaveToast kind={saveToast} reducedMotion={reducedMotion} /> : null}
 
-      <ProgressDots
-        total={lesson.steps.length}
-        current={step}
-        active={motionActive}
-        pulseSignal={arrivalPulse}
-        onSelectStep={jumpToStep}
-        style={[styles.progress, { marginHorizontal: gutter }]}
-      />
+      <View style={[styles.progressBlock, { marginHorizontal: gutter }]}>
+        <LiquidProgressBar
+          progress={(step + 1) / Math.max(1, lesson.steps.length)}
+          height={5}
+          tone={isCheck ? 'warm' : 'studio'}
+          active={motionActive}
+        />
+        <ProgressDots
+          total={lesson.steps.length}
+          current={step}
+          active={motionActive}
+          pulseSignal={arrivalPulse}
+          onSelectStep={jumpToStep}
+        />
+      </View>
 
       <View style={[styles.stage, { paddingHorizontal: gutter }]}>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={`Deschide enunțul: ${problemAccessible}`}
-          depth={shadows.sm}
-          radius={16}
-          shadowColor={colors.ink}
+          pressedScale={0.98}
           haptic="selection"
           onPress={openProblem}
           style={styles.problemWrap}
           contentStyle={styles.problemRow}
         >
-          <View pointerEvents="none" style={styles.problemShine} />
           <View style={[styles.problemIcon, isCheck && styles.problemIconCheck]}>
             <Text style={styles.problemIconText}>{isCheck ? '✓' : 'ƒ'}</Text>
           </View>
@@ -818,7 +831,7 @@ export function LessonScreen({ navigation, route }: Props) {
           </View>
           <View collapsable={false} style={styles.problemActionPill}>
             <Text style={styles.problemAction}>Enunț</Text>
-            <MiniGlyph name="next" size={12} color={colors.paper} />
+            <MiniGlyph name="next" size={11} color={colors.paper} />
           </View>
         </PressableScale>
 
@@ -830,45 +843,28 @@ export function LessonScreen({ navigation, route }: Props) {
               { transform: [{ translateX: cardShiftX }] },
             ]}
           >
-            <View pointerEvents="none" style={styles.cardShadow} />
             <View collapsable={false} style={styles.cardFace}>
               <View style={[styles.cardRibbon, { backgroundColor: ribbonColors[tone] }]}>
-                <View pointerEvents="none" style={styles.cardRibbonShine} />
                 <Animated.View
                   pointerEvents="none"
-                  style={[
-                    styles.cardRibbonSweep,
-                    {
-                      opacity: ribbonSweepOpacity,
-                      transform: [
-                        { translateX: ribbonSweepTranslateX },
-                        { skewX: '-24deg' },
-                      ],
-                    },
-                  ]}
+                  style={[styles.cardRibbonSweep, ribbonSweepStyle]}
                 />
               </View>
 
               <View collapsable={false} style={[styles.cardMetaBar, { backgroundColor: ribbonSoftBg[tone] }]}>
-                <View style={styles.cardMetaLeft}>
-                  <View style={styles.binderDots}>
-                    <View style={styles.binderDot} />
-                    <View style={styles.binderDot} />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Deschide harta pașilor: ${stepStamp}`}
+                  hitSlop={6}
+                  onPress={openRoadmap}
+                  style={({ pressed }) => [styles.stepStampPill, pressed && styles.quickResultPillPressed]}
+                >
+                  <View collapsable={false} style={styles.stepStampInner}>
+                    <View style={[styles.stepStampDot, { backgroundColor: ribbonColors[tone] }]} />
+                    <Text style={styles.stepStampText}>{stepStamp}</Text>
+                    <Text style={styles.stepStampCaret}>▾</Text>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Deschide harta pașilor: ${stepStamp}`}
-                    hitSlop={6}
-                    onPress={openRoadmap}
-                    style={({ pressed }) => [styles.stepStampPill, pressed && styles.quickResultPillPressed]}
-                  >
-                    <View collapsable={false} style={styles.stepStampInner}>
-                      <View style={[styles.stepStampDot, { backgroundColor: ribbonColors[tone] }]} />
-                      <Text style={styles.stepStampText}>{stepStamp}</Text>
-                      <Text style={styles.stepStampCaret}>▾</Text>
-                    </View>
-                  </Pressable>
-                </View>
+                </Pressable>
 
                 <View style={styles.cardMetaRight}>
                   <Pressable
@@ -941,9 +937,7 @@ export function LessonScreen({ navigation, route }: Props) {
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Pasul anterior"
-              depth={shadows.sm}
-              radius={14}
-              shadowColor={colors.ink}
+              pressedScale={0.94}
               haptic="selection"
               onPress={back}
               contentStyle={styles.prevStepAction}
@@ -955,17 +949,14 @@ export function LessonScreen({ navigation, route }: Props) {
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Explică-mi altfel"
-            depth={shadows.sm}
-            radius={14}
-            shadowColor={colors.ink}
+            pressedScale={0.97}
             haptic="selection"
             onPress={openAlternate}
             style={styles.secondaryActionWrap}
             contentStyle={styles.secondaryAction}
           >
-            <View pointerEvents="none" style={styles.secondaryActionShine} />
             <View style={styles.hintIconBadge}>
-              <AppIcon name="hint" size={21} />
+              <AppIcon name="hint" size={20} />
             </View>
             <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.secondaryTitle}>
               Explică-mi altfel
@@ -982,9 +973,7 @@ export function LessonScreen({ navigation, route }: Props) {
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Raportează o problemă în explicație"
-            depth={shadows.sm}
-            radius={14}
-            shadowColor={colors.ink}
+            pressedScale={0.94}
             haptic="selection"
             onPress={openFeedback}
             contentStyle={styles.reportAction}
@@ -1069,69 +1058,52 @@ export function LessonScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  progress: { marginBottom: 8 },
+  progressBlock: { gap: 6, marginBottom: 8 },
   savedToast: {
     position: 'absolute',
     zIndex: 20,
     right: 18,
     top: 56,
     minHeight: 36,
-    borderRadius: 13,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(86, 120, 0, 0.2)',
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 1,
-    shadowRadius: 0,
-    elevation: 6,
+    paddingHorizontal: 14,
+    elevation: 5,
   },
   removedToast: {
     backgroundColor: colors.peachSoft,
+    borderColor: '#FFD1BE',
   },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
-  stage: { flex: 1, minHeight: 0, gap: 8, paddingBottom: 2 },
+  stage: { flex: 1, minHeight: 0, gap: 9, paddingBottom: 2 },
 
-  // Collectible topic and statement header bar
+  // Airy studio statement header bar
   problemWrap: {},
   problemRow: {
-    minHeight: 48,
+    minHeight: 46,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    borderRadius: 16,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    gap: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     overflow: 'hidden',
-    position: 'relative',
-  },
-  problemShine: {
-    position: 'absolute',
-    top: 2,
-    left: 12,
-    right: 12,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
   },
   problemIcon: {
     width: 32,
     height: 32,
-    borderRadius: 10,
-    borderWidth: 1.75,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    borderRadius: 11,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
   },
   problemIconCheck: {
     backgroundColor: colors.gold,
@@ -1139,7 +1111,7 @@ const styles = StyleSheet.create({
   problemIconText: {
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 15,
+    fontSize: 14.5,
     lineHeight: 18,
     includeFontPadding: false,
   },
@@ -1157,7 +1129,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
-    fontSize: 10.5,
+    fontSize: 10,
     lineHeight: 13,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -1165,19 +1137,17 @@ const styles = StyleSheet.create({
   },
   verdictMicroChip: {
     flexShrink: 0,
-    minHeight: 22,
+    minHeight: 20,
     paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    paddingVertical: 2,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
   },
   verdictMicroText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 9.5,
+    lineHeight: 13,
     paddingHorizontal: 1,
     includeFontPadding: false,
   },
@@ -1190,66 +1160,42 @@ const styles = StyleSheet.create({
   },
   problemActionPill: {
     flexShrink: 0,
-    minHeight: 30,
+    minHeight: 28,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    paddingVertical: 4,
+    borderRadius: 999,
     backgroundColor: colors.violet,
   },
   problemAction: {
     fontFamily: fonts.bodyBold,
     color: colors.paper,
-    fontSize: 11.5,
+    fontSize: 11,
     lineHeight: 14,
     includeFontPadding: false,
   },
 
-  // Illustrated comic notebook card
+  // Pure floating paper canvas
   cardWrap: {
     flex: 1,
     minHeight: 0,
     position: 'relative',
-    paddingBottom: shadows.md,
-  },
-  cardShadow: {
-    position: 'absolute',
-    top: shadows.md,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 23,
-    backgroundColor: colors.ink,
   },
   cardFace: {
     flex: 1,
     minHeight: 0,
-    borderRadius: 23,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.1)',
     backgroundColor: '#FFFDF9',
     overflow: 'hidden',
   },
   cardRibbon: {
-    height: 10,
-    borderBottomWidth: borders.thin,
-    borderBottomColor: colors.ink,
+    height: 4,
     position: 'relative',
     overflow: 'hidden',
-  },
-  cardRibbonShine: {
-    position: 'absolute',
-    top: 1.5,
-    left: 14,
-    right: 14,
-    height: 2.5,
-    borderRadius: 2,
-    backgroundColor: colors.shine,
   },
   cardRibbonSweep: {
     position: 'absolute',
@@ -1260,21 +1206,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
   cardMetaBar: {
-    minHeight: 34,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderBottomWidth: 1.5,
-    borderBottomColor: '#E8DFF7',
+    minHeight: 38,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(124, 60, 255, 0.08)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
-  },
-  cardMetaLeft: {
-    flexShrink: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 8,
   },
   cardMetaRight: {
@@ -1284,7 +1223,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pillInner: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1294,7 +1233,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   pillRowCompact: {
@@ -1307,17 +1246,16 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     minWidth: 36,
     minHeight: 28,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scalePillActive: {
     backgroundColor: colors.violetSoft,
-    borderColor: colors.violetDeep,
+    borderColor: '#C9B2FA',
   },
   scalePillText: {
     fontFamily: fonts.bodyBold,
@@ -1330,27 +1268,10 @@ const styles = StyleSheet.create({
   scalePillTextActive: {
     color: colors.violetDeep,
   },
-  binderDots: {
-    flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  binderDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    backgroundColor: colors.canvas,
-  },
   stepStampPill: {
     flexShrink: 1,
     minHeight: 28,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.paper,
     justifyContent: 'center',
   },
@@ -1358,16 +1279,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
   },
   stepStampDot: {
     flexShrink: 0,
-    width: 6.5,
-    height: 6.5,
+    width: 7,
+    height: 7,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.ink,
   },
   stepStampText: {
     flexShrink: 1,
@@ -1389,16 +1308,13 @@ const styles = StyleSheet.create({
   quickResultPill: {
     flexShrink: 0,
     minHeight: 28,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quickResultPillPressed: {
-    transform: [{ translateY: 1.5 }],
+    transform: [{ scale: 0.96 }],
   },
   quickResultStar: {
     fontFamily: fonts.display,
@@ -1418,19 +1334,14 @@ const styles = StyleSheet.create({
   cardCuePill: {
     flexShrink: 0,
     minHeight: 28,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 9,
-    borderWidth: 1.25,
-    borderColor: '#D6C9F2',
+    borderRadius: 999,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardCuePillFinal: {
-    borderWidth: 1.5,
-    borderBottomWidth: 2.5,
-    borderColor: colors.ink,
     backgroundColor: colors.lime,
   },
   cardCueText: {
@@ -1447,60 +1358,45 @@ const styles = StyleSheet.create({
   documentFrame: { flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: '#FFFDF9' },
 
   // Action dock
-  actionDock: { backgroundColor: colors.canvas, paddingTop: 6, gap: 6 },
+  actionDock: { backgroundColor: colors.canvas, paddingTop: 7, gap: 7 },
   secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prevStepAction: {
     width: 44,
-    height: 42,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    height: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryActionWrap: { flex: 1 },
   secondaryAction: {
-    height: 42,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: '#F2EAFF',
+    height: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
+    backgroundColor: '#F4EEFF',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 9,
+    gap: 8,
+    paddingHorizontal: 11,
     overflow: 'hidden',
-    position: 'relative',
-  },
-  secondaryActionShine: {
-    position: 'absolute',
-    top: 2,
-    left: 10,
-    right: 10,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
   },
   hintIconBadge: {
     width: 28,
     height: 28,
-    borderRadius: 9,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    borderRadius: 14,
     backgroundColor: colors.gold,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
   },
   secondaryTitle: { flex: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
   secondaryTag: {
     flexShrink: 0,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.paper,
   },
   secondaryTagText: {
@@ -1512,91 +1408,86 @@ const styles = StyleSheet.create({
   },
   reportAction: {
     width: 44,
-    height: 42,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    height: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   // Bottom sheets
   modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
-  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(23,19,55,0.52)' },
+  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(20, 15, 46, 0.48)' },
   sheet: {
     width: '100%',
     maxWidth: 640,
     height: '82%',
     alignSelf: 'center',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: borders.thick,
-    borderBottomWidth: 0,
-    borderColor: colors.ink,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderTopWidth: 1.25,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.borderHairline,
     backgroundColor: colors.canvas,
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 12,
+    elevation: 18,
   },
   problemSheet: {
     width: '100%',
     maxWidth: 640,
     height: '86%',
     alignSelf: 'center',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: borders.thick,
-    borderBottomWidth: 0,
-    borderColor: colors.ink,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    borderTopWidth: 1.25,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: colors.borderHairline,
     backgroundColor: colors.canvas,
     paddingHorizontal: 16,
-    paddingTop: 10,
+    paddingTop: 12,
+    elevation: 18,
   },
-  sheetHandle: { width: 46, height: 5, borderRadius: 3, backgroundColor: '#CBBFE8', alignSelf: 'center', marginBottom: 10 },
+  sheetHandle: { width: 40, height: 4.5, borderRadius: 999, backgroundColor: '#DBD1F0', alignSelf: 'center', marginBottom: 12 },
   sheetBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    gap: 11,
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 20,
+    borderWidth: 1.25,
+    borderColor: colors.borderHairline,
     backgroundColor: colors.paper,
+    elevation: 2,
   },
   sheetMascotBadge: {
-    width: 54,
-    height: 54,
+    width: 52,
+    height: 52,
     borderRadius: 16,
-    borderWidth: 1.75,
-    borderColor: colors.ink,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
   sheetIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3,
-    borderColor: colors.ink,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: colors.cyanSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
-  problemSheetIcon: { backgroundColor: colors.lime },
+  problemSheetIcon: { backgroundColor: colors.limeSoft },
   sheetCopy: { flex: 1, minWidth: 0, gap: 3 },
   sheetTagRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 5 },
   sheetLimeStamp: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 2.5,
-    borderRadius: 8,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.lime,
   },
   sheetLimeStampText: {
@@ -1606,11 +1497,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   sheetModePill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 2.5,
-    borderRadius: 8,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.cyanSoft,
   },
   sheetModePillCheck: {
@@ -1624,9 +1513,9 @@ const styles = StyleSheet.create({
   },
   sheetTopicPill: {
     flexShrink: 1,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2.5,
-    borderRadius: 7,
+    borderRadius: 999,
     backgroundColor: colors.violetSoft,
   },
   sheetTopicPillText: {
@@ -1640,28 +1529,28 @@ const styles = StyleSheet.create({
   sheetPaper: {
     flex: 1,
     minHeight: 0,
-    borderRadius: 20,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    borderRadius: 22,
+    borderWidth: 1.25,
+    borderColor: colors.borderHairline,
     backgroundColor: '#FFFDF9',
     overflow: 'hidden',
     marginBottom: 10,
     paddingHorizontal: 6,
+    elevation: 2,
   },
   sheetDocument: { flex: 1 },
   problemTabs: { marginBottom: 10 },
   problemContent: {
     flex: 1,
     minHeight: 0,
-    borderRadius: 20,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    borderRadius: 22,
+    borderWidth: 1.25,
+    borderColor: colors.borderHairline,
     overflow: 'hidden',
     backgroundColor: '#FFFDF9',
     position: 'relative',
     paddingHorizontal: 6,
+    elevation: 2,
   },
   problemPane: { flex: 1 },
   problemPaneOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, padding: 8 },
@@ -1673,11 +1562,10 @@ const styles = StyleSheet.create({
   },
   sheetShareButton: {
     flex: 1,
-    minHeight: 44,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    minHeight: 46,
+    borderRadius: 16,
+    borderWidth: 1.25,
+    borderColor: '#DDD0F9',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1692,15 +1580,13 @@ const styles = StyleSheet.create({
   },
   sheetDoneButton: {
     flex: 1.2,
-    minHeight: 44,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
+    minHeight: 46,
+    borderRadius: 16,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
+    elevation: 2,
   },
   sheetDoneText: {
     fontFamily: fonts.displaySemi,
@@ -1709,6 +1595,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     includeFontPadding: false,
   },
-  sourceImageCard: { flex: 1, padding: 8, borderRadius: 16, borderWidth: borders.thin, borderColor: colors.line, backgroundColor: '#F4EEFF' },
+  sourceImageCard: { flex: 1, padding: 8, borderRadius: 18, borderWidth: 1.25, borderColor: colors.borderHairline, backgroundColor: '#F6F0FF' },
   sourceImage: { width: '100%', height: '100%', borderRadius: 12 },
 });

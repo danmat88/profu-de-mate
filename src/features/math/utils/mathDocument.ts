@@ -52,7 +52,7 @@ const visualLabels: Record<StructuredVisual['kind'], string> = {
 
 type RenderContext = { formula: number; visual: number };
 
-export function escapeDocumentHtml(value: string): string {
+function escapeDocumentHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

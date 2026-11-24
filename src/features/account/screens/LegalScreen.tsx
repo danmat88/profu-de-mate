@@ -1,11 +1,10 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { legalDocument } from '../../../shared/config/legal';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
-import { borders, colors, fonts, typography } from '../../../shared/theme';
+import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -74,7 +73,6 @@ export function LegalScreen({ navigation }: Props) {
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="dark" />
       <ComicBackdrop />
       <ScreenHeader title="Legal și siguranță" eyebrow="INFORMAȚII CLARE" onBack={() => navigation.goBack()} rightIcon="privacy" />
 
@@ -89,10 +87,13 @@ export function LegalScreen({ navigation }: Props) {
         >
           {tab === 'overview' ? (
             <>
-              <ComicCard tone="paper" depth={5} radius={26} borderWidth={borders.thick} shine contentStyle={styles.hero}>
-                <View style={styles.heroIcon}><AppIcon name="privacy" size={62} /></View>
+              <ComicCard tone="paper" radius={26} shine contentStyle={styles.hero}>
+                <View style={styles.heroIcon}><AppIcon name="privacy" size={56} /></View>
                 <Text style={styles.heroEyebrow}>PE SCURT</Text>
-                <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
+                <View style={styles.heroTitleWrap}>
+                  <View pointerEvents="none" style={styles.heroTitleHighlight} />
+                  <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
+                </View>
                 <Text style={styles.heroText}>Folosim fotografia sau formula trimisă de tine ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
                 <View style={styles.chips}>
                   <Chip label="13+" tone="violetSoft" />
@@ -237,38 +238,43 @@ const styles = StyleSheet.create({
   heroIcon: {
     width: 72,
     height: 72,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    borderRadius: 23,
-    backgroundColor: colors.limeSoft,
+    borderWidth: 1.25,
+    borderColor: '#D6F08A',
+    borderRadius: 24,
+    backgroundColor: '#F4FFD2',
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
   heroEyebrow: { ...typography.kicker, color: colors.violetDeep, marginTop: 12 },
-  heroTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 30, textAlign: 'center', marginTop: 3 },
+  heroTitleWrap: { position: 'relative', alignItems: 'center', marginTop: 3 },
+  heroTitleHighlight: {
+    position: 'absolute',
+    bottom: 2,
+    width: 170,
+    height: 8,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(216, 255, 62, 0.65)',
+  },
+  heroTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 30, textAlign: 'center' },
   heroText: { maxWidth: 320, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19, textAlign: 'center', marginTop: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 14 },
 
-  section: { borderBottomWidth: 1.5, borderBottomColor: colors.line, paddingBottom: 14 },
+  section: { borderBottomWidth: 1, borderBottomColor: colors.borderHairline, paddingBottom: 14 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionNumber: {
     width: 32,
     height: 32,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
     borderRadius: 11,
-    backgroundColor: colors.lime,
+    backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
-  sectionNumberText: { fontFamily: fonts.display, color: colors.ink, fontSize: 12.5 },
+  sectionNumberText: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 12.5 },
   sectionTitle: { flex: 1, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18.5, lineHeight: 22 },
   sectionBody: { gap: 7, marginTop: 9, paddingLeft: 3 },
   paragraph: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20 },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  bulletDot: { width: 8, height: 8, borderWidth: 1.5, borderColor: colors.ink, borderRadius: 3, backgroundColor: colors.peach, marginTop: 6 },
+  bulletDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: colors.peach, marginTop: 6.5 },
   bulletText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20 },
 
   updated: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },

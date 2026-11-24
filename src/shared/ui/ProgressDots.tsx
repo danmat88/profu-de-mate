@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
@@ -55,14 +55,16 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
     };
   }, [active, motionActive, pop, pulseSignal, reducedMotion]);
 
-  const scaleY = pop.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.94, 1.04],
-  });
-  const scaleX = pop.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.97, 1],
-  });
+  const { scaleX, scaleY } = useMemo(() => ({
+    scaleY: pop.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.94, 1.04],
+    }),
+    scaleX: pop.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.97, 1],
+    }),
+  }), [pop]);
 
   const dense = total > 5;
   const stepNumber = index + 1;
@@ -72,7 +74,8 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
       ? '✓'
       : String(stepNumber);
 
-  const fill = active ? colors.violet : completed ? colors.mint : colors.paper;
+  const fill = active ? colors.violet : completed ? colors.mintSoft : colors.paper;
+  const border = active ? colors.violet : completed ? '#AEEBC7' : colors.borderHairline;
   const activeFlex = dense ? 1.85 : 2.35;
 
   return (
@@ -80,16 +83,15 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
       collapsable={false}
       style={[
         styles.pill,
+        active && styles.pillActive,
         {
           flex: active ? activeFlex : 1,
           backgroundColor: fill,
-          borderColor: active || completed ? colors.ink : '#C7BBE3',
-          borderBottomWidth: active ? 3 : completed ? 2.5 : 2,
+          borderColor: border,
           transform: [{ scaleX }, { scaleY }],
         },
       ]}
     >
-      {(active || completed) ? <View pointerEvents="none" style={styles.pillShine} /> : null}
       <Text
         maxFontSizeMultiplier={1.1}
         numberOfLines={1}
@@ -168,23 +170,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pill: {
-    minHeight: 24,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    minHeight: 26,
+    borderRadius: 999,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
     overflow: 'hidden',
     position: 'relative',
   },
-  pillShine: {
-    position: 'absolute',
-    top: 1.5,
-    left: 6,
-    right: 6,
-    height: 2.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.38)',
+  pillActive: {
+    elevation: 2,
   },
   label: {
     fontFamily: fonts.bodyBold,
@@ -200,10 +196,10 @@ const styles = StyleSheet.create({
   },
   labelDone: {
     fontFamily: fonts.display,
-    color: colors.ink,
+    color: colors.mintDeep,
     fontSize: 11.5,
   },
   labelUpcoming: {
-    color: colors.inkSoft,
+    color: colors.inkMuted,
   },
 });

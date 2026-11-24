@@ -15,7 +15,7 @@ import {
   type PremiumOffer,
 } from '../services/purchases';
 import type { RootStackParamList } from '../../../shared/types';
-import { useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
+import { beginAppTransition, useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { createLatestTask, type TaskState } from '../../../shared/utils/latestTask';
@@ -206,14 +206,14 @@ export function PaywallScreen({ navigation, route }: Props) {
       success={success}
       successLimit={successLimit}
       active={ambientActive}
-      onClose={() => { if (!activeBusy) navigation.goBack(); }}
+      onClose={() => { if (!activeBusy) { beginAppTransition(); navigation.goBack(); } }}
       onConnect={() => void connect()}
       onBuy={() => void buy()}
       onRestore={() => void restore()}
       onManage={() => void manage()}
       onRefresh={() => { if (!activeBusy) void refresh(); }}
       onRetryOffer={() => { if (!activeBusy) void offerTask.run(); }}
-      onLegal={() => { if (!activeBusy) navigation.navigate('Legal'); }}
+      onLegal={() => { if (!activeBusy) { beginAppTransition(); navigation.navigate('Legal'); } }}
       onSelect={(plan) => { if (!activeBusy) setSelected(plan); }}
     />
   );

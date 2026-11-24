@@ -27,7 +27,7 @@ export type MathEditorCommand =
   | { type: 'replace'; document: MathDocument }
   | { type: 'left' | 'right' | 'next-slot' | 'backspace' | 'clear' | 'undo' | 'redo' };
 
-export const MATH_EDITOR_LIMITS = { depth: 8, nodes: 256, latexLength: 1600, history: 50 } as const;
+const MATH_EDITOR_LIMITS = { depth: 8, nodes: 256, latexLength: 1600, history: 50 } as const;
 const SYMBOLS = new Set<string>('0123456789'.split('').concat(['x', 'y', 'z', 'pi', '.', '+', '-', 'times', 'div', '=', '<', '>', 'le', 'ge']));
 const OPERATORS = new Set<MathSymbol>(['+', '-', 'times', 'div', '=', '<', '>', 'le', 'ge']);
 const TEX_SYMBOLS: Partial<Record<MathSymbol, string>> = {
@@ -36,7 +36,7 @@ const TEX_SYMBOLS: Partial<Record<MathSymbol, string>> = {
 
 export function createEmptyMathDocument(): MathDocument { return { version: 1, nodes: [] }; }
 
-export function getMathNodeSlots(node: MathNode): { name: MathSlotName; nodes: MathNode[] }[] {
+function getMathNodeSlots(node: MathNode): { name: MathSlotName; nodes: MathNode[] }[] {
   switch (node.type) {
     case 'fraction': return [{ name: 'numerator', nodes: node.numerator }, { name: 'denominator', nodes: node.denominator }];
     case 'power': return [{ name: 'base', nodes: node.base }, { name: 'exponent', nodes: node.exponent }];
@@ -182,7 +182,7 @@ export function validateMathDocument(document: MathDocument): string | null {
   return validate(document.nodes);
 }
 
-export function getMathSlot(document: MathDocument, path: MathPathStep[]): MathNode[] | null {
+function getMathSlot(document: MathDocument, path: MathPathStep[]): MathNode[] | null {
   let nodes = document.nodes;
   for (const step of path) {
     if (!Number.isInteger(step.index) || step.index < 0 || step.index >= nodes.length) return null;

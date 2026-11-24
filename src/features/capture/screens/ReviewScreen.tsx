@@ -2,6 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { ImageCropEditor } from '../components/ImageCropEditor';
 import { commercialGateFromError, preflightAnalysisAccess } from '../../access/services/commercial';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
@@ -52,6 +53,7 @@ export function ReviewScreen({ navigation, route }: Props) {
         return editedImage;
       });
       savePendingAnalysis(route.params.mode, editedImage, requestId, session.userId);
+      beginAppTransition();
       navigation.navigate('Processing', {
         mode: route.params.mode,
         image: editedImage,
@@ -63,6 +65,7 @@ export function ReviewScreen({ navigation, route }: Props) {
     } catch (error) {
       const gate = commercialGateFromError(error);
       if (gate) {
+        beginAppTransition();
         navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
       } else {
         recordDiagnosticError('commercial_preflight', error);
@@ -79,7 +82,10 @@ export function ReviewScreen({ navigation, route }: Props) {
         image={currentImage}
         mode={route.params.mode}
         actionError={accessError}
-        onCancel={() => navigation.goBack()}
+        onCancel={() => {
+          beginAppTransition();
+          navigation.goBack();
+        }}
         onApply={continueToAnalysis}
       />
     </View>

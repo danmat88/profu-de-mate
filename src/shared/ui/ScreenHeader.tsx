@@ -1,8 +1,9 @@
+import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../context/TransitionMotionContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
-import { borders, colors, fonts, radii, typography } from '../theme';
+import { colors, fonts, typography } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
 import { IconButton } from './IconButton';
 import { MiniGlyph } from './MiniGlyph';
@@ -22,7 +23,7 @@ type Props = {
   compact?: boolean;
 };
 
-export function ScreenHeader({
+export const ScreenHeader = memo(function ScreenHeader({
   title,
   eyebrow,
   onBack,
@@ -38,8 +39,8 @@ export function ScreenHeader({
   const color = dark ? colors.paper : colors.ink;
   const frame = useSafeAreaFrame();
   const { gutter, isNarrow, isLargeText } = useResponsiveLayout(frame);
-  const buttonSize = compact && !isLargeText ? 42 : 46;
-  const badgeRadius = Math.min(radii.md, Math.round(buttonSize * 0.34));
+  const buttonSize = compact && !isLargeText ? 40 : 44;
+  const badgeRadius = Math.round(buttonSize / 2);
   const handleBack = () => {
     beginAppTransition();
     onBack();
@@ -56,7 +57,7 @@ export function ScreenHeader({
       ]}
     >
       <IconButton label="Înapoi" onPress={handleBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
-        <MiniGlyph name="back" size={compact && !isLargeText ? 22 : 25} color={color} />
+        <MiniGlyph name="back" size={compact && !isLargeText ? 21 : 23} color={color} />
       </IconButton>
       <View style={styles.copy}>
         {eyebrow ? (
@@ -85,7 +86,7 @@ export function ScreenHeader({
           active={rightActive}
           size={buttonSize}
         >
-          <AppIcon name={rightIcon} size={compact && !isLargeText ? 32 : 36} />
+          <AppIcon name={rightIcon} size={compact && !isLargeText ? 28 : 32} />
         </IconButton>
       ) : rightIcon ? (
         <View
@@ -96,19 +97,18 @@ export function ScreenHeader({
             dark && styles.rightBadgeDark,
           ]}
         >
-          <View pointerEvents="none" style={[styles.rightBadgeShine, { borderRadius: Math.max(4, badgeRadius - 4) }]} />
-          <AppIcon name={rightIcon} size={compact && !isLargeText ? 30 : 34} />
+          <AppIcon name={rightIcon} size={compact && !isLargeText ? 26 : 30} />
         </View>
       ) : (
         <View style={{ width: buttonSize }} />
       )}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 70,
+    minHeight: 64,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
@@ -116,15 +116,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowCompact: {
-    minHeight: 54,
+    minHeight: 52,
     paddingVertical: 4,
     gap: 10,
   },
-  rowNarrow: { minHeight: 62, gap: 9 },
-  rowLargeText: { minHeight: 94, paddingVertical: 10 },
+  rowNarrow: { minHeight: 58, gap: 9 },
+  rowLargeText: { minHeight: 88, paddingVertical: 10 },
   copy: { flex: 1, minWidth: 0 },
   eyebrow: {
     ...typography.kicker,
+    fontSize: 10.5,
     color: colors.violetDeep,
   },
   eyebrowDark: { color: colors.lime },
@@ -133,25 +134,15 @@ const styles = StyleSheet.create({
   titleNarrow: { fontSize: 18, lineHeight: 22 },
   titleDark: { color: colors.paper },
   rightBadge: {
-    borderWidth: borders.thin,
-    borderBottomWidth: 3.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.violetSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.1)',
+    backgroundColor: 'rgba(124, 60, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    transform: [{ rotate: '4deg' }],
   },
   rightBadgeDark: {
-    backgroundColor: '#292052',
-    borderColor: colors.paper,
-  },
-  rightBadgeShine: {
-    position: 'absolute',
-    top: 2,
-    left: 6,
-    right: 6,
-    height: 4,
-    backgroundColor: colors.shine,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.16)',
   },
 });

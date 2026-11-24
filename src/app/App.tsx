@@ -48,7 +48,7 @@ const NAVIGATION_THEME = {
 };
 
 function isDarkSystemBarRoute(routeName: string | undefined): boolean {
-  return routeName === 'Capture' || routeName === 'Processing' || routeName === 'MathProcessing';
+  return routeName === 'Capture' || routeName === 'Review' || routeName === 'Processing' || routeName === 'MathProcessing';
 }
 
 enableFreeze(true);
@@ -101,7 +101,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
     headerShown: false,
     freezeOnBlur: true,
     contentStyle: { backgroundColor: colors.canvas },
-    animation: (reducedMotion ? 'none' : 'ios_from_right') as 'none' | 'ios_from_right',
+    animation: (reducedMotion ? 'none' : 'default') as 'none' | 'default',
   }), [reducedMotion]);
   const stackScreenListeners = useMemo(() => ({
     transitionStart: () => {
@@ -158,7 +158,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
               <Stack.Screen name="Notebook" component={NotebookScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Legal" component={LegalScreen} />
-              <Stack.Screen name="Paywall" component={PaywallScreen} initialParams={{ source: 'settings' }} options={{ animation: reducedMotion ? 'none' : 'slide_from_bottom', presentation: 'modal' }} />
+              <Stack.Screen name="Paywall" component={PaywallScreen} initialParams={{ source: 'settings' }} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom', presentation: 'modal' }} />
               <Stack.Screen name="Capture" component={CaptureScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Review" component={ReviewScreen} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, freezeOnBlur: true, contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Processing" component={ProcessingScreen} initialParams={activePending?.schemaVersion === 2 ? { ...activePending, origin: 'home' } : undefined} options={{ animation: reducedMotion ? 'none' : 'fade', gestureEnabled: false, contentStyle: { backgroundColor: colors.ink } }} />
@@ -166,7 +166,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
                 name="Lesson"
                 component={LessonScreen}
                 options={({ route }) => ({
-                  animation: reducedMotion ? 'none' : route.params?.source === 'notebook' ? 'ios_from_right' : 'fade',
+                  animation: reducedMotion ? 'none' : route.params?.source === 'notebook' ? 'default' : 'fade',
                   gestureEnabled: route.params?.source === 'notebook',
                 })}
               />

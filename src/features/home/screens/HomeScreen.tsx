@@ -96,18 +96,20 @@ export function HomeScreen() {
 
   const activeMode = pendingAnalysis?.mode ?? mode;
 
-  const chooseMode = (next: FlowMode) => {
+  const chooseMode = useCallback((next: FlowMode) => {
     if (next === activeMode || pendingAnalysis || galleryLocked.current) return;
     Haptics.selection();
     setGalleryError(null);
     setMode(next);
-  };
+  }, [activeMode, pendingAnalysis]);
 
-  const dismissGuide = () => {
+  const dismissGuide = useCallback(() => {
     Haptics.selection();
     markHomeGuideSeen();
     setGuideDismissed(true);
-  };
+  }, []);
+
+  const clearGalleryError = useCallback(() => setGalleryError(null), []);
 
   const resume = useCallback(() => {
     const pending = getPreparedPendingAnalysis();
@@ -120,26 +122,26 @@ export function HomeScreen() {
     return true;
   }, [navigation]);
 
-  const openCapture = () => {
+  const openCapture = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
     beginAppTransition();
     if (!resume()) navigation.navigate('Capture', { mode });
-  };
+  }, [mode, navigation, resume]);
 
-  const openMath = () => {
+  const openMath = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
     beginAppTransition();
     if (!resume()) navigation.navigate('MathInput', { mode });
-  };
+  }, [mode, navigation, resume]);
 
-  const openNotebook = () => {
+  const openNotebook = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
     beginAppTransition();
     navigation.navigate('Notebook');
-  };
+  }, [navigation]);
 
   const openGallery = useCallback(async () => {
     if (galleryLocked.current || navigationLocked.current) return;
@@ -172,18 +174,23 @@ export function HomeScreen() {
     }
   }, [mode, navigation, resume]);
 
-  const openAllowance = () => {
+  const handleOpenGallery = useCallback(() => {
+    void openGallery();
+  }, [openGallery]);
+
+  const openAllowance = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
     beginAppTransition();
     navigation.navigate('Paywall', { source: 'home', ...(access ? { access } : {}) });
-  };
-  const openSettings = () => {
+  }, [access, navigation]);
+
+  const openSettings = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
     beginAppTransition();
     navigation.navigate('Settings');
-  };
+  }, [navigation]);
 
   if (!access) {
     return <ReadinessScreen
@@ -213,10 +220,10 @@ export function HomeScreen() {
       savedLessonsCount={notebookPreview.count}
       showGuide={!guideDismissed}
       onDismissGuide={dismissGuide}
-      onClearGalleryError={() => setGalleryError(null)}
+      onClearGalleryError={clearGalleryError}
       onMode={chooseMode}
       onCapture={openCapture}
-      onGallery={() => void openGallery()}
+      onGallery={handleOpenGallery}
       onMath={openMath}
       onNotebook={openNotebook}
       onSettings={openSettings}

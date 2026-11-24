@@ -1,19 +1,19 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { borders, colors, radii, typography } from '../theme';
+import { colors, radii, typography } from '../theme';
 import { Text } from './Typography';
 
 export type ChipTone = 'lime' | 'peach' | 'gold' | 'violet' | 'violetSoft' | 'cyanSoft' | 'paper' | 'roseSoft';
 
-const palettes: Record<ChipTone, { bg: string; fg: string }> = {
-  lime: { bg: colors.lime, fg: colors.ink },
-  peach: { bg: colors.peach, fg: colors.ink },
-  gold: { bg: colors.gold, fg: colors.ink },
-  violet: { bg: colors.violet, fg: colors.paper },
-  violetSoft: { bg: colors.violetSoft, fg: colors.violetDeep },
-  cyanSoft: { bg: colors.cyanSoft, fg: colors.cyanDeep },
-  paper: { bg: colors.paper, fg: colors.ink },
-  roseSoft: { bg: colors.roseSoft, fg: colors.berryDeep },
+const palettes: Record<ChipTone, { bg: string; fg: string; border: string }> = {
+  lime: { bg: colors.lime, fg: colors.ink, border: 'rgba(86, 120, 0, 0.16)' },
+  peach: { bg: colors.peach, fg: colors.ink, border: 'rgba(179, 59, 34, 0.16)' },
+  gold: { bg: colors.gold, fg: colors.ink, border: 'rgba(145, 108, 0, 0.16)' },
+  violet: { bg: colors.violet, fg: colors.paper, border: 'rgba(255, 255, 255, 0.22)' },
+  violetSoft: { bg: colors.violetSoft, fg: colors.violetDeep, border: '#DDD0F9' },
+  cyanSoft: { bg: colors.cyanSoft, fg: colors.cyanDeep, border: '#B2EAF0' },
+  paper: { bg: colors.paper, fg: colors.ink, border: colors.borderHairline },
+  roseSoft: { bg: colors.roseSoft, fg: colors.berryDeep, border: '#FBC4CE' },
 };
 
 type Props = {
@@ -25,12 +25,11 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Readable comic sticker / pill badge (always >= 11sp). */
+/** Clean studio pill badge matching LaunchSplash pills (always >= 11sp). */
 export function Chip({
   label,
   tone = 'lime',
   leading,
-  tilt = 0,
   outlined = true,
   style,
 }: Props) {
@@ -41,8 +40,7 @@ export function Chip({
       style={[
         styles.chip,
         { backgroundColor: palette.bg },
-        outlined && styles.outlined,
-        tilt !== 0 && { transform: [{ rotate: `${tilt}deg` }] },
+        outlined && { borderWidth: 1, borderColor: palette.border },
         style,
       ]}
     >
@@ -64,13 +62,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     paddingVertical: 4.5,
-    borderRadius: radii.sm,
-  },
-  outlined: {
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
   },
   label: {
     ...typography.kicker,

@@ -25,7 +25,7 @@ type TransitionNavigation = {
 export function useTransitionSettled(
   navigation: TransitionNavigation | undefined,
   reducedMotion: boolean,
-  fallbackMs = 300,
+  fallbackMs = 520,
 ): boolean {
   const [settled, setSettled] = useState(reducedMotion);
 
@@ -36,26 +36,44 @@ export function useTransitionSettled(
     }
     let done = false;
     let fallback: ReturnType<typeof setTimeout> | null = null;
+    let settleFrame: number | null = null;
     const clearFallback = () => {
       if (fallback) {
         clearTimeout(fallback);
         fallback = null;
       }
     };
-    const markSettled = () => {
+    const clearSettleFrame = () => {
+      if (settleFrame !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(settleFrame);
+        settleFrame = null;
+      }
+    };
+    const commitSettled = () => {
       if (done) return;
       done = true;
       clearFallback();
+      clearSettleFrame();
       setSettled(true);
+    };
+    const markSettled = () => {
+      if (done) return;
+      clearFallback();
+      if (typeof requestAnimationFrame === 'function') {
+        clearSettleFrame();
+        settleFrame = requestAnimationFrame(commitSettled);
+      } else {
+        commitSettled();
+      }
     };
     const armFallback = (delayMs: number) => {
       clearFallback();
-      fallback = setTimeout(markSettled, delayMs);
+      fallback = setTimeout(commitSettled, delayMs);
     };
 
     const unsubscribeStart = navigation?.addListener?.('transitionStart', (event) => {
       if (!done && !event.data?.closing) {
-        armFallback(fallbackMs + 120);
+        armFallback(fallbackMs + 100);
       }
     });
     const unsubscribeEnd = navigation?.addListener?.('transitionEnd', (event) => {
@@ -66,6 +84,7 @@ export function useTransitionSettled(
     return () => {
       done = true;
       clearFallback();
+      clearSettleFrame();
       unsubscribeStart?.();
       unsubscribeEnd?.();
     };
@@ -95,7 +114,7 @@ export function useScreenMotionActive(
   options?: ScreenMotionOptions,
 ): boolean {
   const initiallySettled = options?.initiallySettled ?? false;
-  const fallbackMs = options?.fallbackMs ?? 300;
+  const fallbackMs = options?.fallbackMs ?? 520;
   const [focused, setFocused] = useState(() => navigation?.isFocused?.() ?? true);
   // Subscribe to global transitions ONLY while this screen is focused so covered
   // stack screens never re-render when deeper screens navigate.

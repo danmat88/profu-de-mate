@@ -1,15 +1,20 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
-import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import {
+  cosinePingPongRange,
+  cosinePulseRange,
+  createNativeLoop,
+  SILKY_EASE_OUT,
+  WAVE_INPUT_17,
+} from '../../../shared/motion/nativeMotion';
 import { bundledImageSource } from '../../../shared/services/bundledImages';
-import { borders, colors, fonts, radii, shadows } from '../../../shared/theme';
+import { colors, fonts, radii } from '../../../shared/theme';
 import type { FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
-import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -19,6 +24,7 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SegmentedToggle, type SegmentedOption } from '../../../shared/ui/SegmentedToggle';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
+import { SpotlightAura, type SpotlightAuraTone } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { ComicClockIcon, HomeResetPillNote } from '../../access/components/QuotaResetTimer';
 import type { AllowancePresentation } from '../../access/utils/commercialPresentation';
@@ -117,17 +123,9 @@ const PENDING_MESSAGES: readonly TutorMessage[] = [
   { title: 'Nu pierzi nimic!', body: 'Între timp poți răsfoi liniștit Caietul.', compactBody: 'Poți răsfoi Caietul între timp.', pose: 'wave', tone: 'limeSoft' },
 ];
 
-const HERO_HALFTONE_DOTS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
-
-// Exact cosine wave samples so a single linear Animated.timing inside
-// Animated.loop executes via Android NativeAnimatedModule _startNativeLoop(-1)
-// with zero JS callbacks, zero pauses, and mathematically seamless turnaround.
-const WAVE_INPUT = [
-  0, 0.0625, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375,
-  0.5, 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1,
-];
-const COS_PING_PONG = WAVE_INPUT.map((t) => -Math.cos(2 * Math.PI * t));
-const COS_PULSE = WAVE_INPUT.map((t) => 0.5 - 0.5 * Math.cos(2 * Math.PI * t));
+const WAVE_INPUT = WAVE_INPUT_17;
+const COS_PING_PONG = cosinePingPongRange(-1, 1);
+const COS_PULSE = cosinePulseRange(0, 1);
 
 function solveGreeting(hour: number): string {
   if (hour >= 6 && hour < 12) return 'Bună dimineața!';
@@ -135,7 +133,7 @@ function solveGreeting(hour: number): string {
   return 'Salut! Ce rezolvăm?';
 }
 
-export function HomeSurface({
+export const HomeSurface = memo(function HomeSurface({
   mode,
   focused = true,
   pending,
@@ -159,13 +157,9 @@ export function HomeSurface({
   onSettings,
   onAllowance,
 }: Props) {
-  // The provider frame describes our actual root view. Android's window
-  // dimensions can change independently while a native picker is dismissed.
   const frame = useSafeAreaFrame();
   const { contentWidth, height, fontScale, isVeryNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
-  // Navigation bars are hidden for this immersive screen; temporary bars
-  // overlay Home instead of changing its spacing and responsive breakpoint.
   const compact = height - insets.top < 690 || fontScale >= 1.3;
   const reducedMotion = useReducedMotion();
   const motionReady = useContext(HomeMotionReadyContext);
@@ -204,7 +198,6 @@ export function HomeSurface({
   const sparkPulse = useRef(new Animated.Value(0)).current;
   const arrowNudge = useRef(new Animated.Value(0)).current;
   const ctaSheen = useRef(new Animated.Value(0)).current;
-  const mascotHaloSpin = useRef(new Animated.Value(0)).current;
   const tapSpark = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -223,40 +216,25 @@ export function HomeSurface({
     }
   }, [cheerScope]);
 
-  // Ambient studio loops run strictly via single-timing native _startNativeLoop(-1)
-  // on Android RenderThread with zero JS callbacks, and stop instantly on blur/transition.
+  // Ambient studio loops execute via pure single-timing native _startNativeLoop(-1)
+  // on Android RenderThread with zero JS callbacks, pausing cleanly when unfocused.
   useEffect(() => {
     if (!motionActive) {
       beamProgress.stopAnimation();
       sparkPulse.stopAnimation();
       arrowNudge.stopAnimation();
       ctaSheen.stopAnimation();
-      mascotHaloSpin.stopAnimation();
-      beamProgress.setValue(0.25);
-      sparkPulse.setValue(0);
-      arrowNudge.setValue(0);
-      ctaSheen.setValue(0);
-      mascotHaloSpin.setValue(0);
       return undefined;
     }
 
     const loops: Animated.CompositeAnimation[] = [];
     const startNativeLoop = (value: Animated.Value, duration: number) => {
-      value.setValue(0);
-      const loop = Animated.loop(
-        Animated.timing(value, {
-          toValue: 1,
-          duration,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      );
+      const loop = createNativeLoop(value, duration);
       loops.push(loop);
       loop.start();
     };
 
     const startTimer = setTimeout(() => {
-      startNativeLoop(mascotHaloSpin, 28_000);
       if (hasPendingAnalysis) {
         beamProgress.stopAnimation();
         sparkPulse.stopAnimation();
@@ -268,11 +246,11 @@ export function HomeSurface({
         ctaSheen.setValue(0);
         return;
       }
-      startNativeLoop(beamProgress, 3_200);
-      startNativeLoop(sparkPulse, 2_600);
-      startNativeLoop(arrowNudge, 1_750);
-      startNativeLoop(ctaSheen, 3_400);
-    }, 280);
+      startNativeLoop(beamProgress, 3_400);
+      startNativeLoop(sparkPulse, 2_800);
+      startNativeLoop(arrowNudge, 1_900);
+      startNativeLoop(ctaSheen, 3_600);
+    }, 240);
 
     return () => {
       clearTimeout(startTimer);
@@ -281,11 +259,9 @@ export function HomeSurface({
       sparkPulse.stopAnimation();
       arrowNudge.stopAnimation();
       ctaSheen.stopAnimation();
-      mascotHaloSpin.stopAnimation();
     };
-  }, [arrowNudge, beamProgress, ctaSheen, hasPendingAnalysis, mascotHaloSpin, motionActive, sparkPulse]);
+  }, [arrowNudge, beamProgress, ctaSheen, hasPendingAnalysis, motionActive, sparkPulse]);
 
-  // Smooth hero card gradient crossfade & spring settle when toggling Rezolvă <-> Verifică.
   useEffect(() => {
     const targetBlend = isSolve || hasPendingAnalysis ? 0 : 1;
     const anims: Animated.CompositeAnimation[] = [];
@@ -295,8 +271,8 @@ export function HomeSurface({
     } else {
       const blendAnim = Animated.timing(modeBlend, {
         toValue: targetBlend,
-        duration: 280,
-        easing: Easing.out(Easing.cubic),
+        duration: 320,
+        easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       });
       anims.push(blendAnim);
@@ -314,34 +290,20 @@ export function HomeSurface({
       medallionPop.setValue(1);
       return () => anims.forEach((anim) => anim.stop());
     }
-    const stageAnim = Animated.sequence([
-      Animated.timing(stagePop, {
-        toValue: 0.986,
-        duration: 65,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.spring(stagePop, {
-        toValue: 1,
-        tension: 260,
-        friction: 18,
-        useNativeDriver: true,
-      }),
-    ]);
-    const medallionAnim = Animated.sequence([
-      Animated.timing(medallionPop, {
-        toValue: 0.88,
-        duration: 70,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.spring(medallionPop, {
-        toValue: 1,
-        tension: 210,
-        friction: 14,
-        useNativeDriver: true,
-      }),
-    ]);
+    stagePop.setValue(0.985);
+    medallionPop.setValue(0.9);
+    const stageAnim = Animated.spring(stagePop, {
+      toValue: 1,
+      tension: 220,
+      friction: 20,
+      useNativeDriver: true,
+    });
+    const medallionAnim = Animated.spring(medallionPop, {
+      toValue: 1,
+      tension: 200,
+      friction: 16,
+      useNativeDriver: true,
+    });
     anims.push(stageAnim, medallionAnim);
     stageAnim.start();
     medallionAnim.start();
@@ -414,7 +376,7 @@ export function HomeSurface({
       {
         scale: sparkPulse.interpolate({
           inputRange: WAVE_INPUT,
-          outputRange: COS_PULSE.map((value) => 0.92 + value * 0.2),
+          outputRange: COS_PULSE.map((value) => 0.92 + value * 0.18),
         }),
       },
       {
@@ -440,7 +402,7 @@ export function HomeSurface({
   const ctaSheenStyle = useMemo(() => ({
     opacity: ctaSheen.interpolate({
       inputRange: [0, 0.1, 0.14, 0.3, 0.34, 1],
-      outputRange: [0, 0, 0.36, 0.36, 0, 0],
+      outputRange: [0, 0, 0.38, 0.38, 0, 0],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -453,17 +415,6 @@ export function HomeSurface({
       { skewX: '-22deg' },
     ],
   }), [ctaSheen]);
-
-  const mascotHaloStyle = useMemo(() => ({
-    transform: [
-      {
-        rotate: mascotHaloSpin.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['0deg', '360deg'],
-        }),
-      },
-    ],
-  }), [mascotHaloSpin]);
 
   const { sparkTopStyle, sparkRightStyle, sparkLeftStyle } = useMemo(() => {
     const arcOpacity = tapSpark.interpolate({
@@ -530,6 +481,14 @@ export function HomeSurface({
             ? 'paper'
             : 'peachSoft';
 
+  const auraTone: SpotlightAuraTone = galleryError
+    ? 'rose'
+    : hasPendingAnalysis || activeCheer
+      ? 'lime'
+      : quotaExhausted || !isSolve
+        ? 'peach'
+        : 'violet';
+
   const greetingTitle = galleryError
     ? 'Hopa! Încearcă alta.'
     : activeCheer
@@ -564,8 +523,8 @@ export function HomeSurface({
 
   const greetingBody = compact ? compactGreetingBody : fullGreetingBody;
 
-  const mascotSize = compact ? 74 : isVeryNarrow ? 90 : 102;
-  const mascotHaloSize = compact ? 66 : isVeryNarrow ? 78 : 88;
+  const mascotSize = compact ? 74 : isVeryNarrow ? 90 : 104;
+  const spotlightSize = compact ? 72 : isVeryNarrow ? 88 : 100;
   const cornerColor = isSolve || hasPendingAnalysis ? colors.lime : colors.gold;
   const energyPercent = energyRatio !== null
     ? `${Math.round((energyRatio > 0 ? Math.max(0.08, energyRatio) : 0) * 100)}%` as `${number}%`
@@ -576,23 +535,19 @@ export function HomeSurface({
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top }]}>
-      <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={styles.homeScene}>
         <View style={[styles.page, { width: contentWidth }, compact && styles.pageCompact]}>
-          <Enter ready={motionReady} delay={25} distance={14} scaleFrom={0.96} style={[styles.header, compact && styles.headerCompact]}>
+          <Enter ready={motionReady} delay={20} distance={12} scaleFrom={0.97} style={[styles.header, compact && styles.headerCompact]}>
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Profu’ de mate"
-                depth={3}
-                radius={compact || isVeryNarrow ? 11 : 14}
-                shadowColor={colors.ink}
+                pressedScale={0.92}
                 haptic="selection"
                 onPress={triggerTutorFromHeader}
                 contentStyle={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}
               >
-                <View pointerEvents="none" style={styles.logoShine} />
                 <Image
                   accessible={false}
                   source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
@@ -600,22 +555,24 @@ export function HomeSurface({
                   style={[styles.logoImage, (compact || isVeryNarrow) && styles.logoImageCompact]}
                 />
               </PressableScale>
-              <Text
-                maxFontSizeMultiplier={1.3}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.68}
-                style={[styles.brand, (compact || isVeryNarrow) && styles.brandCompact]}
-              >
-                Profu’ de mate
-              </Text>
+              <View style={styles.brandWordWrap}>
+                <View pointerEvents="none" style={styles.brandHighlight} />
+                <Text
+                  maxFontSizeMultiplier={1.3}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.68}
+                  style={[styles.brand, (compact || isVeryNarrow) && styles.brandCompact]}
+                >
+                  Profu’ <Text style={styles.brandAccent}>de mate</Text>
+                </Text>
+              </View>
             </View>
 
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={allowance.accessibilityLabel}
-              depth={shadows.sm}
-              radius={14}
+              pressedScale={0.95}
               haptic="selection"
               onPress={onAllowance}
               style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
@@ -626,11 +583,10 @@ export function HomeSurface({
                 quotaExhausted && styles.allowancePillExhausted,
               ]}
             >
-              <View pointerEvents="none" style={styles.pillShine} />
               {quotaExhausted ? (
-                <ComicClockIcon size={15} color={colors.ink} accent={colors.peach} />
+                <ComicClockIcon size={14} color={colors.peachDeep} accent={colors.peach} />
               ) : (
-                <MiniGlyph name="spark" size={14} color={colors.ink} />
+                <MiniGlyph name="spark" size={14} color={colors.violetDeep} />
               )}
               <View style={styles.allowanceCopy}>
                 <Text
@@ -678,30 +634,16 @@ export function HomeSurface({
             <IconButton
               label="Deschide setările"
               onPress={onSettings}
-              size={compact ? 38 : 44}
+              size={compact ? 38 : 42}
               style={styles.settingsWrap}
             >
-              <AppIcon name="settings" size={compact ? 28 : 32} />
+              <AppIcon name="settings" size={compact ? 25 : 28} />
             </IconButton>
           </Enter>
 
-          <Enter ready={motionReady} delay={85} distance={18} scaleFrom={0.92} tiltFrom={-2} style={[styles.tutorRow, compact && styles.tutorRowCompact]}>
+          <Enter ready={motionReady} delay={75} distance={14} scaleFrom={0.95} style={[styles.tutorRow, compact && styles.tutorRowCompact]}>
             <View style={[styles.tutorMascotStage, { width: mascotSize + 4, height: mascotSize + 2 }]}>
-              <Animated.View
-                pointerEvents="none"
-                style={[
-                  styles.tutorHalo,
-                  {
-                    width: mascotHaloSize,
-                    height: mascotHaloSize,
-                    borderRadius: mascotHaloSize / 2,
-                  },
-                  (quotaExhausted || !isSolve) && !hasPendingAnalysis && !galleryError && styles.tutorHaloWarm,
-                  (hasPendingAnalysis || activeCheer) && styles.tutorHaloLime,
-                  galleryError && styles.tutorHaloError,
-                  mascotHaloStyle,
-                ]}
-              />
+              <SpotlightAura size={spotlightSize} tone={auraTone} active={motionActive} />
               <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkTop, sparkTopStyle]}>
                 <Text accessible={false} style={styles.tapSparkLime}>✦</Text>
               </Animated.View>
@@ -724,14 +666,14 @@ export function HomeSurface({
               title={greetingTitle}
               body={greetingBody}
               tone={bubbleTone}
-              tail="left"
+              tail="none"
               compact={compact}
               messageKey={`${greetingTitle}:${greetingBody}`}
               onPress={triggerTutorFromHeader}
             />
           </Enter>
 
-          <Enter ready={motionReady} delay={145} distance={16} scaleFrom={0.95}>
+          <Enter ready={motionReady} delay={130} distance={14} scaleFrom={0.96}>
             <SegmentedToggle
               options={modeOptions}
               value={mode}
@@ -742,7 +684,7 @@ export function HomeSurface({
             />
           </Enter>
 
-          <Enter ready={motionReady} delay={205} distance={20} scaleFrom={0.93} style={styles.cameraStageEnter}>
+          <Enter ready={motionReady} delay={185} distance={16} scaleFrom={0.95} style={styles.cameraStageEnter}>
             <Animated.View
               style={[
                 styles.cameraStageShadow,
@@ -751,18 +693,17 @@ export function HomeSurface({
               ]}
             >
               <View style={[styles.cameraStage, compact && styles.cameraStageCompact]}>
-                {/* Base Solve gradient + smoothly crossfaded Check gradient overlay */}
                 <LinearGradient
-                  colors={['#9258FF', '#6D2CEB', '#4B19C0']}
-                  start={{ x: 0.06, y: 0 }}
-                  end={{ x: 0.94, y: 1 }}
+                  colors={['#8D50FF', '#6222E6', '#4212B0']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
                   style={StyleSheet.absoluteFill}
                 />
                 <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, checkGradientStyle]}>
                   <LinearGradient
-                    colors={['#953AE8', '#C63474', '#941E56']}
-                    start={{ x: 0.06, y: 0 }}
-                    end={{ x: 0.94, y: 1 }}
+                    colors={['#9936E4', '#CC2E72', '#89184D']}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 1 }}
                     style={StyleSheet.absoluteFill}
                   />
                 </Animated.View>
@@ -770,25 +711,19 @@ export function HomeSurface({
                 <View pointerEvents="none" style={styles.stageGlowTop} />
                 <View pointerEvents="none" style={styles.stageGlowBottom} />
                 <View pointerEvents="none" style={styles.stageTopShine} />
-                <View pointerEvents="none" style={styles.stageHalftone}>
-                  {HERO_HALFTONE_DOTS.map((dot) => (
-                    <View key={dot} style={styles.stageHalftoneDot} />
-                  ))}
-                </View>
                 <Text accessible={false} style={styles.stageWatermark}>{isSolve ? 'π' : '✓'}</Text>
 
                 <View style={[styles.stageTopRow, compact && styles.stageTopRowCompact]}>
-                  <Chip
-                    label={hasPendingAnalysis ? 'ANALIZĂ ÎN CURS' : isSolve ? 'PAS CU PAS' : 'FIECARE PAS'}
-                    tone={hasPendingAnalysis || !isSolve ? 'gold' : 'lime'}
-                    tilt={-2}
-                  />
-                  <View collapsable={false} style={styles.stageLivePill}>
+                  <View collapsable={false} style={styles.stageStatusPill}>
                     <Animated.View style={sparkStyle}>
                       <Text accessible={false} style={[styles.stageSpark, { color: cornerColor }]}>✦</Text>
                     </Animated.View>
-                    <Text maxFontSizeMultiplier={1.15} style={styles.stageLiveLabel}>
-                      {hasPendingAnalysis ? 'ÎN CURS' : isSolve ? 'MOD FOTO' : 'VERIFICARE'}
+                    <Text maxFontSizeMultiplier={1.15} style={styles.stageStatusLabel}>
+                      {hasPendingAnalysis
+                        ? 'ANALIZĂ ÎN CURS'
+                        : isSolve
+                          ? 'PAS CU PAS · MOD FOTO'
+                          : 'VERIFICARE · FIECARE PAS'}
                     </Text>
                   </View>
                 </View>
@@ -813,7 +748,7 @@ export function HomeSurface({
                     <Animated.View pointerEvents="none" style={[styles.focusMedallion, compact && styles.focusMedallionCompact, medallionAnimated]}>
                       <AppIcon
                         name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'}
-                        size={compact ? 42 : isVeryNarrow ? 54 : 60}
+                        size={compact ? 42 : isVeryNarrow ? 52 : 58}
                       />
                     </Animated.View>
                     <Animated.View pointerEvents="none" style={[styles.scanBeamWrap, beamStyle]}>
@@ -851,7 +786,7 @@ export function HomeSurface({
                   </View>
                 </View>
 
-                <View style={[styles.stageCtaWrap, compact && styles.stageCtaWrapCompact]}>
+                <View style={styles.stageCtaWrap}>
                   <PressableScale
                     accessibilityRole="button"
                     accessibilityLabel={
@@ -863,9 +798,7 @@ export function HomeSurface({
                     }
                     disabled={galleryBusy}
                     dimWhenDisabled={false}
-                    depth={compact ? 4 : shadows.md}
-                    radius={18}
-                    shadowColor={colors.ink}
+                    pressedScale={0.97}
                     haptic="medium"
                     onPress={onCapture}
                     contentStyle={[
@@ -874,10 +807,9 @@ export function HomeSurface({
                       !isSolve && !hasPendingAnalysis && styles.captureCtaCheck,
                     ]}
                   >
-                    <View pointerEvents="none" style={styles.ctaShine} />
                     <Animated.View pointerEvents="none" style={[styles.ctaSweep, ctaSheenStyle]} />
                     <View style={[styles.captureIconBadge, compact && styles.captureIconBadgeCompact]}>
-                      <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 26 : 32} />
+                      <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 25 : 30} />
                     </View>
                     <Text
                       maxFontSizeMultiplier={1.3}
@@ -889,7 +821,7 @@ export function HomeSurface({
                       {hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
                     </Text>
                     <Animated.View style={[styles.captureArrow, compact && styles.captureArrowCompact, arrowStyle]}>
-                      <MiniGlyph name="next" size={compact ? 18 : 21} color={colors.paper} />
+                      <MiniGlyph name="next" size={compact ? 17 : 19} color={colors.paper} />
                     </Animated.View>
                   </PressableScale>
                 </View>
@@ -899,16 +831,14 @@ export function HomeSurface({
 
           <View style={styles.lowerStack}>
             {!hasPendingAnalysis ? (
-              <Enter ready={motionReady} delay={270} distance={16} scaleFrom={0.95} style={[styles.secondaryRow, compact && styles.secondaryRowCompact]}>
+              <Enter ready={motionReady} delay={240} distance={14} scaleFrom={0.96} style={[styles.secondaryRow, compact && styles.secondaryRowCompact]}>
                 <PressableScale
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
                   accessibilityState={{ disabled: galleryBusy, busy: galleryBusy }}
                   disabled={galleryBusy}
                   dimWhenDisabled={false}
-                  depth={compact ? 4 : shadows.md}
-                  radius={20}
-                  shadowColor={colors.ink}
+                  pressedScale={0.965}
                   haptic="light"
                   onPress={onGallery}
                   style={styles.secondaryTileWrap}
@@ -919,9 +849,8 @@ export function HomeSurface({
                     compact && styles.secondaryTileCompact,
                   ]}
                 >
-                  <View pointerEvents="none" style={styles.tileShine} />
-                  <View style={[styles.tileIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={compact || isVeryNarrow ? 26 : 34} />}
+                  <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                    {galleryBusy ? <PlayfulLoader micro /> : <AppIcon name="gallery" size={compact || isVeryNarrow ? 25 : 32} />}
                   </View>
                   <View style={styles.tileCopy}>
                     <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
@@ -933,11 +862,6 @@ export function HomeSurface({
                       </Text>
                     ) : null}
                   </View>
-                  {!compact && !isVeryNarrow ? (
-                    <View pointerEvents="none" style={[styles.tileChevron, styles.galleryChevron]}>
-                      <MiniGlyph name="next" size={13} color={colors.ink} />
-                    </View>
-                  ) : null}
                 </PressableScale>
 
                 <PressableScale
@@ -946,9 +870,7 @@ export function HomeSurface({
                   accessibilityState={{ disabled: galleryBusy }}
                   disabled={galleryBusy}
                   dimWhenDisabled={false}
-                  depth={compact ? 4 : shadows.md}
-                  radius={20}
-                  shadowColor={colors.ink}
+                  pressedScale={0.965}
                   haptic="light"
                   onPress={onMath}
                   style={styles.secondaryTileWrap}
@@ -959,9 +881,8 @@ export function HomeSurface({
                     compact && styles.secondaryTileCompact,
                   ]}
                 >
-                  <View pointerEvents="none" style={styles.tileShine} />
                   <View style={[styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    <AppIcon name="practice" size={compact || isVeryNarrow ? 26 : 34} />
+                    <AppIcon name="practice" size={compact || isVeryNarrow ? 25 : 32} />
                   </View>
                   <View style={styles.tileCopy}>
                     <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
@@ -973,70 +894,42 @@ export function HomeSurface({
                       </Text>
                     ) : null}
                   </View>
-                  {!compact && !isVeryNarrow ? (
-                    <View pointerEvents="none" style={[styles.tileChevron, styles.mathChevron]}>
-                      <MiniGlyph name="next" size={13} color={colors.ink} />
-                    </View>
-                  ) : null}
                 </PressableScale>
               </Enter>
             ) : null}
 
-            <Enter ready={motionReady} delay={330} distance={15} scaleFrom={0.96} style={styles.notebookGroup}>
+            <Enter ready={motionReady} delay={295} distance={12} scaleFrom={0.97} style={styles.notebookGroup}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
-                depth={compact ? 4 : shadows.md}
-                radius={20}
-                shadowColor={colors.ink}
+                pressedScale={0.975}
                 haptic="selection"
                 onPress={onNotebook}
-                style={styles.notebookWrap}
                 contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
               >
-                <View pointerEvents="none" style={styles.notebookShine} />
-                <View pointerEvents="none" style={styles.notebookBookmark}>
-                  <View style={styles.notebookBookmarkNotch} />
-                </View>
-                <View pointerEvents="none" style={styles.notebookLines}>
-                  <View style={styles.notebookLine} />
-                  <View style={styles.notebookLine} />
-                </View>
-                <View style={styles.notebookSpine}>
-                  <View style={styles.spineRing} />
-                  <View style={styles.spineRing} />
-                  {!compact ? <View style={styles.spineRing} /> : null}
-                </View>
+                <View style={styles.notebookSpine} />
                 <View style={[styles.notebookIcon, compact && styles.notebookIconCompact]}>
-                  <AppIcon name="notebook" size={compact ? 34 : 42} />
+                  <AppIcon name="notebook" size={compact ? 32 : 38} />
                 </View>
                 <View style={styles.notebookCopy}>
                   <View style={styles.notebookHeaderRow}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookKicker}>
-                      CAIETUL MEU
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
+                      Caietul meu
                     </Text>
-                    {savedCountLabel && !compact ? (
+                    {savedCountLabel ? (
                       <View collapsable={false} style={styles.countBadge}>
                         <Text maxFontSizeMultiplier={1.1} style={styles.countBadgeText}>{savedCountLabel}</Text>
                       </View>
                     ) : null}
-                    {latestLessonTitle && !compact && !isVeryNarrow ? (
-                      <View collapsable={false} style={styles.latestBadge}>
-                        <Text maxFontSizeMultiplier={1.1} style={styles.latestBadgeText}>ULTIMA</Text>
-                      </View>
-                    ) : null}
                   </View>
-                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
-                    {latestLessonTitle ? 'Revezi ce ai lucrat' : 'Lecții salvate'}
-                  </Text>
                   {!compact ? (
                     <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
-                      {latestLessonTitle ? latestLessonTitle : 'Explicațiile tale, disponibile și offline'}
+                      {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate, disponibile și offline'}
                     </Text>
                   ) : null}
                 </View>
                 <View style={[styles.notebookArrow, compact && styles.notebookArrowCompact]}>
-                  <MiniGlyph name="next" size={compact ? 18 : 20} color={colors.paper} />
+                  <MiniGlyph name="next" size={compact ? 17 : 19} color={colors.violetDeep} />
                 </View>
               </PressableScale>
 
@@ -1057,7 +950,7 @@ export function HomeSurface({
                       onPress={onDismissGuide}
                       style={styles.guideDismiss}
                     >
-                      <MiniGlyph name="close" size={16} color={colors.violetDeep} />
+                      <MiniGlyph name="close" size={14} color={colors.violetDeep} />
                     </Pressable>
                   ) : null}
                 </View>
@@ -1068,244 +961,187 @@ export function HomeSurface({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, overflow: 'hidden', backgroundColor: colors.canvas },
   homeScene: { flex: 1, overflow: 'hidden' },
-  page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 10, paddingTop: 4, paddingBottom: 8 },
+  page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 11, paddingTop: 4, paddingBottom: 8 },
   pageCompact: { gap: 7, paddingTop: 2 },
 
-  // Header
+  // Airy floating top bar
   header: { height: 58, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCompact: { height: 44 },
-  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandRowNarrow: { gap: 7 },
+  brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandRowNarrow: { gap: 6 },
   logo: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: colors.lime,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(124, 60, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    transform: [{ rotate: '-3deg' }],
   },
-  logoCompact: { width: 36, height: 36, borderRadius: 11 },
-  logoShine: {
+  logoCompact: { width: 34, height: 34, borderRadius: 17 },
+  logoImage: { width: 34, height: 34 },
+  logoImageCompact: { width: 28, height: 28 },
+  brandWordWrap: { flex: 1, minWidth: 0, justifyContent: 'center', position: 'relative' },
+  brandHighlight: {
     position: 'absolute',
-    top: 2,
-    left: 6,
-    right: 6,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
+    left: 2,
+    bottom: 2,
+    width: 78,
+    height: 7,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(216, 255, 62, 0.65)',
   },
-  logoImage: { width: 40, height: 40 },
-  logoImageCompact: { width: 32, height: 32 },
-  brand: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 21, lineHeight: 25 },
+  brand: { fontFamily: fonts.display, color: colors.ink, fontSize: 21, lineHeight: 25, letterSpacing: -0.3 },
+  brandAccent: { color: colors.violet },
   brandCompact: { fontSize: 17, lineHeight: 21 },
 
   allowanceWrap: { marginLeft: 8 },
   allowanceWrapNarrow: { marginLeft: 6 },
   allowancePill: {
-    minWidth: 104,
-    maxWidth: 132,
+    minWidth: 102,
+    maxWidth: 134,
     height: 42,
-    borderRadius: 14,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
+    gap: 6,
+    paddingHorizontal: 12,
     paddingBottom: 2,
     overflow: 'hidden',
     position: 'relative',
   },
-  allowancePillCompact: { minWidth: 92, height: 36, paddingHorizontal: 7 },
-  allowancePillPremium: { backgroundColor: colors.lime },
-  allowancePillExhausted: { backgroundColor: colors.peachSoft },
-  pillShine: {
-    position: 'absolute',
-    top: 2,
-    left: 8,
-    right: 8,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
-  },
+  allowancePillCompact: { minWidth: 90, height: 36, paddingHorizontal: 9 },
+  allowancePillPremium: { backgroundColor: '#F4FFE0', borderColor: 'rgba(86, 120, 0, 0.2)' },
+  allowancePillExhausted: { backgroundColor: '#FFF2EC', borderColor: 'rgba(255, 141, 107, 0.35)' },
   energyTrack: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 3.5,
-    backgroundColor: 'rgba(23, 19, 55, 0.12)',
+    left: 12,
+    right: 12,
+    bottom: 2.5,
+    height: 2.5,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(124, 60, 255, 0.1)',
+    overflow: 'hidden',
   },
   energyFill: {
     height: '100%',
     backgroundColor: colors.violet,
-    borderTopRightRadius: 2,
+    borderRadius: radii.pill,
   },
-  energyFillPremium: {
-    backgroundColor: colors.ink,
-  },
-  energyFillEmpty: {
-    backgroundColor: colors.peach,
-  },
+  energyFillPremium: { backgroundColor: colors.limeDeep },
+  energyFillEmpty: { backgroundColor: colors.peach },
   allowanceCopy: { flexShrink: 1, minWidth: 0, alignItems: 'flex-start' },
   allowanceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 13.5, includeFontPadding: false },
-  allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9.5, letterSpacing: 0.45, lineHeight: 11.5, includeFontPadding: false },
+  allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9.5, letterSpacing: 0.4, lineHeight: 11.5, includeFontPadding: false },
   settingsWrap: { marginLeft: 8 },
 
-  // Tutor row (Owl on dashed halo stage + Speech Bubble)
-  tutorRow: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 2 },
-  tutorRowCompact: { gap: 2 },
+  // Companion spotlight row
+  tutorRow: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tutorRowCompact: { gap: 6 },
   tutorMascotStage: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     flexShrink: 0,
   },
-  tutorHalo: {
-    position: 'absolute',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(124, 60, 255, 0.36)',
-    backgroundColor: 'rgba(236, 226, 255, 0.56)',
-  },
-  tutorHaloWarm: {
-    borderColor: 'rgba(255, 141, 107, 0.55)',
-    backgroundColor: 'rgba(255, 228, 218, 0.62)',
-  },
-  tutorHaloLime: {
-    borderColor: 'rgba(86, 120, 0, 0.4)',
-    backgroundColor: 'rgba(240, 255, 186, 0.72)',
-  },
-  tutorHaloError: {
-    borderColor: 'rgba(255, 87, 109, 0.55)',
-    backgroundColor: 'rgba(255, 224, 229, 0.68)',
-  },
-  tapSpark: {
-    position: 'absolute',
-    zIndex: 8,
-  },
+  tapSpark: { position: 'absolute', zIndex: 8 },
   tapSparkTop: { top: 8, left: '42%' },
   tapSparkRight: { top: 18, right: 6 },
   tapSparkLeft: { bottom: 26, left: 6 },
-  tapSparkLime: { fontFamily: fonts.display, fontSize: 16, color: colors.violet, textShadowColor: colors.lime, textShadowRadius: 0 },
+  tapSparkLime: { fontFamily: fonts.display, fontSize: 16, color: colors.violet },
   tapSparkGold: { fontFamily: fonts.display, fontSize: 14, color: colors.peach },
   tapSparkCyan: { fontFamily: fonts.display, fontSize: 13, color: colors.cyanDeep },
 
-  // Hero camera stage
+  // Iconic luminous hero capture stage
   cameraStageEnter: { flex: 1, minHeight: 0, width: '100%' },
-  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: radii.xl, backgroundColor: colors.violetShadow, paddingBottom: shadows.lg },
-  cameraStageShadowCheck: {
-    backgroundColor: colors.berryDeep,
-  },
+  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: 30, elevation: 6, shadowColor: '#4B1FB8', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.22, shadowRadius: 18 },
+  cameraStageShadowCheck: { shadowColor: '#8E1E4E' },
   cameraStage: {
     flex: 1,
     minHeight: 0,
     overflow: 'hidden',
-    borderWidth: borders.thick,
-    borderColor: colors.ink,
-    borderRadius: radii.xl - 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 30,
     backgroundColor: colors.violet,
     justifyContent: 'space-between',
-    padding: 13,
+    padding: 16,
     position: 'relative',
   },
-  cameraStageCompact: {
-    padding: 10,
-  },
+  cameraStageCompact: { padding: 12 },
   stageGlowTop: {
     position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -110,
-    right: -60,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    top: -120,
+    right: -70,
     backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   stageGlowBottom: {
     position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    bottom: -70,
-    left: -50,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    bottom: -90,
+    left: -55,
     backgroundColor: 'rgba(23, 19, 55, 0.22)',
   },
   stageTopShine: {
     position: 'absolute',
-    top: 4,
-    left: 20,
-    right: 20,
-    height: 6,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.24)',
-  },
-  stageHalftone: {
-    position: 'absolute',
-    top: 52,
-    right: 14,
-    width: 28,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-    opacity: 0.22,
-  },
-  stageHalftoneDot: {
-    width: 4.5,
-    height: 4.5,
-    borderRadius: 3,
-    backgroundColor: colors.paper,
+    top: 0,
+    left: 26,
+    right: 26,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   stageWatermark: {
     position: 'absolute',
-    right: 12,
-    bottom: 58,
+    right: 16,
+    bottom: 66,
     fontFamily: fonts.display,
-    fontSize: 78,
-    lineHeight: 82,
-    color: 'rgba(255, 255, 255, 0.08)',
+    fontSize: 80,
+    lineHeight: 84,
+    color: 'rgba(255, 255, 255, 0.075)',
     transform: [{ rotate: '12deg' }],
   },
   stageTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     zIndex: 2,
   },
-  stageTopRowCompact: {
-    marginBottom: 2,
-  },
-  stageLivePill: {
+  stageTopRowCompact: { marginBottom: 2 },
+  stageStatusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 11,
-    borderWidth: 1.25,
-    borderColor: 'rgba(255, 255, 255, 0.24)',
-    backgroundColor: 'rgba(18, 12, 46, 0.36)',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(18, 12, 46, 0.26)',
   },
-  stageLiveLabel: {
+  stageStatusLabel: {
     fontFamily: fonts.bodyBold,
-    fontSize: 9.5,
-    letterSpacing: 0.75,
+    fontSize: 10,
+    letterSpacing: 0.85,
     color: colors.paper,
     includeFontPadding: false,
   },
   stageSpark: {
     fontFamily: fonts.display,
-    fontSize: 13.5,
+    fontSize: 13,
     lineHeight: 15,
   },
   stageContent: {
@@ -1313,60 +1149,48 @@ const styles = StyleSheet.create({
     minHeight: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
-    paddingHorizontal: 4,
+    gap: 16,
+    paddingHorizontal: 2,
     zIndex: 2,
   },
-  stageContentCompact: {
-    gap: 10,
-    paddingHorizontal: 2,
-  },
+  stageContentCompact: { gap: 11, paddingHorizontal: 1 },
   focusFrame: {
-    width: 98,
-    height: 98,
+    width: 96,
+    height: 96,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
-  focusFrameCompact: {
-    width: 72,
-    height: 72,
-  },
-  focusFramePressed: {
-    transform: [{ scale: 0.94 }],
-  },
+  focusFrameCompact: { width: 72, height: 72 },
+  focusFramePressed: { transform: [{ scale: 0.94 }] },
   focusGlass: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    bottom: 8,
-    left: 8,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    top: 7,
+    right: 7,
+    bottom: 7,
+    left: 7,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   focusMedallion: {
-    width: 70,
-    height: 70,
+    width: 68,
+    height: 68,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  focusMedallionCompact: {
-    width: 50,
-    height: 50,
-    borderRadius: 14,
-  },
-  focusCorner: { position: 'absolute', width: 24, height: 24 },
-  focusCornerTL: { left: 0, top: 0, borderLeftWidth: 4.5, borderTopWidth: 4.5, borderTopLeftRadius: 9 },
-  focusCornerTR: { right: 0, top: 0, borderRightWidth: 4.5, borderTopWidth: 4.5, borderTopRightRadius: 9 },
-  focusCornerBL: { left: 0, bottom: 0, borderLeftWidth: 4.5, borderBottomWidth: 4.5, borderBottomLeftRadius: 9 },
-  focusCornerBR: { right: 0, bottom: 0, borderRightWidth: 4.5, borderBottomWidth: 4.5, borderBottomRightRadius: 9 },
+  focusMedallionCompact: { width: 50, height: 50, borderRadius: 14 },
+  focusCorner: { position: 'absolute', width: 22, height: 22 },
+  focusCornerTL: { left: 0, top: 0, borderLeftWidth: 3.5, borderTopWidth: 3.5, borderTopLeftRadius: 10 },
+  focusCornerTR: { right: 0, top: 0, borderRightWidth: 3.5, borderTopWidth: 3.5, borderTopRightRadius: 10 },
+  focusCornerBL: { left: 0, bottom: 0, borderLeftWidth: 3.5, borderBottomWidth: 3.5, borderBottomLeftRadius: 10 },
+  focusCornerBR: { right: 0, bottom: 0, borderRightWidth: 3.5, borderBottomWidth: 3.5, borderBottomRightRadius: 10 },
   scanBeamWrap: {
     position: 'absolute',
     left: 10,
     right: 10,
-    height: 14,
+    height: 12,
     justifyContent: 'center',
   },
   scanBeamHalo: {
@@ -1375,13 +1199,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    borderRadius: 7,
+    borderRadius: 6,
   },
-  scanBeam: {
-    width: '100%',
-    height: 3.5,
-    borderRadius: 3,
-  },
+  scanBeam: { width: '100%', height: 3, borderRadius: 3 },
   stageCopy: { flex: 1, minWidth: 0 },
   stageTitle: {
     fontFamily: fonts.display,
@@ -1394,289 +1214,159 @@ const styles = StyleSheet.create({
   stageNote: {
     marginTop: 5,
     fontFamily: fonts.bodyMedium,
-    color: '#F2ECFF',
+    color: 'rgba(244, 238, 255, 0.9)',
     fontSize: 13,
     lineHeight: 17.5,
   },
   stageNoteCompact: { marginTop: 2, fontSize: 11.5, lineHeight: 15 },
 
   stageCtaWrap: { zIndex: 3 },
-  stageCtaWrapCompact: {},
   captureCta: {
-    height: 58,
-    borderRadius: 18,
-    borderWidth: borders.thick,
-    borderColor: colors.ink,
+    height: 56,
+    borderRadius: radii.pill,
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    gap: 10,
+    gap: 11,
     overflow: 'hidden',
   },
-  captureCtaCompact: {
-    height: 48,
-    borderRadius: 15,
-    paddingHorizontal: 8,
-    gap: 8,
-  },
-  captureCtaCheck: {
-    backgroundColor: '#FFB86B',
-  },
-  ctaShine: {
-    position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 6,
-    borderRadius: 5,
-    backgroundColor: colors.shine,
-  },
+  captureCtaCompact: { height: 46, paddingHorizontal: 8, gap: 8 },
+  captureCtaCheck: { backgroundColor: '#FFC26E' },
   ctaSweep: {
     position: 'absolute',
     top: -10,
     bottom: -10,
     width: 46,
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255, 255, 255, 0.56)',
   },
   captureIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  captureIconBadgeCompact: { width: 32, height: 32, borderRadius: 10 },
-  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 20, lineHeight: 23 },
-  captureCtaTextCompact: { fontSize: 17, lineHeight: 20 },
+  captureIconBadgeCompact: { width: 32, height: 32, borderRadius: 16 },
+  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 22 },
+  captureCtaTextCompact: { fontSize: 16.5, lineHeight: 20 },
   captureArrow: {
     width: 36,
     height: 36,
-    borderRadius: 12,
+    borderRadius: 18,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  captureArrowCompact: { width: 30, height: 30, borderRadius: 10 },
+  captureArrowCompact: { width: 30, height: 30, borderRadius: 15 },
 
-  // Secondary actions + Notebook shelf
-  lowerStack: { flexShrink: 0, gap: 9 },
+  // Refined studio dock
+  lowerStack: { flexShrink: 0, gap: 10 },
   secondaryRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
   secondaryRowCompact: { gap: 8 },
   secondaryTileWrap: { flex: 1, minWidth: 0 },
   secondaryTile: {
-    height: 68,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
+    height: 62,
+    borderRadius: 22,
+    borderWidth: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 11,
-    gap: 9,
+    gap: 10,
     overflow: 'hidden',
   },
   secondaryTileNarrow: { paddingHorizontal: 9, gap: 8 },
-  secondaryTileCompact: { height: 52, borderRadius: 16, paddingHorizontal: 8, gap: 7 },
-  galleryTile: { backgroundColor: colors.cyanSoft },
-  mathTile: { backgroundColor: colors.goldSoft },
-  tileShine: {
-    position: 'absolute',
-    top: 3,
-    left: 12,
-    right: 12,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
-  },
+  secondaryTileCompact: { height: 50, borderRadius: 18, paddingHorizontal: 8, gap: 7 },
+  galleryTile: { backgroundColor: 'rgba(241, 253, 255, 0.94)', borderColor: 'rgba(67, 214, 230, 0.28)' },
+  mathTile: { backgroundColor: 'rgba(255, 252, 238, 0.94)', borderColor: 'rgba(255, 212, 71, 0.36)' },
   tileIconBadge: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 14,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
-  mathIconBadge: {
-    transform: [{ rotate: '3deg' }],
-  },
+  galleryIconBadge: { backgroundColor: '#DCF7FB' },
+  mathIconBadge: { backgroundColor: '#FFF0BD' },
   tileIconBadgeCompact: { width: 34, height: 34, borderRadius: 11 },
   tileCopy: { flex: 1, minWidth: 0 },
-  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5, lineHeight: 20 },
+  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
   tileTitleCompact: { fontSize: 15, lineHeight: 18 },
   tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
-  tileChevron: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  galleryChevron: { backgroundColor: colors.cyan },
-  mathChevron: { backgroundColor: colors.gold },
 
   notebookGroup: { gap: 7 },
-  notebookWrap: {},
   notebookShelf: {
-    minHeight: 74,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    minHeight: 68,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingRight: 11,
+    paddingRight: 13,
     gap: 11,
     overflow: 'hidden',
     position: 'relative',
   },
-  notebookShelfCompact: { minHeight: 54, borderRadius: 16, paddingRight: 9, gap: 9 },
-  notebookShine: {
-    position: 'absolute',
-    top: 3,
-    left: 22,
-    right: 14,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
-  },
-  notebookBookmark: {
-    position: 'absolute',
-    top: -1,
-    right: 54,
-    width: 14,
-    height: 16,
-    backgroundColor: colors.peach,
-    borderLeftWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderBottomWidth: 1.5,
-    borderColor: colors.ink,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  notebookBookmarkNotch: {
-    width: 6,
-    height: 4,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    backgroundColor: colors.paper,
-    marginBottom: -1,
-  },
-  notebookLines: {
-    position: 'absolute',
-    left: 22,
-    right: 14,
-    top: 22,
-    bottom: 16,
-    justifyContent: 'space-evenly',
-    opacity: 0.4,
-  },
-  notebookLine: {
-    height: 1,
-    backgroundColor: '#EAE1FA',
-  },
+  notebookShelfCompact: { minHeight: 52, borderRadius: 18, paddingRight: 10, gap: 9 },
   notebookSpine: {
-    width: 16,
+    width: 5,
     alignSelf: 'stretch',
-    backgroundColor: colors.cyan,
-    borderRightWidth: borders.thin,
-    borderRightColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingVertical: 10,
-  },
-  spineRing: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    backgroundColor: colors.violet,
   },
   notebookIcon: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 15,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
+    backgroundColor: '#F3FFD2',
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-3deg' }],
   },
-  notebookIconCompact: { width: 38, height: 38, borderRadius: 12 },
+  notebookIconCompact: { width: 36, height: 36, borderRadius: 12 },
   notebookCopy: { flex: 1, minWidth: 0, paddingVertical: 8 },
-  notebookHeaderRow: { minHeight: 20, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  notebookKicker: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, letterSpacing: 0.85 },
+  notebookHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  notebookTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5, lineHeight: 21 },
+  notebookTitleCompact: { fontSize: 15.5, lineHeight: 19 },
   countBadge: {
     minHeight: 19,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countBadgeText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9, lineHeight: 12, paddingHorizontal: 1, includeFontPadding: false },
-  latestBadge: {
-    minHeight: 19,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.ink,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '-2deg' }],
-  },
-  latestBadgeText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 9, lineHeight: 12, letterSpacing: 0.4, paddingHorizontal: 1, includeFontPadding: false },
-  notebookTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20, marginTop: 1 },
-  notebookTitleCompact: { fontSize: 15, lineHeight: 18 },
-  notebookNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 15 },
+  countBadgeText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 10, lineHeight: 12, includeFontPadding: false },
+  notebookNote: { marginTop: 1.5, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 15.5 },
   notebookArrow: {
     width: 34,
     height: 34,
-    borderRadius: 12,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.violet,
+    borderRadius: 17,
+    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  notebookArrowCompact: { width: 30, height: 30, borderRadius: 10 },
+  notebookArrowCompact: { width: 28, height: 28, borderRadius: 14 },
 
   guidePill: {
-    minHeight: 34,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.line,
-    backgroundColor: colors.paperTint,
+    minHeight: 32,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(124, 60, 255, 0.065)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: 13,
-    paddingRight: 8,
+    paddingLeft: 14,
+    paddingRight: 6,
     gap: 8,
   },
   guideText: { flex: 1, fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5, lineHeight: 15 },
   guideDismiss: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    backgroundColor: colors.violetSoft,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
   },

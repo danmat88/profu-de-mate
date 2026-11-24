@@ -150,7 +150,7 @@ test('heavy photo routes paint first without stacking duplicate transitions', ()
   assert.match(appSource, /name="Review"[^>]*options=\{\{[^}]*animation: reducedMotion \? 'none' : 'fade'/);
   assert.match(appSource, /name="Capture"[^>]*animation: reducedMotion \? 'none' : 'fade_from_bottom'/);
   assert.match(appSource, /name="Processing"[^>]*animation: reducedMotion \? 'none' : 'fade'/);
-  assert.match(appSource, /name="Lesson"[\s\S]*route\.params\?\.source === 'notebook' \? 'ios_from_right' : 'fade'/);
+  assert.match(appSource, /name="Lesson"[\s\S]*route\.params\?\.source === 'notebook' \? 'default' : 'fade'/);
   assert.doesNotMatch(cropSource, /accessibilityViewIsModal style=\{\[styles\.screen, \{\s*opacity:/);
   assert.match(cropSource, /<View accessibilityViewIsModal style=\{styles\.screen\}>/);
   assert.doesNotMatch(homeSource, /exitCurtain|portalBlade|portalSeam/);

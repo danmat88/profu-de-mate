@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { borders, colors, radii, shadows } from '../theme';
+import { borders, colors, radii } from '../theme';
 
 export type ComicCardTone =
   | 'paper'
@@ -15,29 +15,29 @@ export type ComicCardTone =
   | 'ink';
 
 const fills: Record<ComicCardTone, string> = {
-  paper: colors.paper,
+  paper: 'rgba(255, 255, 255, 0.94)',
   paperTint: colors.paperTint,
   violet: colors.violet,
-  violetSoft: colors.violetSoft,
+  violetSoft: '#F3ECFF',
   lime: colors.lime,
-  limeSoft: colors.limeSoft,
-  peachSoft: colors.peachSoft,
-  cyanSoft: colors.cyanSoft,
-  goldSoft: colors.goldSoft,
-  ink: colors.ink,
+  limeSoft: '#F4FFD8',
+  peachSoft: '#FFF3EE',
+  cyanSoft: '#EEFBFD',
+  goldSoft: '#FFF9E3',
+  ink: colors.surfaceDarkCard,
 };
 
-const defaultShadows: Record<ComicCardTone, string> = {
-  paper: colors.ink,
-  paperTint: colors.ink,
-  violet: colors.violetShadow,
-  violetSoft: colors.ink,
-  lime: colors.ink,
-  limeSoft: colors.ink,
-  peachSoft: colors.ink,
-  cyanSoft: colors.ink,
-  goldSoft: colors.ink,
-  ink: '#09061B',
+const borderTones: Record<ComicCardTone, string> = {
+  paper: 'rgba(124, 60, 255, 0.09)',
+  paperTint: 'rgba(124, 60, 255, 0.12)',
+  violet: 'rgba(255, 255, 255, 0.22)',
+  violetSoft: 'rgba(124, 60, 255, 0.14)',
+  lime: 'rgba(86, 120, 0, 0.16)',
+  limeSoft: 'rgba(86, 120, 0, 0.15)',
+  peachSoft: 'rgba(179, 59, 34, 0.14)',
+  cyanSoft: 'rgba(18, 125, 140, 0.14)',
+  goldSoft: 'rgba(145, 108, 0, 0.15)',
+  ink: colors.borderDark,
 };
 
 type Props = {
@@ -52,42 +52,36 @@ type Props = {
   contentStyle?: StyleProp<ViewStyle>;
 };
 
-/** Unified comic card with thick ink outline, extruded base, and optional cel-highlight. */
+/**
+ * Airy frosted studio card matching LaunchSplash surfaces with whisper-thin
+ * borders, crisp specular top glint, and zero Android elevation overdraw.
+ */
 export function ComicCard({
   children,
   tone = 'paper',
-  depth = shadows.md,
   radius = radii.lg,
-  borderWidth = borders.regular,
-  shadowColor,
+  borderWidth = borders.thin,
   shine = false,
   style,
   contentStyle,
 }: Props) {
-  const baseColor = shadowColor ?? defaultShadows[tone];
+  const effectiveBorder = Math.min(borderWidth, 1.25);
+
   return (
-    <View style={[styles.wrap, depth > 0 && { paddingBottom: depth }, style]}>
-      {depth > 0 ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.shadow,
-            { top: depth, borderRadius: radius, backgroundColor: baseColor },
-          ]}
-        />
-      ) : null}
+    <View style={[styles.wrap, style]}>
       <View
         style={[
           styles.face,
           {
             borderRadius: radius,
-            borderWidth,
+            borderWidth: effectiveBorder,
+            borderColor: borderTones[tone],
             backgroundColor: fills[tone],
           },
           contentStyle,
         ]}
       >
-        {shine ? <View pointerEvents="none" style={[styles.shine, { borderRadius: Math.max(4, radius - 6) }]} /> : null}
+        {shine ? <View pointerEvents="none" style={[styles.shine, { borderRadius: Math.max(4, radius - 4) }]} /> : null}
         {children}
       </View>
     </View>
@@ -96,18 +90,16 @@ export function ComicCard({
 
 const styles = StyleSheet.create({
   wrap: { position: 'relative', minWidth: 0 },
-  shadow: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   face: {
-    borderColor: colors.ink,
     overflow: 'hidden',
     position: 'relative',
   },
   shine: {
     position: 'absolute',
-    top: 3,
-    left: 10,
-    right: 10,
-    height: 6,
-    backgroundColor: colors.shine,
+    top: 0,
+    left: 18,
+    right: 18,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.76)',
   },
 });

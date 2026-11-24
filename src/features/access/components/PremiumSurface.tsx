@@ -1,19 +1,12 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
+import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
-import Animated, {
-  Easing,
-  FadeInDown,
-  FadeOutDown,
-  LinearTransition,
-} from 'react-native-reanimated';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
-import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
-import { borders, colors, fonts, radii, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { CommercialAccess } from '../../../shared/types';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
@@ -22,6 +15,7 @@ import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
+import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { GoogleAccountButton } from '../../account/components/GoogleAccountButton';
 import type { PremiumOffer } from '../services/purchases';
@@ -66,49 +60,49 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
   const annual = period === 'annual';
 
   return (
-    <View style={[styles.planShadow, selected && styles.planShadowSelected]}>
-      <Pressable
-        accessibilityRole="radio"
-        accessibilityLabel={`${annual ? 'Plan anual' : 'Plan lunar'}. ${plan?.product.priceString ?? 'Preț indisponibil momentan'}`}
-        accessibilityState={{ checked: selected, disabled }}
-        disabled={disabled}
-        onPress={() => {
-          Haptics.selection();
-          onSelect();
-        }}
-        style={({ pressed }) => [styles.plan, selected && styles.planSelected, pressed && styles.pressed]}
-      >
-        {selected ? <View pointerEvents="none" style={styles.planShine} /> : null}
-        <View style={[styles.radio, selected && styles.radioSelected]}>
-          {selected ? <MiniGlyph name="check" size={14} color={colors.ink} /> : null}
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={`${annual ? 'Plan anual' : 'Plan lunar'}. ${plan?.product.priceString ?? 'Preț indisponibil momentan'}`}
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
+      onPress={() => {
+        Haptics.selection();
+        onSelect();
+      }}
+      style={({ pressed }) => [styles.plan, selected && styles.planSelected, pressed && styles.pressed]}
+    >
+      <View style={[styles.radio, selected && styles.radioSelected]}>
+        {selected ? <MiniGlyph name="check" size={14} color={colors.ink} /> : null}
+      </View>
+      <View style={styles.planCopy}>
+        <View style={styles.planTitleRow}>
+          <Text style={styles.planTitle}>{annual ? 'Anual' : 'Lunar'}</Text>
+          {annual ? <View collapsable={false} style={styles.bestBadge}><Text style={styles.bestBadgeText}>RECOMANDAT</Text></View> : null}
         </View>
-        <View style={styles.planCopy}>
-          <View style={styles.planTitleRow}>
-            <Text style={styles.planTitle}>{annual ? 'Anual' : 'Lunar'}</Text>
-            {annual ? <View collapsable={false} style={styles.bestBadge}><Text style={styles.bestBadgeText}>RECOMANDAT</Text></View> : null}
-          </View>
-          <Text style={styles.planNote}>
-            {annual
-              ? plan?.product.pricePerMonthString ? `${plan.product.pricePerMonthString} / lună, facturat anual` : 'Un an întreg de practică'
-              : 'Se reînnoiește lunar'}
-          </Text>
-        </View>
-        <View style={styles.priceCopy}>
-          <Text style={[styles.price, !plan && styles.pricePending]}>
-            {plan?.product.priceString ?? 'Preț în Google Play'}
-          </Text>
-          {plan ? <Text style={styles.planPeriod}>{annual ? '/ an' : '/ lună'}</Text> : null}
-        </View>
-      </Pressable>
-    </View>
+        <Text style={styles.planNote}>
+          {annual
+            ? plan?.product.pricePerMonthString ? `${plan.product.pricePerMonthString} / lună, facturat anual` : 'Un an întreg de practică'
+            : 'Se reînnoiește lunar'}
+        </Text>
+      </View>
+      <View style={styles.priceCopy}>
+        <Text style={[styles.price, !plan && styles.pricePending]}>
+          {plan?.product.priceString ?? 'Preț în Google Play'}
+        </Text>
+        {plan ? <Text style={styles.planPeriod}>{annual ? '/ an' : '/ lună'}</Text> : null}
+      </View>
+    </Pressable>
   );
 }
 
-export function PremiumSurface(props: Props) {
+/**
+ * Flagship Premium upgrade surface with LaunchSplash studio spotlight hero,
+ * pure native UI (zero Reanimated worklet mount cost), and instant modal open.
+ */
+export const PremiumSurface = memo(function PremiumSurface(props: Props) {
   const frame = useSafeAreaFrame();
   const { gutter, isVeryShort } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
-  const reducedMotion = useReducedMotion();
   const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit, active = true } = props;
   const premium = access?.premium.active === true;
   const quotaExhausted = Boolean(access && !access.canAnalyze);
@@ -119,9 +113,6 @@ export function PremiumSurface(props: Props) {
   const canBuy = googleLinked && Boolean(access && selectedPackage && configured);
   const waitingForAccess = !access && accessLoading;
   const showPlans = !premium && !success;
-  const smoothLayout = active && !reducedMotion && LinearTransition && Easing
-    ? LinearTransition.duration(240).easing(Easing.out(Easing.cubic))
-    : undefined;
   const busyLabel = busy === 'google'
     ? 'Conectez contul Google…'
     : busy === 'purchase'
@@ -132,7 +123,6 @@ export function PremiumSurface(props: Props) {
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={[styles.header, { paddingHorizontal: gutter }]}>
         <Text style={styles.brand}>
@@ -145,7 +135,7 @@ export function PremiumSurface(props: Props) {
           onPress={props.onClose}
           size={42}
         >
-          <MiniGlyph name="close" size={20} color={colors.ink} />
+          <MiniGlyph name="close" size={19} color={colors.ink} />
         </IconButton>
       </View>
 
@@ -155,97 +145,92 @@ export function PremiumSurface(props: Props) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <Animated.View collapsable={false} layout={smoothLayout} pointerEvents={busy ? 'none' : 'auto'}>
-        <View style={[styles.heroOuter, { paddingHorizontal: gutter }]}>
-          <View style={styles.heroShadow}>
-            <LinearGradient
-              colors={['#8C52FF', '#6427E0', '#4A1BB8']}
-              start={{ x: 0.06, y: 0 }}
-              end={{ x: 0.94, y: 1 }}
-              style={[styles.hero, isVeryShort && styles.heroCompact]}
-            >
-              <View pointerEvents="none" style={styles.heroGlow} />
-              <View pointerEvents="none" style={styles.heroShine} />
-              <View style={styles.heroCopy}>
-                <Chip
-                  label={success || premium ? 'PREMIUM ACTIV' : 'MAI MULTĂ PRACTICĂ'}
-                  tone="lime"
-                  tilt={-2}
-                />
-                <Text style={styles.heroTitle}>
-                  {success ? 'Gata. Continuăm!' : premium ? 'Ai loc pentru\nmai multe idei.' : 'Mai mult loc\npentru „aha!”'}
-                </Text>
-                <Text style={styles.heroNote}>
-                  {success
-                    ? `Ai până la ${successLimit} de probleme pe zi.`
-                    : dailyLimit
-                      ? `Până la ${dailyLimit} de probleme pe zi, explicate pas cu pas.`
-                      : 'Mai multă practică, cu explicații pas cu pas.'}
-                </Text>
-              </View>
-              <View pointerEvents="none" style={styles.art}>
-                <View style={styles.artHalo} />
-                <Mascot pose={success || premium ? 'cheer' : 'wave'} size={126} active={active} />
-                <View style={styles.artSpark}>
-                  <MiniGlyph name="spark" size={18} color={colors.ink} />
+        <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'}>
+          <View style={{ paddingHorizontal: gutter }}>
+            <View style={styles.heroShadow}>
+              <LinearGradient
+                colors={['#8D50FF', '#6222E6', '#4212B0']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={[styles.hero, isVeryShort && styles.heroCompact]}
+              >
+                <View pointerEvents="none" style={styles.heroGlow} />
+                <View pointerEvents="none" style={styles.heroShine} />
+                <View style={styles.heroCopy}>
+                  <Chip
+                    label={success || premium ? 'PREMIUM ACTIV' : 'MAI MULTĂ PRACTICĂ'}
+                    tone="lime"
+                  />
+                  <Text style={styles.heroTitle}>
+                    {success ? 'Gata. Continuăm!' : premium ? 'Ai loc pentru\nmai multe idei.' : 'Mai mult loc\npentru „aha!”'}
+                  </Text>
+                  <Text style={styles.heroNote}>
+                    {success
+                      ? `Ai până la ${successLimit} de probleme pe zi.`
+                      : dailyLimit
+                        ? `Până la ${dailyLimit} de probleme pe zi, explicate pas cu pas.`
+                        : 'Mai multă practică, cu explicații pas cu pas.'}
+                  </Text>
                 </View>
-              </View>
-            </LinearGradient>
-          </View>
-        </View>
-
-        <View style={{ paddingHorizontal: gutter }}>
-          <View style={styles.benefits}>
-            {['Rezolvi', 'Verifici', 'Păstrezi în Caiet'].map((label) => (
-              <View key={label} style={styles.benefit}>
-                <View style={styles.benefitCheck}>
-                  <MiniGlyph name="check" size={12} color={colors.ink} />
+                <View pointerEvents="none" style={styles.art}>
+                  <SpotlightAura size={126} tone="onViolet" active={active} />
+                  <Mascot pose={success || premium ? 'cheer' : 'wave'} size={122} active={active} />
                 </View>
-                <Text style={styles.benefitText}>{label}</Text>
-              </View>
-            ))}
+              </LinearGradient>
+            </View>
           </View>
 
-          {success ? (
-            <View style={styles.activeSection}>
-              <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
-              <Text style={styles.sectionTitle}>Premium este activ.</Text>
-              <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la problemă când ești pregătit.</Text>
+          <View style={{ paddingHorizontal: gutter }}>
+            <View style={styles.benefits}>
+              {['Rezolvi', 'Verifici', 'Păstrezi în Caiet'].map((label) => (
+                <View key={label} style={styles.benefit}>
+                  <View style={styles.benefitCheck}>
+                    <MiniGlyph name="check" size={11} color={colors.ink} />
+                  </View>
+                  <Text style={styles.benefitText}>{label}</Text>
+                </View>
+              ))}
             </View>
-          ) : premium ? (
-            <View style={styles.activeSection}>
-              <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
-              <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
-              <Text style={styles.sectionTitle}>probleme disponibile</Text>
-              {access.resetAt ? (
-                <QuotaResetTimer
-                  resetAt={access.resetAt}
-                  remaining={access.remaining}
-                  limit={access.limit}
-                  premium
-                  variant={quotaExhausted ? 'hero' : 'compact'}
-                  active={active}
-                  style={styles.activeTimer}
-                />
-              ) : null}
-              <Text style={styles.body}>Abonamentul se administrează din Google Play.</Text>
-            </View>
-          ) : null}
 
-          {!success && !premium && access?.resetAt ? (
-            <QuotaResetTimer
-              resetAt={access.resetAt}
-              remaining={access.remaining}
-              limit={access.limit}
-              premium={false}
-              variant={quotaExhausted ? 'hero' : 'compact'}
-              active={active}
-              style={styles.resetTimerWrap}
-            />
-          ) : null}
+            {success ? (
+              <View style={styles.activeSection}>
+                <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
+                <Text style={styles.sectionTitle}>Premium este activ.</Text>
+                <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la problemă când ești pregătit.</Text>
+              </View>
+            ) : premium ? (
+              <View style={styles.activeSection}>
+                <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
+                <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
+                <Text style={styles.sectionTitle}>probleme disponibile</Text>
+                {access.resetAt ? (
+                  <QuotaResetTimer
+                    resetAt={access.resetAt}
+                    remaining={access.remaining}
+                    limit={access.limit}
+                    premium
+                    variant={quotaExhausted ? 'hero' : 'compact'}
+                    active={active}
+                    style={styles.activeTimer}
+                  />
+                ) : null}
+                <Text style={styles.body}>Abonamentul se administrează din Google Play.</Text>
+              </View>
+            ) : null}
 
-          {props.canContinue && !success ? (
-            <View style={styles.continueShadow}>
+            {!success && !premium && access?.resetAt ? (
+              <QuotaResetTimer
+                resetAt={access.resetAt}
+                remaining={access.remaining}
+                limit={access.limit}
+                premium={false}
+                variant={quotaExhausted ? 'hero' : 'compact'}
+                active={active}
+                style={styles.resetTimerWrap}
+              />
+            ) : null}
+
+            {props.canContinue && !success ? (
               <View style={styles.continueRow}>
                 <View style={styles.continueCopy}>
                   <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
@@ -255,72 +240,71 @@ export function PremiumSurface(props: Props) {
                   <Text style={styles.continueLabel}>Continuă</Text>
                 </Pressable>
               </View>
-            </View>
-          ) : null}
-
-          {showPlans ? (
-            <View style={styles.plansSection}>
-              <View style={styles.sectionHeading}>
-                <Text style={styles.sectionTitle}>Alege ritmul tău.</Text>
-                <Chip label="PREMIUM" tone="violetSoft" outlined={false} />
-              </View>
-              <View accessibilityRole="radiogroup" accessibilityLabel="Planuri Premium" style={styles.plans}>
-                {(!offer || offer.annual) ? <PlanOption period="annual" plan={offer?.annual ?? null} selected={selected === 'annual'} disabled={Boolean(busy)} onSelect={() => props.onSelect('annual')} /> : null}
-                {(!offer || offer.monthly) ? <PlanOption period="monthly" plan={offer?.monthly ?? null} selected={selected === 'monthly'} disabled={Boolean(busy)} onSelect={() => props.onSelect('monthly')} /> : null}
-              </View>
-              <View style={styles.offerStatus} accessibilityLiveRegion="polite">
-                {!configured ? (
-                  <View style={styles.noticePill}>
-                    <Text style={styles.bodySmall}>Abonamentele nu sunt disponibile momentan. Varianta gratuită rămâne disponibilă.</Text>
-                  </View>
-                ) : props.offerError ? (
-                  <>
-                    <Text style={styles.bodySmall}>{props.offerError}</Text>
-                    <Pressable accessibilityRole="button" onPress={props.onRetryOffer} disabled={Boolean(busy)} style={styles.textAction}>
-                      <Text style={styles.link}>Reîncearcă încărcarea prețurilor</Text>
-                    </Pressable>
-                  </>
-                ) : busyPrices ? (
-                  <Text style={styles.bodySmall}>Actualizez prețurile din Google Play…</Text>
-                ) : !googleLinked ? (
-                  <Text style={styles.bodySmall}>Conectează contul pentru prețurile disponibile în Google Play.</Text>
-                ) : (
-                  <Text style={styles.bodySmall}>Prețul și perioada sunt confirmate în Google Play înainte de plată.</Text>
-                )}
-              </View>
-            </View>
-          ) : null}
-
-          {!access && !success ? (
-            <View style={styles.accountStatus}>
-              <Text style={styles.bodySmall}>
-                {waitingForAccess ? 'Contul se actualizează în fundal. Poți explora Premium între timp.' : 'Limita de azi nu a putut fi verificată. Poți continua să explorezi aplicația.'}
-              </Text>
-              {!waitingForAccess ? (
-                <Pressable accessibilityRole="button" onPress={props.onRefresh} disabled={Boolean(busy)} style={styles.textAction}>
-                  <Text style={styles.link}>Reîncearcă verificarea</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          ) : null}
-
-          {props.error ? <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text> : null}
-
-          <View style={styles.legal}>
-            {!premium && !success ? (
-              <Text style={styles.legalText}>
-                Abonamentul se reînnoiește automat. Îl poți anula din Google Play înainte de următoarea reînnoire. Prețul și perioada de facturare sunt confirmate înainte de plată.
-              </Text>
             ) : null}
-            <Pressable accessibilityRole="link" disabled={Boolean(busy)} onPress={props.onLegal} style={styles.textAction}>
-              <Text style={styles.legalLink}>Termeni și confidențialitate</Text>
-            </Pressable>
+
+            {showPlans ? (
+              <View style={styles.plansSection}>
+                <View style={styles.sectionHeading}>
+                  <Text style={styles.sectionTitle}>Alege ritmul tău.</Text>
+                  <Chip label="PREMIUM" tone="violetSoft" outlined={false} />
+                </View>
+                <View accessibilityRole="radiogroup" accessibilityLabel="Planuri Premium" style={styles.plans}>
+                  {(!offer || offer.annual) ? <PlanOption period="annual" plan={offer?.annual ?? null} selected={selected === 'annual'} disabled={Boolean(busy)} onSelect={() => props.onSelect('annual')} /> : null}
+                  {(!offer || offer.monthly) ? <PlanOption period="monthly" plan={offer?.monthly ?? null} selected={selected === 'monthly'} disabled={Boolean(busy)} onSelect={() => props.onSelect('monthly')} /> : null}
+                </View>
+                <View style={styles.offerStatus} accessibilityLiveRegion="polite">
+                  {!configured ? (
+                    <View style={styles.noticePill}>
+                      <Text style={styles.bodySmall}>Abonamentele nu sunt disponibile momentan. Varianta gratuită rămâne disponibilă.</Text>
+                    </View>
+                  ) : props.offerError ? (
+                    <>
+                      <Text style={styles.bodySmall}>{props.offerError}</Text>
+                      <Pressable accessibilityRole="button" onPress={props.onRetryOffer} disabled={Boolean(busy)} style={styles.textAction}>
+                        <Text style={styles.link}>Reîncearcă încărcarea prețurilor</Text>
+                      </Pressable>
+                    </>
+                  ) : busyPrices ? (
+                    <Text style={styles.bodySmall}>Actualizez prețurile din Google Play…</Text>
+                  ) : !googleLinked ? (
+                    <Text style={styles.bodySmall}>Conectează contul pentru prețurile disponibile în Google Play.</Text>
+                  ) : (
+                    <Text style={styles.bodySmall}>Prețul și perioada sunt confirmate în Google Play înainte de plată.</Text>
+                  )}
+                </View>
+              </View>
+            ) : null}
+
+            {!access && !success ? (
+              <View style={styles.accountStatus}>
+                <Text style={styles.bodySmall}>
+                  {waitingForAccess ? 'Contul se actualizează în fundal. Poți explora Premium între timp.' : 'Limita de azi nu a putut fi verificată. Poți continua să explorezi aplicația.'}
+                </Text>
+                {!waitingForAccess ? (
+                  <Pressable accessibilityRole="button" onPress={props.onRefresh} disabled={Boolean(busy)} style={styles.textAction}>
+                    <Text style={styles.link}>Reîncearcă verificarea</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+
+            {props.error ? <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text> : null}
+
+            <View style={styles.legal}>
+              {!premium && !success ? (
+                <Text style={styles.legalText}>
+                  Abonamentul se reînnoiește automat. Îl poți anula din Google Play înainte de următoarea reînnoire. Prețul și perioada de facturare sunt confirmate înainte de plată.
+                </Text>
+              ) : null}
+              <Pressable accessibilityRole="link" disabled={Boolean(busy)} onPress={props.onLegal} style={styles.textAction}>
+                <Text style={styles.legalLink}>Termeni și confidențialitate</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-        </Animated.View>
       </ScrollView>
 
-      <Animated.View layout={smoothLayout} style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {success ? (
           <ComicButton title="Înapoi la matematică" icon="scan" onPress={props.onClose} compact />
         ) : premium ? (
@@ -354,13 +338,11 @@ export function PremiumSurface(props: Props) {
         ) : !success && !premium ? (
           <Text style={styles.footerNote}>Continui gratuit oricând. Fără obligații.</Text>
         ) : null}
-      </Animated.View>
+      </View>
 
       {busy ? (
         <View pointerEvents="auto" style={styles.lockOverlay}>
-          <Animated.View
-            entering={!reducedMotion && FadeInDown && Easing ? FadeInDown.duration(200).easing(Easing.out(Easing.cubic)) : undefined}
-            exiting={!reducedMotion && FadeOutDown ? FadeOutDown.duration(150) : undefined}
+          <View
             accessibilityLiveRegion="polite"
             style={[styles.busyDock, { bottom: Math.max(insets.bottom, 14) + 14 }]}
           >
@@ -368,12 +350,12 @@ export function PremiumSurface(props: Props) {
               <PlayfulLoader micro inverse />
               <Text style={styles.busyPillText}>{busyLabel}</Text>
             </View>
-          </Animated.View>
+          </View>
         </View>
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
@@ -392,73 +374,59 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 999,
-    borderWidth: borders.regular,
-    borderColor: colors.lime,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(216, 255, 62, 0.35)',
     backgroundColor: colors.ink,
     elevation: 6,
   },
   busyPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 18 },
-  header: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   brand: { flex: 1, fontFamily: fonts.display, fontSize: 19, color: colors.ink },
   brandAccent: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.violetDeep },
   content: { paddingTop: 4, paddingBottom: 14 },
 
-  heroOuter: {},
   heroShadow: {
-    borderRadius: radii.xl,
-    backgroundColor: colors.violetShadow,
-    paddingBottom: shadows.md + 1,
+    borderRadius: 30,
+    elevation: 6,
+    shadowColor: '#4B1FB8',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
   },
   hero: {
-    minHeight: 188,
-    borderRadius: radii.xl - 1,
-    borderWidth: borders.thick,
-    borderColor: colors.ink,
-    paddingHorizontal: 16,
+    minHeight: 190,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 18,
     paddingVertical: 18,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
   },
-  heroCompact: { minHeight: 166, paddingVertical: 14 },
+  heroCompact: { minHeight: 168, paddingVertical: 14 },
   heroGlow: {
     position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    top: -85,
-    right: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -100,
+    right: -45,
     backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   heroShine: {
     position: 'absolute',
-    top: 4,
-    left: 18,
-    right: 18,
-    height: 5,
-    borderRadius: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    top: 0,
+    left: 26,
+    right: 26,
+    height: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   heroCopy: { flex: 1, minWidth: 0, zIndex: 1 },
   heroTitle: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, color: colors.paper, marginTop: 10 },
-  heroNote: { maxWidth: 230, fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18, color: '#F0EAFF', marginTop: 7 },
-  art: { width: 112, height: 136, justifyContent: 'center', alignItems: 'center', marginLeft: 4 },
-  artHalo: { position: 'absolute', width: 106, height: 106, borderRadius: 53, backgroundColor: 'rgba(255, 255, 255, 0.15)' },
-  artSpark: {
-    position: 'absolute',
-    bottom: 2,
-    right: 0,
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '8deg' }],
-  },
+  heroNote: { maxWidth: 230, fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18, color: 'rgba(244, 238, 255, 0.92)', marginTop: 7 },
+  art: { width: 120, height: 136, justifyContent: 'center', alignItems: 'center', marginLeft: 4, position: 'relative' },
 
   benefits: {
     flexDirection: 'row',
@@ -466,27 +434,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
     paddingVertical: 16,
-    borderBottomWidth: 1.5,
-    borderBottomColor: colors.line,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(124, 60, 255, 0.08)',
   },
   benefit: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    paddingHorizontal: 11,
+    paddingVertical: 6.5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
   },
   benefitCheck: {
-    width: 20,
-    height: 20,
-    borderRadius: 7,
+    width: 19,
+    height: 19,
+    borderRadius: 10,
     backgroundColor: colors.limeSoft,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -498,52 +464,42 @@ const styles = StyleSheet.create({
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 },
   sectionTitle: { fontFamily: fonts.display, fontSize: 23, lineHeight: 27, color: colors.ink },
   plans: { gap: 10 },
-  planShadow: { borderRadius: 20, backgroundColor: colors.line, paddingBottom: 3 },
-  planShadowSelected: { backgroundColor: colors.violetShadow, paddingBottom: 5 },
   plan: {
     minHeight: 78,
-    padding: 13,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
-    borderRadius: 19,
-    backgroundColor: colors.paper,
+    padding: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
+    gap: 12,
     overflow: 'hidden',
   },
-  planSelected: { backgroundColor: colors.violetSoft, borderWidth: borders.regular },
-  planShine: {
-    position: 'absolute',
-    top: 3,
-    left: 14,
-    right: 14,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: colors.shine,
+  planSelected: {
+    backgroundColor: '#F4EEFF',
+    borderWidth: 1.75,
+    borderColor: colors.violet,
   },
   radio: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    borderWidth: 1.5,
+    borderColor: colors.borderSoft,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioSelected: { backgroundColor: colors.lime },
+  radioSelected: { backgroundColor: colors.lime, borderColor: 'rgba(86, 120, 0, 0.35)' },
   planCopy: { flex: 1, minWidth: 0 },
   planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
   planTitle: { fontFamily: fonts.display, fontSize: 19, color: colors.ink },
   bestBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
     backgroundColor: colors.gold,
-    transform: [{ rotate: '-2deg' }],
   },
   bestBadgeText: { ...typography.kicker, fontSize: 9.5, lineHeight: 13, paddingHorizontal: 1, color: colors.ink, includeFontPadding: false },
   planNote: { fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 16, color: colors.inkSoft, marginTop: 2 },
@@ -554,11 +510,11 @@ const styles = StyleSheet.create({
 
   offerStatus: { minHeight: 46, paddingTop: 12 },
   noticePill: {
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: colors.line,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.1)',
     backgroundColor: colors.paperTint,
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 10,
   },
   body: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
@@ -570,7 +526,7 @@ const styles = StyleSheet.create({
   legalText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 11.5, lineHeight: 16.5 },
   legalLink: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12 },
 
-  footer: { paddingTop: 10, backgroundColor: colors.canvas, borderTopWidth: 1.5, borderTopColor: colors.line },
+  footer: { paddingTop: 10, backgroundColor: colors.canvas, borderTopWidth: 1, borderTopColor: 'rgba(124, 60, 255, 0.08)' },
   footerNote: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, textAlign: 'center', marginTop: 6 },
   restore: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   restoreText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
@@ -579,41 +535,35 @@ const styles = StyleSheet.create({
   activeMark: {
     width: 60,
     height: 60,
-    borderRadius: 20,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
+    borderRadius: 22,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-4deg' }],
   },
   quota: { fontFamily: fonts.display, fontSize: 60, color: colors.violetDeep },
   quotaTotal: { fontSize: 29, color: colors.inkSoft },
-  continueShadow: { marginTop: 14, borderRadius: 19, backgroundColor: colors.ink, paddingBottom: shadows.sm },
   continueRow: {
+    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 12,
-    borderRadius: 18,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.limeSoft,
+    padding: 13,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(86, 120, 0, 0.2)',
+    backgroundColor: '#F3FFE0',
   },
   continueCopy: { flex: 1 },
   continueTitle: { fontFamily: fonts.displaySemi, fontSize: 15, color: colors.ink },
   continueButton: {
-    minHeight: 44,
+    minHeight: 42,
     paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: borders.thin,
-    borderBottomWidth: 4,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
   },
   continueLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink },
   error: { fontFamily: fonts.bodyBold, fontSize: 12.5, lineHeight: 18, color: '#A92D46', paddingTop: 12 },
-  pressed: { opacity: 0.94, transform: [{ translateY: 2.5 }, { scale: 0.992 }] },
+  pressed: { opacity: 0.94, transform: [{ scale: 0.985 }] },
 });

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
-import { borders, colors, fonts, shadows } from '../theme';
+import { colors, fonts, radii } from '../theme';
 import { Text } from './Typography';
 
 export type ComicTabOption<T extends string> = {
@@ -32,7 +32,8 @@ type Props<T extends string> = {
   style?: StyleProp<ViewStyle>;
 };
 
-const TRACK_PADDING = 3;
+const TRACK_PADDING = 3.5;
+const TRACK_BORDER = 1;
 const PRESS_RETENTION = { top: 24, bottom: 24, left: 24, right: 24 };
 
 type TabItemProps<T extends string> = {
@@ -69,9 +70,7 @@ function ComicTabItem<T extends string>({
         styles.tab,
         !hasPill && active && {
           backgroundColor: activeFill,
-          borderRadius: compact ? 10 : 12,
-          borderWidth: 1.5,
-          borderColor: colors.ink,
+          borderRadius: radii.pill,
         },
       ]}
     >
@@ -94,8 +93,7 @@ function ComicTabItem<T extends string>({
               styles.badge,
               compact && styles.badgeCompact,
               {
-                backgroundColor: active ? badgeFill : colors.violetSoft,
-                borderColor: active ? colors.ink : colors.violetSoft,
+                backgroundColor: active ? badgeFill : 'rgba(124, 60, 255, 0.08)',
               },
             ]}
           >
@@ -117,9 +115,8 @@ function ComicTabItem<T extends string>({
 }
 
 /**
- * Snappy comic tab bar driven by native-driver spring motion and React state
- * colors so initial screen mounts incur zero Reanimated worklet overhead and
- * tabs stay immune to Android Fabric view detachment.
+ * Airy frosted studio tab bar driven by native-driver spring motion with
+ * zero Reanimated overhead and zero elevation overdraw.
  */
 export function ComicTabBar<T extends string>({
   options,
@@ -134,7 +131,7 @@ export function ComicTabBar<T extends string>({
   const activeIndex = Math.max(0, options.findIndex((item) => item.value === value));
   const activeOption = options[activeIndex];
   const count = Math.max(1, options.length);
-  const innerWidth = trackWidth - borders.regular * 2 - TRACK_PADDING * 2;
+  const innerWidth = trackWidth - TRACK_BORDER * 2 - TRACK_PADDING * 2;
   const pillWidth = innerWidth > 0 ? innerWidth / count : 0;
 
   const slideX = useRef(new Animated.Value(0)).current;
@@ -157,7 +154,7 @@ export function ComicTabBar<T extends string>({
     Animated.spring(slideX, {
       toValue: target,
       tension: 250,
-      friction: 20,
+      friction: 22,
       useNativeDriver: true,
     }).start();
 
@@ -184,23 +181,19 @@ export function ComicTabBar<T extends string>({
         style,
       ]}
     >
-      <View pointerEvents="none" style={styles.shadow} />
-      <View collapsable={false} onLayout={handleLayout} style={[styles.track, compact && styles.trackCompact]}>
+      <View collapsable={false} onLayout={handleLayout} style={styles.track}>
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
               styles.pill,
-              compact && styles.pillCompact,
               {
                 width: pillWidth,
                 backgroundColor: activeOption?.activeFill ?? colors.violet,
                 transform: [{ translateX: slideX }],
               },
             ]}
-          >
-            <View pointerEvents="none" style={styles.pillShine} />
-          </Animated.View>
+          />
         ) : null}
 
         <View collapsable={false} style={styles.tabsRow}>
@@ -227,35 +220,22 @@ export function ComicTabBar<T extends string>({
 
 const styles = StyleSheet.create({
   outer: {
-    height: 50,
+    height: 46,
     position: 'relative',
-    paddingBottom: shadows.sm,
     flexShrink: 0,
   },
   outerCompact: {
-    height: 44,
-  },
-  shadow: {
-    position: 'absolute',
-    top: shadows.sm,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 17,
-    backgroundColor: colors.ink,
+    height: 42,
   },
   track: {
     flex: 1,
     padding: TRACK_PADDING,
-    borderRadius: 17,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
-    backgroundColor: colors.paper,
+    borderRadius: radii.pill,
+    borderWidth: TRACK_BORDER,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     position: 'relative',
     overflow: 'hidden',
-  },
-  trackCompact: {
-    borderRadius: 15,
   },
   pill: {
     position: 'absolute',
@@ -263,22 +243,8 @@ const styles = StyleSheet.create({
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
     zIndex: 1,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
+    borderRadius: radii.pill,
     overflow: 'hidden',
-  },
-  pillCompact: {
-    borderRadius: 10,
-  },
-  pillShine: {
-    position: 'absolute',
-    top: 2,
-    left: 8,
-    right: 8,
-    height: 4,
-    borderRadius: 3,
-    backgroundColor: colors.shine,
   },
   tabsRow: {
     flex: 1,
@@ -314,20 +280,16 @@ const styles = StyleSheet.create({
   badge: {
     flexShrink: 0,
     minWidth: 22,
-    minHeight: 20,
-    borderRadius: 7,
-    borderWidth: 1.25,
-    borderColor: colors.violetSoft,
-    backgroundColor: colors.violetSoft,
+    minHeight: 19,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 1,
   },
   badgeCompact: {
     minWidth: 20,
-    minHeight: 19,
-    borderRadius: 6,
+    minHeight: 18,
     paddingHorizontal: 5,
     paddingVertical: 1,
   },
@@ -344,6 +306,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.48,
   },
 });

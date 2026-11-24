@@ -78,7 +78,7 @@ function isStructuredVisual(value: unknown): value is StructuredVisual {
   return false;
 }
 
-export function isContentBlock(value: unknown): value is ContentBlock {
+function isContentBlock(value: unknown): value is ContentBlock {
   if (!value || typeof value !== 'object') return false;
   const block = value as Record<string, unknown>;
   if (block.type === 'text') return typeof block.text === 'string' && block.text.length > 0;
@@ -93,7 +93,7 @@ export function isContentBlock(value: unknown): value is ContentBlock {
     && isStructuredVisual(block.visual);
 }
 
-export function isRichContent(value: unknown, allowEmpty = true): value is RichContent {
+function isRichContent(value: unknown, allowEmpty = true): value is RichContent {
   return Array.isArray(value)
     && (allowEmpty || value.length > 0)
     && value.every(isContentBlock);
@@ -159,10 +159,6 @@ export function prepareRichContentForPresentation(content: RichContent): RichCon
   }, []);
 }
 
-export function firstMathBlock(content: RichContent): MathContentBlock | undefined {
-  return content.find((block): block is MathContentBlock => block.type === 'math');
-}
-
 export function representativeMathBlock(content: RichContent): MathContentBlock | undefined {
   const mathBlocks = content.filter((block): block is MathContentBlock => block.type === 'math');
   return mathBlocks.reduce<MathContentBlock | undefined>((best, candidate) => {
@@ -189,8 +185,4 @@ export function compactProblemContent(content: RichContent): RichContent {
     && followingMath?.type === 'math';
 
   return content.slice(start, firstMathIndex + (hasMathPair ? 3 : 1));
-}
-
-export function firstTextBlock(content: RichContent): string | undefined {
-  return content.find((block) => block.type === 'text')?.text;
 }

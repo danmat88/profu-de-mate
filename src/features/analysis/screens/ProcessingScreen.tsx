@@ -1,12 +1,18 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, BackHandler, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import {
+  cosinePingPongRange,
+  createNativeLoop,
+  SILKY_EASE_OUT,
+  WAVE_INPUT_17,
+} from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
 import { borders, colors, fonts, shadows } from '../../../shared/theme';
@@ -74,6 +80,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const [screenState, setScreenState] = useState<ScreenState>({ kind: 'analyzing' });
   const [sceneReady, setSceneReady] = useState(reducedMotion);
   const orbit = useRef(new Animated.Value(0)).current;
+  const haloSpin = useRef(new Animated.Value(0)).current;
   const scanVisibility = useRef(new Animated.Value(1)).current;
   const resumeAfterPaywall = useRef(false);
   const isCheck = route.params.mode === 'check';
@@ -89,14 +96,41 @@ export function ProcessingScreen({ navigation, route }: Props) {
   };
   const scanStart = analysisImageRect.y + 8;
   const scanEnd = analysisImageRect.y + Math.max(8, analysisImageRect.height - 8);
-  const scanOpacity = Animated.multiply(
-    scanVisibility,
-    orbit.interpolate({ inputRange: [0, 0.06, 0.9, 1], outputRange: [0, 0.92, 0.92, 0] }),
+  const scanStyle = useMemo(
+    () => ({
+      opacity: Animated.multiply(
+        scanVisibility,
+        orbit.interpolate({ inputRange: [0, 0.06, 0.9, 1], outputRange: [0, 0.92, 0.92, 0] }),
+      ),
+      transform: [
+        {
+          translateY: orbit.interpolate({
+            inputRange: WAVE_INPUT_17,
+            outputRange: cosinePingPongRange(scanStart, scanEnd),
+          }),
+        },
+      ],
+    }),
+    [orbit, scanEnd, scanStart, scanVisibility],
+  );
+  const tutorHaloSpinStyle = useMemo(
+    () => ({
+      transform: [
+        {
+          rotate: haloSpin.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0deg', '360deg'],
+          }),
+        },
+      ],
+    }),
+    [haloSpin],
   );
   const bottomSpace = Math.max(insets.bottom, 12);
   const canReturnToPhoto = route.params.origin === 'review' && navigation.canGoBack();
   const returnToPhotoOrHome = () => {
     clearPendingAnalysis();
+    beginAppTransition();
     if (canReturnToPhoto) navigation.goBack();
     else {
       deleteTemporaryCapturedImages([route.params.image.uri]);
@@ -106,6 +140,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
   const retakePhoto = () => {
     clearPendingAnalysis();
     deleteTemporaryCapturedImages([route.params.image.uri]);
+    beginAppTransition();
     navigation.reset({
       index: 1,
       routes: [
@@ -115,6 +150,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
     });
   };
   const continueInBackground = () => {
+    beginAppTransition();
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
 
@@ -168,19 +204,27 @@ export function ProcessingScreen({ navigation, route }: Props) {
   }, [navigation, reducedMotion]);
 
   useEffect(() => {
-    if (!sceneReady || screenState.kind !== 'analyzing') return undefined;
-    if (reducedMotion) {
-      orbit.setValue(0.48);
+    if (!focused || !sceneReady || screenState.kind !== 'analyzing') {
+      orbit.stopAnimation();
+      haloSpin.stopAnimation();
       return undefined;
     }
-    orbit.setValue(0);
-    const orbiting = Animated.loop(Animated.sequence([
-      Animated.timing(orbit, { toValue: 1, duration: 1_950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      Animated.timing(orbit, { toValue: 0, duration: 1_950, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-    ]));
+    if (reducedMotion) {
+      orbit.setValue(0.25);
+      haloSpin.setValue(0);
+      return undefined;
+    }
+    const orbiting = createNativeLoop(orbit, 3_900);
+    const haloLoop = createNativeLoop(haloSpin, 26_000);
     orbiting.start();
-    return () => { orbiting.stop(); };
-  }, [orbit, reducedMotion, sceneReady, screenState.kind]);
+    haloLoop.start();
+    return () => {
+      orbiting.stop();
+      haloLoop.stop();
+      orbit.stopAnimation();
+      haloSpin.stopAnimation();
+    };
+  }, [focused, haloSpin, orbit, reducedMotion, sceneReady, screenState.kind]);
 
   useFocusEffect(useCallback(() => {
     if (resumeAfterPaywall.current && commercialAccess?.canAnalyze) {
@@ -233,7 +277,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           Animated.timing(scanVisibility, {
             toValue: 0,
             duration: reducedMotion ? 0 : 220,
-            easing: Easing.out(Easing.quad),
+            easing: SILKY_EASE_OUT,
             useNativeDriver: true,
           }).start();
           lessonParams = {
@@ -256,6 +300,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             await celebrationBeat;
             if (!isActive()) return;
             clearPendingAnalysis(route.params.requestId);
+            beginAppTransition();
             navigation.replace('Lesson', lessonParams);
           } else if (result.status !== 'ready') {
             clearPendingAnalysis(route.params.requestId);
@@ -295,7 +340,6 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
     return (
       <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
-        <StatusBar style="light" />
         <ComicBackdrop dark />
         <Enter delay={0} distance={8} style={styles.top}>
           <Text style={styles.brand}>Profu’ de mate</Text>
@@ -371,6 +415,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
               tone="lime"
               onPress={() => {
                 resumeAfterPaywall.current = true;
+                beginAppTransition();
                 navigation.navigate('Paywall', { source: 'quota', ...(screenState.access ? { access: screenState.access } : {}) });
               }}
             />
@@ -409,7 +454,6 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
   return (
     <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
-      <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.sceneContent}>
         <View style={styles.top}>
@@ -448,9 +492,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
                 <Animated.View style={[styles.analysisScan, {
                   left: analysisImageRect.x + 12,
                   width: Math.max(24, analysisImageRect.width - 24),
-                  opacity: scanOpacity,
-                  transform: [{ translateY: orbit.interpolate({ inputRange: [0, 1], outputRange: [scanStart, scanEnd] }) }],
-                }]}>
+                }, scanStyle]}>
                   <LinearGradient
                     colors={isCheck
                       ? ['rgba(255,184,107,0)', 'rgba(255,184,107,0.34)', 'rgba(255,184,107,0)']
@@ -469,8 +511,17 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
           <View style={[styles.tutorBanner, isVeryShort && styles.tutorBannerShort]}>
             <View style={[styles.tutorMascotStage, isVeryShort && styles.tutorMascotStageShort]}>
-              <View style={[styles.tutorHalo, isVeryShort && styles.tutorHaloShort, isCheck && styles.tutorHaloCheck, preparingLesson && styles.tutorHaloReady]} />
-              <Mascot pose={preparingLesson ? 'cheer' : 'thinking'} size={isVeryShort ? 74 : 88} active={sceneReady} />
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.tutorHalo,
+                  isVeryShort && styles.tutorHaloShort,
+                  isCheck && styles.tutorHaloCheck,
+                  preparingLesson && styles.tutorHaloReady,
+                  tutorHaloSpinStyle,
+                ]}
+              />
+              <Mascot pose={preparingLesson ? 'cheer' : 'thinking'} size={isVeryShort ? 74 : 88} active={focused && sceneReady} />
             </View>
             <View style={styles.tutorCopy}>
               <View style={[styles.guideBubble, isCheck && styles.guideBubbleCheck, preparingLesson && styles.guideBubbleReady]}>
@@ -496,7 +547,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             </View>
           </View>
 
-          <AnalysisActivity preparing={preparingLesson} check={isCheck} active={sceneReady} />
+          <AnalysisActivity preparing={preparingLesson} check={isCheck} active={focused && sceneReady} />
         </View>
       </View>
     </View>
@@ -514,16 +565,16 @@ const styles = StyleSheet.create({
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
   stopButton: {
     minWidth: 92,
-    height: 44,
+    height: 42,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: borders.thin,
-    borderColor: '#7A68C8',
-    backgroundColor: '#2B2259',
-    borderRadius: 15,
-    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
+    backgroundColor: 'rgba(38, 30, 78, 0.88)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
   },
   stopText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
   stage: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
@@ -538,20 +589,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 168, 140, 0.16)',
   },
   analysisFrameShadow: {
-    borderRadius: 27,
-    backgroundColor: '#070512',
-    paddingBottom: 6,
+    borderRadius: 26,
+    elevation: 8,
+    shadowColor: '#070512',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.38,
+    shadowRadius: 18,
   },
   analysisFrame: {
     width: '100%',
     maxWidth: 440,
-    borderRadius: 25,
-    borderWidth: 2,
-    borderColor: 'rgba(167, 139, 250, 0.5)',
-    backgroundColor: '#090619',
+    borderRadius: 26,
+    borderWidth: 1.25,
+    borderColor: 'rgba(167, 139, 250, 0.34)',
+    backgroundColor: '#0C0820',
     overflow: 'hidden',
   },
-  analysisFrameCheck: { borderColor: 'rgba(255,184,107,0.62)' },
+  analysisFrameCheck: { borderColor: 'rgba(255,184,107,0.44)' },
   analysisPhoto: { position: 'absolute', borderRadius: 18 },
   analysisVeil: { position: 'absolute', borderRadius: 18, backgroundColor: 'rgba(12,9,28,0.1)' },
   analysisScan: { position: 'absolute', top: -9, height: 21, justifyContent: 'center' },
@@ -590,28 +644,25 @@ const styles = StyleSheet.create({
     width: 82,
     height: 82,
     borderRadius: 41,
-    backgroundColor: '#292057',
-    borderWidth: 2,
+    backgroundColor: 'rgba(124, 60, 255, 0.16)',
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: '#7A68C8',
+    borderColor: 'rgba(167, 139, 250, 0.45)',
   },
   tutorHaloShort: {
     width: 70,
     height: 70,
     borderRadius: 35,
   },
-  tutorHaloCheck: { borderColor: 'rgba(255,184,107,0.7)' },
-  tutorHaloReady: { borderColor: colors.lime, backgroundColor: '#253257' },
+  tutorHaloCheck: { borderColor: 'rgba(255,184,107,0.55)', backgroundColor: 'rgba(255, 184, 107, 0.12)' },
+  tutorHaloReady: { borderColor: colors.lime, backgroundColor: 'rgba(216, 255, 62, 0.14)' },
   tutorCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start', justifyContent: 'center' },
   guideBubble: {
     height: 24,
     justifyContent: 'center',
-    borderRadius: 12,
-    borderWidth: borders.thin,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.lime,
-    paddingHorizontal: 10,
-    transform: [{ rotate: '-2deg' }],
+    paddingHorizontal: 11,
     marginBottom: 5,
   },
   guideBubbleCheck: { backgroundColor: colors.peach },
@@ -629,10 +680,10 @@ const styles = StyleSheet.create({
     width: 158,
     height: 158,
     borderRadius: 79,
-    backgroundColor: '#2E2266',
-    borderWidth: 3,
+    backgroundColor: 'rgba(124, 60, 255, 0.18)',
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: '#7566BD',
+    borderColor: 'rgba(167, 139, 250, 0.42)',
   },
   messageGlyph: {
     position: 'absolute',
@@ -640,13 +691,11 @@ const styles = StyleSheet.create({
     bottom: 10,
     width: 46,
     height: 46,
-    borderRadius: 15,
-    borderWidth: borders.regular,
-    borderColor: colors.ink,
+    borderRadius: 999,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '6deg' }],
+    elevation: 4,
   },
   messageGlyphGold: { backgroundColor: colors.gold },
   messageCard: { minHeight: 168, padding: 20 },

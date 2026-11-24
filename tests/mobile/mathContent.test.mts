@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   compactProblemContent,
@@ -125,27 +124,4 @@ test('accepts a rendered structured table and exposes its TalkBack description',
 
   assert.equal(isMathAnalysis(analysis), true);
   assert.equal(contentToAccessibleText([table]), table.spoken);
-});
-
-test('never downgrades rendered mathematics to native body-font text', async () => {
-  const [richContentSource, formulaSource] = await Promise.all([
-    readFile(new URL('../../src/features/math/components/RichMathContent.tsx', import.meta.url), 'utf8'),
-    readFile(new URL('../../src/features/math/components/MathFormula.tsx', import.meta.url), 'utf8'),
-  ]);
-  const inlineStart = formulaSource.indexOf('function InlineMathFormulaComponent');
-  const inlineEnd = formulaSource.indexOf('export const InlineMathFormula');
-  const inlineImplementation = formulaSource.slice(inlineStart, inlineEnd);
-
-  assert.doesNotMatch(richContentSource, /isNativeParagraph|nativeMath|latexToInlineText\(/);
-  assert.doesNotMatch(inlineImplementation, /latexToInlineText|<Text/);
-  assert.match(inlineImplementation, /<SvgXml xml=\{xml\}/);
-});
-
-test('keeps a subproblem label with the display formula that follows it', async () => {
-  const source = await readFile(new URL('../../src/features/math/components/RichMathContent.tsx', import.meta.url), 'utf8');
-
-  assert.match(source, /subproblemLabelPattern/);
-  assert.match(source, /if \(prefix\) flow\.pop\(\)/);
-  assert.match(source, /row\.prefix\.text\.trim\(\)/);
-  assert.match(source, /mathContainerWidth - 28/);
 });
