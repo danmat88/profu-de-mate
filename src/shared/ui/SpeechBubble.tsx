@@ -7,12 +7,12 @@ import { Text } from './Typography';
 
 export type SpeechBubbleTone = 'paper' | 'limeSoft' | 'peachSoft' | 'roseSoft' | 'violetSoft';
 
-const palettes: Record<SpeechBubbleTone, { bg: string; border: string; accent: string }> = {
-  paper: { bg: 'rgba(255, 255, 255, 0.9)', border: 'rgba(124, 60, 255, 0.11)', accent: colors.violet },
-  limeSoft: { bg: 'rgba(246, 255, 224, 0.94)', border: 'rgba(86, 120, 0, 0.18)', accent: colors.limeDeep },
-  peachSoft: { bg: 'rgba(255, 244, 238, 0.94)', border: 'rgba(255, 141, 107, 0.28)', accent: colors.peach },
-  roseSoft: { bg: 'rgba(255, 240, 243, 0.95)', border: 'rgba(255, 87, 109, 0.28)', accent: colors.rose },
-  violetSoft: { bg: 'rgba(244, 238, 255, 0.94)', border: 'rgba(124, 60, 255, 0.18)', accent: colors.violet },
+const palettes: Record<SpeechBubbleTone, { bg: string; border: string; lip: string; accent: string }> = {
+  paper: { bg: '#FFFFFF', border: '#E7DDFB', lip: '#DDD0F7', accent: colors.violet },
+  limeSoft: { bg: '#F6FFE2', border: '#D3EE8C', lip: '#BBE05C', accent: colors.limeDeep },
+  peachSoft: { bg: '#FFF5F0', border: '#FAD0C0', lip: '#F2B49D', accent: colors.peach },
+  roseSoft: { bg: '#FFF0F3', border: '#FBC2CC', lip: '#F49AA9', accent: colors.rose },
+  violetSoft: { bg: '#F4EEFF', border: '#DAC8FC', lip: '#C5ACFA', accent: colors.violet },
 };
 
 type Props = {
@@ -20,6 +20,7 @@ type Props = {
   body?: string;
   tone?: SpeechBubbleTone;
   tail?: 'left' | 'none';
+  variant?: 'card' | 'sky';
   compact?: boolean;
   /** Change this key to trigger a subtle editorial settle when the copy updates. */
   messageKey?: string;
@@ -30,13 +31,16 @@ type Props = {
 };
 
 /**
- * Airy frosted editorial companion card replacing dated comic speech tails
- * with a clean studio accent bar and whisper-smooth native motion.
+ * Companion copy component. In default card mode renders a tactile 3D studio
+ * dialog card; in sky mode renders borderless high-contrast white editorial
+ * typography over Home curved color canopy, surfacing a crisp alert pill only
+ * on errors.
  */
 export function SpeechBubble({
   title,
   body,
   tone = 'paper',
+  variant = 'card',
   compact = false,
   messageKey,
   onPress,
@@ -46,7 +50,9 @@ export function SpeechBubble({
   const reducedMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
   const previousKey = useRef(messageKey);
-  const { bg: fill, border, accent } = palettes[tone];
+  const { bg: fill, border, lip, accent } = palettes[tone];
+  const isSky = variant === 'sky';
+  const isSkyError = isSky && tone === 'roseSoft';
 
   useEffect(() => {
     if (!messageKey || previousKey.current === messageKey) return undefined;
@@ -69,7 +75,37 @@ export function SpeechBubble({
 
   const animatedStyle = useMemo(() => ({ transform: [{ scale }] }), [scale]);
 
-  const cardInner = (
+  const skyDotColor = tone === 'peachSoft'
+    ? '#FFD447'
+    : tone === 'roseSoft'
+      ? colors.rose
+      : colors.lime;
+
+  const cardInner = isSky && !isSkyError ? (
+    <View style={styles.skyCopy}>
+      <View style={styles.skyTitleRow}>
+        <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} />
+        <Text
+          maxFontSizeMultiplier={1.3}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+          style={[styles.skyTitle, compact && styles.skyTitleCompact]}
+        >
+          {title}
+        </Text>
+      </View>
+      {body ? (
+        <Text
+          maxFontSizeMultiplier={1.3}
+          numberOfLines={compact ? 1 : 2}
+          style={[styles.skyBody, compact && styles.skyBodyCompact]}
+        >
+          {body}
+        </Text>
+      ) : null}
+    </View>
+  ) : (
     <View style={styles.innerRow}>
       <View style={[styles.accentBar, { backgroundColor: accent }]} />
       <View style={styles.copy}>
@@ -95,6 +131,14 @@ export function SpeechBubble({
     </View>
   );
 
+  const shellStyle = isSky && !isSkyError
+    ? [styles.skyShell, compact && styles.skyShellCompact]
+    : [
+        styles.card,
+        compact && styles.cardCompact,
+        { backgroundColor: fill, borderColor: border, borderBottomColor: lip },
+      ];
+
   return (
     <Animated.View style={[styles.outer, animatedStyle, style]}>
       {onPress ? (
@@ -103,16 +147,14 @@ export function SpeechBubble({
           accessibilityLabel={accessibilityLabel ?? (body ? `${title}. ${body}` : title)}
           onPress={onPress}
           style={({ pressed }) => [
-            styles.card,
-            compact && styles.cardCompact,
-            { backgroundColor: fill, borderColor: border },
+            ...shellStyle,
             pressed && styles.cardPressed,
           ]}
         >
           {cardInner}
         </Pressable>
       ) : (
-        <View style={[styles.card, compact && styles.cardCompact, { backgroundColor: fill, borderColor: border }]}>
+        <View style={shellStyle}>
           {cardInner}
         </View>
       )}
@@ -124,7 +166,8 @@ const styles = StyleSheet.create({
   outer: { flex: 1, minWidth: 0 },
   card: {
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.2,
+    borderBottomWidth: 3,
     paddingHorizontal: 13,
     paddingVertical: 10,
     overflow: 'hidden',
@@ -135,8 +178,58 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   cardPressed: {
-    opacity: 0.92,
+    opacity: 0.9,
     transform: [{ scale: 0.985 }],
+  },
+  skyShell: {
+    paddingVertical: 4,
+    paddingRight: 4,
+  },
+  skyShellCompact: {
+    paddingVertical: 1,
+  },
+  skyCopy: {
+    minWidth: 0,
+  },
+  skyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  skyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  skyTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 22.5,
+    lineHeight: 26,
+    letterSpacing: -0.35,
+  },
+  skyTitleCompact: {
+    fontSize: 17.5,
+    lineHeight: 21,
+  },
+  skyBody: {
+    marginTop: 4,
+    paddingLeft: 16,
+    minHeight: 34,
+    fontFamily: fonts.bodyMedium,
+    color: 'rgba(246, 240, 255, 0.9)',
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  skyBodyCompact: {
+    marginTop: 1.5,
+    paddingLeft: 16,
+    minHeight: 16,
+    fontSize: 11.5,
+    lineHeight: 15,
   },
   innerRow: {
     flexDirection: 'row',

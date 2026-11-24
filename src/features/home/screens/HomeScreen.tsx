@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { HomeSurface } from '../components/HomeSurface';
 import { ReadinessScreen } from '../../../shared/ui/ReadinessScreen';
 import { useCommercial } from '../../access/context/CommercialContext';
@@ -38,6 +38,10 @@ export type HomeScreenProps = {
   embedded?: boolean;
   active?: boolean;
   bottomClearance?: number;
+  studyTrackLabel?: string;
+  streakDays?: number;
+  wrongCount?: number;
+  captureActionRef?: MutableRefObject<(() => void) | null>;
   onOpenStudy?: () => void;
   onOpenNotebookTab?: () => void;
 };
@@ -47,6 +51,10 @@ export function HomeScreen(props?: HomeScreenProps) {
     embedded = false,
     active = true,
     bottomClearance = 8,
+    studyTrackLabel,
+    streakDays = 0,
+    wrongCount = 0,
+    captureActionRef,
     onOpenStudy,
     onOpenNotebookTab,
   } = props ?? {};
@@ -145,6 +153,16 @@ export function HomeScreen(props?: HomeScreenProps) {
     if (!resume()) navigation.navigate('Capture', { mode });
   }, [mode, navigation, resume]);
 
+  useEffect(() => {
+    if (!captureActionRef) return undefined;
+    captureActionRef.current = openCapture;
+    return () => {
+      if (captureActionRef.current === openCapture) {
+        captureActionRef.current = null;
+      }
+    };
+  }, [captureActionRef, openCapture]);
+
   const openMath = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
     navigationLocked.current = true;
@@ -212,6 +230,13 @@ export function HomeScreen(props?: HomeScreenProps) {
     navigation.navigate('Settings');
   }, [navigation]);
 
+  const openQuickPractice = useCallback(() => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    navigationLocked.current = true;
+    beginAppTransition();
+    navigation.navigate('PracticeSession', { mode: wrongCount > 0 ? 'mistakes' : 'quick' });
+  }, [navigation, wrongCount]);
+
   if (!access) {
     return <ReadinessScreen
       busy={commercialStatus === 'resolving'}
@@ -238,6 +263,9 @@ export function HomeScreen(props?: HomeScreenProps) {
       premiumActive={Boolean(access?.premium.active)}
       latestLessonTitle={notebookPreview.latestTitle}
       savedLessonsCount={notebookPreview.count}
+      studyTrackLabel={studyTrackLabel}
+      streakDays={streakDays}
+      wrongCount={wrongCount}
       showGuide={!guideDismissed}
       embedded={embedded}
       bottomClearance={bottomClearance}
@@ -249,6 +277,7 @@ export function HomeScreen(props?: HomeScreenProps) {
       onMath={openMath}
       onNotebook={openNotebook}
       onStudy={onOpenStudy}
+      onQuickPractice={openQuickPractice}
       onSettings={openSettings}
       onAllowance={openAllowance}
     />
