@@ -1,6 +1,6 @@
 # Profu’ de mate
 
-Romanian Android app for solving and checking photographed or typed mathematics problems, with explanations and a saved lesson notebook.
+Romanian Android study companion for solving and checking photographed or typed mathematics problems, studying offline formulas, practicing curated & AI exercises, and taking timed Evaluarea Națională / BAC simulations with AI rubric photo grading.
 
 Built with Expo SDK 57, React Native, TypeScript, and Firebase. The publication backlog is maintained in [Google Play release checklist](docs/PLAY_STORE_RELEASE.md).
 
@@ -8,14 +8,17 @@ Built with Expo SDK 57, React Native, TypeScript, and Firebase. The publication 
 
 ```text
 src/
-  app/                       App composition, navigation, and startup
+  app/                       App composition, 3-tab Studio shell, navigation, and startup
   features/
     home/                    Home screen and its animated surface
     capture/                 Camera, image review, and temporary images
     analysis/                Request processing and recovery
     math/                    Written editor and math rendering
     lessons/                 Lesson screens and saved notebook
-    account/                 Settings, sign-in UI, and account deletion
+    study/                   Study hub, curriculum tracks, offline formulas, and cloud sync
+    practice/                Curated & AI practice sessions, repeat queue, and streaks
+    exams/                   EN VIII & BAC M1/M2/M3 guides, 100p simulations, and AI rubric grading
+    account/                 Settings, sign-in UI, legal disclosures, and account deletion
     access/                  Allowances, Premium, and purchases
     feedback/                In-app lesson reporting
   shared/                    Reusable UI, hooks, platform services, and types
@@ -23,7 +26,8 @@ functions/
   src/
     index.ts                 Firebase handler entry point
     analysis/                AI pipeline, validation, and math rendering
-    accounts/                Account merging and deletion
+    study/                   AI practice generator and exam photo rubric grader
+    accounts/                Account merging (including study progress) and deletion
     access/                  Server allowances and device identity
     billing/                 RevenueCat integration
     feedback/                Report submission and triage
@@ -32,11 +36,12 @@ functions/
   tests/integration/         Emulator-backed backend tests
   scripts/                   Backend provider diagnostics
 tests/
-  mobile/                    App logic, lifecycle, and UI checks
+  mobile/                    App logic, study math integrity, lifecycle, and UI checks
   config/                    Build, dependency, and release checks
   firestore/                 Firestore security rules
   helpers/                   Test adapters
 scripts/
+  content/                   Offline MathJax Fira SVG pre-compiler for study/exam content
   env/                       Client environment validation
   firebase/                  Deployment and emulator commands
   release/                   Bundle, artifact, and legal checks
@@ -81,6 +86,7 @@ npm run dev:phone:local
 ## Validation
 
 ```powershell
+npm run content:compile
 npm run check
 npm run test:mobile
 npm run functions:test
@@ -89,7 +95,7 @@ npm run legal:check
 npm run release:bundle-check
 ```
 
-`test:rules` runs against a local demo Firebase project. It does not deploy infrastructure. Firebase logs from the test and deployment wrappers are collected under `.local/logs/`.
+`content:compile` pre-compiles all curated formulas, exam guides, practice questions, and simulation items into offline MathJax Fira SVG (`src/features/study/data/renderedMath.generated.ts`). `test:rules` runs against a local demo Firebase project. It does not deploy infrastructure. Firebase logs from the test and deployment wrappers are collected under `.local/logs/`.
 
 For optional visual or native diagnostics:
 

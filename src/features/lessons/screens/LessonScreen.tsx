@@ -1,6 +1,6 @@
 import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -464,7 +464,6 @@ export function LessonScreen({ navigation, route }: Props) {
   const removedToastPending = useRef(false);
   const pagingLocked = useRef(false);
   const pagingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const turnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const arrivalPlayed = useRef(false);
   const previousStep = useRef(0);
 
@@ -512,10 +511,6 @@ export function LessonScreen({ navigation, route }: Props) {
   // Immediately halt all animations whenever a transition begins out of LessonScreen.
   useEffect(() => {
     if (motionActive) return;
-    if (turnTimer.current) {
-      clearTimeout(turnTimer.current);
-      turnTimer.current = null;
-    }
     cardShiftX.stopAnimation();
     ribbonSweep.stopAnimation();
     cardShiftX.setValue(0);
@@ -531,43 +526,28 @@ export function LessonScreen({ navigation, route }: Props) {
     playRibbonSweep();
   }, [motionActive, playRibbonSweep, reducedMotion]);
 
-  // Synchronized 2-phase page-turn choreography matching MathDocumentView's 60ms swap.
-  useEffect(() => {
+  // Immediate single-phase arrival spring synchronized with MathDocumentView's instant swap.
+  useLayoutEffect(() => {
     if (previousStep.current === step) return;
     previousStep.current = step;
     setAlternate(false);
-    if (turnTimer.current) {
-      clearTimeout(turnTimer.current);
-      turnTimer.current = null;
-    }
     if (reducedMotion || !motionActive || stepState.direction === 0) return;
 
     const direction = stepState.direction;
     cardShiftX.stopAnimation();
-    Animated.timing(cardShiftX, {
-      toValue: -direction * 6,
-      duration: 58,
-      easing: Easing.out(Easing.cubic),
+    cardShiftX.setValue(direction * 12);
+    Animated.spring(cardShiftX, {
+      toValue: 0,
+      tension: 320,
+      friction: 26,
       useNativeDriver: true,
     }).start();
-
-    turnTimer.current = setTimeout(() => {
-      turnTimer.current = null;
-      cardShiftX.setValue(direction * 10);
-      Animated.spring(cardShiftX, {
-        toValue: 0,
-        tension: 280,
-        friction: 23,
-        useNativeDriver: true,
-      }).start();
-      playRibbonSweep();
-    }, 60);
+    playRibbonSweep();
   }, [cardShiftX, motionActive, playRibbonSweep, reducedMotion, step, stepState.direction]);
 
   useEffect(() => () => {
     if (savedTimer.current) clearTimeout(savedTimer.current);
     if (pagingTimer.current) clearTimeout(pagingTimer.current);
-    if (turnTimer.current) clearTimeout(turnTimer.current);
     cardShiftX.stopAnimation();
     ribbonSweep.stopAnimation();
   }, [cardShiftX, ribbonSweep]);

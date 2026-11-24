@@ -67,7 +67,6 @@ export function MathDocumentView({
   const revision = useRef(0);
   const revealedRevision = useRef<string | null>(null);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyRaf = useRef(0);
   const [fontsReady, setFontsReady] = useState<MathDocumentFonts | undefined>(getCachedDocumentFonts);
   const [documentReady, setDocumentReady] = useState(false);
@@ -130,14 +129,14 @@ export function MathDocumentView({
     Animated.parallel([
       Animated.timing(stageOpacity, {
         toValue: 1,
-        duration: 195,
+        duration: 145,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.spring(stageShiftX, {
         toValue: 0,
-        tension: 270,
-        friction: 23,
+        tension: 320,
+        friction: 26,
         useNativeDriver: true,
       }),
     ]).start();
@@ -145,7 +144,6 @@ export function MathDocumentView({
 
   useEffect(() => () => {
     if (revealTimer.current) clearTimeout(revealTimer.current);
-    if (swapTimer.current) clearTimeout(swapTimer.current);
     cancelAnimationFrame(readyRaf.current);
     stopStageMotion();
   }, [stopStageMotion]);
@@ -203,58 +201,24 @@ export function MathDocumentView({
     lastInjectedMarkup.current = markup;
     revision.current += 1;
     const targetRevision = String(revision.current);
-    if (swapTimer.current) {
-      clearTimeout(swapTimer.current);
-      swapTimer.current = null;
-    }
     if (revealTimer.current) {
       clearTimeout(revealTimer.current);
       revealTimer.current = null;
     }
     stopStageMotion();
 
-    const injectUpdatedDocument = () => {
-      stageOpacity.setValue(0);
-      stageShiftY.setValue(0);
-      stageShiftX.setValue(reducedMotion ? 0 : transitionDirection * 20);
-      webViewRef.current?.injectJavaScript(
-        buildMathDocumentUpdateScript(definition, targetRevision),
-      );
-      revealTimer.current = setTimeout(() => revealDocument(false, targetRevision), 260);
-    };
-
-    if (reducedMotion || transitionDirection === 0) {
-      injectUpdatedDocument();
-      return;
-    }
-
-    // Phase 1: crisp outgoing glide synchronized with the host card turn,
-    // followed by instant DOM swap and spring-settled arrival of the next step.
-    Animated.parallel([
-      Animated.timing(stageOpacity, {
-        toValue: 0,
-        duration: 58,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(stageShiftX, {
-        toValue: -transitionDirection * 14,
-        duration: 58,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-    swapTimer.current = setTimeout(() => {
-      swapTimer.current = null;
-      injectUpdatedDocument();
-    }, 60);
+    // Hide the outgoing WebView frame and inject the next step immediately
+    // so the previous step never lingers beneath the updated host header.
+    stageOpacity.setValue(0);
+    stageShiftY.setValue(0);
+    stageShiftX.setValue(reducedMotion ? 0 : transitionDirection * 18);
+    webViewRef.current?.injectJavaScript(
+      buildMathDocumentUpdateScript(definition, targetRevision),
+    );
+    revealTimer.current = setTimeout(() => revealDocument(false, targetRevision), 160);
   }, [definition, failed, fontsReady, markup, reducedMotion, revealDocument, stageOpacity, stageShiftX, stageShiftY, stopStageMotion, transitionDirection]);
 
   const retry = () => {
-    if (swapTimer.current) {
-      clearTimeout(swapTimer.current);
-      swapTimer.current = null;
-    }
     if (revealTimer.current) {
       clearTimeout(revealTimer.current);
       revealTimer.current = null;

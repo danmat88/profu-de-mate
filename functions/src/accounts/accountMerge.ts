@@ -173,6 +173,62 @@ async function copyLessons(db: Firestore, sourceUserId: string, targetUserId: st
   }
 }
 
+async function mergeStudyProgress(db: Firestore, sourceUserId: string, targetUserId: string, ticket: string): Promise<void> {
+  const sourceRef = db.collection('users').doc(sourceUserId).collection('studyProgress').doc('summary');
+  const targetRef = db.collection('users').doc(targetUserId).collection('studyProgress').doc('summary');
+  await db.runTransaction(async (transaction) => {
+    await assertUserActive(transaction, db, targetUserId);
+    await assertMergeSource(transaction, db, sourceUserId, ticket);
+    const [sourceSnap, targetSnap] = await Promise.all([
+      transaction.get(sourceRef),
+      transaction.get(targetRef),
+    ]);
+    if (!sourceSnap.exists) return;
+    const src = sourceSnap.data() ?? {};
+    const tgt = targetSnap.data() ?? {};
+
+    const favoriteFormulaIds = [...new Set([
+      ...stringArray(tgt.favoriteFormulaIds),
+      ...stringArray(src.favoriteFormulaIds),
+    ])].slice(0, 100);
+    const exploredFormulaIds = [...new Set([
+      ...stringArray(tgt.exploredFormulaIds),
+      ...stringArray(src.exploredFormulaIds),
+    ])].slice(0, 120);
+    const masteredQuestionIds = [...new Set([
+      ...stringArray(tgt.masteredQuestionIds),
+      ...stringArray(src.masteredQuestionIds),
+    ])].slice(0, 250);
+    const masteredSet = new Set(masteredQuestionIds);
+    const wrongQuestionIds = [...new Set([
+      ...stringArray(tgt.wrongQuestionIds),
+      ...stringArray(src.wrongQuestionIds),
+    ])].filter((id) => !masteredSet.has(id)).slice(0, 120);
+
+    const srcDate = typeof src.lastPracticeDateKey === 'string' ? src.lastPracticeDateKey : null;
+    const tgtDate = typeof tgt.lastPracticeDateKey === 'string' ? tgt.lastPracticeDateKey : null;
+    const lastPracticeDateKey = srcDate && tgtDate ? (srcDate > tgtDate ? srcDate : tgtDate) : (tgtDate ?? srcDate);
+
+    transaction.set(targetRef, {
+      track: typeof tgt.track === 'string' ? tgt.track : (typeof src.track === 'string' ? src.track : 'en'),
+      hasChosenTrack: tgt.hasChosenTrack === true || src.hasChosenTrack === true,
+      favoriteFormulaIds,
+      exploredFormulaIds,
+      masteredQuestionIds,
+      wrongQuestionIds,
+      streakDays: Math.min(3650, Math.max(numeric(tgt.streakDays), numeric(src.streakDays))),
+      lastPracticeDateKey,
+      sessionsCompleted: Math.min(100000, numeric(tgt.sessionsCompleted) + numeric(src.sessionsCompleted)),
+      totalAnswered: Math.min(1000000, numeric(tgt.totalAnswered) + numeric(src.totalAnswered)),
+      totalCorrect: Math.min(
+        Math.min(1000000, numeric(tgt.totalAnswered) + numeric(src.totalAnswered)),
+        numeric(tgt.totalCorrect) + numeric(src.totalCorrect),
+      ),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+}
+
 async function reassignFeedback(db: Firestore, sourceUserId: string, targetUserId: string, ticket: string): Promise<void> {
   while (true) {
     const count = await db.runTransaction(async (transaction) => {
@@ -282,7 +338,10 @@ export async function completeAccountMerge(args: {
     return { merged: true, copiedLessons: 0 };
   }
   const copiedLessons = keepsSameUser ? 0 : await copyLessons(args.db, sourceUserId, args.targetUserId, args.ticket);
-  if (!keepsSameUser) await reassignFeedback(args.db, sourceUserId, args.targetUserId, args.ticket);
+  if (!keepsSameUser) {
+    await mergeStudyProgress(args.db, sourceUserId, args.targetUserId, args.ticket);
+    await reassignFeedback(args.db, sourceUserId, args.targetUserId, args.ticket);
+  }
 
   const commercialConfig = await getCommercialConfig(args.db, now);
   const window = bucharestQuotaWindow(now);

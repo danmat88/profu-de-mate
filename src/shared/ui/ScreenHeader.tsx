@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../context/TransitionMotionContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
@@ -12,7 +12,7 @@ import { Text } from './Typography';
 type Props = {
   title: string;
   eyebrow?: string;
-  onBack: () => void;
+  onBack?: () => void;
   backDisabled?: boolean;
   rightIcon?: AppIconName;
   rightLabel?: string;
@@ -42,8 +42,15 @@ export const ScreenHeader = memo(function ScreenHeader({
   const buttonSize = compact && !isLargeText ? 40 : 44;
   const badgeRadius = Math.round(buttonSize / 2);
   const handleBack = () => {
+    if (!onBack) return;
+    Keyboard.dismiss();
     beginAppTransition();
     onBack();
+  };
+  const handleRight = () => {
+    if (!onRight) return;
+    Keyboard.dismiss();
+    onRight();
   };
 
   return (
@@ -56,10 +63,12 @@ export const ScreenHeader = memo(function ScreenHeader({
         isLargeText && styles.rowLargeText,
       ]}
     >
-      <IconButton label="Înapoi" onPress={handleBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
-        <MiniGlyph name="back" size={compact && !isLargeText ? 21 : 23} color={color} />
-      </IconButton>
-      <View style={styles.copy}>
+      {onBack ? (
+        <IconButton label="Înapoi" onPress={handleBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
+          <MiniGlyph name="back" size={compact && !isLargeText ? 21 : 23} color={color} />
+        </IconButton>
+      ) : null}
+      <Pressable accessible={false} onPress={Keyboard.dismiss} style={styles.copy}>
         {eyebrow ? (
           <Text numberOfLines={1} style={[styles.eyebrow, dark && styles.eyebrowDark]}>
             {eyebrow}
@@ -76,11 +85,11 @@ export const ScreenHeader = memo(function ScreenHeader({
         >
           {title}
         </Text>
-      </View>
+      </Pressable>
       {rightIcon && onRight ? (
         <IconButton
           label={rightLabel}
-          onPress={onRight}
+          onPress={handleRight}
           disabled={rightDisabled}
           dark={dark}
           active={rightActive}

@@ -34,7 +34,22 @@ function readNotebookPreview(): NotebookPreview {
   };
 }
 
-export function HomeScreen() {
+export type HomeScreenProps = {
+  embedded?: boolean;
+  active?: boolean;
+  bottomClearance?: number;
+  onOpenStudy?: () => void;
+  onOpenNotebookTab?: () => void;
+};
+
+export function HomeScreen(props?: HomeScreenProps) {
+  const {
+    embedded = false,
+    active = true,
+    bottomClearance = 8,
+    onOpenStudy,
+    onOpenNotebookTab,
+  } = props ?? {};
   const navigation = useNavigation<Navigation>();
   const {
     authSessionKey,
@@ -49,7 +64,8 @@ export function HomeScreen() {
   const [pendingAnalysis, setPendingAnalysis] = useState<PendingAnalysis | null>(() => getPreparedPendingAnalysis() ?? null);
   const [notebookPreview, setNotebookPreview] = useState<NotebookPreview>(() => readNotebookPreview());
   const [guideDismissed, setGuideDismissed] = useState<boolean>(() => hasSeenHomeGuide());
-  const homeFocused = useScreenMotionActive(navigation, false, { initiallySettled: true });
+  const screenFocused = useScreenMotionActive(navigation, false, { initiallySettled: true });
+  const homeFocused = screenFocused && active;
   const navigationLocked = useRef(false);
   const galleryLocked = useRef(false);
   const mounted = useRef(true);
@@ -138,10 +154,14 @@ export function HomeScreen() {
 
   const openNotebook = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
+    if (onOpenNotebookTab) {
+      onOpenNotebookTab();
+      return;
+    }
     navigationLocked.current = true;
     beginAppTransition();
     navigation.navigate('Notebook');
-  }, [navigation]);
+  }, [navigation, onOpenNotebookTab]);
 
   const openGallery = useCallback(async () => {
     if (galleryLocked.current || navigationLocked.current) return;
@@ -219,6 +239,8 @@ export function HomeScreen() {
       latestLessonTitle={notebookPreview.latestTitle}
       savedLessonsCount={notebookPreview.count}
       showGuide={!guideDismissed}
+      embedded={embedded}
+      bottomClearance={bottomClearance}
       onDismissGuide={dismissGuide}
       onClearGalleryError={clearGalleryError}
       onMode={chooseMode}
@@ -226,6 +248,7 @@ export function HomeScreen() {
       onGallery={handleOpenGallery}
       onMath={openMath}
       onNotebook={openNotebook}
+      onStudy={onOpenStudy}
       onSettings={openSettings}
       onAllowance={openAllowance}
     />

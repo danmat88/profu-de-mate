@@ -1,12 +1,11 @@
-import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
   FlatList,
   Image,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   Pressable,
   ScrollView,
   Share,
@@ -17,6 +16,7 @@ import {
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
+import { useKeyboardHeight } from '../../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
@@ -37,6 +37,13 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text, TextInput } from '../../../shared/ui/Typography';
+import { usePracticeState } from '../../practice/services/practiceStorage';
+import type { PracticeQuestion } from '../../practice/types';
+import { getPracticeQuestionById } from '../../practice/utils/practiceEngine';
+import { FormulaCard } from '../../study/components/FormulaCard';
+import { toggleFavoriteFormula, useStudyProfile } from '../../study/services/studyStorage';
+import { getFormulaCategoryMeta, type FormulaEntry } from '../../study/types';
+import { getFormulaById } from '../../study/utils/studyDocumentBuilder';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
 import { formatLessonShareMessage } from '../utils/lessonShare';
@@ -49,7 +56,13 @@ import {
   type NotebookFilter,
 } from '../utils/notebookPresentation';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Notebook'>;
+type Props = Partial<NativeStackScreenProps<RootStackParamList, 'Notebook'>> & {
+  embedded?: boolean;
+  active?: boolean;
+  bottomClearance?: number;
+};
+
+type NotebookSection = 'lessons' | 'formulas' | 'mistakes';
 
 const FILTER_ORDER: Record<NotebookFilter, number> = { all: 0, solve: 1, check: 2 };
 
@@ -556,7 +569,7 @@ const FilterEmpty = memo(function FilterEmpty({ filter, query, topic, onReset, o
   const shouldReset = searching || filteredByTopic;
 
   return (
-    <View style={styles.filterEmpty}>
+    <Pressable accessible={false} onPress={Keyboard.dismiss} style={styles.filterEmpty}>
       <View style={styles.filterEmptyBadge}>
         <Image
           accessible={false}
@@ -573,6 +586,7 @@ const FilterEmpty = memo(function FilterEmpty({ filter, query, topic, onReset, o
         <Pressable
           accessibilityRole="button"
           onPress={() => {
+            Keyboard.dismiss();
             Haptics.selection();
             if (shouldReset) onReset();
             else onStart(check ? 'check' : 'solve');
@@ -584,17 +598,29 @@ const FilterEmpty = memo(function FilterEmpty({ filter, query, topic, onReset, o
           </Text>
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 });
 
-export function NotebookScreen({ navigation }: Props) {
+export function NotebookScreen({
+  navigation: propNavigation,
+  embedded = false,
+  active = true,
+  bottomClearance = 0,
+}: Props = {}) {
+  const hookNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = propNavigation ?? hookNavigation;
   const frame = useSafeAreaFrame();
   const { gutter, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const { keyboardInset, keyboardVisible } = useKeyboardHeight();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
-  const motionActive = useScreenMotionActive(navigation, reducedMotion);
+  const screenMotionActive = useScreenMotionActive(navigation, reducedMotion);
+  const motionActive = screenMotionActive && active;
+  const studyProfile = useStudyProfile();
+  const practiceState = usePracticeState();
+  const [section, setSection] = useState<NotebookSection>('lessons');
   const [tabState, setTabState] = useState<{
     filter: NotebookFilter;
     direction: -1 | 0 | 1;
@@ -706,6 +732,7 @@ export function NotebookScreen({ navigation }: Props) {
   ], [counts.all, counts.check, counts.solve]);
 
   const chooseFilter = useCallback((next: NotebookFilter) => {
+    Keyboard.dismiss();
     setTabState((current) => {
       if (current.filter === next) return current;
       const nextDirection: -1 | 1 = FILTER_ORDER[next] > FILTER_ORDER[current.filter] ? 1 : -1;
@@ -719,6 +746,7 @@ export function NotebookScreen({ navigation }: Props) {
   }, []);
 
   const chooseTopic = useCallback((nextTopic: string | null) => {
+    Keyboard.dismiss();
     Haptics.selection();
     setSelectedTopic((current) => {
       if (
@@ -740,6 +768,7 @@ export function NotebookScreen({ navigation }: Props) {
 
   const openNote = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
+    Keyboard.dismiss();
     openingNoteRef.current = true;
     // Pause all animations on Caiet immediately and launch the native slide
     // without blocking the main thread on WebView preloading.
@@ -754,6 +783,7 @@ export function NotebookScreen({ navigation }: Props) {
 
   const openSummary = useCallback((lesson: StoredLesson) => {
     if (openingNoteRef.current) return;
+    Keyboard.dismiss();
     openingNoteRef.current = true;
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     beginAppTransition();
@@ -765,6 +795,7 @@ export function NotebookScreen({ navigation }: Props) {
   }, [navigation]);
 
   const shareNote = useCallback((lesson: StoredLesson) => {
+    Keyboard.dismiss();
     Haptics.selection();
     void Share.share({
       title: lesson.title,
@@ -773,6 +804,7 @@ export function NotebookScreen({ navigation }: Props) {
   }, []);
 
   const requestRemove = useCallback((lesson: StoredLesson) => {
+    Keyboard.dismiss();
     Haptics.selection();
     setRemoveError(false);
     setPendingRemoval(lesson);
@@ -810,17 +842,20 @@ export function NotebookScreen({ navigation }: Props) {
 
   const startMode = useCallback((mode: FlowMode) => {
     if (openingNoteRef.current) return;
+    Keyboard.dismiss();
     openingNoteRef.current = true;
     beginAppTransition();
     navigation.navigate('Capture', { mode });
   }, [navigation]);
   const clearSearch = useCallback(() => setQueryText(''), []);
   const resetFilters = useCallback(() => {
+    Keyboard.dismiss();
     setQueryText('');
     setSelectedTopic(null);
     chooseFilter('all');
   }, [chooseFilter]);
   const retrySubscription = useCallback(() => {
+    Keyboard.dismiss();
     setLoadError(false);
     setLoading(notes.length === 0);
     setSubscriptionAttempt((attempt) => attempt + 1);
@@ -863,20 +898,303 @@ export function NotebookScreen({ navigation }: Props) {
       ? 'CAPITOL SELECTAT'
       : 'CAIETUL TĂU';
   const hasResettableFilter = Boolean(normalizedQuery || effectiveTopic);
-  const headerCount = loading && notes.length === 0
-    ? 'LECȚII SALVATE'
-    : topicCounts.length > 1
-      ? `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ' : 'PROBLEME'} · ${topicCounts.length} CAPITOLE`
-      : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
+  const favoriteFormulas = useMemo(
+    () => studyProfile.favoriteFormulaIds
+      .map((id) => getFormulaById(id))
+      .filter((item): item is FormulaEntry => Boolean(item)),
+    [studyProfile.favoriteFormulaIds],
+  );
+  const favoriteFormulaIds = useMemo(
+    () => favoriteFormulas.map((item) => item.id),
+    [favoriteFormulas],
+  );
+  const openFavoriteFormula = useCallback((formula: FormulaEntry) => {
+    if (openingNoteRef.current) return;
+    Keyboard.dismiss();
+    openingNoteRef.current = true;
+    beginAppTransition();
+    navigation.navigate('FormulaDetail', {
+      formulaId: formula.id,
+      formulaIds: favoriteFormulaIds,
+    });
+  }, [favoriteFormulaIds, navigation]);
+  const openFormulasCatalog = useCallback(() => {
+    if (openingNoteRef.current) return;
+    Keyboard.dismiss();
+    openingNoteRef.current = true;
+    beginAppTransition();
+    navigation.navigate('Formulas');
+  }, [navigation]);
+  const toggleStarFormula = useCallback((formulaId: string) => {
+    Keyboard.dismiss();
+    toggleFavoriteFormula(formulaId);
+  }, []);
+  const renderFormulaItem = useCallback<ListRenderItem<FormulaEntry>>(({ item }) => (
+    <FormulaCard
+      formula={item}
+      isFavorite
+      onOpen={openFavoriteFormula}
+      onToggleFavorite={toggleStarFormula}
+    />
+  ), [openFavoriteFormula, toggleStarFormula]);
+  const formulaKeyExtractor = useCallback((item: FormulaEntry) => item.id, []);
+
+  const wrongQuestions = useMemo(
+    () => practiceState.wrongQuestionIds
+      .map((id) => getPracticeQuestionById(id))
+      .filter((item): item is PracticeQuestion => Boolean(item)),
+    [practiceState.wrongQuestionIds],
+  );
+  const startMistakesPractice = useCallback(() => {
+    if (openingNoteRef.current) return;
+    Keyboard.dismiss();
+    openingNoteRef.current = true;
+    beginAppTransition();
+    navigation.navigate('PracticeSession', { mode: 'mistakes' });
+  }, [navigation]);
+  const startQuickPractice = useCallback(() => {
+    if (openingNoteRef.current) return;
+    Keyboard.dismiss();
+    openingNoteRef.current = true;
+    beginAppTransition();
+    navigation.navigate('PracticeSession', { mode: 'quick' });
+  }, [navigation]);
+  const renderMistakeItem = useCallback<ListRenderItem<PracticeQuestion>>(({ item }) => {
+    const cat = getFormulaCategoryMeta(item.category);
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Reia exercițiul ${item.title}`}
+        onPress={startMistakesPractice}
+        style={({ pressed }) => [styles.mistakeRowCard, pressed && styles.actionPressed]}
+      >
+        <View style={[styles.mistakeRail, { backgroundColor: cat.accent }]} />
+        <View style={styles.mistakeBody}>
+          <View style={styles.mistakeTop}>
+            <View style={[styles.metaDot, { backgroundColor: cat.accent }]} />
+            <Text style={styles.metaKindText}>{cat.shortLabel}</Text>
+            <View style={styles.mistakeTag}>
+              <Text style={styles.mistakeTagText}>DE REPETAT</Text>
+            </View>
+          </View>
+          <Text numberOfLines={2} style={styles.mistakeTitle}>{item.title}</Text>
+          <Text numberOfLines={1} style={styles.mistakeHint}>
+            Atinge ca să reiei exercițiul și să-l rezolvi corect
+          </Text>
+        </View>
+        <View style={styles.mistakeArrow}>
+          <MiniGlyph name="next" size={15} color={colors.berryDeep} />
+        </View>
+      </Pressable>
+    );
+  }, [startMistakesPractice]);
+  const mistakeKeyExtractor = useCallback((item: PracticeQuestion) => item.id, []);
+
+  const sectionTabs = useMemo<readonly ComicTabOption<NotebookSection>[]>(() => [
+    {
+      value: 'lessons',
+      label: 'Lecții',
+      badge: notes.length,
+      activeFill: colors.violet,
+      activeText: colors.paper,
+      badgeFill: colors.lime,
+      badgeText: colors.ink,
+    },
+    {
+      value: 'formulas',
+      label: 'Formule',
+      badge: favoriteFormulas.length,
+      activeFill: colors.gold,
+      activeText: colors.ink,
+      badgeFill: colors.paper,
+      badgeText: colors.ink,
+    },
+    {
+      value: 'mistakes',
+      label: isNarrow ? 'Repetă' : 'De repetat',
+      badge: wrongQuestions.length,
+      activeFill: colors.peach,
+      activeText: colors.ink,
+      badgeFill: colors.paper,
+      badgeText: colors.ink,
+    },
+  ], [favoriteFormulas.length, isNarrow, notes.length, wrongQuestions.length]);
+
+  const headerBack = embedded ? undefined : () => {
+    Keyboard.dismiss();
+    navigation.goBack();
+  };
+  const listBottomPadding = keyboardVisible
+    ? 18
+    : embedded
+      ? bottomClearance + 10
+      : Math.max(insets.bottom, 16) + 18;
+  const headerCount = section === 'formulas'
+    ? `${favoriteFormulas.length} ${favoriteFormulas.length === 1 ? 'FORMULĂ FAVORITĂ' : 'FORMULE FAVORITE'} · OFFLINE`
+    : section === 'mistakes'
+      ? `${wrongQuestions.length} ${wrongQuestions.length === 1 ? 'EXERCIȚIU DE REPETAT' : 'EXERCIȚII DE REPETAT'}`
+      : loading && notes.length === 0
+        ? 'LECȚII SALVATE'
+        : topicCounts.length > 1
+          ? `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ' : 'PROBLEME'} · ${topicCounts.length} CAPITOLE`
+          : `${notes.length} ${notes.length === 1 ? 'PROBLEMĂ SALVATĂ' : 'PROBLEME SALVATE'}`;
   const pendingRemovalTitle = pendingRemoval ? notebookProblemPresentation(pendingRemoval).title : '';
   const searchPlaceholder = isNarrow ? 'Caută în enunțuri' : 'Caută în enunțuri, formule sau capitole';
   const mountSearchInput = transitionSettled || searchActivated;
+
+  const handleChangeSection = useCallback((next: NotebookSection) => {
+    Keyboard.dismiss();
+    setSection(next);
+  }, []);
+
+  const sectionSwitchBar = (
+    <View style={[styles.sectionSwitchRow, { paddingHorizontal: gutter }]}>
+      <ComicTabBar
+        compact
+        options={sectionTabs}
+        value={section}
+        onChange={handleChangeSection}
+      />
+    </View>
+  );
+
+  if (section === 'mistakes') {
+    return (
+      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+        <ComicBackdrop />
+        <ScreenHeader
+          compact
+          title="Caietul meu"
+          eyebrow={headerCount}
+          onBack={headerBack}
+          rightIcon="practice"
+          rightLabel="Începe un test fulger"
+          onRight={startQuickPractice}
+        />
+        {sectionSwitchBar}
+
+        {wrongQuestions.length === 0 ? (
+          <ScrollView
+            alwaysBounceVertical={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[styles.fullState, { paddingBottom: listBottomPadding }]}
+          >
+            <View style={styles.emptyMascotStage}>
+              <SpotlightAura size={146} tone="lime" active={motionActive} />
+              <Mascot pose="cheer" size={132} active={motionActive} interactive />
+            </View>
+            <Chip label="ZERO GREȘELI RĂMASE" tone="lime" />
+            <View style={styles.emptyCopyWrap}>
+              <Text style={styles.fullStateTitle}>Lista De repetat e curată!</Text>
+              <Text style={styles.fullStateText}>
+                Orice întrebare greșită în Teste & Practică se salvează automat aici și dispare imediat ce o rezolvi corect.
+              </Text>
+            </View>
+            <View style={styles.emptyActions}>
+              <ComicButton
+                compact
+                title="Începe un test fulger"
+                icon="practice"
+                tone="lime"
+                onPress={startQuickPractice}
+              />
+            </View>
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={wrongQuestions}
+            renderItem={renderMistakeItem}
+            keyExtractor={mistakeKeyExtractor}
+            ItemSeparatorComponent={LessonSeparator}
+            ListHeaderComponent={(
+              <View style={styles.mistakesHeaderCtaWrap}>
+                <ComicButton
+                  compact
+                  title={`Reia toate cele ${wrongQuestions.length} greșeli`}
+                  icon="retake"
+                  tone="lime"
+                  onPress={startMistakesPractice}
+                />
+              </View>
+            )}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={false}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingHorizontal: gutter, paddingBottom: listBottomPadding },
+            ]}
+          />
+        )}
+      </View>
+    );
+  }
+
+  if (section === 'formulas') {
+    return (
+      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+        <ComicBackdrop />
+        <ScreenHeader
+          compact
+          title="Caietul meu"
+          eyebrow={headerCount}
+          onBack={headerBack}
+          rightIcon="explain"
+          rightLabel="Deschide toate formulele"
+          onRight={openFormulasCatalog}
+        />
+        {sectionSwitchBar}
+
+        {favoriteFormulas.length === 0 ? (
+          <ScrollView
+            alwaysBounceVertical={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={[styles.fullState, { paddingBottom: listBottomPadding }]}
+          >
+            <View style={styles.emptyMascotStage}>
+              <SpotlightAura size={146} tone="lime" active={motionActive} />
+              <Mascot pose="point" size={132} active={motionActive} interactive />
+            </View>
+            <Chip label="FORMULELE TALE OFFLINE" tone="lime" />
+            <View style={styles.emptyCopyWrap}>
+              <Text style={styles.fullStateTitle}>Păstrează formulele grele aici</Text>
+              <Text style={styles.fullStateText}>
+                Apasă pe steluța ☆ din dreptul oricărei fișe din Formule & Fișe și o găsești instant înainte de test, chiar fără internet.
+              </Text>
+            </View>
+            <View style={styles.emptyActions}>
+              <ComicButton
+                compact
+                title="Deschide Formule & Fișe"
+                icon="explain"
+                tone="lime"
+                onPress={openFormulasCatalog}
+              />
+            </View>
+          </ScrollView>
+        ) : (
+          <FlatList
+            data={favoriteFormulas}
+            renderItem={renderFormulaItem}
+            keyExtractor={formulaKeyExtractor}
+            ItemSeparatorComponent={LessonSeparator}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={false}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingHorizontal: gutter, paddingBottom: listBottomPadding },
+            ]}
+          />
+        )}
+      </View>
+    );
+  }
 
   if (loading && notes.length === 0) {
     return (
       <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
         <ComicBackdrop />
-        <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
+        <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={headerBack} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
+        {sectionSwitchBar}
         <NotebookLoading active={motionActive} />
       </View>
     );
@@ -886,8 +1204,11 @@ export function NotebookScreen({ navigation }: Props) {
     return (
       <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
         <ComicBackdrop />
-        <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
+        <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={headerBack} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
+        {sectionSwitchBar}
+        <View style={[styles.flex, embedded && { paddingBottom: bottomClearance }]}>
+          <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
+        </View>
       </View>
     );
   }
@@ -895,10 +1216,15 @@ export function NotebookScreen({ navigation }: Props) {
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
       <ComicBackdrop />
-      <ScreenHeader compact title="Caietul meu" eyebrow={headerCount} onBack={() => navigation.goBack()} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
+      <ScreenHeader compact title="Caietul meu" eyebrow={headerCount} onBack={headerBack} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
+      {sectionSwitchBar}
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={[styles.controls, { paddingHorizontal: gutter }]}>
+      <View style={[styles.flex, keyboardVisible && { paddingBottom: keyboardInset }]}>
+        <Pressable
+          accessible={false}
+          onPress={Keyboard.dismiss}
+          style={[styles.controls, { paddingHorizontal: gutter }]}
+        >
           <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
             <AppIcon name="search" size={24} />
             {mountSearchInput ? (
@@ -910,6 +1236,7 @@ export function NotebookScreen({ navigation }: Props) {
                 onFocus={() => setSearchFocused(true)}
                 onBlur={() => setSearchFocused(false)}
                 onChangeText={setQueryText}
+                onSubmitEditing={() => Keyboard.dismiss()}
                 placeholder={searchPlaceholder}
                 placeholderTextColor={colors.inkSoft}
                 selectionColor={colors.violet}
@@ -930,6 +1257,20 @@ export function NotebookScreen({ navigation }: Props) {
                 <MiniGlyph name="close" size={14} color={colors.ink} />
               </Pressable>
             ) : null}
+            {searchFocused || keyboardVisible ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ascunde tastatura"
+                hitSlop={6}
+                onPress={() => {
+                  Haptics.selection();
+                  Keyboard.dismiss();
+                }}
+                style={({ pressed }) => [styles.dismissSearchChip, pressed && styles.actionPressed]}
+              >
+                <Text style={styles.dismissSearchText}>Gata</Text>
+              </Pressable>
+            ) : null}
           </View>
 
           <ComicTabBar
@@ -938,7 +1279,7 @@ export function NotebookScreen({ navigation }: Props) {
             value={filter}
             onChange={chooseFilter}
           />
-        </View>
+        </Pressable>
 
         {topicCounts.length >= 2 ? (
           <View style={styles.topicStripWrap}>
@@ -1005,7 +1346,11 @@ export function NotebookScreen({ navigation }: Props) {
           </Pressable>
         ) : null}
 
-        <View style={[styles.listHeading, { paddingHorizontal: gutter }]}>
+        <Pressable
+          accessible={false}
+          onPress={Keyboard.dismiss}
+          style={[styles.listHeading, { paddingHorizontal: gutter }]}
+        >
           <View style={styles.listHeadingLeft}>
             <View collapsable={false} style={styles.miniMascotBadge}>
               <View pointerEvents="none" style={styles.miniMascotShine} />
@@ -1041,7 +1386,7 @@ export function NotebookScreen({ navigation }: Props) {
               </Text>
             </View>
           </View>
-        </View>
+        </Pressable>
 
         <View style={styles.listMotion}>
           <FlatList
@@ -1075,10 +1420,10 @@ export function NotebookScreen({ navigation }: Props) {
             initialNumToRender={3}
             maxToRenderPerBatch={3}
             windowSize={5}
-            contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 18 }]}
+            contentContainerStyle={[styles.listContent, { paddingHorizontal: gutter, paddingBottom: listBottomPadding }]}
           />
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       {pendingRemoval ? (
         <RemoveFromNotebookModal
@@ -1099,6 +1444,73 @@ export function NotebookScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   flex: { flex: 1, minHeight: 0 },
+  sectionSwitchRow: {
+    paddingTop: 2,
+    paddingBottom: 6,
+  },
+  mistakesHeaderCtaWrap: {
+    marginBottom: 12,
+  },
+  mistakeRowCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 87, 109, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 13,
+    gap: 11,
+    overflow: 'hidden',
+  },
+  mistakeRail: {
+    width: 4.5,
+    alignSelf: 'stretch',
+  },
+  mistakeBody: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 12,
+    paddingLeft: 2,
+  },
+  mistakeTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  mistakeTag: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.roseSoft,
+  },
+  mistakeTagText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.berryDeep,
+    fontSize: 9.5,
+    letterSpacing: 0.3,
+    includeFontPadding: false,
+  },
+  mistakeTitle: {
+    marginTop: 5,
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 17,
+    lineHeight: 21,
+  },
+  mistakeHint: {
+    marginTop: 2,
+    fontFamily: fonts.bodyMedium,
+    color: colors.inkSoft,
+    fontSize: 12,
+  },
+  mistakeArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.roseSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   controls: { paddingTop: 4, gap: 9 },
 
   topicStripWrap: { marginTop: 8 },
@@ -1183,6 +1595,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dismissSearchChip: {
+    minHeight: 28,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
+    backgroundColor: colors.violet,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  dismissSearchText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.paper,
+    fontSize: 11.5,
+    includeFontPadding: false,
   },
 
   syncWarning: {

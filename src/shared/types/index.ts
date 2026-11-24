@@ -155,6 +155,52 @@ export type StoredLesson = MathAnalysis & {
 
 export type WrittenMathProblem = { problemLatex: string; solutionLatex?: string };
 
+export type StudyFormulaCategoryParam =
+  | 'algebra'
+  | 'geometry'
+  | 'trigonometry'
+  | 'matrices'
+  | 'analysis'
+  | 'combinatorics';
+
+export type ExamGuideRouteId = 'en' | 'bac_m1' | 'bac_m2' | 'bac_m3';
+export type ExamSimulationScopeParam = 'full' | 's1' | 's2' | 's3';
+
+export type ExamResultItemSummary = {
+  itemId: string;
+  numberLabel: string;
+  title: string;
+  subject: 's1' | 's2' | 's3';
+  awardedPoints: number;
+  maxPoints: number;
+};
+
+export type PracticeDifficultyParam = 'easy' | 'medium' | 'exam';
+export type PracticeSessionModeParam = 'quick' | 'category' | 'formula' | 'mistakes' | 'ai';
+
+export type PracticeSummaryAnswerItem = {
+  questionId: string;
+  title: string;
+  category: StudyFormulaCategoryParam;
+  formulaId: string;
+  correct: boolean;
+  userAnswerLabel: string;
+  correctAnswerLabel: string;
+};
+
+export type AiPracticeExercisePayload = {
+  id: string;
+  title: string;
+  category: StudyFormulaCategoryParam;
+  difficulty: PracticeDifficultyParam;
+  formulaId?: string;
+  prompt: RichContent;
+  choices: readonly [string, string, string, string];
+  correctIndex: 0 | 1 | 2 | 3;
+  hint: string;
+  explanation: RichContent;
+};
+
 export type RootStackParamList = {
   Home: undefined;
   Notebook: undefined;
@@ -168,4 +214,37 @@ export type RootStackParamList = {
   Processing: { mode: FlowMode; image: CapturedImage; requestId: string; userId: string; origin?: 'review' | 'home' };
   Lesson: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean; source?: 'flow' | 'notebook'; sourceImage?: CapturedImage };
   Summary: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean };
+  Formulas: { initialCategory?: StudyFormulaCategoryParam; initialFavoritesOnly?: boolean; showAllTracks?: boolean } | undefined;
+  FormulaDetail: { formulaId: string; formulaIds?: readonly string[] };
+  ExamGuide: { examId?: ExamGuideRouteId } | undefined;
+  ExamsHub: { examId?: ExamGuideRouteId } | undefined;
+  ExamSimulation: { variantId: string; scope: ExamSimulationScopeParam };
+  ExamResult: {
+    variantId: string;
+    examId: ExamGuideRouteId;
+    scope: ExamSimulationScopeParam;
+    officePoints: number;
+    subjectPoints: { s1: number; s2: number; s3: number };
+    awardedPoints: number;
+    maxPoints: number;
+    grade: number | null;
+    elapsedSeconds: number;
+    items: readonly ExamResultItemSummary[];
+  };
+  PracticeHub: undefined;
+  PracticeSession: {
+    mode: PracticeSessionModeParam;
+    category?: StudyFormulaCategoryParam;
+    formulaId?: string;
+    aiExercise?: AiPracticeExercisePayload;
+  };
+  PracticeSummary: {
+    mode: PracticeSessionModeParam;
+    category?: StudyFormulaCategoryParam;
+    formulaId?: string;
+    correctCount: number;
+    totalCount: number;
+    elapsedSeconds: number;
+    answers: readonly PracticeSummaryAnswerItem[];
+  };
 };

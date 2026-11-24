@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -79,7 +79,6 @@ export function SummaryScreen({ navigation, route }: Props) {
   const ribbonSweep = useRef(new Animated.Value(0)).current;
 
   const coachCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const turnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveLocked = useRef(false);
   const previousTab = useRef<SummaryTab>('answer');
   const lesson = route.params.lesson;
@@ -204,10 +203,6 @@ export function SummaryScreen({ navigation, route }: Props) {
   // Immediately stop all Summary animations whenever a screen transition begins.
   useEffect(() => {
     if (motionActive) return;
-    if (turnTimer.current) {
-      clearTimeout(turnTimer.current);
-      turnTimer.current = null;
-    }
     heroPop.stopAnimation();
     saveStamp.stopAnimation();
     cardShiftX.stopAnimation();
@@ -240,35 +235,21 @@ export function SummaryScreen({ navigation, route }: Props) {
     playRibbonSweep();
   }, [celebrationReady, heroPop, isPositive, motionActive, playRibbonSweep, reducedMotion]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (previousTab.current === activeTab) return;
     previousTab.current = activeTab;
-    if (turnTimer.current) {
-      clearTimeout(turnTimer.current);
-      turnTimer.current = null;
-    }
     if (reducedMotion || !motionActive || tabState.direction === 0) return;
 
     const direction = tabState.direction;
     cardShiftX.stopAnimation();
-    Animated.timing(cardShiftX, {
-      toValue: -direction * 6,
-      duration: 58,
-      easing: Easing.out(Easing.cubic),
+    cardShiftX.setValue(direction * 10);
+    Animated.spring(cardShiftX, {
+      toValue: 0,
+      tension: 320,
+      friction: 26,
       useNativeDriver: true,
     }).start();
-
-    turnTimer.current = setTimeout(() => {
-      turnTimer.current = null;
-      cardShiftX.setValue(direction * 10);
-      Animated.spring(cardShiftX, {
-        toValue: 0,
-        tension: 275,
-        friction: 23,
-        useNativeDriver: true,
-      }).start();
-      playRibbonSweep();
-    }, 60);
+    playRibbonSweep();
   }, [activeTab, cardShiftX, motionActive, playRibbonSweep, reducedMotion, tabState.direction]);
 
   useEffect(() => {
@@ -291,7 +272,6 @@ export function SummaryScreen({ navigation, route }: Props) {
 
   useEffect(() => () => {
     if (coachCloseTimer.current) clearTimeout(coachCloseTimer.current);
-    if (turnTimer.current) clearTimeout(turnTimer.current);
     heroPop.stopAnimation();
     saveStamp.stopAnimation();
     coachReveal.stopAnimation();

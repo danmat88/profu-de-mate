@@ -33,6 +33,9 @@ import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { isCurrentUserGoogle } from '../../access/services/commercial';
 import { friendlyGoogleConnectError, isGoogleSignInCancelledError } from '../../access/services/googleAuthErrors';
+import { StudyTrackSheet } from '../../study/components/StudyTrackSheet';
+import { setStudyTrack, useStudyProfile } from '../../study/services/studyStorage';
+import { getStudyTrackMeta } from '../../study/types';
 import { GoogleAccountButton } from '../components/GoogleAccountButton';
 import { DataDeletionCancelledError } from '../services/dataManagement';
 
@@ -102,6 +105,10 @@ export function SettingsScreen({ navigation }: Props) {
     return crashlyticsRef.current;
   };
   const [diagnostics, setDiagnostics] = useState(() => getCrashlyticsInstance().isCrashlyticsCollectionEnabled);
+  const studyProfile = useStudyProfile();
+  const trackMeta = getStudyTrackMeta(studyProfile.track);
+  const [trackSheetVisible, setTrackSheetVisible] = useState(false);
+  const [trackSheetEverOpened, setTrackSheetEverOpened] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteModalHadGoogle, setDeleteModalHadGoogle] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -187,12 +194,12 @@ export function SettingsScreen({ navigation }: Props) {
   const showBusyPill = accountBusy && !confirmLogout && !confirmDelete && !deleteComplete;
   const deletionActionTitle = hasGoogleAccount ? 'Șterge contul și datele' : 'Șterge datele temporare';
   const deletionActionText = hasGoogleAccount
-    ? 'Șterge definitiv contul Profu’ de mate, Caietul și raportările. Abonamentul Google Play se oprește separat.'
-    : 'Șterge profilul temporar, Caietul și raportările. Aplicația va porni apoi cu un spațiu temporar nou.';
+    ? 'Șterge definitiv contul Profu’ de mate, Caietul, progresul de studiu, simulările și raportările. Abonamentul Google Play se oprește separat.'
+    : 'Șterge profilul temporar, Caietul, progresul de studiu, simulările și raportările. Aplicația va porni apoi cu un spațiu temporar nou.';
   const deletionConfirmTitle = deleteModalHadGoogle ? 'Ștergi contul și datele?' : 'Ștergi datele temporare?';
   const deletionConfirmText = deleteModalHadGoogle
-    ? 'Contul Profu’ de mate, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește problemele disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
-    : 'Profilul temporar, Caietul, lecțiile și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
+    ? 'Contul Profu’ de mate, Caietul, lecțiile, progresul de studiu, istoricul simulărilor și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește problemele disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
+    : 'Profilul temporar, Caietul, lecțiile, progresul de studiu, istoricul simulărilor și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
   const diagnosticsLocked = useRef(false);
   const connectLocked = useRef(false);
   const deletionLocked = useRef(false);
@@ -435,6 +442,31 @@ export function SettingsScreen({ navigation }: Props) {
           ) : null}
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
+            <SettingsSectionTitle tone={colors.violet}>Profil de studiu</SettingsSectionTitle>
+            <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Nivelul de studiu: ${trackMeta.label}. Apasă pentru schimbare`}
+                disabled={accountBusy}
+                onPress={() => {
+                  if (isInteractionLocked()) return;
+                  Haptics.selection();
+                  setTrackSheetEverOpened(true);
+                  setTrackSheetVisible(true);
+                }}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="class" size={30} /></View>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle}>{trackMeta.label}</Text>
+                  <Text style={styles.rowText}>{trackMeta.description}</Text>
+                </View>
+                <MiniGlyph name="next" size={17} color={colors.violetDeep} />
+              </Pressable>
+            </ComicCard>
+          </View>
+
+          <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
             <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
               <Pressable
@@ -656,6 +688,18 @@ export function SettingsScreen({ navigation }: Props) {
           </PressableScale>
         </ScrollView>
       </ComicSheetModal>
+
+      {trackSheetEverOpened ? (
+        <StudyTrackSheet
+          visible={trackSheetVisible}
+          selectedTrack={studyProfile.track}
+          onSelect={(nextTrack) => {
+            setStudyTrack(nextTrack);
+            setTrackSheetVisible(false);
+          }}
+          onClose={() => setTrackSheetVisible(false)}
+        />
+      ) : null}
     </View>
   );
 }

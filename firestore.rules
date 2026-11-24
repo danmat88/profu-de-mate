@@ -11,12 +11,17 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/_accountLifecycle/$(userId));
     }
 
+    function validStudyTrack(value) {
+      return value in ['gimnaziu', 'en', 'liceu', 'bac_m1', 'bac_m2', 'bac_m3'];
+    }
+
     function validProfile(data) {
       return data.keys().hasOnly([
           'createdAt',
           'updatedAt',
           'displayName',
           'grade',
+          'studyTrack',
           'onboardingCompleted'
         ])
         && data.createdAt is timestamp
@@ -25,8 +30,40 @@ service cloud.firestore {
           || (data.displayName is string && data.displayName.size() <= 40))
         && (!('grade' in data)
           || (data.grade is int && data.grade >= 5 && data.grade <= 12))
+        && (!('studyTrack' in data)
+          || (data.studyTrack is string && validStudyTrack(data.studyTrack)))
         && (!('onboardingCompleted' in data)
           || data.onboardingCompleted is bool);
+    }
+
+    function validStudyProgress(data) {
+      return data.keys().hasOnly([
+          'track',
+          'hasChosenTrack',
+          'favoriteFormulaIds',
+          'exploredFormulaIds',
+          'masteredQuestionIds',
+          'wrongQuestionIds',
+          'streakDays',
+          'lastPracticeDateKey',
+          'sessionsCompleted',
+          'totalAnswered',
+          'totalCorrect',
+          'updatedAt'
+        ])
+        && data.track is string && validStudyTrack(data.track)
+        && data.hasChosenTrack is bool
+        && data.favoriteFormulaIds is list && data.favoriteFormulaIds.size() <= 100
+        && data.exploredFormulaIds is list && data.exploredFormulaIds.size() <= 120
+        && data.masteredQuestionIds is list && data.masteredQuestionIds.size() <= 250
+        && data.wrongQuestionIds is list && data.wrongQuestionIds.size() <= 120
+        && data.streakDays is int && data.streakDays >= 0 && data.streakDays <= 3650
+        && (data.lastPracticeDateKey == null
+          || (data.lastPracticeDateKey is string && data.lastPracticeDateKey.size() == 10))
+        && data.sessionsCompleted is int && data.sessionsCompleted >= 0 && data.sessionsCompleted <= 100000
+        && data.totalAnswered is int && data.totalAnswered >= 0 && data.totalAnswered <= 1000000
+        && data.totalCorrect is int && data.totalCorrect >= 0 && data.totalCorrect <= data.totalAnswered
+        && data.updatedAt == request.time;
     }
 
     match /users/{userId} {
@@ -41,6 +78,15 @@ service cloud.firestore {
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.updatedAt == request.time;
       allow delete: if owns(userId);
+
+      match /studyProgress/{docId} {
+        allow get: if owns(userId) && docId == 'summary';
+        allow list: if false;
+        allow create, update: if owns(userId)
+          && docId == 'summary'
+          && validStudyProgress(request.resource.data);
+        allow delete: if owns(userId) && docId == 'summary';
+      }
 
       match /lessons/{lessonId} {
         // Soluția și verdictul sunt create numai de backendul de încredere.

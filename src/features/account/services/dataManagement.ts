@@ -8,6 +8,10 @@ import { confirmGoogleIdentityForDeletion, pendingGoogleMergeTickets, removePend
 import { initializeVerifiedFirebaseServices, markFirebaseUserDeleted, resetFirebaseInitialization } from '../../../shared/services/firebase';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { clearLocalPreferences } from '../../../shared/storage/localPreferences';
+import { clearExamLocalState } from '../../exams/services/examStorage';
+import { clearPracticeLocalState } from '../../practice/services/practiceStorage';
+import { clearStudyLocalState } from '../../study/services/studyStorage';
+import { stopStudyProgressSync } from '../../study/services/studySync';
 import { clearPendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { clearMathDrafts } from '../../math/services/mathDraft';
 import { clearTemporaryCapturedImages } from '../../capture/services/temporaryImages';
@@ -50,10 +54,14 @@ export async function deleteAllUserData(): Promise<DataDeletionResult> {
   invalidateSessionOperations();
   markFirebaseUserDeleted(user.uid);
 
+  stopStudyProgressSync();
   clearTemporaryCapturedImages();
   clearPendingAnalysis();
   clearMathDrafts();
   clearLocalPreferences();
+  clearExamLocalState();
+  clearPracticeLocalState();
+  clearStudyLocalState();
   clearFavoriteLessonsCache();
   let localSignOutPending = false;
   try { await signOut(getAuth(app)); } catch (error) {

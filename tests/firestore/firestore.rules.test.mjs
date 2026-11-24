@@ -145,4 +145,87 @@ describe('Firestore rules', () => {
     }));
     await assertFails(getDoc(feedback));
   });
+
+  test('progresul de studiu permite doar documentul summary al proprietarului cu câmpuri valide', async () => {
+    const alice = testEnvironment.authenticatedContext('alice').firestore();
+    const bob = testEnvironment.authenticatedContext('bob').firestore();
+    const aliceSummary = doc(alice, 'users/alice/studyProgress/summary');
+
+    await assertSucceeds(setDoc(aliceSummary, {
+      track: 'bac_m1',
+      hasChosenTrack: true,
+      favoriteFormulaIds: ['alg-ecuatie-gr2'],
+      exploredFormulaIds: ['alg-ecuatie-gr2', 'ana-derivate-reguli'],
+      masteredQuestionIds: ['prac-alg-gr2-1'],
+      wrongQuestionIds: [],
+      streakDays: 3,
+      lastPracticeDateKey: '2026-11-24',
+      sessionsCompleted: 2,
+      totalAnswered: 10,
+      totalCorrect: 8,
+      updatedAt: serverTimestamp(),
+    }));
+    await assertSucceeds(getDoc(aliceSummary));
+
+    // Alt utilizator nu poate citi sau scrie progresul lui Alice.
+    await assertFails(getDoc(doc(bob, 'users/alice/studyProgress/summary')));
+    await assertFails(setDoc(doc(bob, 'users/alice/studyProgress/summary'), {
+      track: 'en',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      updatedAt: serverTimestamp(),
+    }));
+
+    // Documente arbitrare, track invalid sau câmpuri neautorizate sunt respinse.
+    await assertFails(setDoc(doc(alice, 'users/alice/studyProgress/other'), {
+      track: 'en',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(setDoc(aliceSummary, {
+      track: 'invalid_track',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(setDoc(aliceSummary, {
+      track: 'en',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 5,
+      totalCorrect: 9,
+      updatedAt: serverTimestamp(),
+    }));
+  });
 });

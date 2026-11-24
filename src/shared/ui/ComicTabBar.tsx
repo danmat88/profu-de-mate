@@ -76,8 +76,10 @@ function ComicTabItem<T extends string>({
     >
       <View pointerEvents="none" style={styles.tabContent}>
         <Text
-          maxFontSizeMultiplier={1.2}
+          maxFontSizeMultiplier={1.15}
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
           style={[
             styles.label,
             compact && styles.labelCompact,
@@ -98,7 +100,7 @@ function ComicTabItem<T extends string>({
             ]}
           >
             <Text
-              maxFontSizeMultiplier={1.15}
+              maxFontSizeMultiplier={1.1}
               style={[
                 styles.badgeText,
                 compact && styles.badgeTextCompact,
@@ -262,8 +264,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 6,
+    gap: 4,
+    paddingHorizontal: 4,
   },
   label: {
     flexShrink: 1,

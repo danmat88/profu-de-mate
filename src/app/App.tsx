@@ -4,7 +4,7 @@ import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Keyboard, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze } from 'react-native-screens';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -20,7 +20,10 @@ import { useReducedMotion } from '../shared/hooks/useReducedMotion';
 import { startImmersiveNavigationBarGuard } from '../shared/services/immersiveNavigationBar';
 import { StableSafeAreaProvider } from '../shared/ui/StableSafeAreaProvider';
 import { CaptureScreen } from '../features/capture/screens/CaptureScreen';
-import { HomeScreen } from '../features/home/screens/HomeScreen';
+import { ExamGuideScreen } from '../features/exams/screens/ExamGuideScreen';
+import { ExamResultScreen } from '../features/exams/screens/ExamResultScreen';
+import { ExamSimulationScreen } from '../features/exams/screens/ExamSimulationScreen';
+import { ExamsHubScreen } from '../features/exams/screens/ExamsHubScreen';
 import { MathInputScreen } from '../features/math/screens/MathInputScreen';
 import { MathProcessingScreen } from '../features/analysis/screens/MathProcessingScreen';
 import { LessonScreen } from '../features/lessons/screens/LessonScreen';
@@ -30,7 +33,13 @@ import { PaywallScreen } from '../features/access/screens/PaywallScreen';
 import { ProcessingScreen } from '../features/analysis/screens/ProcessingScreen';
 import { ReviewScreen } from '../features/capture/screens/ReviewScreen';
 import { SettingsScreen } from '../features/account/screens/SettingsScreen';
+import { FormulaDetailScreen } from '../features/study/screens/FormulaDetailScreen';
+import { FormulasScreen } from '../features/study/screens/FormulasScreen';
+import { PracticeHubScreen } from '../features/practice/screens/PracticeHubScreen';
+import { PracticeSessionScreen } from '../features/practice/screens/PracticeSessionScreen';
+import { PracticeSummaryScreen } from '../features/practice/screens/PracticeSummaryScreen';
 import { SummaryScreen } from '../features/lessons/screens/SummaryScreen';
+import { StudioScreen } from './screens/StudioScreen';
 import { recordDiagnosticError } from '../shared/services/diagnostics';
 import { getPreparedPendingAnalysis } from '../features/analysis/services/pendingAnalysis';
 import { preloadCriticalAppAssets } from './services/startupAssets';
@@ -105,6 +114,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
   }), [reducedMotion]);
   const stackScreenListeners = useMemo(() => ({
     transitionStart: () => {
+      Keyboard.dismiss();
       beginAppTransition();
     },
     transitionEnd: () => {
@@ -152,7 +162,16 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
               screenOptions={defaultScreenOptions}
               screenListeners={stackScreenListeners}
             >
-              <Stack.Screen name="Home" component={HomeScreen} options={{ animation: 'none' }} />
+              <Stack.Screen name="Home" component={StudioScreen} options={{ animation: 'none' }} />
+              <Stack.Screen name="Formulas" component={FormulasScreen} />
+              <Stack.Screen name="FormulaDetail" component={FormulaDetailScreen} />
+              <Stack.Screen name="ExamGuide" component={ExamGuideScreen} />
+              <Stack.Screen name="ExamsHub" component={ExamsHubScreen} />
+              <Stack.Screen name="ExamSimulation" component={ExamSimulationScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom' }} />
+              <Stack.Screen name="ExamResult" component={ExamResultScreen} />
+              <Stack.Screen name="PracticeHub" component={PracticeHubScreen} />
+              <Stack.Screen name="PracticeSession" component={PracticeSessionScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom' }} />
+              <Stack.Screen name="PracticeSummary" component={PracticeSummaryScreen} />
               <Stack.Screen name="MathInput" component={MathInputScreen} options={{ animation: reducedMotion ? 'none' : 'fade_from_bottom' }} />
               <Stack.Screen name="MathProcessing" component={MathProcessingScreen} initialParams={activePending?.schemaVersion === 3 ? { ...activePending, origin: 'home' } : undefined} options={{ gestureEnabled: false, animation: reducedMotion ? 'none' : 'fade', contentStyle: { backgroundColor: colors.ink } }} />
               <Stack.Screen name="Notebook" component={NotebookScreen} />

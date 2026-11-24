@@ -1,6 +1,6 @@
 # Publicare în Google Play — pași și verificări
 
-Actualizat: **18 noiembrie 2026**. Acesta este singurul checklist de publicare. O bifă înseamnă că există o verificare concretă; codul prezent în proiect nu dovedește că serviciul este configurat sau că funcționează în producție. După modificarea candidatului, se repetă verificările afectate.
+Actualizat: **24 noiembrie 2026**. Acesta este singurul checklist de publicare. O bifă înseamnă că există o verificare concretă; codul prezent în proiect nu dovedește că serviciul este configurat sau că funcționează în producție. După modificarea candidatului, se repetă verificările afectate.
 
 Aplicație: `ro.profudemate.app` · Expo SDK 57 · profil EAS pentru magazin: `production` → **AAB**. Buildul de dezvoltare de pe telefon nu este candidatul de publicare.
 
@@ -31,12 +31,14 @@ Aplicație: `ro.profudemate.app` · Expo SDK 57 · profil EAS pentru magazin: `p
 - [x] Verifică generarea Android izolată, fără instalare: cele 23 de imagini și cele 5 fonturi sunt în resursele native, fără avertismente de nume. Încorporarea nativă se aplică următorului build, nu modifică APK-ul deja instalat.
 - [x] Separă oferta Premium de conectare și de încărcarea accesului; afișează corect indisponibilitatea plăților, fără prețuri inventate.
 - [x] Protejează prețurile și răspunsurile întârziate împotriva schimbării contului; acceptă și o ofertă cu un singur plan disponibil.
-- [x] Verifică automat aplicația: **191 teste**, inclusiv pornire, erori, timeout, identități diferite, resurse, cereri duplicate și revenirea din Galerie; TypeScript și ESLint trecute.
-- [x] Verifică backendul: **91 teste** trecute; reguli și tranzacții în emulatoarele Firebase: **41 teste** trecute. Total: **323 teste**.
+- [x] Verifică automat aplicația: **227 teste**, inclusiv pornire, erori, timeout, identități diferite, resurse, cereri duplicate, integritatea matematică a celor 19 fișe de formule, 4 ghiduri EN/BAC, 31 exerciții curatate, 4 simulări complete de 100p, 975 formule SVG MathJax (246 display + 729 inline) randate nativ Skia pe Frame 0, blocare completă a ecranului la cereri AI, adaptare reală la tastatura Android și garanții 60fps Android; TypeScript și ESLint trecute cu 0 erori și 0 avertismente.
+- [x] Verifică backendul: **95 teste** trecute (inclusiv `generatePracticeExercise`, `gradeExamSolution` și `mergeStudyProgress`); reguli și tranzacții în emulatoarele Firebase: **43 teste** trecute (inclusiv `/users/{uid}/studyProgress/summary`). Total: **365 teste**.
+- [x] Aliniază textele legale din aplicație ([LegalScreen.tsx](../src/features/account/screens/LegalScreen.tsx)), paginile publice (`hosting/public/`) și dialogurile din Setări pentru noile module de studiu offline, progres sincronizat, generator AI și corectare foto pe barem; verificat cu `npm run legal:check`.
 - [x] Exportă JavaScript-ul Android în mod production și verifică lipsa tokenurilor App Check de debug cunoscute. Aceasta nu este verificarea semnăturii unui AAB.
 - [x] Verifică local identitatea legală și preflightul de deploy. Aceste comenzi nu confirmă setările serviciilor din cloud.
 - [x] Verifică afișarea și navigarea de bază pe **OPPO CPH2695, Android 16, build de dezvoltare**: Home → Premium, Setări → Premium, Caiet → lecție → rezumat, editor și Camera. Verifică Back pentru explicația alternativă, enunț și ajutorul Camerei. Nu s-au efectuat achiziții, ștergeri de date sau o analiză AI nouă în această verificare; acestea rămân în pașii următori.
 - [x] Măsoară pornirea pe telefon: în două restarturi complete ale procesului, pregătirea după pornirea JavaScriptului a durat **1,87 s și 1,89 s**; verificarea accesului **1,65 s și 1,69 s**, iar resursele **0,44 s**, în paralel. Home a afișat limita confirmată de server și iconițele pregătite. Aceste valori development exclud transferul/compilarea din Metro și nu reprezintă un SLA sau măsurarea candidatului Play. O primă rulare, înaintea corecției încărcării dinamice, a durat 9,23 s; backendul și rețeaua pot influența comparația.
+- [x] Publică backendul actualizat (`npm run deploy:firebase` pe `profu-de-mate-danmat88`, `stage=pre-play-public`): create `generatePracticeExercise` și `gradeExamSolution`, actualizate `completeAccountMergeWithGoogle` + funcțiile existente, `firestore.rules`, `firestore.indexes.json` și paginile publice din `hosting/public/`.
 - [ ] Verifică pe dispozitive reprezentative: ecran mic, text mărit, mod de mișcare redusă, revenire din fundal, rețea lentă/offline și pornire la rece. Nu bifa întregul grup după verificarea unui singur telefon.
 
 Comenzi uzuale, folosind dependențele deja instalate:
@@ -93,7 +95,8 @@ Capturile, înregistrările și logurile de diagnostic rămân în `.local/`, ig
 - [ ] Testează „Scrie problema”: rezolvare/verificare, fracții, puteri, radicali, formule lungi, undo, drafturi și butonul de trimitere.
 - [ ] Testează analiza foto și scrisă: succes, input neclar, eroare de provider, timeout, offline, restart și reluarea aceluiași request fără consum dublu.
 - [ ] Testează lecția, formulele, explicațiile alternative, rezumatul, raportarea și salvarea/ștergerea din Caiet, inclusiv după restart.
-- [ ] Testează vizitator, conectare Google, logout, transferul Caietului, conturi diferite, epuizarea limitei și resetarea zilnică în Europe/Bucharest, inclusiv schimbarea orei.
+- [ ] Testează platforma „Învață”: schimbare nivel de studiu (din Hub și Setări), formule offline + favorite în Caiet, teste rapide + coada „De repetat”, generare exerciții AI, ghidurile EN/BAC, simulări complete 100p + cronometru + Back guard și corectare foto pe barem (inclusiv rambursare cotă la poză neclară).
+- [ ] Testează vizitator, conectare Google, logout, transferul Caietului și al progresului de studiu (`studyProgress/summary`), conturi diferite, epuizarea limitei și resetarea zilnică în Europe/Bucharest, inclusiv schimbarea orei.
 - [ ] Testează ștergerea contului, operațiile întrerupte și recuperarea după eșec; verifică izolarea datelor între conturi.
 - [ ] Rezolvă crashuri, ANR-uri, probleme de accesibilitate și raportul de pre-lansare Play. Confirmă comportamentul pe versiunile Android declarate.
 

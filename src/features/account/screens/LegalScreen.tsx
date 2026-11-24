@@ -104,18 +104,18 @@ export function LegalScreen({ navigation }: Props) {
 
               <Section number="01" title="Ce se întâmplă cu poza">
                 <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
-                <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză.</Bullet>
+                <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză sau pentru corectarea pe barem a unei rezolvări de simulare.</Bullet>
                 <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
                 <Bullet>Dacă scrii problema, trimitem formula și, la verificare, rezolvarea introdusă de tine către același serviciu. Ciorna rămâne pe telefon până alegi să pornești analiza.</Bullet>
                 <Bullet>Google poate păstra temporar cererea și răspunsul numai pentru siguranță și prevenirea abuzului, conform termenilor serviciului plătit.</Bullet>
               </Section>
 
-              <Section number="02" title="Tu controlezi Caietul">
-                <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile din Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate.</Paragraph>
+              <Section number="02" title="Tu controlezi Caietul și studiul">
+                <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile salvate în Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate. Progresul de studiu (nivelul ales, formule favorite, exerciții stăpânite și lista „De repetat”) se sincronizează pentru contul tău, iar istoricul simulărilor rămâne local pe telefon; toate se șterg complet din Setări.</Paragraph>
               </Section>
 
               <Section number="03" title="Inteligența artificială explică, nu decide">
-                <Paragraph>Răspunsul este generat automat și poate greși. Profu’ de mate este un ajutor educațional, nu înlocuiește profesorul și nu produce decizii cu efect juridic sau academic.</Paragraph>
+                <Paragraph>Răspunsurile, exercițiile generate cu AI și punctajele orientative pe barem pot conține greșeli. Profu’ de mate este un ajutor educațional, nu înlocuiește profesorul sau comisiile EN/BAC și nu produce decizii cu efect juridic ori academic.</Paragraph>
               </Section>
 
               <View style={styles.updated}>
@@ -135,8 +135,9 @@ export function LegalScreen({ navigation }: Props) {
 
               <Section number="01" title="Ce date folosim">
                 <Bullet>Un identificator Firebase pentru spațiul aplicației; dacă alegi Google, adresa de e-mail, numele și identificatorul contului furnizate de Google. Pentru cota zilnică gratuită și prevenirea abuzului, aplicația derivă local un hash SHA-256 din identificatorul de dispozitiv specific aplicației Android (fără a transmite valoarea brută), iar backendul transformă atât acest hash, cât și identificatorul Google în coduri HMAC opace.</Bullet>
-                <Bullet>Fotografia sau formula aleasă de tine, rezolvarea introdusă pentru verificare și cererea de analiză.</Bullet>
+                <Bullet>Fotografia sau formula aleasă de tine, rezolvarea introdusă pentru verificare, cererea de exerciții AI ori corectarea foto pe barem la simulări.</Bullet>
                 <Bullet>Soluția, verdictul, materia și starea de salvare a lecției.</Bullet>
+                <Bullet>Progresul de studiu (profilul ales, formule favorite, exerciții stăpânite, lista „De repetat” și seria zilnică) sincronizat pentru contul activ; istoricul simulărilor de examen rămâne salvat exclusiv local pe telefon.</Bullet>
                 <Bullet>Categoria unui raport trimis de tine și, doar dacă activezi opțiunea, date tehnice de blocare.</Bullet>
                 <Bullet>Starea abonamentului și produsul cumpărat, fără numărul cardului sau datele de plată.</Bullet>
                 <Bullet>Semnale Play Integrity (App Check), când sunt disponibile, folosite exclusiv pentru securitatea aplicației și prevenirea cererilor neautorizate.</Bullet>
@@ -144,7 +145,7 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="02" title="De ce le folosim">
-                <Paragraph>Le folosim pentru a analiza problema, a afișa pașii, a sincroniza Caietul, a preveni abuzurile, a proteja serviciul și a îmbunătăți răspunsurile raportate. Rapoartele tehnice opționale sunt trimise numai dacă alegi acest lucru și le poți opri oricând.</Paragraph>
+                <Paragraph>Le folosim pentru a analiza problema, a afișa pașii, a genera exerciții și feedback orientativ pe barem, a sincroniza Caietul și progresul de studiu, a preveni abuzurile, a proteja serviciul și a îmbunătăți răspunsurile raportate. Rapoartele tehnice opționale sunt trimise numai dacă alegi acest lucru și le poți opri oricând.</Paragraph>
               </Section>
 
               <Section number="03" title="Cine procesează datele">
@@ -154,6 +155,7 @@ export function LegalScreen({ navigation }: Props) {
               <Section number="04" title="Cât timp le păstrăm">
                 <Bullet>Fotografia nu este stocată de aplicație în Cloud Storage sau Caiet.</Bullet>
                 <Bullet>Ciornele editorului rămân pe telefon, separat pentru rezolvare și verificare. Expiră după 7 zile fără editare și sunt eliminate la următoarea deschidere a editorului; sunt șterse și la deconectare, schimbarea contului sau ștergerea datelor. Datele locale pentru reluarea unei analize expiră după 30 de minute și sunt curățate la următoarea verificare.</Bullet>
+                <Bullet>Progresul de studiu sincronizat și istoricul local al simulărilor rămân cât timp contul există și sunt eliminate definitiv când alegi ștergerea datelor din Setări.</Bullet>
                 <Bullet>Lecția nesalvată și rezultatul tehnic temporar: expirare după 7 zile.</Bullet>
                 <Bullet>Contoarele zilnice și rezervările anti-abuz: expirare după 35 de zile.</Bullet>
                 <Bullet>După ștergerea datelor sau a contului, codurile HMAC opace ale contului și dispozitivului, hashurile unidirecționale de deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>
@@ -163,12 +165,12 @@ export function LegalScreen({ navigation }: Props) {
                 <Bullet>Lecțiile salvate: până le ștergi sau după aproximativ 13 luni fără folosirea Caietului.</Bullet>
                 <Paragraph>Termenele indică expirarea programată. Curățarea rulează zilnic: eliminarea fizică are loc de regulă în următoarele 24 de ore după expirare; incidentele tehnice pot întârzia execuția.</Paragraph>
                 <Bullet>Pentru a opri răspunsurile întârziate să refacă date șterse, păstrăm un marker tehnic cu UID-ul timp de 35 de zile după finalizarea ștergerii. O ștergere incompletă păstrează blocajul până la finalizare.</Bullet>
-                <Bullet>Un transfer de lecții început la conectarea cu Google păstrează identificatorii tehnici necesari reluării până la finalizare sau rezolvarea incidentului.</Bullet>
+                <Bullet>Un transfer de lecții și progres început la conectarea cu Google păstrează identificatorii tehnici necesari reluării până la finalizare sau rezolvarea incidentului.</Bullet>
                 <Bullet>Rapoartele tale și răspunsul generat raportat: 180 de zile sau până ștergi toate datele din aplicație, dacă alegi ștergerea mai devreme.</Bullet>
               </Section>
 
               <Section number="05" title="Drepturile tale">
-                <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Cererea pentru profilul tehnic RevenueCat necesită verificarea echipei de suport; identificatorii necesari urmăririi cererii rămân până la soluționare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime și logurile strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
+                <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile, progresul de studiu, simulările și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Cererea pentru profilul tehnic RevenueCat necesită verificarea echipei de suport; identificatorii necesari urmăririi cererii rămân până la soluționare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime și logurile strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
                 {legalDocument.contactEmail ? <Paragraph>Pentru întrebări sau exercitarea drepturilor: {legalDocument.contactEmail}</Paragraph> : null}
               </Section>
 
@@ -187,7 +189,7 @@ export function LegalScreen({ navigation }: Props) {
               </View>
 
               <Section number="01" title="Scop educațional">
-                <Paragraph>Profu’ de mate explică și verifică exerciții. Răspunsurile generate automat pot conține greșeli, așa că verifică rezultatul înainte să îl folosești la teme, teste sau examene.</Paragraph>
+                <Paragraph>Profu’ de mate oferă fișe de formule offline, ghiduri și simulări EN/BAC, exerciții interactive, explicații și verificări pentru rezolvări. Răspunsurile și punctajele orientative generate automat pot conține greșeli, așa că verifică rezultatul înainte să îl folosești la teme, teste sau examene.</Paragraph>
               </Section>
 
               <Section number="02" title="Folosire permisă">
@@ -198,7 +200,7 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="03" title="Disponibilitate și limite">
-                <Paragraph>Serviciul are nevoie de internet și poate avea limite zilnice, perioade de mentenanță sau întreruperi ale furnizorilor. Putem opri accesul automat când detectăm abuz sau risc de securitate.</Paragraph>
+                <Paragraph>Formulele, ghidurile și testele curatate merg și offline. Funcțiile AI (analiză foto/scrisă, exerciții AI și corectare foto pe barem) au nevoie de internet și pot avea limite zilnice, perioade de mentenanță sau întreruperi ale furnizorilor. Putem opri accesul automat când detectăm abuz sau risc de securitate.</Paragraph>
               </Section>
 
               <Section number="04" title="Abonamentul Premium">

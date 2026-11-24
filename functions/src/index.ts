@@ -50,6 +50,10 @@ import {
 import { deferUnsafeRevenueCatDeletions, requestRevenueCatDeletionReview } from './billing/revenueCatDeletion.js';
 import { getAIAnalysisConfig } from './infrastructure/runtimeConfig.js';
 import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './analysis/validation.js';
+import { parseGeneratePracticeRequest } from './study/practiceSchema.js';
+import { generateRenderedPracticeExercise } from './study/practiceService.js';
+import { parseGradeExamSolutionRequest } from './study/examGradingSchema.js';
+import { gradeExamSolutionWithAi } from './study/examGradingService.js';
 
 if (getApps().length === 0) initializeApp();
 
@@ -285,6 +289,177 @@ export const getAnalysisStatus = onCall({
   const state = analysisRequestState(data);
   if (state === 'completed') return { state, response: data!.response as CachedResponse };
   return { state };
+});
+
+export const generatePracticeExercise = onCall({
+  region: 'europe-west1',
+  serviceAccount: AI_RUNTIME_SERVICE_ACCOUNT,
+  memory: '512MiB',
+  timeoutSeconds: 95,
+  maxInstances: 3,
+  concurrency: 10,
+  enforceAppCheck: ENFORCE_APP_CHECK,
+  secrets: [geminiApiKey, commercialIdentityHmacKey],
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Trebuie să pornești aplicația din nou.');
+  }
+
+  const input = parseGeneratePracticeRequest(request.data);
+  const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
+  const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
+  let quotaReserved = false;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      await assertUserActive(transaction, db, request.auth!.uid);
+    });
+    const aiConfig = await getAIAnalysisConfig(db);
+    if (!aiConfig.enabled) {
+      throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste câteva minute.');
+    }
+    if (!providerCircuit.canRequest()) {
+      throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste un minut.');
+    }
+
+    await reserveAnalysisQuota(
+      db,
+      request.auth.uid,
+      input.requestId,
+      commercialPrincipal,
+      Date.now(),
+      installationPrincipal,
+    );
+    quotaReserved = true;
+
+    let exercise;
+    try {
+      exercise = await generateRenderedPracticeExercise({
+        apiKey: geminiApiKey.value(),
+        request: input,
+        beforeGenerate: async () => {
+          await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
+          logger.info('Practice AI attempt reserved', { track: input.track, category: input.category, difficulty: input.difficulty });
+        },
+        onRejected: (event) => {
+          logger.warn('Practice AI response rejected', {
+            attempt: event.attempt,
+            stage: event.stage,
+            issues: event.issues,
+            track: input.track,
+            category: input.category,
+          });
+        },
+      });
+      providerCircuit.recordSuccess();
+    } catch (error) {
+      if (!(error instanceof HttpsError)) providerCircuit.recordFailure();
+      throw error;
+    }
+
+    await settleAnalysisQuota(db, commercialPrincipal.principalId, input.requestId, true, () => undefined);
+    logger.info('Practice AI exercise generated', {
+      track: input.track,
+      category: input.category,
+      difficulty: input.difficulty,
+    });
+    return { exercise };
+  } catch (error) {
+    if (quotaReserved) {
+      await refundAnalysisQuota(db, commercialPrincipal.principalId, input.requestId).catch(() => undefined);
+    }
+    if (error instanceof HttpsError) throw error;
+    logger.error('Practice AI exercise failed', safeErrorDescriptor(error));
+    throw new HttpsError('internal', 'Nu am putut genera exercițiul acum. Încearcă din nou.');
+  }
+});
+
+export const gradeExamSolution = onCall({
+  region: 'europe-west1',
+  serviceAccount: AI_RUNTIME_SERVICE_ACCOUNT,
+  memory: '512MiB',
+  timeoutSeconds: 100,
+  maxInstances: 3,
+  concurrency: 10,
+  enforceAppCheck: ENFORCE_APP_CHECK,
+  secrets: [geminiApiKey, commercialIdentityHmacKey],
+}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Trebuie să pornești aplicația din nou.');
+  }
+
+  const input = parseGradeExamSolutionRequest(request.data);
+  const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
+  const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
+  let quotaReserved = false;
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      await assertUserActive(transaction, db, request.auth!.uid);
+    });
+    const aiConfig = await getAIAnalysisConfig(db);
+    if (!aiConfig.enabled) {
+      throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste câteva minute.');
+    }
+    if (!providerCircuit.canRequest()) {
+      throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste un minut.');
+    }
+
+    await reserveAnalysisQuota(
+      db,
+      request.auth.uid,
+      input.requestId,
+      commercialPrincipal,
+      Date.now(),
+      installationPrincipal,
+    );
+    quotaReserved = true;
+
+    let grading;
+    try {
+      grading = await gradeExamSolutionWithAi({
+        apiKey: geminiApiKey.value(),
+        request: input,
+        beforeGenerate: async () => {
+          await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
+          logger.info('Exam grading AI attempt reserved', { examId: input.examId, maxPoints: input.maxPoints });
+        },
+        onRejected: (event) => {
+          logger.warn('Exam grading AI response rejected', {
+            stage: event.stage,
+            issues: event.issues,
+            examId: input.examId,
+          });
+        },
+      });
+      providerCircuit.recordSuccess();
+    } catch (error) {
+      if (!(error instanceof HttpsError)) providerCircuit.recordFailure();
+      throw error;
+    }
+
+    await settleAnalysisQuota(
+      db,
+      commercialPrincipal.principalId,
+      input.requestId,
+      grading.status === 'graded',
+      () => undefined,
+    );
+    logger.info('Exam solution graded', {
+      examId: input.examId,
+      status: grading.status,
+      awardedPoints: grading.awardedPoints,
+      maxPoints: grading.maxPoints,
+    });
+    return { grading };
+  } catch (error) {
+    if (quotaReserved) {
+      await refundAnalysisQuota(db, commercialPrincipal.principalId, input.requestId).catch(() => undefined);
+    }
+    if (error instanceof HttpsError) throw error;
+    logger.error('Exam solution grading failed', safeErrorDescriptor(error));
+    throw new HttpsError('internal', 'Nu am putut corecta fotografia acum. Încearcă din nou.');
+  }
 });
 
 export const submitLessonFeedback = onCall({

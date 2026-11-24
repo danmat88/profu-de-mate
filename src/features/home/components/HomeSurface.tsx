@@ -44,6 +44,8 @@ type Props = {
   latestLessonTitle?: string | null;
   savedLessonsCount?: number;
   showGuide?: boolean;
+  embedded?: boolean;
+  bottomClearance?: number;
   onDismissGuide?: () => void;
   onClearGalleryError?: () => void;
   onMode: (mode: FlowMode) => void;
@@ -51,6 +53,7 @@ type Props = {
   onGallery: () => void;
   onMath: () => void;
   onNotebook: () => void;
+  onStudy?: () => void;
   onSettings: () => void;
   onAllowance: () => void;
 };
@@ -147,6 +150,8 @@ export const HomeSurface = memo(function HomeSurface({
   latestLessonTitle = null,
   savedLessonsCount = 0,
   showGuide = false,
+  embedded = false,
+  bottomClearance = 8,
   onDismissGuide,
   onClearGalleryError,
   onMode,
@@ -154,6 +159,7 @@ export const HomeSurface = memo(function HomeSurface({
   onGallery,
   onMath,
   onNotebook,
+  onStudy,
   onSettings,
   onAllowance,
 }: Props) {
@@ -537,7 +543,7 @@ export const HomeSurface = memo(function HomeSurface({
     <View style={[styles.safe, { paddingTop: insets.top }]}>
       <ComicBackdrop />
       <View style={styles.homeScene}>
-        <View style={[styles.page, { width: contentWidth }, compact && styles.pageCompact]}>
+        <View style={[styles.page, { width: contentWidth }, compact && styles.pageCompact, embedded && { paddingBottom: bottomClearance }]}>
           <Enter ready={motionReady} delay={20} distance={12} scaleFrom={0.97} style={[styles.header, compact && styles.headerCompact]}>
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
               <PressableScale
@@ -898,64 +904,87 @@ export const HomeSurface = memo(function HomeSurface({
               </Enter>
             ) : null}
 
-            <Enter ready={motionReady} delay={295} distance={12} scaleFrom={0.97} style={styles.notebookGroup}>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
-                pressedScale={0.975}
-                haptic="selection"
-                onPress={onNotebook}
-                contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
-              >
-                <View style={styles.notebookSpine} />
-                <View style={[styles.notebookIcon, compact && styles.notebookIconCompact]}>
-                  <AppIcon name="notebook" size={compact ? 32 : 38} />
-                </View>
-                <View style={styles.notebookCopy}>
-                  <View style={styles.notebookHeaderRow}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
-                      Caietul meu
+            {embedded ? (
+              onStudy && !compact && !hasPendingAnalysis ? (
+                <Enter ready={motionReady} delay={295} distance={10} scaleFrom={0.97}>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel="Deschide secțiunea Învață cu formule și ghid de examen"
+                    pressedScale={0.975}
+                    haptic="selection"
+                    onPress={onStudy}
+                    contentStyle={styles.studyQuickRibbon}
+                  >
+                    <MiniGlyph name="spark" size={14} color={colors.violet} />
+                    <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.studyQuickText}>
+                      Formule, fișe și ghid EN / BAC
                     </Text>
-                    {savedCountLabel ? (
-                      <View collapsable={false} style={styles.countBadge}>
-                        <Text maxFontSizeMultiplier={1.1} style={styles.countBadgeText}>{savedCountLabel}</Text>
-                      </View>
+                    <View style={styles.studyQuickArrow}>
+                      <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+                    </View>
+                  </PressableScale>
+                </Enter>
+              ) : null
+            ) : (
+              <Enter ready={motionReady} delay={295} distance={12} scaleFrom={0.97} style={styles.notebookGroup}>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
+                  pressedScale={0.975}
+                  haptic="selection"
+                  onPress={onNotebook}
+                  contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
+                >
+                  <View style={styles.notebookSpine} />
+                  <View style={[styles.notebookIcon, compact && styles.notebookIconCompact]}>
+                    <AppIcon name="notebook" size={compact ? 32 : 38} />
+                  </View>
+                  <View style={styles.notebookCopy}>
+                    <View style={styles.notebookHeaderRow}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
+                        Caietul meu
+                      </Text>
+                      {savedCountLabel ? (
+                        <View collapsable={false} style={styles.countBadge}>
+                          <Text maxFontSizeMultiplier={1.1} style={styles.countBadgeText}>{savedCountLabel}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {!compact ? (
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
+                        {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate, disponibile și offline'}
+                      </Text>
                     ) : null}
                   </View>
-                  {!compact ? (
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
-                      {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate, disponibile și offline'}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={[styles.notebookArrow, compact && styles.notebookArrowCompact]}>
-                  <MiniGlyph name="next" size={compact ? 17 : 19} color={colors.violetDeep} />
-                </View>
-              </PressableScale>
+                  <View style={[styles.notebookArrow, compact && styles.notebookArrowCompact]}>
+                    <MiniGlyph name="next" size={compact ? 17 : 19} color={colors.violetDeep} />
+                  </View>
+                </PressableScale>
 
-              {showGuide && !compact && !hasPendingAnalysis ? (
-                <View
-                  accessible
-                  accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
-                  style={styles.guidePill}
-                >
-                  <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.guideText}>
-                    ✦  Fotografiezi  →  Înțelegi  →  Salvezi
-                  </Text>
-                  {onDismissGuide ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Ascunde ghidul"
-                      hitSlop={10}
-                      onPress={onDismissGuide}
-                      style={styles.guideDismiss}
-                    >
-                      <MiniGlyph name="close" size={14} color={colors.violetDeep} />
-                    </Pressable>
-                  ) : null}
-                </View>
-              ) : null}
-            </Enter>
+                {showGuide && !compact && !hasPendingAnalysis ? (
+                  <View
+                    accessible
+                    accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
+                    style={styles.guidePill}
+                  >
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.guideText}>
+                      ✦  Fotografiezi  →  Înțelegi  →  Salvezi
+                    </Text>
+                    {onDismissGuide ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Ascunde ghidul"
+                        hitSlop={10}
+                        onPress={onDismissGuide}
+                        style={styles.guideDismiss}
+                      >
+                        <MiniGlyph name="close" size={14} color={colors.violetDeep} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+              </Enter>
+            )}
           </View>
         </View>
       </View>
@@ -1367,6 +1396,33 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  studyQuickRibbon: {
+    minHeight: 40,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 14,
+    paddingRight: 8,
+    gap: 8,
+  },
+  studyQuickText: {
+    flex: 1,
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 12.5,
+    lineHeight: 16,
+  },
+  studyQuickArrow: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },

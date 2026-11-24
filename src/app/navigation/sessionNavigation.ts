@@ -5,7 +5,21 @@ type IdentityResetState = {
   routes: { name: keyof RootStackParamList; params?: Record<string, unknown> }[];
 };
 
-const SESSION_SAFE_ROUTES = new Set<keyof RootStackParamList>(['Home', 'Settings', 'Legal', 'Paywall']);
+const SESSION_SAFE_ROUTES = new Set<keyof RootStackParamList>([
+  'Home',
+  'Settings',
+  'Legal',
+  'Paywall',
+  'Formulas',
+  'FormulaDetail',
+  'ExamGuide',
+  'ExamsHub',
+  'ExamSimulation',
+  'ExamResult',
+  'PracticeHub',
+  'PracticeSession',
+  'PracticeSummary',
+]);
 
 /** Reset account-owned screens while keeping sign-in and Premium flows open. */
 export function navigationAfterIdentityChange(route: keyof RootStackParamList): IdentityResetState | undefined {

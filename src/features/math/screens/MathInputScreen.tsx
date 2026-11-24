@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { AppState, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -193,6 +193,24 @@ export function MathInputScreen({ navigation, route }: Props) {
     };
   }, [persistDraft]);
 
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !busy });
+  }, [busy, navigation]);
+
+  useEffect(() => {
+    if (!busy) return undefined;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    const removeUnsub = navigation.addListener('beforeRemove', (event) => {
+      if (event.data.action.type !== 'RESET' && event.data.action.type !== 'NAVIGATE') {
+        event.preventDefault();
+      }
+    });
+    return () => {
+      sub.remove();
+      removeUnsub();
+    };
+  }, [busy, navigation]);
+
   const toggleMode = useCallback(() => {
     if (busy) return;
     Haptics.selection();
@@ -333,7 +351,9 @@ export function MathInputScreen({ navigation, route }: Props) {
       <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
         <IconButton
           label="Înapoi"
+          disabled={busy}
           onPress={() => {
+            if (busy) return;
             beginAppTransition();
             navigation.goBack();
           }}
