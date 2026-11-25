@@ -28,7 +28,7 @@ import { useStudyProfile } from '../../study/services/studyStorage';
 import { getStudyTrackMeta } from '../../study/types';
 import { EXAM_GUIDES, getExamGuide } from '../data/examGuidesCatalog';
 import { getExamSimulationsForExam } from '../data/examSimulationsCatalog';
-import { getBestGradeForExam, useExamHistory } from '../services/examStorage';
+import { getBestGradeForExam, getBestGradeForVariant, useExamHistory } from '../services/examStorage';
 import {
   formatRomanianGrade,
   getScopeDurationMinutes,
@@ -61,6 +61,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
 
   const defaultExamId = route.params?.examId ?? getStudyTrackMeta(studyProfile.track).examGuideId;
   const [examId, setExamId] = useState<ExamGuideRouteId>(defaultExamId);
+  const [selectedVariantByExam, setSelectedVariantByExam] = useState<Partial<Record<ExamGuideRouteId, string>>>({});
   const navLockRef = useRef(false);
 
   useFocusEffect(useCallback(() => {
@@ -69,7 +70,14 @@ export function ExamsHubScreen({ navigation, route }: Props) {
 
   const guide = useMemo(() => getExamGuide(examId), [examId]);
   const variants = useMemo(() => getExamSimulationsForExam(examId), [examId]);
-  const primaryVariant = variants[0];
+  const activeVariant = useMemo(
+    () => variants.find((item) => item.id === selectedVariantByExam[examId]) ?? variants[0],
+    [examId, selectedVariantByExam, variants],
+  );
+  const activeVariantIndex = useMemo(() => {
+    const idx = variants.findIndex((item) => item.id === activeVariant?.id);
+    return idx >= 0 ? idx : 0;
+  }, [activeVariant?.id, variants]);
   const bestGrade = useMemo(() => getBestGradeForExam(history, examId), [examId, history]);
   const recentExamRecords = useMemo(
     () => history.records.filter((record) => record.examId === examId).slice(0, 4),
@@ -77,14 +85,14 @@ export function ExamsHubScreen({ navigation, route }: Props) {
   );
 
   const launchSimulation = useCallback((scope: ExamSimulationScopeParam) => {
-    if (!primaryVariant || navLockRef.current) return;
+    if (!activeVariant || navLockRef.current) return;
     navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('ExamSimulation', {
-      variantId: primaryVariant.id,
+      variantId: activeVariant.id,
       scope,
     });
-  }, [navigation, primaryVariant]);
+  }, [activeVariant, navigation]);
 
   const openGuide = useCallback(() => {
     if (navLockRef.current) return;
@@ -157,7 +165,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                 ) : null}
               </View>
               <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.canopyHeroTitle}>
-                {primaryVariant?.title ?? guide.title}
+                {activeVariant?.title ?? guide.title}
               </Text>
             </View>
 
@@ -222,8 +230,56 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                   SIMULARE OFICIALĂ · 1–10
                 </Text>
               </View>
-              <Text style={styles.studioOfficeText}>10p oficiu</Text>
+              <Text style={styles.studioOfficeText}>
+                {variants.length > 1 ? `${variants.length} variante · 10p oficiu` : '10p oficiu'}
+              </Text>
             </View>
+
+            {variants.length > 1 ? (
+              <View style={styles.variantGrid}>
+                {variants.map((variant, index) => {
+                  const selected = variant.id === activeVariant?.id;
+                  const variantBest = getBestGradeForVariant(history, variant.id);
+                  return (
+                    <Pressable
+                      key={variant.id}
+                      accessibilityRole="tab"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`Alege Varianta ${index + 1} pentru ${guide.shortTitle}`}
+                      onPress={() => {
+                        if (selected) return;
+                        Haptics.selection();
+                        setSelectedVariantByExam((prev) => ({ ...prev, [examId]: variant.id }));
+                      }}
+                      style={({ pressed }) => [
+                        styles.variantPill,
+                        selected && styles.variantPillActive,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.15}
+                        style={[styles.variantPillTitle, selected && styles.variantPillTitleActive]}
+                      >
+                        Varianta {index + 1}
+                      </Text>
+                      <Text
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={1.1}
+                        style={[
+                          styles.variantPillMeta,
+                          variantBest !== null && styles.variantPillMetaScored,
+                          selected && styles.variantPillMetaActive,
+                        ]}
+                      >
+                        {variantBest !== null ? `★ ${formatRomanianGrade(variantBest)}` : '100p · nouă'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
             <Text style={styles.studioSubtitle}>
               Cronometru real, barem oficial pas cu pas, corectare foto AI la Subiectul II/III și notă finală.
@@ -231,7 +287,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={`Începe simularea completă ${guide.title}`}
+              accessibilityLabel={`Începe simularea completă ${activeVariant?.title ?? guide.title}`}
               pressedScale={0.97}
               haptic="medium"
               onPress={() => launchSimulation('full')}
@@ -248,7 +304,9 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                 <AppIcon name="trophy" size={24} />
               </View>
               <Text numberOfLines={2} style={styles.heroCtaText}>
-                Începe simularea completă
+                {variants.length > 1
+                  ? `Începe Varianta ${activeVariantIndex + 1} completă`
+                  : 'Începe simularea completă'}
               </Text>
               <View style={styles.heroCtaArrow}>
                 <MiniGlyph name="next" size={16} color={colors.paper} />
@@ -288,10 +346,12 @@ export function ExamsHubScreen({ navigation, route }: Props) {
           </PressableScale>
 
           <View style={styles.subjectsBlock}>
-            <Text style={styles.sectionKicker}>ANTRENAMENT PE UN SINGUR SUBIECT</Text>
+            <Text style={styles.sectionKicker}>
+              ANTRENAMENT PE UN SINGUR SUBIECT · VARIANTA {activeVariantIndex + 1}
+            </Text>
             <View style={styles.subjectsList}>
               {guide.subjects.map((subject) => {
-                const mins = primaryVariant ? getScopeDurationMinutes(primaryVariant, subject.id) : subject.recommendedMinutes;
+                const mins = activeVariant ? getScopeDurationMinutes(activeVariant, subject.id) : subject.recommendedMinutes;
                 const isRubric = subject.id === 's3' || (examId !== 'en' && subject.id === 's2');
                 return (
                   <Pressable
@@ -339,23 +399,29 @@ export function ExamsHubScreen({ navigation, route }: Props) {
             <View style={styles.historyBlock}>
               <Text style={styles.sectionKicker}>ULTIMELE TALE SIMULĂRI · {guide.shortTitle}</Text>
               <View style={styles.historyList}>
-                {recentExamRecords.map((record) => (
-                  <View key={record.id} style={styles.historyRow}>
-                    <View style={styles.historyGradeBadge}>
-                      <Text style={styles.historyGradeText}>
-                        {record.grade !== null
-                          ? formatRomanianGrade(record.grade)
-                          : `${record.awardedPoints}p`}
-                      </Text>
+                {recentExamRecords.map((record) => {
+                  const recVariantIdx = variants.findIndex((item) => item.id === record.variantId);
+                  const variantPrefix = recVariantIdx >= 0 ? `Varianta ${recVariantIdx + 1} · ` : '';
+                  return (
+                    <View key={record.id} style={styles.historyRow}>
+                      <View style={styles.historyGradeBadge}>
+                        <Text style={styles.historyGradeText}>
+                          {record.grade !== null
+                            ? formatRomanianGrade(record.grade)
+                            : `${record.awardedPoints}p`}
+                        </Text>
+                      </View>
+                      <View style={styles.historyCopy}>
+                        <Text style={styles.historyTitle}>
+                          {variantPrefix}{getScopeTitle(record.scope)}
+                        </Text>
+                        <Text style={styles.historyMeta}>
+                          {record.awardedPoints} din {record.maxPoints} puncte · {Math.max(1, Math.round(record.elapsedSeconds / 60))} min
+                        </Text>
+                      </View>
                     </View>
-                    <View style={styles.historyCopy}>
-                      <Text style={styles.historyTitle}>{getScopeTitle(record.scope)}</Text>
-                      <Text style={styles.historyMeta}>
-                        {record.awardedPoints} din {record.maxPoints} puncte · {Math.max(1, Math.round(record.elapsedSeconds / 60))} min
-                      </Text>
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           ) : null}
@@ -641,6 +707,51 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
     fontSize: 11,
+  },
+  variantGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  variantPill: {
+    flex: 1,
+    minWidth: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 9,
+    borderRadius: 16,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#D4C7F7',
+    backgroundColor: '#FAF8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  variantPillActive: {
+    borderColor: colors.violet,
+    borderBottomColor: '#3C12A8',
+    backgroundColor: colors.violet,
+  },
+  variantPillTitle: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 13.5,
+    includeFontPadding: false,
+  },
+  variantPillTitleActive: {
+    color: colors.paper,
+  },
+  variantPillMeta: {
+    fontFamily: fonts.bodyBold,
+    color: colors.inkMuted,
+    fontSize: 10.5,
+    includeFontPadding: false,
+  },
+  variantPillMetaScored: {
+    color: '#2A7A16',
+  },
+  variantPillMetaActive: {
+    color: colors.lime,
   },
   studioSubtitle: {
     fontFamily: fonts.bodyMedium,

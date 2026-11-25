@@ -87,7 +87,7 @@ function assertAllMathInBlocks(blocks: readonly StudyContentBlock[], context: st
 }
 
 test('every curated formula has unique IDs, valid metadata, pre-compiled MathJax SVG, and crisp rendered markup', () => {
-  assert.ok(FORMULAS_CATALOG.length >= 16, 'catalogul trebuie să includă cel puțin 16 fișe esențiale');
+  assert.ok(FORMULAS_CATALOG.length >= 55, 'catalogul complet trebuie să includă cel puțin 55 de fișe V–XII, EN și BAC');
   const seenIds = new Set<string>();
   const validCategories = new Set(FORMULA_CATEGORIES.map((item) => item.id));
   const validTracks = new Set(STUDY_TRACKS.map((item) => item.id));
@@ -249,7 +249,15 @@ test('public curriculum routes survive identity changes and all new screens obey
 });
 
 test('every curated practice question has valid MathJax SVG, valid formula link, distinct choices, and accurate grading', () => {
-  assert.ok(PRACTICE_BANK.length >= 25, 'banca de practică trebuie să aibă cel puțin 25 de exerciții');
+  assert.ok(PRACTICE_BANK.length >= 90, 'banca de practică offline trebuie să aibă cel puțin 90 de exerciții');
+  for (const track of STUDY_TRACKS) {
+    const count = PRACTICE_BANK.filter((q) => q.tracks.includes(track.id)).length;
+    assert.ok(count >= 25, `nivelul ${track.id} trebuie să aibă cel puțin 25 de exerciții (are ${count})`);
+  }
+  for (const category of FORMULA_CATEGORIES) {
+    const count = PRACTICE_BANK.filter((q) => q.category === category.id).length;
+    assert.ok(count >= 6, `categoria ${category.id} trebuie să aibă cel puțin 6 exerciții (are ${count})`);
+  }
   const seenIds = new Set<string>();
 
   for (const question of PRACTICE_BANK) {
@@ -347,10 +355,10 @@ test('every curated practice question has valid MathJax SVG, valid formula link,
   assert.equal(enStats.find((s) => s.categoryId === 'geometry')?.wrong, 1);
 });
 
-test('all 4 timed exam simulations sum strictly to 100 points, have exact rubrics, compiled MathJax SVG, and accurate grading', () => {
-  assert.equal(EXAM_SIMULATIONS.length, 4, 'trebuie să existe toate cele 4 variante oficiale (EN VIII + BAC M1/M2/M3)');
+test('all 12 timed exam simulations (3 variants per exam) sum strictly to 100 points, have exact rubrics, compiled MathJax SVG, and accurate grading', () => {
+  assert.ok(EXAM_SIMULATIONS.length >= 12, 'trebuie să existe cel puțin 12 variante oficiale (3 per examen: EN VIII + BAC M1/M2/M3)');
   for (const examId of ['en', 'bac_m1', 'bac_m2', 'bac_m3'] as const) {
-    assert.ok(getExamSimulationsForExam(examId).length >= 1, `lipsește simularea pentru ${examId}`);
+    assert.ok(getExamSimulationsForExam(examId).length >= 3, `trebuie să existe cel puțin 3 variante pentru ${examId}`);
   }
 
   const seenVariantIds = new Set<string>();
@@ -499,11 +507,9 @@ test('native Skia math engine compiles every inline $...$ expression, expands se
   assert.equal(flatServer.viewBox, '0 -700 1000 900');
   assert.equal(flatServer.d, 'M10 0L110 100');
 
-  for (const formula of FORMULAS_CATALOG) {
-    const rendered = getRenderedStudyMath(formula.formulaLatex, 'display');
-    assert.ok(rendered);
+  for (const [latexKey, rendered] of Object.entries(RENDERED_STUDY_MATH)) {
     const flat = flattenNativeMathSvg(rendered.svg);
-    assert.ok(flat && flat.d.startsWith('M'), `formula ${formula.id} trebuie aplatizată curat într-un singur Path`);
+    assert.ok(flat && flat.d.startsWith('M'), `formula pre-compilată "${latexKey}" trebuie aplatizată curat într-un singur Path`);
   }
 
   // 3. Verify pixel dimension scaling and overflow bounds.
@@ -708,4 +714,10 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
     const src = await readFile(path.resolve(rel), 'utf8');
     assert.match(src, /recordDailyStudyActivity\(\)/, `${rel} trebuie să conteze la seria zilnică`);
   }
+
+  // 10. Pachet 3 invariant: ExamsHubScreen supports switching between all variants per exam with per-variant best grade.
+  const examsHubSource = await readFile(path.resolve('src/features/exams/screens/ExamsHubScreen.tsx'), 'utf8');
+  assert.match(examsHubSource, /selectedVariantByExam/);
+  assert.match(examsHubSource, /activeVariant/);
+  assert.match(examsHubSource, /getBestGradeForVariant/);
 });

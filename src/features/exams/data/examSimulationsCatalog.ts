@@ -1,9 +1,11 @@
-import type { ExamGuideId } from '../../study/types';
-import type { ExamSimulationVariant } from '../types';
+import type { ExamGuideId } from '../../study/types.ts';
+import type { ExamSimulationVariant } from '../types.ts';
+import { EXAM_SIMULATIONS_V2 } from './examSimulationsV2.ts';
+import { EXAM_SIMULATIONS_V3 } from './examSimulationsV3.ts';
 
 /**
  * Authentic, mathematically verified 100-point Romanian national exam variants
- * for Evaluarea Națională (VIII) and Bacalaureat (M1, M2, M3).
+ * for Evaluarea Națională (VIII) and Bacalaureat (M1, M2, M3) — 3 variants per exam (12 total).
  *
  * Every variant strictly totals 100 points:
  *   10p oficiu + 30p Subiectul I + 30p Subiectul II + 30p Subiectul III.
@@ -11,7 +13,7 @@ import type { ExamSimulationVariant } from '../types';
  * Typeset in official MEN exam-paper format with inline `$...$` math,
  * dedicated `subpoint` blocks with point pills, and step-by-step official solutions.
  */
-export const EXAM_SIMULATIONS: readonly ExamSimulationVariant[] = [
+const CORE_EXAM_SIMULATIONS: readonly ExamSimulationVariant[] = [
   // ── EVALUAREA NAȚIONALĂ (CLASA A VIII-A) · 120 MIN · 100P ──────────────────
   {
     id: 'en-sim-v1',
@@ -1523,6 +1525,12 @@ export const EXAM_SIMULATIONS: readonly ExamSimulationVariant[] = [
       },
     ],
   },
+];
+
+export const EXAM_SIMULATIONS: readonly ExamSimulationVariant[] = [
+  ...CORE_EXAM_SIMULATIONS,
+  ...EXAM_SIMULATIONS_V2,
+  ...EXAM_SIMULATIONS_V3,
 ];
 
 export function getExamSimulationsForExam(examId: ExamGuideId): ExamSimulationVariant[] {

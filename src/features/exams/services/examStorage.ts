@@ -182,6 +182,18 @@ export function getBestGradeForExam(
   return best;
 }
 
+export function getBestGradeForVariant(
+  history: ExamHistoryState,
+  variantId: string,
+): number | null {
+  let best: number | null = null;
+  for (const record of history.records) {
+    if (record.variantId !== variantId || record.scope !== 'full' || record.grade === null) continue;
+    if (best === null || record.grade > best) best = record.grade;
+  }
+  return best;
+}
+
 export function clearExamLocalState(): void {
   cachedHistory = DEFAULT_HISTORY;
   try {

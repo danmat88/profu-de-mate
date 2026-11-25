@@ -1,4 +1,5 @@
-import type { PracticeQuestion } from '../types';
+import type { PracticeQuestion } from '../types.ts';
+import { EXTENDED_PRACTICE_BANK } from './practiceBankExtended.ts';
 
 /**
  * Curated, mathematically verified Romanian practice question bank aligned to
@@ -6,7 +7,7 @@ import type { PracticeQuestion } from '../types';
  * Written in clean Romanian textbook typography with inline `$...$` math,
  * MathJax-rendered choice options, and step-by-step explanations.
  */
-export const PRACTICE_BANK: readonly PracticeQuestion[] = [
+const CORE_PRACTICE_BANK: readonly PracticeQuestion[] = [
   // ── ALGEBRĂ & ECUAȚII ───────────────────────────────────────────────────────
   {
     id: 'prac-alg-prescurtat-1',
@@ -928,4 +929,9 @@ export const PRACTICE_BANK: readonly PracticeQuestion[] = [
       },
     ],
   },
+];
+
+export const PRACTICE_BANK: readonly PracticeQuestion[] = [
+  ...CORE_PRACTICE_BANK,
+  ...EXTENDED_PRACTICE_BANK,
 ];
