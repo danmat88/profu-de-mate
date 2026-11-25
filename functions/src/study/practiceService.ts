@@ -27,8 +27,10 @@ export type RenderedAiPracticeExercise = {
   difficulty: PracticeDifficulty;
   prompt: RenderedPracticeBlock[];
   choices: readonly [string, string, string, string];
+  renderedChoices: readonly [RenderedMath | null, RenderedMath | null, RenderedMath | null, RenderedMath | null];
   correctIndex: 0 | 1 | 2 | 3;
   hint: string;
+  renderedHint?: RenderedPracticeBlock[];
   explanation: RenderedPracticeBlock[];
 };
 
@@ -40,12 +42,53 @@ export type PracticeRejectionEvent = {
 
 const PRACTICE_MAX_OUTPUT_TOKENS = 4096;
 const PRACTICE_CALL_TIMEOUT_MS = 40_000;
+const INLINE_MATH_SPLIT = /\$\$([^$]+?)\$\$|\$([^$\n]+?)\$|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
+const CHOICE_NEEDS_MATHJAX = /(?:\$|\\(?:frac|dfrac|tfrac|sqrt|begin|det|mathbb|mathrm|mathcal|operatorname|cdot|times|pm|le|ge|ne|infty|pi|Delta|sin|cos|ln|log|int|sum|lim)\b|\^|_)/;
+
+function splitInlineMathBlocks(text: string): PracticeContentBlock[] {
+  if (!text.includes('$') && !text.includes('\\(') && !text.includes('\\[')) {
+    return [{ type: 'text', text, latex: '', spoken: '' }];
+  }
+  const out: PracticeContentBlock[] = [];
+  let lastIndex = 0;
+  for (const match of text.matchAll(INLINE_MATH_SPLIT)) {
+    const start = match.index ?? 0;
+    if (start > lastIndex) {
+      const before = text.slice(lastIndex, start).trim();
+      if (before) out.push({ type: 'text', text: before, latex: '', spoken: '' });
+    }
+    const rawLatex = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? '').trim();
+    if (rawLatex) {
+      out.push({ type: 'math', text: '', latex: rawLatex, spoken: rawLatex });
+    }
+    lastIndex = start + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    const after = text.slice(lastIndex).trim();
+    if (after) out.push({ type: 'text', text: after, latex: '', spoken: '' });
+  }
+  return out.length > 0 ? out : [{ type: 'text', text, latex: '', spoken: '' }];
+}
+
+async function renderChoiceMath(choice: string): Promise<RenderedMath | null> {
+  if (!CHOICE_NEEDS_MATHJAX.test(choice)) return null;
+  const cleanLatex = sanitizePracticeLatex(choice);
+  if (!cleanLatex) return null;
+  try {
+    return await renderLatex(cleanLatex);
+  } catch {
+    return null;
+  }
+}
 
 async function renderBlocks(
   blocks: readonly PracticeContentBlock[],
   onRenderFallback?: () => void,
 ): Promise<RenderedPracticeBlock[]> {
-  return Promise.all(blocks.map(async (block) => {
+  const expanded = blocks.flatMap((block) => (
+    block.type === 'text' ? splitInlineMathBlocks(block.text) : [block]
+  ));
+  return Promise.all(expanded.map(async (block) => {
     if (block.type === 'text') {
       return { type: 'text' as const, text: block.text, latex: '' as const, spoken: '' as const };
     }
@@ -76,9 +119,16 @@ export async function renderAiPracticeExercise(
   meta: { id: string; category: FormulaCategory; difficulty: PracticeDifficulty },
   onRenderFallback?: () => void,
 ): Promise<RenderedAiPracticeExercise> {
-  const [prompt, explanation] = await Promise.all([
+  const hintHasInline = parsed.hint.includes('$') || parsed.hint.includes('\\(') || parsed.hint.includes('\\[');
+  const [prompt, explanation, renderedChoices, renderedHint] = await Promise.all([
     renderBlocks(parsed.prompt, onRenderFallback),
     renderBlocks(parsed.explanation, onRenderFallback),
+    Promise.all(parsed.choices.map((choice) => renderChoiceMath(choice))) as Promise<
+      [RenderedMath | null, RenderedMath | null, RenderedMath | null, RenderedMath | null]
+    >,
+    hintHasInline
+      ? renderBlocks([{ type: 'text', text: parsed.hint, latex: '', spoken: '' }], onRenderFallback)
+      : Promise.resolve(undefined),
   ]);
   return {
     id: meta.id,
@@ -87,8 +137,10 @@ export async function renderAiPracticeExercise(
     difficulty: meta.difficulty,
     prompt,
     choices: parsed.choices,
+    renderedChoices,
     correctIndex: parsed.correctIndex,
     hint: parsed.hint,
+    ...(renderedHint ? { renderedHint } : {}),
     explanation,
   };
 }

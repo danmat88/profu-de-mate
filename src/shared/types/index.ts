@@ -196,8 +196,10 @@ export type AiPracticeExercisePayload = {
   formulaId?: string;
   prompt: RichContent;
   choices: readonly [string, string, string, string];
+  renderedChoices?: readonly [RenderedMath | null, RenderedMath | null, RenderedMath | null, RenderedMath | null];
   correctIndex: 0 | 1 | 2 | 3;
   hint: string;
+  renderedHint?: RichContent;
   explanation: RichContent;
 };
 

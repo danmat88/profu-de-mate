@@ -1,4 +1,4 @@
-import type { RichContent } from '../../shared/types';
+import type { RenderedMath, RichContent } from '../../shared/types';
 import type { FormulaCategoryId, StudyContentBlock, StudyTrackId } from '../study/types';
 
 export type PracticeDifficulty = 'easy' | 'medium' | 'exam';
@@ -8,6 +8,7 @@ export type PracticeSessionMode = 'quick' | 'category' | 'formula' | 'mistakes' 
 export type PracticeChoice = {
   label: string;
   spoken?: string;
+  rendered?: RenderedMath | null;
 };
 
 export type PracticeQuestion = {
@@ -42,6 +43,7 @@ export type PracticeQuestion = {
   aiGenerated?: boolean;
   /** Pre-rendered RichContent supplied directly by the AI backend. */
   renderedPrompt?: RichContent;
+  renderedHint?: RichContent;
   renderedExplanation?: RichContent;
 };
 

@@ -16,6 +16,7 @@ import {
   formatRomanianGrade,
   getScopeItems,
 } from '../../src/features/exams/utils/examEngine.ts';
+import { formatReadableMathFallback } from '../../src/features/math/utils/latexReadable.ts';
 import { buildMathDocumentMarkup } from '../../src/features/math/utils/mathDocument.ts';
 import {
   computeNativeMathDimensions,
@@ -40,6 +41,7 @@ import { getRenderedStudyMath, RENDERED_STUDY_MATH } from '../../src/features/st
 import { FORMULA_CATEGORIES, STUDY_TRACKS, type StudyContentBlock } from '../../src/features/study/types.ts';
 import {
   extractInlineMathExpressions,
+  isMultiRowLatex,
   tokenizeInlineMathText,
 } from '../../src/features/study/utils/inlineMath.ts';
 import {
@@ -505,11 +507,18 @@ test('native Skia math engine compiles every inline $...$ expression, expands se
   const flatServer = flattenNativeMathSvg(serverSvg);
   assert.ok(flatServer, 'server MathJax SVG trebuie aplatizat într-un singur <Path>');
   assert.equal(flatServer.viewBox, '0 -700 1000 900');
-  assert.equal(flatServer.d, 'M10 0L110 100');
+  assert.equal(flatServer.d, 'M10 0L110 100Z');
+
+  // Multi-contour glyph without intermediate Z must close every open subpath cleanly.
+  const multiContourSvg = '<svg viewBox="0 0 100 100"><g><path d="M0 0L10 0L10 10M20 20L30 20L30 30Z"/></g></svg>';
+  const flatMulti = flattenNativeMathSvg(multiContourSvg);
+  assert.ok(flatMulti);
+  assert.equal(flatMulti.d, 'M0 0L10 0L10 10ZM20 20L30 20L30 30Z');
 
   for (const [latexKey, rendered] of Object.entries(RENDERED_STUDY_MATH)) {
     const flat = flattenNativeMathSvg(rendered.svg);
     assert.ok(flat && flat.d.startsWith('M'), `formula pre-compilată "${latexKey}" trebuie aplatizată curat într-un singur Path`);
+    assert.equal(latexKey.includes('\\mathcal{'), false, `formula "${latexKey}" nu trebuie să folosească glife ornamentale \\mathcal`);
   }
 
   // 3. Verify pixel dimension scaling and overflow bounds.
@@ -720,4 +729,38 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
   assert.match(examsHubSource, /selectedVariantByExam/);
   assert.match(examsHubSource, /activeVariant/);
   assert.match(examsHubSource, /getBestGradeForVariant/);
+
+  // 11. Fresh-start track selection, universal math fallback, and visible horizontal scroll affordances.
+  const allStats = computeCategoryStats(PRACTICE_BANK, null, [], []);
+  assert.equal(allStats.length, FORMULA_CATEGORIES.length, 'fără nivel ales, statistica pe capitole acoperă toată programa');
+
+  const homeSurfaceSource = await readFile(path.resolve('src/features/home/components/HomeSurface.tsx'), 'utf8');
+  assert.match(homeSurfaceSource, /Alege nivelul/);
+  assert.match(homeSurfaceSource, /studyTrackChosen/);
+  assert.match(studyHubSource, /Alege nivelul/);
+  assert.match(formulasSource, /Alege nivelul/);
+  assert.match(practiceHubSource, /Alege nivelul/);
+  assert.match(trackSheetSource, /selectedTrack:\s*StudyTrackId \| null/);
+
+  // Inline tokenizer handles both $...$ and \(...\), and identifies multi-row matrices/systems.
+  const parenAtoms = tokenizeInlineMathText('Calculați \\(\\det(A)\\) pentru \\[A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}\\].');
+  assert.equal(parenAtoms.filter((a) => a.kind === 'math').length, 2);
+  assert.equal(isMultiRowLatex('A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}'), true);
+  assert.equal(isMultiRowLatex('x^2 + 1 = 0'), false);
+
+  // Readable emergency fallback strips raw LaTeX backslashes on any uncompiled string.
+  const fallbackMatrix = formatReadableMathFallback('$A \\in \\mathrm{M}_2(\\mathbb{R}), \\det(A) = \\frac{1}{2} + \\sqrt{3}, A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$');
+  assert.equal(fallbackMatrix.includes('\\'), false);
+  assert.match(fallbackMatrix, /ℝ/);
+  assert.match(fallbackMatrix, /√3/);
+  assert.match(fallbackMatrix, /det/);
+
+  // Horizontal scroll indicators & fades exist for native formulas, tables, and WebView documents.
+  assert.match(nativeMathFormulaSource, /Glisează formula →/);
+  assert.match(nativeMathFormulaSource, /fadeColor/);
+  const nativeVisualSource = await readFile(path.resolve('src/features/study/components/NativeMathVisual.tsx'), 'utf8');
+  assert.match(nativeVisualSource, /Glisează tabelul →/);
+  const mathDocSource = await readFile(path.resolve('src/features/math/utils/mathDocument.ts'), 'utf8');
+  assert.match(mathDocSource, /Glisează formula →/);
+  assert.match(mathDocSource, /Glisează tabelul →/);
 });

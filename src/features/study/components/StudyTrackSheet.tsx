@@ -12,7 +12,7 @@ import { STUDY_TRACKS, type StudyTrackId, type StudyTrackMeta } from '../types';
 
 type Props = {
   visible: boolean;
-  selectedTrack: StudyTrackId;
+  selectedTrack: StudyTrackId | null;
   onSelect: (track: StudyTrackId) => void;
   onClose: () => void;
 };

@@ -158,11 +158,17 @@ function getParsedGlyphSegments(d: string): ParsedGlyphSegment[] | null {
 
 function appendTransformedGlyph(segments: ParsedGlyphSegment[], tf: AxisTransform, chunks: string[]): void {
   const { sx, sy, tx, ty } = tf;
+  let openSubpath = false;
   for (let s = 0; s < segments.length; s += 1) {
     const seg = segments[s];
     if (seg.cmd === 'Z') {
       chunks.push('Z');
+      openSubpath = false;
       continue;
+    }
+    if (seg.cmd === 'M' && openSubpath) {
+      chunks.push('Z');
+      openSubpath = false;
     }
     const coords = seg.coords;
     let out = seg.cmd;
@@ -172,6 +178,12 @@ function appendTransformedGlyph(segments: ParsedGlyphSegment[], tf: AxisTransfor
       out += i === 0 ? `${x} ${y}` : ` ${x} ${y}`;
     }
     chunks.push(out);
+    if (seg.cmd === 'M' || seg.cmd === 'L' || seg.cmd === 'C') {
+      openSubpath = true;
+    }
+  }
+  if (openSubpath) {
+    chunks.push('Z');
   }
 }
 
@@ -381,10 +393,10 @@ export function computeNativeMathDimensions(
     };
   }
 
-  // Display / hero equations fit cleanly inside margins up to 26% shrink; only genuinely
+  // Display / hero equations fit cleanly inside margins up to 28% shrink; only genuinely
   // long derivation chains scroll horizontally with crisp, readable typography.
   const fitRatio = maxWidth / rawWidth;
-  if (fitRatio >= 0.74) {
+  if (fitRatio >= 0.72) {
     const width = Math.floor(maxWidth);
     const height = Math.max(14, Math.ceil(rawHeight * fitRatio));
     return {
@@ -396,7 +408,7 @@ export function computeNativeMathDimensions(
     };
   }
 
-  const scrollScale = 0.86;
+  const scrollScale = 0.88;
   const width = Math.ceil(rawWidth * scrollScale);
   const height = Math.max(16, Math.ceil(rawHeight * scrollScale));
   return {

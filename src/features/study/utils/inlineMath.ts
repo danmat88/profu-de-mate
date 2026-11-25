@@ -6,13 +6,22 @@ export type InlineMathAtom =
   | { kind: 'word'; text: string }
   | { kind: 'math'; latex: string; prefix: string; suffix: string };
 
-const INLINE_MATH_PATTERN = /\$([^$\n]+?)\$/g;
+const INLINE_MATH_PATTERN = /\$\$([^$]+?)\$\$|\$([^$\n]+?)\$|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
+const MULTI_ROW_LATEX_PATTERN = /\\begin\{(?:pmatrix|bmatrix|vmatrix|matrix|cases|aligned|array|gathered|split)\}/;
+
+export function hasInlineMathDelimiters(input: string): boolean {
+  return input.includes('$') || input.includes('\\(') || input.includes('\\[');
+}
+
+export function isMultiRowLatex(latex: string): boolean {
+  return MULTI_ROW_LATEX_PATTERN.test(latex);
+}
 
 /**
- * Splits a Romanian sentence into raw text and inline `$...$` LaTeX segments.
+ * Splits a Romanian sentence into raw text and inline `$...$` / `\(...\)` LaTeX segments.
  */
 export function parseInlineMathSegments(input: string): InlineMathSegment[] {
-  if (!input.includes('$')) {
+  if (!hasInlineMathDelimiters(input)) {
     return input ? [{ kind: 'text', text: input }] : [];
   }
   const segments: InlineMathSegment[] = [];
@@ -22,7 +31,7 @@ export function parseInlineMathSegments(input: string): InlineMathSegment[] {
     if (start > lastIndex) {
       segments.push({ kind: 'text', text: input.slice(lastIndex, start) });
     }
-    const latex = match[1].trim();
+    const latex = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? '').trim();
     if (latex) {
       segments.push({ kind: 'math', latex });
     }
@@ -35,13 +44,13 @@ export function parseInlineMathSegments(input: string): InlineMathSegment[] {
 }
 
 /**
- * Extracts every unique inline `$...$` LaTeX expression from a string.
+ * Extracts every unique inline `$...$` / `\(...\)` LaTeX expression from a string.
  */
 export function extractInlineMathExpressions(input: string): string[] {
-  if (!input || !input.includes('$')) return [];
+  if (!input || !hasInlineMathDelimiters(input)) return [];
   const results: string[] = [];
   for (const match of input.matchAll(INLINE_MATH_PATTERN)) {
-    const latex = match[1].trim();
+    const latex = (match[1] ?? match[2] ?? match[3] ?? match[4] ?? '').trim();
     if (latex) results.push(latex);
   }
   return results;
@@ -113,5 +122,8 @@ export function tokenizeInlineMathText(input: string): InlineMathAtom[] {
  * Strips `$...$` delimiters for clean screen-reader accessibility labels.
  */
 export function stripInlineMathDelimiters(input: string): string {
-  return input.replace(INLINE_MATH_PATTERN, (_m, inner: string) => inner.trim());
+  return input.replace(
+    INLINE_MATH_PATTERN,
+    (_m, g1?: string, g2?: string, g3?: string, g4?: string) => (g1 ?? g2 ?? g3 ?? g4 ?? '').trim(),
+  );
 }

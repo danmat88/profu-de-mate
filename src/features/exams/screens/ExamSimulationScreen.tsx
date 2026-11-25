@@ -443,7 +443,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const currentAiResult = aiGradingResults[currentItem.id];
   const currentCheckedSteps = checkedRubricSteps[currentItem.id] ?? [];
   const currentTextValue = textAnswers[currentItem.id] ?? '';
-  const innerMathWidth = Math.max(200, Math.min(contentWidth, frame.width - gutter * 2) - 42);
+  const innerMathWidth = Math.max(220, Math.min(contentWidth, frame.width - gutter * 2) - 32);
   const showShortKeyboardDock = currentItem.kind === 'short_answer' && keyboardVisible;
   const scrollBottomPadding = keyboardVisible ? 18 : 22;
   const unansweredPreview = unansweredItems

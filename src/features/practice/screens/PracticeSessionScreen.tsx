@@ -47,6 +47,7 @@ import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { commercialGateFromError } from '../../access/services/commercial';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
+import { NativeMathFormula } from '../../math/components/NativeMathFormula';
 import { StudyInlineText } from '../../study/components/StudyInlineText';
 import { LiveRichContentView, StudyBlocksView } from '../../study/components/StudyRichContent';
 import { getStudyProfile } from '../../study/services/studyStorage';
@@ -148,10 +149,11 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     if (aiExercise) {
       return [shuffleQuestionChoices(aiPayloadToPracticeQuestion(aiExercise, getStudyProfile().track), Date.now())];
     }
+    const currentProfile = getStudyProfile();
     const state = getPracticeState();
     return selectPracticeQuestions(PRACTICE_BANK, {
       mode,
-      track: getStudyProfile().track,
+      track: currentProfile.hasChosenTrack ? currentProfile.track : null,
       category,
       formulaId,
       questionId,
@@ -668,7 +670,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     : (currentIndex + (submitted ? 1 : 0)) / Math.max(1, questions.length);
   const isLast = currentIndex + 1 >= questions.length;
   const showTargetedPostFlow = isTargetedMistake && isLast;
-  const innerMathWidth = Math.max(200, Math.min(contentWidth, frame.width - gutter * 2) - 42);
+  const innerMathWidth = Math.max(220, Math.min(contentWidth, frame.width - gutter * 2) - 32);
   const showShortKeyboardDock = currentQuestion.kind === 'short_answer' && !submitted && keyboardVisible;
   const scrollBottomPadding = keyboardVisible ? 18 : Math.max(insets.bottom, 14) + 20;
 
@@ -810,12 +812,20 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                   style={styles.hintCard}
                 >
                   <Text style={styles.hintLabel}>✦ INDICIU</Text>
-                  <StudyInlineText
-                    text={currentQuestion.hint}
-                    scale={readingScale * 0.94}
-                    maxMathWidth={innerMathWidth - 12}
-                    textStyle={styles.hintText}
-                  />
+                  {currentQuestion.renderedHint && currentQuestion.renderedHint.length > 0 ? (
+                    <LiveRichContentView
+                      content={currentQuestion.renderedHint}
+                      scale={readingScale * 0.94}
+                      maxWidth={innerMathWidth - 12}
+                    />
+                  ) : (
+                    <StudyInlineText
+                      text={currentQuestion.hint}
+                      scale={readingScale * 0.94}
+                      maxMathWidth={innerMathWidth - 12}
+                      textStyle={styles.hintText}
+                    />
+                  )}
                 </Pressable>
               ) : (
                 <Pressable
@@ -877,13 +887,24 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                       </Text>
                     </View>
                     <View style={styles.choiceBody}>
-                      <StudyInlineText
-                        text={choice.label}
-                        scale={readingScale}
-                        mathSize="choice"
-                        maxMathWidth={innerMathWidth - 58}
-                        textStyle={styles.choiceLabel}
-                      />
+                      {choice.rendered ? (
+                        <NativeMathFormula
+                          rendered={choice.rendered}
+                          size="choice"
+                          scale={readingScale}
+                          maxWidth={innerMathWidth - 58}
+                          align="left"
+                          accessibilityLabel={choice.label}
+                        />
+                      ) : (
+                        <StudyInlineText
+                          text={choice.label}
+                          scale={readingScale}
+                          mathSize="choice"
+                          maxMathWidth={innerMathWidth - 58}
+                          textStyle={styles.choiceLabel}
+                        />
+                      )}
                     </View>
                   </Pressable>
                 );

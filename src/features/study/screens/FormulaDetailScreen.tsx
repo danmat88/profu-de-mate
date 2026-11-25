@@ -208,8 +208,8 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
     openFormulaAiGenerator();
   }, [formula.category, formula.id, hasFormulaPractice, navigation, openFormulaAiGenerator]);
 
-  const innerMathWidth = Math.max(200, Math.min(contentWidth, frame.width - gutter * 2) - 44);
-  const heroMathWidth = Math.max(180, innerMathWidth - 44);
+  const innerMathWidth = Math.max(220, Math.min(contentWidth, frame.width - gutter * 2) - 32);
+  const heroMathWidth = Math.max(200, innerMathWidth - 26);
   const eyebrowText = sequenceIds.length > 1 && currentIndex >= 0
     ? `FIȘA ${currentIndex + 1} DIN ${sequenceIds.length}`
     : 'FIȘĂ DE FORMULĂ';
@@ -347,6 +347,7 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
                           size="hero"
                           scale={readingScale}
                           maxWidth={heroMathWidth}
+                          fadeColor="#FFFFFF"
                           accessibilityLabel={expr.spoken}
                         />
                       </View>
@@ -730,8 +731,9 @@ const styles = StyleSheet.create({
     borderColor: '#E5DCFF',
     borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFFFF',
-    padding: 18,
-    gap: 18,
+    paddingHorizontal: 15,
+    paddingVertical: 17,
+    gap: 17,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -769,8 +771,8 @@ const styles = StyleSheet.create({
     borderColor: '#DFD2FA',
     borderBottomColor: '#C5B0F4',
     backgroundColor: '#F7F2FF',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 13,
     gap: 10,
   },
   formulaHeroEyebrow: {
@@ -778,15 +780,16 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     letterSpacing: 0.9,
     color: colors.violetDeep,
+    paddingHorizontal: 2,
   },
   formulaRows: {
-    gap: 12,
+    gap: 11,
   },
   formulaRow: {
-    gap: 8,
+    gap: 7,
   },
   formulaRowBorder: {
-    paddingTop: 12,
+    paddingTop: 11,
     borderTopWidth: 1,
     borderTopColor: 'rgba(124, 60, 255, 0.12)',
   },
@@ -794,6 +797,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 12,
     lineHeight: 16,
+    paddingHorizontal: 2,
   },
   formulaSvgWrap: {
     width: '100%',
@@ -803,8 +807,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderColor: '#E8E0FC',
     borderBottomColor: '#D4C7F7',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    paddingVertical: 13,
+    paddingHorizontal: 8,
     alignItems: 'center',
     overflow: 'hidden',
   },

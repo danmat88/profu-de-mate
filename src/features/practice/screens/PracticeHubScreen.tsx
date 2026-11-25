@@ -63,11 +63,11 @@ export function PracticeHubScreen({ navigation }: Props) {
   const categoryStats = useMemo(
     () => computeCategoryStats(
       PRACTICE_BANK,
-      studyProfile.track,
+      studyProfile.hasChosenTrack ? studyProfile.track : null,
       practiceState.masteredQuestionIds,
       practiceState.wrongQuestionIds,
     ),
-    [practiceState.masteredQuestionIds, practiceState.wrongQuestionIds, studyProfile.track],
+    [practiceState.masteredQuestionIds, practiceState.wrongQuestionIds, studyProfile.hasChosenTrack, studyProfile.track],
   );
 
   const trackTotals = useMemo(() => {
@@ -175,14 +175,14 @@ export function PracticeHubScreen({ navigation }: Props) {
               <View style={styles.canopyEyebrowRow}>
                 <View style={styles.canopyEyebrowDot} />
                 <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
-                  {`${trackMeta.shortLabel.toUpperCase()} · ${trackTotals.mastered}/${trackTotals.total} STĂPÂNITE`}
+                  {`${studyProfile.hasChosenTrack ? trackMeta.shortLabel.toUpperCase() : 'TOATĂ PROGRAMA'} · ${trackTotals.mastered}/${trackTotals.total} STĂPÂNITE`}
                 </Text>
               </View>
             </View>
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="Schimbă nivelul de studiu"
+              accessibilityLabel={studyProfile.hasChosenTrack ? 'Schimbă nivelul de studiu' : 'Alege nivelul de studiu'}
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
@@ -190,7 +190,7 @@ export function PracticeHubScreen({ navigation }: Props) {
             >
               <View style={styles.trackPillDot} />
               <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.trackPillText}>
-                {trackMeta.shortLabel} ▾
+                {studyProfile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Alege nivelul ▾'}
               </Text>
             </PressableScale>
           </View>
@@ -223,7 +223,9 @@ export function PracticeHubScreen({ navigation }: Props) {
 
               <View style={styles.canopyProgressWrap}>
                 <View style={styles.heroProgressHeader}>
-                  <Text style={styles.heroProgressLabel}>Progres {trackMeta.shortLabel}</Text>
+                  <Text style={styles.heroProgressLabel}>
+                    {studyProfile.hasChosenTrack ? `Progres ${trackMeta.shortLabel}` : 'Progres general'}
+                  </Text>
                   <Text style={styles.heroProgressValue}>
                     {trackTotals.mastered} / {trackTotals.total}
                   </Text>
@@ -274,7 +276,9 @@ export function PracticeHubScreen({ navigation }: Props) {
 
             <Text style={styles.questTitle}>Test fulger · 5 întrebări</Text>
             <Text style={styles.questSubtitle}>
-              Grilă și răspuns scurt pentru {trackMeta.shortLabel}, cu explicații pas cu pas.
+              {studyProfile.hasChosenTrack
+                ? `Grilă și răspuns scurt pentru ${trackMeta.shortLabel}, cu explicații pas cu pas.`
+                : 'Grilă și răspuns scurt din toată programa, cu explicații pas cu pas.'}
             </Text>
 
             <PressableScale
@@ -429,7 +433,7 @@ export function PracticeHubScreen({ navigation }: Props) {
       {trackSheetEverOpened ? (
         <StudyTrackSheet
           visible={trackSheetOpen}
-          selectedTrack={studyProfile.track}
+          selectedTrack={studyProfile.hasChosenTrack ? studyProfile.track : null}
           onSelect={handleSelectTrack}
           onClose={() => setTrackSheetOpen(false)}
         />

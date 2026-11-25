@@ -45,6 +45,7 @@ type Props = {
   latestLessonTitle?: string | null;
   savedLessonsCount?: number;
   studyTrackLabel?: string;
+  studyTrackChosen?: boolean;
   streakDays?: number;
   wrongCount?: number;
   showGuide?: boolean;
@@ -59,6 +60,7 @@ type Props = {
   onMath: () => void;
   onNotebook: () => void;
   onStudy?: () => void;
+  onChooseStudyTrack?: () => void;
   onQuickPractice?: () => void;
   onSettings: () => void;
   onAllowance: () => void;
@@ -157,6 +159,7 @@ export const HomeSurface = memo(function HomeSurface({
   latestLessonTitle = null,
   savedLessonsCount = 0,
   studyTrackLabel,
+  studyTrackChosen = true,
   streakDays = 0,
   wrongCount = 0,
   showGuide = false,
@@ -171,6 +174,7 @@ export const HomeSurface = memo(function HomeSurface({
   onMath,
   onNotebook,
   onStudy,
+  onChooseStudyTrack,
   onQuickPractice,
   onSettings,
   onAllowance,
@@ -908,7 +912,28 @@ export const HomeSurface = memo(function HomeSurface({
                     </Text>
                   </View>
 
-                  {studyTrackLabel && onStudy ? (
+                  {!studyTrackChosen && (onChooseStudyTrack || onStudy) ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Alege clasa sau examenul pentru a personaliza aplicația"
+                      hitSlop={6}
+                      onPress={onChooseStudyTrack ?? onStudy}
+                      style={({ pressed }) => [
+                        styles.stageTrackChip,
+                        styles.stageTrackChipUnchosen,
+                        pressed && styles.stageTrackChipPressed,
+                      ]}
+                    >
+                      <View style={[styles.stageTrackDot, styles.stageTrackDotUnchosen]} />
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        numberOfLines={1}
+                        style={[styles.stageTrackText, styles.stageTrackTextUnchosen]}
+                      >
+                        Alege nivelul ▾
+                      </Text>
+                    </Pressable>
+                  ) : studyTrackLabel && onStudy ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Nivel activ: ${studyTrackLabel}. Deschide secțiunea Învață`}
@@ -1870,12 +1895,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.violet,
   },
   stageTrackChipPressed: { opacity: 0.78 },
+  stageTrackChipUnchosen: {
+    borderColor: '#E5CE5C',
+    borderBottomColor: '#C4A11B',
+    backgroundColor: '#FFF9D9',
+  },
+  stageTrackDotUnchosen: {
+    backgroundColor: '#B87B00',
+  },
   stageTrackText: {
     fontFamily: fonts.bodyBold,
     fontSize: 10.5,
     letterSpacing: 0.35,
     color: colors.violetDeep,
     includeFontPadding: false,
+  },
+  stageTrackTextUnchosen: {
+    color: '#734A00',
   },
 
   // Horizontal optical viewfinder pod + crisp editorial lockup

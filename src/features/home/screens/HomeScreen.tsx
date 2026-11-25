@@ -47,10 +47,12 @@ export type HomeScreenProps = {
   active?: boolean;
   bottomClearance?: number;
   studyTrackLabel?: string;
+  studyTrackChosen?: boolean;
   streakDays?: number;
   wrongCount?: number;
   captureActionRef?: MutableRefObject<(() => void) | null>;
   onOpenStudy?: () => void;
+  onChooseStudyTrack?: () => void;
   onOpenNotebookTab?: () => void;
 };
 
@@ -60,10 +62,12 @@ export function HomeScreen(props?: HomeScreenProps) {
     active = true,
     bottomClearance = 8,
     studyTrackLabel,
+    studyTrackChosen = true,
     streakDays = 0,
     wrongCount = 0,
     captureActionRef,
     onOpenStudy,
+    onChooseStudyTrack,
     onOpenNotebookTab,
   } = props ?? {};
   const navigation = useNavigation<Navigation>();
@@ -297,6 +301,7 @@ export function HomeScreen(props?: HomeScreenProps) {
       latestLessonTitle={notebookPreview.latestTitle}
       savedLessonsCount={notebookPreview.count}
       studyTrackLabel={studyTrackLabel}
+      studyTrackChosen={studyTrackChosen}
       streakDays={streakDays}
       wrongCount={wrongCount}
       showGuide={!guideDismissed}
@@ -311,6 +316,7 @@ export function HomeScreen(props?: HomeScreenProps) {
       onMath={openMath}
       onNotebook={openNotebook}
       onStudy={onOpenStudy}
+      onChooseStudyTrack={onChooseStudyTrack}
       onQuickPractice={openQuickPractice}
       onSettings={openSettings}
       onAllowance={openAllowance}

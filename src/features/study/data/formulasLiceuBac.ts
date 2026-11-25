@@ -27,7 +27,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Monotonia pentru inecuații exponențiale',
-        latex: 'a > 1: \\; a^x < a^y \\iff x < y, \\qquad 0 < a < 1: \\; a^x < a^y \\iff x > y',
+        latex: '\\begin{aligned} a > 1 &: \\; a^x < a^y \\iff x < y \\\\ 0 < a < 1 &: \\; a^x < a^y \\iff x > y \\end{aligned}',
         spoken: 'pentru bază supraunitară semnul se păstrează, pentru bază subunitară semnul se schimbă',
       },
     ],
@@ -38,14 +38,14 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Notăm $t = 2^x > 0$',
         text: 'Deoarece $4^x = (2^2)^x = (2^x)^2 = t^2$, ecuația devine de gradul al II-lea:',
-        math: 't^2 - 5t + 4 = 0 \\iff (t - 1)(t - 4) = 0 \\implies t_1 = 1,\\; t_2 = 4',
+        math: '\\begin{aligned} t^2 - 5t + 4 = 0 &\\iff (t - 1)(t - 4) = 0 \\\\ &\\implies t_1 = 1,\\; t_2 = 4 \\end{aligned}',
         spoken: 't pătrat minus 5 t plus 4 egal 0 are soluțiile 1 și 4',
       },
       {
         type: 'step',
         title: 'Revenim la necunoscuta $x$',
         text: 'Ambele valori ale lui $t$ sunt strict pozitive, deci convin:',
-        math: '2^x = 1 = 2^0 \\implies x_1 = 0; \\qquad 2^x = 4 = 2^2 \\implies x_2 = 2',
+        math: '\\begin{aligned} 2^x = 1 = 2^0 &\\implies x_1 = 0 \\\\ 2^x = 4 = 2^2 &\\implies x_2 = 2 \\end{aligned}',
         spoken: 'soluțiile ecuației sunt x egal 0 și x egal 2',
       },
     ],
@@ -68,8 +68,8 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         spoken: 'argumentul logaritmului trebuie să fie strict pozitiv, iar baza pozitivă și diferită de 1',
       },
       {
-        label: 'Ecuații logaritmice cu aceeași bază',
-        latex: '\\log_a f(x) = \\log_a g(x) \\iff f(x) = g(x) \\quad (f(x), g(x) > 0)',
+        label: 'Ecuații logaritmice cu aceeași bază ($f(x), g(x) > 0$)',
+        latex: '\\log_a f(x) = \\log_a g(x) \\iff f(x) = g(x)',
         spoken: 'dacă logaritmii în aceeași bază sunt egali, argumentele sunt egale',
       },
       {
@@ -116,7 +116,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Conjugatul și modulul lui $z = a + bi$ ($a, b \\in \\mathbb{R}$)',
-        latex: '\\bar{z} = a - bi, \\qquad |z| = \\sqrt{a^2 + b^2}, \\qquad z \\cdot \\bar{z} = a^2 + b^2',
+        latex: '\\begin{aligned} \\bar{z} &= a - bi, \\qquad |z| = \\sqrt{a^2 + b^2} \\\\ z \\cdot \\bar{z} &= a^2 + b^2 \\end{aligned}',
         spoken: 'conjugatul schimbă semnul părții imaginare, iar produsul z ori z bară este a pătrat plus b pătrat',
       },
       {
@@ -132,7 +132,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Calculăm conjugatul și modulul',
         text: 'Avem partea reală $a = 3$ și partea imaginară $b = -4$:',
-        math: '\\bar{z} = 3 + 4i, \\qquad |z| = \\sqrt{3^2 + (-4)^2} = \\sqrt{25} = 5, \\qquad z \\cdot \\bar{z} = 25',
+        math: '\\begin{aligned} \\bar{z} &= 3 + 4i, \\qquad z \\cdot \\bar{z} = 25 \\\\ |z| &= \\sqrt{3^2 + (-4)^2} = \\sqrt{25} = 5 \\end{aligned}',
         spoken: 'conjugatul este 3 plus 4 i, modulul este 5 și produsul lor este 25',
       },
       {
@@ -162,12 +162,12 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Funcție pară și funcție impară (domeniu simetric)',
-        latex: 'f(-x) = f(x) \\;(\\text{pară}), \\qquad f(-x) = -f(x) \\;(\\text{impară})',
+        latex: '\\begin{aligned} f(-x) &= f(x) \\quad (\\text{pară}) \\\\ f(-x) &= -f(x) \\quad (\\text{impară}) \\end{aligned}',
         spoken: 'funcția pară are graficul simetric față de O y, iar funcția impară față de origine',
       },
       {
         label: 'Injectivitate și inversabilitate',
-        latex: 'f(x_1) = f(x_2) \\implies x_1 = x_2 \\quad (\\text{injectivă}); \\qquad y = f(x) \\iff x = f^{-1}(y)',
+        latex: '\\begin{aligned} f(x_1) = f(x_2) &\\implies x_1 = x_2 \\quad (\\text{injectivă}) \\\\ y = f(x) &\\iff x = f^{-1}(y) \\end{aligned}',
         spoken: 'funcția este inversabilă dacă și numai dacă este bijectivă',
       },
     ],
@@ -204,7 +204,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     formulas: [
       {
         label: 'Cazul $\\Delta > 0$ (cu $x_1 < x_2$)',
-        latex: '\\text{între } x_1 \\text{ și } x_2: \\;\\text{semn opus lui } a; \\qquad \\text{în afară}: \\;\\text{semnul lui } a',
+        latex: '\\begin{aligned} &\\text{între } x_1 \\text{ și } x_2: \\;\\text{semn opus lui } a \\\\ &\\text{în afară}: \\;\\text{semnul lui } a \\end{aligned}',
         spoken: 'între rădăcini trinomul are semn contrar lui a, iar în afara rădăcinilor are semnul lui a',
       },
       {
@@ -220,7 +220,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Aflăm rădăcinile ecuației asociate',
         text: 'Descompunem trinomul sau aplicăm formula cu $\\Delta = 25 - 24 = 1$:',
-        math: 'x^2 - 5x + 6 = 0 \\iff (x - 2)(x - 3) = 0 \\implies x_1 = 2,\\; x_2 = 3',
+        math: '\\begin{aligned} x^2 - 5x + 6 = 0 &\\iff (x - 2)(x - 3) = 0 \\\\ &\\implies x_1 = 2,\\; x_2 = 3 \\end{aligned}',
         spoken: 'rădăcinile sunt x 1 egal 2 și x 2 egal 3',
       },
       {
@@ -255,7 +255,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Suma cuburilor și pașii inducției matematice',
-        latex: '\\sum_{k=1}^{n} k^3 = \\left[\\frac{n(n + 1)}{2}\\right]^2, \\qquad P(1) \\text{ și } \\big(P(k) \\Rightarrow P(k+1)\\big)',
+        latex: '\\begin{aligned} \\sum_{k=1}^{n} k^3 &= \\left[\\frac{n(n + 1)}{2}\\right]^2 \\\\ P(1) \\;&\\text{și}\\; \\big(P(k) \\Rightarrow P(k+1)\\big) \\end{aligned}',
         spoken: 'suma cuburilor este pătratul sumei lui Gauss',
       },
     ],
@@ -282,7 +282,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     tracks: ['liceu', 'bac_m1', 'bac_m2'],
     examTag: 'SUBIECTUL I BAC',
     preview: 'sin 2x = 2 sin x cos x  ·  cos 2x = cos²x − sin²x',
-    formulaLatex: '\\sin 2x = 2\\sin x\\cos x, \\qquad \\cos 2x = \\cos^2 x - \\sin^2 x',
+    formulaLatex: '\\sin 2x = 2\\sin x\\cos x',
     formulaSpoken: 'sinus de 2 x este 2 sinus x cosinus x, iar cosinus de 2 x este cosinus pătrat x minus sinus pătrat x',
     formulas: [
       {
@@ -297,7 +297,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Formulele unghiului dublu (toate cele 3 forme pentru $\\cos 2x$)',
-        latex: '\\sin 2x = 2\\sin x\\cos x, \\qquad \\cos 2x = 2\\cos^2 x - 1 = 1 - 2\\sin^2 x',
+        latex: '\\begin{aligned} \\sin 2x &= 2\\sin x\\cos x \\\\ \\cos 2x &= \\cos^2 x - \\sin^2 x \\\\ &= 2\\cos^2 x - 1 = 1 - 2\\sin^2 x \\end{aligned}',
         spoken: 'cosinus de 2 x este 2 cosinus pătrat minus 1 sau 1 minus 2 sinus pătrat',
       },
     ],
@@ -315,7 +315,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Aplicăm formulele unghiului dublu',
         text: 'Înlocuim valorile în $\\sin 2x$ și $\\cos 2x = 1 - 2\\sin^2 x$:',
-        math: '\\sin 2x = 2 \\cdot \\frac{3}{5} \\cdot \\frac{4}{5} = \\frac{24}{25}, \\qquad \\cos 2x = 1 - 2 \\cdot \\frac{9}{25} = \\frac{7}{25}',
+        math: '\\begin{aligned} \\sin 2x &= 2 \\cdot \\frac{3}{5} \\cdot \\frac{4}{5} = \\frac{24}{25} \\\\ \\cos 2x &= 1 - 2 \\cdot \\frac{9}{25} = \\frac{7}{25} \\end{aligned}',
         spoken: 'sinus de 2 x este 24 supra 25 și cosinus de 2 x este 7 supra 25',
       },
     ],
@@ -333,12 +333,12 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     formulas: [
       {
         label: 'Unghiuri suplementare ($\\pi - x$) și opuse ($-x$)',
-        latex: '\\sin(\\pi - x) = \\sin x, \\qquad \\cos(\\pi - x) = -\\cos x, \\qquad \\cos(-x) = \\cos x',
+        latex: '\\begin{aligned} \\sin(\\pi - x) &= \\sin x, \\qquad \\cos(\\pi - x) = -\\cos x \\\\ \\sin(-x) &= -\\sin x, \\qquad \\cos(-x) = \\cos x \\end{aligned}',
         spoken: 'sinusul rămâne pozitiv la unghiuri suplementare, iar cosinusul își schimbă semnul',
       },
       {
-        label: 'Ecuațiile fundamentale ($a \\in [-1, 1]$)',
-        latex: '\\sin x = a \\iff x = (-1)^k \\arcsin a + k\\pi, \\qquad \\cos x = a \\iff x = \\pm \\arccos a + 2k\\pi',
+        label: 'Ecuațiile fundamentale ($a \\in [-1, 1],\\; k \\in \\mathbb{Z}$)',
+        latex: '\\begin{aligned} \\sin x = a &\\iff x = (-1)^k \\arcsin a + k\\pi \\\\ \\cos x = a &\\iff x = \\pm \\arccos a + 2k\\pi \\end{aligned}',
         spoken: 'soluțiile generale pentru sinus și cosinus cu k întreg',
       },
       {
@@ -415,12 +415,12 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     tracks: ['liceu', 'bac_m1', 'bac_m2', 'bac_m3'],
     examTag: 'FOARTE DES LA BAC',
     preview: 'd₁ ∥ d₂ ⇔ m₁ = m₂  ·  d₁ ⊥ d₂ ⇔ m₁m₂ = −1  ·  A = ½|Δ|',
-    formulaLatex: 'd_1 \\parallel d_2 \\iff m_1 = m_2, \\qquad d_1 \\perp d_2 \\iff m_1 \\cdot m_2 = -1',
+    formulaLatex: 'd_1 \\parallel d_2 \\iff m_1 = m_2',
     formulaSpoken: 'două drepte sunt paralele dacă au pante egale și perpendiculare dacă produsul pantelor este minus 1',
     formulas: [
       {
         label: 'Condiții de paralelism și perpendicularitate după pante',
-        latex: 'd_1 \\parallel d_2 \\iff m_1 = m_2, \\qquad d_1 \\perp d_2 \\iff m_1 \\cdot m_2 = -1',
+        latex: '\\begin{aligned} d_1 \\parallel d_2 &\\iff m_1 = m_2 \\\\ d_1 \\perp d_2 &\\iff m_1 \\cdot m_2 = -1 \\end{aligned}',
         spoken: 'pante egale pentru paralelism, produsul pantelor minus 1 pentru perpendicularitate',
       },
       {
@@ -430,7 +430,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Aria triunghiului $ABC$ cu determinant (și coliniaritate: $\\Delta = 0$)',
-        latex: '\\mathcal{A}_{\\Delta ABC} = \\frac{1}{2}|\\Delta|, \\qquad \\Delta = \\begin{vmatrix} x_A & y_A & 1 \\\\ x_B & y_B & 1 \\\\ x_C & y_C & 1 \\end{vmatrix}',
+        latex: '\\mathrm{A}_{\\Delta ABC} = \\frac{1}{2}|\\Delta|, \\qquad \\Delta = \\begin{vmatrix} x_A & y_A & 1 \\\\ x_B & y_B & 1 \\\\ x_C & y_C & 1 \\end{vmatrix}',
         spoken: 'aria triunghiului este jumătate din modulul determinantului coordonatelor',
       },
     ],
@@ -441,14 +441,14 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Calculăm determinantul $\\Delta$',
         text: 'Dezvoltăm determinantul format din coordonatele vârfurilor:',
-        math: '\\Delta = \\begin{vmatrix} 1 & 1 & 1 \\\\ 5 & 1 & 1 \\\\ 3 & 5 & 1 \\end{vmatrix} = (1 + 3 + 25) - (3 + 5 + 5) = 29 - 13 = 16',
+        math: '\\begin{aligned} \\Delta &= \\begin{vmatrix} 1 & 1 & 1 \\\\ 5 & 1 & 1 \\\\ 3 & 5 & 1 \\end{vmatrix} \\\\ &= (1 + 3 + 25) - (3 + 5 + 5) = 16 \\end{aligned}',
         spoken: 'determinantul delta este egal cu 16',
       },
       {
         type: 'step',
         title: 'Împărțim modulul la $2$',
         text: 'Obținem aria triunghiului:',
-        math: '\\mathcal{A}_{\\Delta ABC} = \\frac{1}{2}|16| = 8',
+        math: '\\mathrm{A}_{\\Delta ABC} = \\frac{1}{2}|16| = 8',
         spoken: 'aria triunghiului A B C este 8',
       },
     ],
@@ -552,28 +552,33 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     tracks: ['liceu', 'bac_m1', 'bac_m2', 'bac_m3'],
     examTag: 'SUBIECTUL II.1 BAC',
     preview: 'det(A · B) = det(A) · det(B)  ·  det(cA) = cⁿ det(A)',
-    formulaLatex: '\\det(A \\cdot B) = \\det(A) \\cdot \\det(B), \\qquad \\det(cA) = c^n \\det(A)',
+    formulaLatex: '\\det(A \\cdot B) = \\det(A) \\cdot \\det(B)',
     formulaSpoken: 'determinantul produsului este produsul determinanților, iar determinantul lui c ori A este c la puterea n ori determinant de A',
     formulas: [
       {
         label: 'Regula lui Sarrus pentru determinantul $3 \\times 3$',
-        latex: '\\det A = (a_{11}a_{22}a_{33} + a_{21}a_{32}a_{13} + a_{31}a_{12}a_{23}) - (a_{13}a_{22}a_{31} + a_{23}a_{32}a_{11} + a_{33}a_{12}a_{21})',
+        latex: '\\begin{aligned} \\det A =\\;&(a_{11}a_{22}a_{33} + a_{21}a_{32}a_{13} + a_{31}a_{12}a_{23}) \\\\ &- (a_{13}a_{22}a_{31} + a_{23}a_{32}a_{11} + a_{33}a_{12}a_{21}) \\end{aligned}',
         spoken: 'suma produselor pe diagonalele principale minus suma produselor pe diagonalele secundare',
       },
       {
-        label: 'Proprietăți esențiale ale determinanților ($A, B \\in \\mathcal{M}_n(\\mathbb{R})$)',
-        latex: '\\det(AB) = \\det A \\cdot \\det B, \\qquad \\det(A^t) = \\det A, \\qquad \\det(cA) = c^n \\det A',
+        label: 'Proprietăți esențiale ale determinanților ($A, B \\in \\mathrm{M}_n(\\mathbb{R})$)',
+        latex: '\\begin{aligned} \\det(AB) &= \\det A \\cdot \\det B \\\\ \\det(A^t) &= \\det A, \\qquad \\det(cA) = c^n \\det A \\end{aligned}',
         spoken: 'determinantul transpusului este egal cu determinantul, iar constanta iese la puterea ordinului matricei',
       },
     ],
     whenToUse: 'La Subiectul II.1 de BAC (punctul a cere aproape mereu calculul unui determinant $3 \\times 3$, iar punctul c folosește multiplicativitatea $\\det(AB) = \\det A \\cdot \\det B$ sau $\\det(A^k) = (\\det A)^k$).',
     example: [
-      { type: 'text', text: 'Calculează determinantul matricei $A = \\begin{pmatrix} 1 & 2 & 0 \\\\ 0 & 3 & 1 \\\\ 2 & 0 & 1 \\end{pmatrix}$ cu regula lui Sarrus.' },
+      { type: 'text', text: 'Calculează determinantul matricei cu regula lui Sarrus:' },
+      {
+        type: 'math',
+        latex: 'A = \\begin{pmatrix} 1 & 2 & 0 \\\\ 0 & 3 & 1 \\\\ 2 & 0 & 1 \\end{pmatrix}',
+        spoken: 'matricea A 3 pe 3 cu liniile 1, 2, 0; 0, 3, 1; și 2, 0, 1',
+      },
       {
         type: 'step',
         title: 'Calculăm produsele cu semnul $+$ și pe cele cu semnul $-$',
         text: 'Înmulțim pe cele 3 diagonale paralele cu diagonala principală, apoi scădem cele 3 diagonale secundare:',
-        math: '\\det A = (1\\cdot 3\\cdot 1 + 0\\cdot 0\\cdot 0 + 2\\cdot 2\\cdot 1) - (0\\cdot 3\\cdot 2 + 1\\cdot 0\\cdot 1 + 1\\cdot 2\\cdot 0) = (3 + 0 + 4) - 0 = 7',
+        math: '\\begin{aligned} \\det A &= (1\\cdot 3\\cdot 1 + 0\\cdot 0\\cdot 0 + 2\\cdot 2\\cdot 1) \\\\ &\\quad - (0\\cdot 3\\cdot 2 + 1\\cdot 0\\cdot 1 + 1\\cdot 2\\cdot 0) \\\\ &= (3 + 0 + 4) - 0 = 7 \\end{aligned}',
         spoken: 'determinantul matricei A este egal cu 7',
       },
     ],
@@ -603,12 +608,17 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     ],
     whenToUse: 'La Subiectul II.1 de BAC pentru sisteme liniare $2 \\times 2$ și $3 \\times 3$ cu parametru: afli valorile parametrului pentru care sistemul are soluție unică ($\\Delta \\ne 0$) sau îl rezolvi direct cu Cramer.',
     example: [
-      { type: 'text', text: 'Rezolvă sistemul $\\begin{cases} 2x + y = 5 \\\\ x - y = 1 \\end{cases}$ cu regula lui Cramer.' },
+      { type: 'text', text: 'Rezolvă cu regula lui Cramer sistemul liniar:' },
+      {
+        type: 'math',
+        latex: '\\begin{cases} 2x + y = 5 \\\\ x - y = 1 \\end{cases}',
+        spoken: 'sistemul 2 x plus y egal 5 și x minus y egal 1',
+      },
       {
         type: 'step',
         title: 'Calculăm determinanții $\\Delta$, $\\Delta_x$ și $\\Delta_y$',
         text: 'Înlocuim pe rând coloana lui $x$ și coloana lui $y$ cu coloana termenilor liberi:',
-        math: '\\Delta = \\begin{vmatrix} 2 & 1 \\\\ 1 & -1 \\end{vmatrix} = -3, \\quad \\Delta_x = \\begin{vmatrix} 5 & 1 \\\\ 1 & -1 \\end{vmatrix} = -6, \\quad \\Delta_y = \\begin{vmatrix} 2 & 5 \\\\ 1 & 1 \\end{vmatrix} = -3',
+        math: '\\begin{aligned} \\Delta &= \\begin{vmatrix} 2 & 1 \\\\ 1 & -1 \\end{vmatrix} = -3, \\qquad \\Delta_x = \\begin{vmatrix} 5 & 1 \\\\ 1 & -1 \\end{vmatrix} = -6 \\\\ \\Delta_y &= \\begin{vmatrix} 2 & 5 \\\\ 1 & 1 \\end{vmatrix} = -3 \\end{aligned}',
         spoken: 'delta este minus 3, delta x este minus 6 și delta y este minus 3',
       },
       {
@@ -638,14 +648,19 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         spoken: 'inversa lui A este 1 supra determinant de A ori matricea adjunctă a lui A',
       },
       {
-        label: 'Teorema Hamilton–Cayley pentru $A \\in \\mathcal{M}_2(\\mathbb{R})$',
-        latex: 'A^2 - \\operatorname{Tr}(A)\\cdot A + (\\det A)\\cdot I_2 = O_2, \\qquad \\operatorname{Tr}(A) = a_{11} + a_{22}',
+        label: 'Teorema Hamilton–Cayley pentru $A \\in \\mathrm{M}_2(\\mathbb{R})$',
+        latex: '\\begin{aligned} &A^2 - \\operatorname{Tr}(A)\\cdot A + (\\det A)\\cdot I_2 = O_2 \\\\ &\\operatorname{Tr}(A) = a_{11} + a_{22} \\end{aligned}',
         spoken: 'orice matrice 2 pe 2 verifică ecuația sa caracteristică',
       },
     ],
     whenToUse: 'Teorema Hamilton–Cayley este unul dintre cele mai puternice scurtături la Subiectul II.1 de BAC: reduci instant $A^2$, $A^3$ sau $A^n$ la combinații liniare de $A$ și $I_2$!',
     example: [
-      { type: 'text', text: 'Fie $A = \\begin{pmatrix} 2 & 1 \\\\ 1 & 2 \\end{pmatrix}$. Exprimă $A^2$ în funcție de $A$ și $I_2$ cu Hamilton–Cayley.' },
+      { type: 'text', text: 'Exprimă $A^2$ în funcție de $A$ și $I_2$ cu teorema Hamilton–Cayley pentru matricea:' },
+      {
+        type: 'math',
+        latex: 'A = \\begin{pmatrix} 2 & 1 \\\\ 1 & 2 \\end{pmatrix}',
+        spoken: 'matricea A 2 pe 2 cu liniile 2, 1 și 1, 2',
+      },
       {
         type: 'step',
         title: 'Calculăm urma și determinantul lui $A$',
@@ -676,7 +691,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     formulas: [
       {
         label: 'Teorema împărțirii cu rest a polinoamelor',
-        latex: 'f(X) = g(X) \\cdot q(X) + r(X), \\qquad \\deg r < \\deg g \\;(\\text{sau } r = 0)',
+        latex: '\\begin{aligned} f(X) &= g(X) \\cdot q(X) + r(X) \\\\ \\deg r &< \\deg g \\quad (\\text{sau } r = 0) \\end{aligned}',
         spoken: 'orice polinom f se împarte unic cu rest la un polinom nenul g',
       },
       {
@@ -697,7 +712,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Calculăm $f(1)$ și derivata $f\'(1)$',
         text: 'Derivata formală este $f\'(X) = 3X^2 - 3$:',
-        math: 'f(1) = 1^3 - 3\\cdot 1 + 2 = 0, \\qquad f\'(1) = 3\\cdot 1^2 - 3 = 0',
+        math: '\\begin{aligned} f(1) &= 1^3 - 3\\cdot 1 + 2 = 0 \\\\ f\'(1) &= 3\\cdot 1^2 - 3 = 0 \\end{aligned}',
         spoken: 'f de 1 este 0 și f derivat de 1 este 0',
       },
       {
@@ -734,7 +749,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Criteriul cleștelui (majorării)',
-        latex: 'a_n \\le x_n \\le b_n \\text{ și } \\lim a_n = \\lim b_n = l \\implies \\lim x_n = l',
+        latex: '\\begin{aligned} a_n \\le x_n \\le b_n \\;\\text{ și }\\; \\lim a_n = \\lim b_n = l \\\\ \\implies \\lim x_n = l \\end{aligned}',
         spoken: 'dacă un șir este încadrat între două șiruri cu aceeași limită l, el are tot limita l',
       },
     ],
@@ -776,18 +791,23 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Condiția de derivabilitate în $x_0$ (cu limite finite egale)',
-        latex: "f'_s(x_0) = f'_d(x_0) \\in \\mathbb{R}, \\qquad f'(x_0) = \\lim_{x \\to x_0} \\frac{f(x) - f(x_0)}{x - x_0}",
+        latex: "\\begin{aligned} f'_s(x_0) &= f'_d(x_0) \\in \\mathbb{R} \\\\ f'(x_0) &= \\lim_{x \\to x_0} \\frac{f(x) - f(x_0)}{x - x_0} \\end{aligned}",
         spoken: 'derivata la stânga egal derivata la dreapta și finite',
       },
       {
         label: 'Consecința proprietății lui Darboux (existența unei rădăcini)',
-        latex: 'f \\text{ continuă pe } [a, b] \\text{ și } f(a)\\cdot f(b) < 0 \\implies \\exists\\, c \\in (a, b):\\; f(c) = 0',
+        latex: '\\begin{aligned} &f \\text{ continuă pe } [a, b] \\text{ și } f(a)\\cdot f(b) < 0 \\\\ &\\implies \\exists\\, c \\in (a, b):\\; f(c) = 0 \\end{aligned}',
         spoken: 'dacă o funcție continuă are semne opuse la capetele intervalului, are cel puțin o rădăcină în interior',
       },
     ],
     whenToUse: 'Când afli parametrii $a, b$ pentru ca o funcție definită pe ramuri să fie continuă/derivabilă sau când demonstrezi că o ecuație are cel puțin o soluție într-un interval.',
     example: [
-      { type: 'text', text: 'Determină $a, b \\in \\mathbb{R}$ astfel încât $f(x) = \\begin{cases} x^2 + 1, & x \\le 1 \\\\ ax + b, & x > 1 \\end{cases}$ să fie derivabilă în $x_0 = 1$.' },
+      { type: 'text', text: 'Determină $a, b \\in \\mathbb{R}$ astfel încât funcția următoare să fie derivabilă în $x_0 = 1$:' },
+      {
+        type: 'math',
+        latex: 'f(x) = \\begin{cases} x^2 + 1, & x \\le 1 \\\\ ax + b, & x > 1 \\end{cases}',
+        spoken: 'f de x egal x pătrat plus 1 pentru x mai mic sau egal cu 1, și a x plus b pentru x strict mai mare decât 1',
+      },
       {
         type: 'step',
         title: 'Impunem continuitatea în $x_0 = 1$',
@@ -813,7 +833,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     tracks: ['liceu', 'bac_m1', 'bac_m2', 'bac_m3'],
     examTag: 'ESENȚIAL LA BAC',
     preview: 'f′ ≥ 0 ⇒ crescătoare  ·  f′′ ≥ 0 ⇒ convexă (∪)',
-    formulaLatex: "f'(x) \\ge 0 \\implies f \\text{ crescătoare}, \\qquad f''(x) \\ge 0 \\implies f \\text{ convexă}",
+    formulaLatex: "f'(x) \\ge 0 \\implies f \\text{ crescătoare}",
     formulaSpoken: 'derivata întâi pozitivă arată că funcția crește, iar derivata a doua pozitivă arată că funcția este convexă',
     formulas: [
       {
@@ -823,12 +843,12 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Punct de extrem local ($f\'(x_0) = 0$ și schimbă semnul)',
-        latex: "f': (- \\to +) \\implies \\text{minim local}; \\qquad f': (+ \\to -) \\implies \\text{maxim local}",
+        latex: "\\begin{aligned} f': (- \\to +) &\\implies \\text{minim local} \\\\ f': (+ \\to -) &\\implies \\text{maxim local} \\end{aligned}",
         spoken: 'schimbarea de la minus la plus dă minim local, iar de la plus la minus dă maxim local',
       },
       {
         label: 'Convexitate și puncte de inflexiune din $f\'\'(x)$',
-        latex: "f''(x) \\ge 0 \\implies \\text{convexă } (\\cup), \\qquad f''(x) \\le 0 \\implies \\text{concavă } (\\cap)",
+        latex: "\\begin{aligned} f''(x) \\ge 0 &\\implies \\text{convexă } (\\cup) \\\\ f''(x) \\le 0 &\\implies \\text{concavă } (\\cap) \\end{aligned}",
         spoken: 'derivata a doua nenegativă înseamnă funcție convexă, iar schimbarea ei de semn dă punct de inflexiune',
       },
     ],
@@ -839,7 +859,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Calculăm derivata și rădăcinile ei',
         text: 'Derivăm și rezolvăm $f\'(x) = 0$:',
-        math: "f'(x) = 3x^2 - 3 = 3(x - 1)(x + 1) = 0 \\implies x_1 = -1,\\; x_2 = 1",
+        math: "\\begin{aligned} f'(x) &= 3x^2 - 3 = 3(x - 1)(x + 1) = 0 \\\\ &\\implies x_1 = -1,\\; x_2 = 1 \\end{aligned}",
         spoken: 'punctele critice sunt minus 1 și 1',
       },
       {
@@ -865,7 +885,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     formulas: [
       {
         label: 'Teorema lui Rolle ($f$ continuă pe $[a, b]$, derivabilă pe $(a, b)$)',
-        latex: "f(a) = f(b) \\implies \\exists\\, c \\in (a, b) \\text{ astfel încât } f'(c) = 0",
+        latex: "f(a) = f(b) \\implies \\exists\\, c \\in (a, b):\\; f'(c) = 0",
         spoken: 'dacă valorile la capete sunt egale, există un punct interior cu derivata zero',
       },
       {
@@ -875,7 +895,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Consecința șirului lui Rolle (numărul de soluții ale lui $f(x) = 0$)',
-        latex: "\\text{Între două rădăcini ale lui } f \\text{ există cel puțin o rădăcină a lui } f'",
+        latex: "\\begin{aligned} &\\text{Între două rădăcini ale lui } f \\\\ &\\text{există cel puțin o rădăcină a lui } f' \\end{aligned}",
         spoken: 'între două rădăcini consecutive ale lui f se află cel puțin o rădăcină a derivatei',
       },
     ],
@@ -886,7 +906,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Aplicăm formula lui Lagrange',
         text: 'Funcția polinomială este continuă pe $[1, 3]$ și derivabilă pe $(1, 3)$ cu $f\'(x) = 2x$:',
-        math: "f'(c) = \\frac{f(3) - f(1)}{3 - 1} = \\frac{9 - 1}{2} = 4 \\iff 2c = 4 \\iff c = 2 \\in (1, 3)",
+        math: "\\begin{aligned} f'(c) &= \\frac{f(3) - f(1)}{3 - 1} = \\frac{9 - 1}{2} = 4 \\\\ &\\iff 2c = 4 \\iff c = 2 \\in (1, 3) \\end{aligned}",
         spoken: 'c este egal cu 2, care aparține intervalului deschis 1, 3',
       },
     ],
@@ -905,17 +925,17 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
     formulas: [
       {
         label: 'Puteri, $1/x$ și exponențiale',
-        latex: '\\int x^n\\,dx = \\frac{x^{n+1}}{n+1} + C, \\quad \\int \\frac{1}{x}\\,dx = \\ln|x| + C, \\quad \\int e^x\\,dx = e^x + C',
+        latex: '\\begin{aligned} \\int x^n\\,dx &= \\frac{x^{n+1}}{n+1} + C \\\\ \\int \\frac{1}{x}\\,dx &= \\ln|x| + C, \\qquad \\int e^x\\,dx = e^x + C \\end{aligned}',
         spoken: 'primitivele uzuale pentru puteri, 1 supra x și e la x',
       },
       {
         label: 'Fracții raționale clasice ($a > 0$)',
-        latex: '\\int \\frac{1}{x^2 + a^2}\\,dx = \\frac{1}{a}\\operatorname{arctg}\\frac{x}{a} + C, \\quad \\int \\frac{1}{x^2 - a^2}\\,dx = \\frac{1}{2a}\\ln\\left|\\frac{x - a}{x + a}\\right| + C',
+        latex: '\\begin{aligned} \\int \\frac{1}{x^2 + a^2}\\,dx &= \\frac{1}{a}\\operatorname{arctg}\\frac{x}{a} + C \\\\ \\int \\frac{1}{x^2 - a^2}\\,dx &= \\frac{1}{2a}\\ln\\left|\\frac{x - a}{x + a}\\right| + C \\end{aligned}',
         spoken: 'primitiva lui 1 supra x pătrat plus a pătrat este 1 pe a arctangentă de x supra a',
       },
       {
         label: 'Trigonometrice și forma logaritmică $\\frac{u\'}{u}$',
-        latex: '\\int \\sin x\\,dx = -\\cos x + C, \\quad \\int \\cos x\\,dx = \\sin x + C, \\quad \\int \\frac{u\'(x)}{u(x)}\\,dx = \\ln|u(x)| + C',
+        latex: '\\begin{aligned} \\int \\sin x\\,dx &= -\\cos x + C \\\\ \\int \\cos x\\,dx &= \\sin x + C \\\\ \\int \\frac{u\'(x)}{u(x)}\\,dx &= \\ln|u(x)| + C \\end{aligned}',
         spoken: 'integrala din sinus este minus cosinus, iar din u derivat supra u este logaritm din modul de u',
       },
     ],
@@ -926,7 +946,7 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
         type: 'step',
         title: 'Recunoaștem forma $\\frac{u\'(x)}{u(x)}$',
         text: 'Observăm că $(x^2 + 1)\' = 2x$, deci primitiva este $\\ln(x^2 + 1)$:',
-        math: 'I = \\Big[\\ln(x^2 + 1)\\Big]_0^1 = \\ln(1^2 + 1) - \\ln(0 + 1) = \\ln 2 - 0 = \\ln 2',
+        math: '\\begin{aligned} I &= \\Big[\\ln(x^2 + 1)\\Big]_0^1 \\\\ &= \\ln 2 - \\ln 1 = \\ln 2 \\end{aligned}',
         spoken: 'valoarea integralei este logaritm natural din 2',
       },
     ],
@@ -950,12 +970,12 @@ export const LICEU_BAC_FORMULAS: readonly FormulaEntry[] = [
       },
       {
         label: 'Monotonia integralei și încadrarea ($a \\le b$)',
-        latex: 'm \\le f(x) \\le M \\implies m(b - a) \\le \\int_a^b f(x)\\,dx \\le M(b - a)',
+        latex: '\\begin{aligned} &m \\le f(x) \\le M \\\\ &\\implies m(b - a) \\le \\int_a^b f(x)\\,dx \\le M(b - a) \\end{aligned}',
         spoken: 'dacă f este încadrată între m și M pe intervalul a b, integrala este încadrată între m ori b minus a și M ori b minus a',
       },
       {
         label: 'Integrale pe interval simetric $[-a, a]$',
-        latex: 'f \\text{ impară} \\implies \\int_{-a}^{a} f(x)\\,dx = 0; \\qquad f \\text{ pară} \\implies \\int_{-a}^{a} f(x)\\,dx = 2\\int_0^a f(x)\\,dx',
+        latex: '\\begin{aligned} f \\text{ impară} &\\implies \\int_{-a}^{a} f(x)\\,dx = 0 \\\\ f \\text{ pară} &\\implies \\int_{-a}^{a} f(x)\\,dx = 2\\int_0^a f(x)\\,dx \\end{aligned}',
         spoken: 'integrala unei funcții impare pe un interval simetric este 0',
       },
     ],

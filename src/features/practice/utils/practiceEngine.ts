@@ -26,7 +26,7 @@ export type CategoryPracticeStat = {
 
 export type PracticeSelectionOptions = {
   mode: PracticeSessionMode;
-  track: StudyTrackId;
+  track: StudyTrackId | null;
   category?: FormulaCategoryId;
   formulaId?: string;
   questionId?: string;
@@ -295,14 +295,14 @@ export function selectPracticeQuestions(
   } else if (options.mode === 'formula' && options.formulaId) {
     pool = bank.filter((q) => q.formulaId === options.formulaId);
   } else if (options.mode === 'category' && options.category) {
-    const trackMatches = bank.filter(
-      (q) => q.category === options.category && q.tracks.includes(options.track),
-    );
+    const trackMatches = options.track
+      ? bank.filter((q) => q.category === options.category && q.tracks.includes(options.track!))
+      : bank.filter((q) => q.category === options.category);
     pool = trackMatches.length > 0
       ? trackMatches
       : bank.filter((q) => q.category === options.category);
   } else {
-    pool = bank.filter((q) => q.tracks.includes(options.track));
+    pool = options.track ? bank.filter((q) => q.tracks.includes(options.track!)) : [...bank];
     if (pool.length === 0) pool = [...bank];
   }
 
@@ -323,13 +323,13 @@ export function selectPracticeQuestions(
 
 export function computeCategoryStats(
   bank: readonly PracticeQuestion[],
-  track: StudyTrackId,
+  track: StudyTrackId | null,
   masteredIds: readonly string[],
   wrongIds: readonly string[],
 ): CategoryPracticeStat[] {
   const masteredSet = new Set(masteredIds);
   const wrongSet = new Set(wrongIds);
-  const trackBank = bank.filter((q) => q.tracks.includes(track));
+  const trackBank = track ? bank.filter((q) => q.tracks.includes(track)) : bank;
 
   return FORMULA_CATEGORIES
     .map((cat) => {

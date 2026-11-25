@@ -1,5 +1,13 @@
-import { memo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { memo, useCallback, useState } from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  View,
+  type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import Svg, {
   Circle,
   G,
@@ -325,61 +333,123 @@ function NativeNumberLineDiagram({ visual }: { visual: NumberLineVisual }) {
 }
 
 function NativeTableDiagram({ visual, scale = 1 }: { visual: TableVisual; scale?: number }) {
+  const [scrollState, setScrollState] = useState({ x: 0, viewportWidth: 0, contentWidth: 0 });
+
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextW = Math.round(event.nativeEvent.layout.width);
+    if (nextW > 0) setScrollState((prev) => (Math.abs(prev.viewportWidth - nextW) < 2 ? prev : { ...prev, viewportWidth: nextW }));
+  }, []);
+
+  const handleContentSize = useCallback((w: number) => {
+    const nextW = Math.round(w);
+    if (nextW > 0) setScrollState((prev) => (Math.abs(prev.contentWidth - nextW) < 2 ? prev : { ...prev, contentWidth: nextW }));
+  }, []);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextX = Math.max(0, Math.round(event.nativeEvent.contentOffset.x));
+    setScrollState((prev) => (Math.abs(prev.x - nextX) < 3 ? prev : { ...prev, x: nextX }));
+  }, []);
+
+  const hasOverflow = scrollState.viewportWidth > 0 && scrollState.contentWidth > scrollState.viewportWidth + 6;
+  const maxScroll = Math.max(1, scrollState.contentWidth - scrollState.viewportWidth);
+  const canScrollRight = hasOverflow && scrollState.x < maxScroll - 6;
+  const canScrollLeft = hasOverflow && scrollState.x > 6;
+
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled>
-      <View style={styles.tableBox}>
-        <View style={styles.tableHeaderRow}>
-          {visual.headers.map((header, idx) => (
-            <View key={`th-${idx}`} style={[styles.tableCell, idx === 0 && styles.tableFirstCol]}>
-              <StudyInlineText
-                text={header}
-                scale={scale * 0.92}
-                align="center"
-                color={colors.violetDeep}
-                textStyle={styles.tableHeaderText}
-                maxMathWidth={82}
-              />
-            </View>
-          ))}
-        </View>
-        {visual.rows.map((row, rIdx) => (
-          <View
-            key={`tr-${rIdx}`}
-            style={[styles.tableRow, rIdx % 2 === 1 && styles.tableRowAlt]}
-          >
-            {row.cells.map((cell, cIdx) => {
-              const compiled = 'rendered' in cell && cell.rendered
-                ? cell.rendered
-                : cell.latex
-                  ? getRenderedStudyMath(cell.latex, 'inline')
-                  : undefined;
-              return (
-                <View key={`td-${rIdx}-${cIdx}`} style={[styles.tableCell, cIdx === 0 && styles.tableFirstCol]}>
-                  {compiled ? (
-                    <NativeMathFormula
-                      rendered={compiled}
-                      size="inline"
-                      scale={scale * 0.95}
-                      color={cIdx === 0 ? colors.violetDeep : colors.ink}
-                      maxWidth={82}
-                    />
-                  ) : (
-                    <StudyInlineText
-                      text={cell.text || ''}
-                      scale={scale * 0.92}
-                      align="center"
-                      color={cIdx === 0 ? colors.violetDeep : colors.ink}
-                      textStyle={cIdx === 0 ? styles.tableFirstColText : styles.tableCellText}
-                      maxMathWidth={82}
-                    />
-                  )}
+    <View style={styles.tableOuter}>
+      <View style={styles.tableStage} onLayout={handleLayout}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          onContentSizeChange={handleContentSize}
+        >
+          <View style={styles.tableBox}>
+            <View style={styles.tableHeaderRow}>
+              {visual.headers.map((header, idx) => (
+                <View key={`th-${idx}`} style={[styles.tableCell, idx === 0 && styles.tableFirstCol]}>
+                  <StudyInlineText
+                    text={header}
+                    scale={scale * 0.92}
+                    align="center"
+                    color={colors.violetDeep}
+                    textStyle={styles.tableHeaderText}
+                    maxMathWidth={82}
+                  />
                 </View>
-              );
-            })}
+              ))}
+            </View>
+            {visual.rows.map((row, rIdx) => (
+              <View
+                key={`tr-${rIdx}`}
+                style={[styles.tableRow, rIdx % 2 === 1 && styles.tableRowAlt]}
+              >
+                {row.cells.map((cell, cIdx) => {
+                  const compiled = 'rendered' in cell && cell.rendered
+                    ? cell.rendered
+                    : cell.latex
+                      ? getRenderedStudyMath(cell.latex, 'inline')
+                      : undefined;
+                  return (
+                    <View key={`td-${rIdx}-${cIdx}`} style={[styles.tableCell, cIdx === 0 && styles.tableFirstCol]}>
+                      {compiled ? (
+                        <NativeMathFormula
+                          rendered={compiled}
+                          size="inline"
+                          scale={scale * 0.95}
+                          color={cIdx === 0 ? colors.violetDeep : colors.ink}
+                          maxWidth={82}
+                        />
+                      ) : (
+                        <StudyInlineText
+                          text={cell.text || ''}
+                          scale={scale * 0.92}
+                          align="center"
+                          color={cIdx === 0 ? colors.violetDeep : colors.ink}
+                          textStyle={cIdx === 0 ? styles.tableFirstColText : styles.tableCellText}
+                          maxMathWidth={82}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
           </View>
-        ))}
+        </ScrollView>
+
+        {canScrollLeft ? (
+          <LinearGradient
+            pointerEvents="none"
+            colors={['#FFFFFF', '#FFFFFF00']}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.tableFadeLeft}
+          />
+        ) : null}
+        {canScrollRight ? (
+          <LinearGradient
+            pointerEvents="none"
+            colors={['#FFFFFF00', '#FFFFFF']}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.tableFadeRight}
+          />
+        ) : null}
       </View>
-    </ScrollView>
+
+      {hasOverflow ? (
+        <View pointerEvents="none" style={styles.tableHintRow}>
+          <View style={styles.tableHintPill}>
+            <Text maxFontSizeMultiplier={1.1} style={styles.tableHintText}>
+              {!canScrollRight ? '← Înapoi la început' : 'Glisează tabelul →'}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -436,6 +506,46 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#EDE6FB',
+  },
+  tableOuter: {
+    gap: 6,
+  },
+  tableStage: {
+    position: 'relative',
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  tableFadeLeft: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    width: 18,
+  },
+  tableFadeRight: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: 26,
+  },
+  tableHintRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  tableHintPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: radii.pill,
+    backgroundColor: '#EFE8FF',
+    borderWidth: 1,
+    borderColor: '#DACBFA',
+  },
+  tableHintText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    color: colors.violetDeep,
+    includeFontPadding: false,
   },
   tableBox: {
     borderRadius: 14,

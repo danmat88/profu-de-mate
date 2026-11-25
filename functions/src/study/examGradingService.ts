@@ -39,7 +39,7 @@ export function buildExamGradingPrompt(request: GradeExamSolutionRequest): strin
     '3. Dacă elevul folosește o metodă alternativă matematic corectă și complet justificată, acordă punctajul integral al etapei respective (exact ca în baremul MEN!).',
     '4. Acordă puncte întregi parțiale pentru pașii corecți intermediari, explicând concret unde s-a pierdut fiecare punct.',
     '5. În `criteriaScores`, returnează câte un obiect în aceeași ordine cu etapele din barem, cu `awardedPoints` întreg între 0 și punctajul etapei.',
-    '6. Scrie în limba română caldă, încurajatoare, cu diacritice corecte (ă, â, î, ș, ț).',
+    '6. Scrie în limba română caldă, încurajatoare, cu diacritice corecte (ă, â, î, ș, ț). Folosește notații matematice curate în Unicode (ex. x², √3, Δ, ≤, ≥, ≠) — fără comenzi LaTeX brute cu backslash (fără \\frac, \\sqrt, \\begin).',
     '7. Răspunde STRICT în JSON valid conform schemei, fără text suplimentar.',
   ].join('\n');
 }

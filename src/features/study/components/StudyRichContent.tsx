@@ -23,25 +23,19 @@ const NOTE_PALETTE = {
   peach: { bg: '#FFF4EE', border: '#FFD4C2', label: colors.peachDeep },
 } as const;
 
-const SUBPOINT_BADGE_BG = {
-  violet: '#EFE8FF',
-  cyan: '#E3F8FB',
-  peach: '#FFF0E8',
-  lime: '#F1FFCC',
-} as const;
-
-const SUBPOINT_BADGE_TEXT = {
-  violet: colors.violetDeep,
-  cyan: colors.cyanDeep,
-  peach: colors.peachDeep,
-  lime: colors.limeDeep,
+const ACCENT_PALETTE = {
+  violet: { rail: colors.violet, badgeBg: '#EFE8FF', badgeText: colors.violetDeep },
+  cyan: { rail: colors.cyan, badgeBg: '#E3F8FB', badgeText: colors.cyanDeep },
+  peach: { rail: colors.peach, badgeBg: '#FFF0E8', badgeText: colors.peachDeep },
+  lime: { rail: colors.limeDeep, badgeBg: '#F1FFCC', badgeText: colors.limeDeep },
 } as const;
 
 /**
  * Renders structured Romanian textbook & exam content blocks (`text` with
- * inline `$...$`, display `math` bands, exam `subpoint` rows with points
- * pills, numbered `step` rows, callout `note`s, and native `visual` diagrams)
- * synchronously on Frame 0 with zero WebView overhead.
+ * inline `$...$`, full-width display `math` bands with accent rails, exam
+ * `subpoint` cards with point pills, full-width editorial `step` cards,
+ * callout `note`s, and native `visual` diagrams) synchronously on Frame 0
+ * with zero WebView overhead.
  */
 export const StudyBlocksView = memo(function StudyBlocksView({
   blocks,
@@ -50,6 +44,7 @@ export const StudyBlocksView = memo(function StudyBlocksView({
   accent = 'violet',
 }: StudyBlocksProps) {
   let stepCounter = 0;
+  const tone = ACCENT_PALETTE[accent];
 
   return (
     <View style={styles.stack}>
@@ -76,21 +71,25 @@ export const StudyBlocksView = memo(function StudyBlocksView({
             );
           }
           return (
-            <View key={`math-${index}-${block.latex}`} style={styles.mathBand}>
+            <View
+              key={`math-${index}-${block.latex}`}
+              style={[styles.mathBand, { borderLeftColor: tone.rail }]}
+            >
               {block.caption ? (
                 <StudyInlineText
                   text={block.caption}
                   scale={scale * 0.9}
                   color={colors.violetDeep}
                   textStyle={styles.mathCaption}
-                  maxMathWidth={maxWidth - 24}
+                  maxMathWidth={maxWidth - 22}
                 />
               ) : null}
               <NativeMathFormula
                 rendered={rendered}
                 size="display"
                 scale={scale}
-                maxWidth={maxWidth - 24}
+                maxWidth={maxWidth - 22}
+                fadeColor="#FAF8FF"
                 accessibilityLabel={block.spoken}
               />
             </View>
@@ -104,8 +103,8 @@ export const StudyBlocksView = memo(function StudyBlocksView({
           return (
             <View key={`sub-${index}`} style={styles.subpointCard}>
               <View style={styles.subpointHeader}>
-                <View style={[styles.subpointBadge, { backgroundColor: SUBPOINT_BADGE_BG[accent] }]}>
-                  <Text style={[styles.subpointBadgeText, { color: SUBPOINT_BADGE_TEXT[accent] }]}>
+                <View style={[styles.subpointBadge, { backgroundColor: tone.badgeBg }]}>
+                  <Text style={[styles.subpointBadgeText, { color: tone.badgeText }]}>
                     {block.label}
                   </Text>
                 </View>
@@ -113,7 +112,7 @@ export const StudyBlocksView = memo(function StudyBlocksView({
                   <StudyInlineText
                     text={block.text}
                     scale={scale}
-                    maxMathWidth={maxWidth - 96}
+                    maxMathWidth={maxWidth - 88}
                     textStyle={styles.subpointText}
                   />
                 </View>
@@ -129,7 +128,8 @@ export const StudyBlocksView = memo(function StudyBlocksView({
                     rendered={mathRendered}
                     size="display"
                     scale={scale * 0.96}
-                    maxWidth={maxWidth - 36}
+                    maxWidth={maxWidth - 28}
+                    fadeColor="#FFFFFF"
                     accessibilityLabel={block.spoken}
                   />
                 </View>
@@ -144,38 +144,46 @@ export const StudyBlocksView = memo(function StudyBlocksView({
             ? getRenderedStudyMath(block.math, 'display')
             : undefined;
           return (
-            <View key={`step-${index}`} style={styles.stepRow}>
-              <View style={styles.stepIndexPill}>
-                <Text style={styles.stepIndexText}>{stepCounter}</Text>
-              </View>
-              <View style={styles.stepBody}>
+            <View
+              key={`step-${index}`}
+              style={[styles.stepCard, { borderLeftColor: tone.rail }]}
+            >
+              <View style={styles.stepHeaderRow}>
+                <View style={[styles.stepIndexPill, { backgroundColor: tone.badgeBg }]}>
+                  <Text style={[styles.stepIndexText, { color: tone.badgeText }]}>
+                    Pasul {stepCounter}
+                  </Text>
+                </View>
                 {block.title ? (
-                  <StudyInlineText
-                    text={block.title}
-                    scale={scale * 0.92}
-                    color={colors.violetDeep}
-                    maxMathWidth={maxWidth - 46}
-                    textStyle={styles.stepTitle}
-                  />
-                ) : null}
-                <StudyInlineText
-                  text={block.text}
-                  scale={scale}
-                  maxMathWidth={maxWidth - 46}
-                  textStyle={styles.stepText}
-                />
-                {mathRendered ? (
-                  <View style={styles.stepMathBand}>
-                    <NativeMathFormula
-                      rendered={mathRendered}
-                      size="display"
-                      scale={scale * 0.96}
-                      maxWidth={maxWidth - 62}
-                      accessibilityLabel={block.spoken}
+                  <View style={styles.stepTitleWrap}>
+                    <StudyInlineText
+                      text={block.title}
+                      scale={scale * 0.92}
+                      color={colors.violetDeep}
+                      maxMathWidth={maxWidth - 96}
+                      textStyle={styles.stepTitle}
                     />
                   </View>
                 ) : null}
               </View>
+              <StudyInlineText
+                text={block.text}
+                scale={scale}
+                maxMathWidth={maxWidth - 24}
+                textStyle={styles.stepText}
+              />
+              {mathRendered ? (
+                <View style={styles.stepMathBand}>
+                  <NativeMathFormula
+                    rendered={mathRendered}
+                    size="display"
+                    scale={scale * 0.96}
+                    maxWidth={maxWidth - 34}
+                    fadeColor="#FAF8FF"
+                    accessibilityLabel={block.spoken}
+                  />
+                </View>
+              ) : null}
             </View>
           );
         }
@@ -195,7 +203,7 @@ export const StudyBlocksView = memo(function StudyBlocksView({
                 text={block.text}
                 scale={scale * 0.96}
                 color={colors.ink}
-                maxMathWidth={maxWidth - 28}
+                maxMathWidth={maxWidth - 26}
                 textStyle={styles.noteText}
               />
             </View>
@@ -251,12 +259,13 @@ export const LiveRichContentView = memo(function LiveRichContentView({
         }
         if (block.type === 'math') {
           return (
-            <View key={`lm-${index}`} style={styles.mathBand}>
+            <View key={`lm-${index}`} style={[styles.mathBand, { borderLeftColor: colors.violet }]}>
               <NativeMathFormula
                 rendered={block.rendered}
                 size="display"
                 scale={scale}
-                maxWidth={maxWidth - 24}
+                maxWidth={maxWidth - 22}
+                fadeColor="#FAF8FF"
                 accessibilityLabel={block.spoken}
               />
             </View>
@@ -280,22 +289,23 @@ export const LiveRichContentView = memo(function LiveRichContentView({
 
 const styles = StyleSheet.create({
   stack: {
-    gap: 10,
+    gap: 11,
   },
   bodyText: {
     fontFamily: fonts.body,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 22.5,
     color: colors.ink,
   },
   mathBand: {
     width: '100%',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E7DFFA',
+    borderLeftWidth: 3.5,
+    borderColor: '#E5DCFA',
     backgroundColor: '#FAF8FF',
-    paddingVertical: 11,
-    paddingHorizontal: 11,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
     gap: 6,
     alignItems: 'center',
     overflow: 'hidden',
@@ -309,13 +319,13 @@ const styles = StyleSheet.create({
   },
   subpointCard: {
     width: '100%',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#EAE2FA',
+    borderRadius: 17,
+    borderWidth: 1.1,
+    borderColor: '#E8DFF9',
     backgroundColor: '#FCF9FF',
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 11,
-    gap: 8,
+    gap: 9,
     overflow: 'hidden',
   },
   subpointHeader: {
@@ -345,7 +355,7 @@ const styles = StyleSheet.create({
   subpointText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 14.5,
-    lineHeight: 21,
+    lineHeight: 21.5,
     color: colors.ink,
   },
   pointsPill: {
@@ -365,61 +375,72 @@ const styles = StyleSheet.create({
   },
   subpointMath: {
     width: '100%',
-    borderRadius: 12,
-    backgroundColor: colors.paper,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#EFE8FC',
-    paddingVertical: 9,
-    paddingHorizontal: 10,
+    borderColor: '#EDE5FC',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
     overflow: 'hidden',
   },
-  stepRow: {
+  stepCard: {
     width: '100%',
+    borderRadius: 17,
+    borderWidth: 1.1,
+    borderLeftWidth: 3.5,
+    borderColor: '#EAE2FA',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    gap: 7,
+    overflow: 'hidden',
+  },
+  stepHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 7,
   },
   stepIndexPill: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    backgroundColor: colors.violetSoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
     flexShrink: 0,
   },
   stepIndexText: {
     fontFamily: fonts.display,
-    fontSize: 12,
-    color: colors.violetDeep,
+    fontSize: 11,
+    letterSpacing: 0.3,
+    includeFontPadding: false,
   },
-  stepBody: {
+  stepTitleWrap: {
     flex: 1,
-    minWidth: 0,
-    gap: 6,
+    minWidth: 120,
   },
   stepTitle: {
     fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    letterSpacing: 0.3,
+    fontSize: 12.5,
+    lineHeight: 17,
     color: colors.violetDeep,
   },
   stepText: {
     fontFamily: fonts.body,
     fontSize: 14.5,
-    lineHeight: 21,
+    lineHeight: 21.5,
     color: colors.ink,
   },
   stepMathBand: {
     width: '100%',
+    marginTop: 1,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#E9E0FA',
+    borderColor: '#EAE2FA',
     backgroundColor: '#FAF8FF',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    paddingVertical: 11,
+    paddingHorizontal: 8,
     alignItems: 'center',
     overflow: 'hidden',
   },

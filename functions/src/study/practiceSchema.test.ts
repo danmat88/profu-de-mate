@@ -196,3 +196,63 @@ test('normalizeRawPracticeExercise cleans realistic Gemini quirks, sanitizes Rom
   assert.equal(calls, 2);
   assert.deepEqual(repaired.choices, ['4', '3', '2', '6']);
 });
+
+test('sanitizePracticeLatex and renderAiPracticeExercise compile inline math, matrix choices, and hints natively', async () => {
+  assert.equal(
+    sanitizePracticeLatex('$A \\in \\mathcal{M}_2(\\mathbb{R}) \\setminus \\{O_2\\}, \\triangle ABC, \\frown{AB}$'),
+    'A \\in \\mathrm{M}_2(\\mathbb{R}) \\backslash \\{O_2\\}, \\Delta ABC, \\widehat{AB}',
+  );
+
+  const matrixExercise = aiPracticeExerciseSchema.parse({
+    title: 'Determinantul unei matrice',
+    prompt: [
+      {
+        type: 'text',
+        text: 'Fie $A \\in \\mathcal{M}_2(\\mathbb{R})$ cu $\\det(A) = 3$. Alege matricea cu determinant $6$:',
+        latex: '',
+        spoken: '',
+      },
+    ],
+    choices: [
+      '$\\begin{pmatrix} 2 & 0 \\\\ 0 & 3 \\end{pmatrix}$',
+      '$\\begin{pmatrix} 1 & 0 \\\\ 0 & 2 \\end{pmatrix}$',
+      '$\\frac{3}{2}$',
+      '5',
+    ],
+    correctIndex: 0,
+    hint: 'Folosește formula $\\det\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix} = ad - bc$.',
+    explanation: [
+      {
+        type: 'text',
+        text: 'Calculăm $\\det(A) = 2 \\cdot 3 - 0 = 6$.',
+        latex: '',
+        spoken: '',
+      },
+    ],
+  });
+
+  const rendered = await renderAiPracticeExercise(matrixExercise, {
+    id: 'ai-mat-1',
+    category: 'matrices',
+    difficulty: 'medium',
+  });
+
+  // Inline $...$ in text blocks is split and compiled into native MathJax SVG math blocks.
+  const promptMathBlocks = rendered.prompt.filter((b) => b.type === 'math');
+  assert.ok(promptMathBlocks.length >= 2, 'inline math din textul enunțului trebuie compilat în blocuri math');
+  for (const mb of promptMathBlocks) {
+    if (mb.type === 'math') {
+      assert.match(mb.rendered.svg, /^<svg\b[\s\S]*<\/svg>$/);
+    }
+  }
+
+  // Matrix & fraction choices compile to RenderedMath SVGs while plain numeric choices remain null.
+  assert.ok(rendered.renderedChoices && rendered.renderedChoices.length === 4);
+  assert.match(rendered.renderedChoices[0]!.svg, /^<svg\b[\s\S]*<\/svg>$/);
+  assert.match(rendered.renderedChoices[1]!.svg, /^<svg\b[\s\S]*<\/svg>$/);
+  assert.match(rendered.renderedChoices[2]!.svg, /^<svg\b[\s\S]*<\/svg>$/);
+  assert.equal(rendered.renderedChoices[3], null);
+
+  // Hints with inline math compile into renderedHint RichContent blocks.
+  assert.ok(rendered.renderedHint && rendered.renderedHint.some((b) => b.type === 'math'));
+});

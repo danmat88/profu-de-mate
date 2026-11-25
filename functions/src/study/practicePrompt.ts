@@ -51,7 +51,7 @@ export function buildPracticePrompt(request: GeneratePracticeRequest): string {
     'REGULI STRICTE:',
     '1. Verifică matematic fiecare calcul de două ori înainte de a alege correctIndex (0, 1, 2 sau 3).',
     '2. Folosește blocuri { "type": "text", "text": "...", "latex": "", "spoken": "" } pentru explicațiile în română (fără simboluri $ în text) și blocuri { "type": "math", "text": "", "latex": "...", "spoken": "..." } pentru ecuații și formule LaTeX valide (fără $, \\[ \\] sau \\tg — folosește \\operatorname{tg}).',
-    '3. Variantele din `choices` trebuie să fie exact 4 șiruri distincte, scurte și lizibile direct în Unicode (ex. "5/2", "4x² − 12x + 9", "9√3 cm²", "e − 1"), fără prefixe A)/B)/C)/D) și fără LaTeX brut.',
+    '3. Variantele din `choices` trebuie să fie exact 4 șiruri distincte, fără prefixe A)/B)/C)/D). Pentru numere și expresii simple folosește Unicode curat (ex. "5/2", "4x² − 12x + 9", "9√3 cm²", "e − 1"); pentru matrice sau fracții complexe folosește LaTeX valid (ex. "$\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$"), niciodată paranteze ASCII de tip "[[1,2],[3,4]]".',
     '4. `hint` trebuie să fie un indiciu scurt de 1 propoziție care ajută fără să dezvăluie răspunsul final.',
     '5. `explanation` trebuie să arate pas cu pas cum se ajunge sigur la răspunsul din choices[correctIndex].',
     '6. Răspunde STRICT în JSON valid conform schemei, fără text în afara JSON-ului.',

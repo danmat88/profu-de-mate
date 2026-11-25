@@ -70,7 +70,9 @@ export function FormulasScreen({ navigation, route }: Props) {
     route.params?.initialCategory ?? 'all',
   );
   const [favoritesOnly, setFavoritesOnly] = useState(Boolean(route.params?.initialFavoritesOnly));
-  const [trackOnly, setTrackOnly] = useState(!route.params?.showAllTracks && !route.params?.initialFavoritesOnly);
+  const [trackOnly, setTrackOnly] = useState(
+    profile.hasChosenTrack && !route.params?.showAllTracks && !route.params?.initialFavoritesOnly,
+  );
   const [trackSheetOpen, setTrackSheetOpen] = useState(false);
   const [trackSheetEverOpened, setTrackSheetEverOpened] = useState(false);
   const [listExpanded, setListExpanded] = useState(reducedMotion);
@@ -103,13 +105,13 @@ export function FormulasScreen({ navigation, route }: Props) {
 
   const filteredFormulas = useMemo(
     () => filterFormulas(FORMULAS_CATALOG, {
-      track: trackOnly ? profile.track : null,
+      track: trackOnly && profile.hasChosenTrack ? profile.track : null,
       category: selectedCategory,
       query: deferredQuery,
       favoritesOnly,
       favoriteIds: profile.favoriteFormulaIds,
     }),
-    [deferredQuery, favoritesOnly, profile.favoriteFormulaIds, profile.track, selectedCategory, trackOnly],
+    [deferredQuery, favoritesOnly, profile.favoriteFormulaIds, profile.hasChosenTrack, profile.track, selectedCategory, trackOnly],
   );
 
   const renderedFormulas = useMemo(
@@ -129,11 +131,12 @@ export function FormulasScreen({ navigation, route }: Props) {
     setTrackSheetOpen(true);
   };
 
-  const handleSelectTrack = useCallback((next: StudyTrackId) => {
+  const handleSelectTrack = (next: StudyTrackId) => {
     Keyboard.dismiss();
     setStudyTrack(next);
+    setTrackOnly(true);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
-  }, []);
+  };
 
   const openFormula = useCallback((formula: FormulaEntry) => {
     if (openingRef.current) return;
@@ -213,7 +216,7 @@ export function FormulasScreen({ navigation, route }: Props) {
   const keyExtractor = useCallback((item: FormulaEntry) => item.id, []);
   const mountSearchInput = transitionSettled || searchActivated;
   const searchPlaceholder = isNarrow ? 'Caută o formulă' : 'Caută formule: Pitagora, delta, logaritmi...';
-  const eyebrowText = trackOnly
+  const eyebrowText = trackOnly && profile.hasChosenTrack
     ? `${trackMeta.shortLabel.toUpperCase()} · ${filteredFormulas.length} FIȘE`
     : `TOATĂ PROGRAMA · ${filteredFormulas.length} FIȘE`;
   const listBottomPadding = keyboardVisible ? 18 : Math.max(insets.bottom, 16) + 22;
@@ -265,7 +268,7 @@ export function FormulasScreen({ navigation, route }: Props) {
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="Schimbă nivelul de studiu"
+              accessibilityLabel={profile.hasChosenTrack ? 'Schimbă nivelul de studiu' : 'Alege nivelul de studiu'}
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
@@ -273,7 +276,7 @@ export function FormulasScreen({ navigation, route }: Props) {
             >
               <View style={styles.trackPillDot} />
               <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.trackPillText}>
-                {trackMeta.shortLabel} ▾
+                {profile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Alege nivelul ▾'}
               </Text>
             </PressableScale>
           </View>
@@ -345,16 +348,20 @@ export function FormulasScreen({ navigation, route }: Props) {
             <View style={styles.scopeRow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{ selected: trackOnly }}
+                accessibilityState={{ selected: trackOnly && profile.hasChosenTrack }}
                 onPress={() => {
                   Keyboard.dismiss();
                   Haptics.selection();
+                  if (!profile.hasChosenTrack) {
+                    openTrackPicker();
+                    return;
+                  }
                   setTrackOnly((value) => !value);
                   listRef.current?.scrollToOffset({ offset: 0, animated: false });
                 }}
                 style={({ pressed }) => [
                   styles.scopeChip,
-                  trackOnly && styles.scopeChipActive,
+                  trackOnly && profile.hasChosenTrack && styles.scopeChipActive,
                   pressed && styles.pressed,
                 ]}
               >
@@ -362,9 +369,9 @@ export function FormulasScreen({ navigation, route }: Props) {
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.84}
-                  style={[styles.scopeChipText, trackOnly && styles.scopeChipTextActive]}
+                  style={[styles.scopeChipText, trackOnly && profile.hasChosenTrack && styles.scopeChipTextActive]}
                 >
-                  {trackOnly ? `✦ ${trackMeta.shortLabel}` : 'Toată programa'}
+                  {trackOnly && profile.hasChosenTrack ? `✦ ${trackMeta.shortLabel}` : 'Toată programa'}
                 </Text>
               </Pressable>
 
@@ -502,7 +509,7 @@ export function FormulasScreen({ navigation, route }: Props) {
       {trackSheetEverOpened ? (
         <StudyTrackSheet
           visible={trackSheetOpen}
-          selectedTrack={profile.track}
+          selectedTrack={profile.hasChosenTrack ? profile.track : null}
           onSelect={handleSelectTrack}
           onClose={() => setTrackSheetOpen(false)}
         />

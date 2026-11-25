@@ -12,12 +12,16 @@ import {
   subscribeFavoriteLessonsCache,
 } from '../../features/lessons/services/lessons';
 import { getActiveStreakDays, usePracticeState } from '../../features/practice/services/practiceStorage';
+import { StudyTrackSheet } from '../../features/study/components/StudyTrackSheet';
 import { StudyHubScreen } from '../../features/study/screens/StudyHubScreen';
-import { useStudyProfile } from '../../features/study/services/studyStorage';
-import { getStudyTrackMeta } from '../../features/study/types';
+import { setStudyTrack, useStudyProfile } from '../../features/study/services/studyStorage';
+import { getStudyTrackMeta, type StudyTrackId } from '../../features/study/types';
+import { useActionToast } from '../../shared/hooks/useActionToast';
 import { useKeyboardHeight } from '../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../shared/hooks/useReducedMotion';
+import * as Haptics from '../../shared/services/haptics';
 import { colors } from '../../shared/theme';
+import { ActionToast } from '../../shared/ui/ActionToast';
 import { StudioTabBar, type StudioTabId } from '../components/StudioTabBar';
 
 // Spatial rail order matching the Split-Island dock: Rezolvă (0) -> Învață (1) -> Caiet (2)
@@ -30,18 +34,22 @@ const TAB_ORDER: Record<StudioTabId, 0 | 1 | 2> = {
 const MemoHomePane = memo(function MemoHomePane({
   active,
   studyTrackLabel,
+  studyTrackChosen,
   streakDays,
   wrongCount,
   captureActionRef,
   onOpenStudy,
+  onChooseStudyTrack,
   onOpenNotebookTab,
 }: {
   active: boolean;
   studyTrackLabel: string;
+  studyTrackChosen: boolean;
   streakDays: number;
   wrongCount: number;
   captureActionRef: MutableRefObject<(() => void) | null>;
   onOpenStudy: () => void;
+  onChooseStudyTrack: () => void;
   onOpenNotebookTab: () => void;
 }) {
   return (
@@ -50,10 +58,12 @@ const MemoHomePane = memo(function MemoHomePane({
       active={active}
       bottomClearance={8}
       studyTrackLabel={studyTrackLabel}
+      studyTrackChosen={studyTrackChosen}
       streakDays={streakDays}
       wrongCount={wrongCount}
       captureActionRef={captureActionRef}
       onOpenStudy={onOpenStudy}
+      onChooseStudyTrack={onChooseStudyTrack}
       onOpenNotebookTab={onOpenNotebookTab}
     />
   );
@@ -98,6 +108,9 @@ export function StudioScreen() {
   );
   const [screenFocused, setScreenFocused] = useState(true);
   const [statusBarReady, setStatusBarReady] = useState(reducedMotion);
+  const [homeTrackSheetOpen, setHomeTrackSheetOpen] = useState(false);
+  const [homeTrackSheetEverOpened, setHomeTrackSheetEverOpened] = useState(false);
+  const { toast, showToast } = useActionToast();
   const captureActionRef = useRef<(() => void) | null>(null);
   const railPosition = useRef(new Animated.Value(TAB_ORDER.solve)).current;
   const activeTabRef = useRef<StudioTabId>('solve');
@@ -210,6 +223,16 @@ export function StudioScreen() {
 
   const openStudyTab = useCallback(() => selectTab('study'), [selectTab]);
   const openNotebookTab = useCallback(() => selectTab('notebook'), [selectTab]);
+  const openHomeTrackPicker = useCallback(() => {
+    Haptics.selection();
+    setHomeTrackSheetEverOpened(true);
+    setHomeTrackSheetOpen(true);
+  }, []);
+  const handleSelectHomeTrack = useCallback((next: StudyTrackId) => {
+    setStudyTrack(next);
+    const meta = getStudyTrackMeta(next);
+    showToast({ message: `Nivel activ: ${meta.label}`, tone: 'lime' });
+  }, [showToast]);
   const handleQuickCapture = useCallback(() => {
     Keyboard.dismiss();
     captureActionRef.current?.();
@@ -257,10 +280,12 @@ export function StudioScreen() {
             <MemoHomePane
               active={screenFocused && settledTab === 'solve' && activeTab === 'solve'}
               studyTrackLabel={trackShortLabel}
+              studyTrackChosen={profile.hasChosenTrack}
               streakDays={streakDays}
               wrongCount={wrongCount}
               captureActionRef={captureActionRef}
               onOpenStudy={openStudyTab}
+              onChooseStudyTrack={openHomeTrackPicker}
               onOpenNotebookTab={openNotebookTab}
             />
           </View>
@@ -300,6 +325,17 @@ export function StudioScreen() {
           onQuickCapture={handleQuickCapture}
         />
       ) : null}
+
+      {homeTrackSheetEverOpened ? (
+        <StudyTrackSheet
+          visible={homeTrackSheetOpen}
+          selectedTrack={profile.hasChosenTrack ? profile.track : null}
+          onSelect={handleSelectHomeTrack}
+          onClose={() => setHomeTrackSheetOpen(false)}
+        />
+      ) : null}
+
+      <ActionToast toast={toast} bottomOffset={96} />
     </View>
   );
 }

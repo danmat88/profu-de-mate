@@ -34,8 +34,10 @@ type WireResponse = {
     difficulty?: unknown;
     prompt?: unknown;
     choices?: unknown;
+    renderedChoices?: unknown;
     correctIndex?: unknown;
     hint?: unknown;
+    renderedHint?: unknown;
     explanation?: unknown;
   };
 };
@@ -74,14 +76,15 @@ export function aiPayloadToPracticeQuestion(
     prompt: [],
     renderedPrompt: payload.prompt,
     choices: [
-      { label: payload.choices[0] },
-      { label: payload.choices[1] },
-      { label: payload.choices[2] },
-      { label: payload.choices[3] },
+      { label: payload.choices[0], rendered: payload.renderedChoices?.[0] ?? null },
+      { label: payload.choices[1], rendered: payload.renderedChoices?.[1] ?? null },
+      { label: payload.choices[2], rendered: payload.renderedChoices?.[2] ?? null },
+      { label: payload.choices[3], rendered: payload.renderedChoices?.[3] ?? null },
     ],
     correctIndex: payload.correctIndex,
     answerDisplay: payload.choices[payload.correctIndex],
     hint: payload.hint,
+    renderedHint: payload.renderedHint,
     explanation: [],
     renderedExplanation: payload.explanation,
     aiGenerated: true,

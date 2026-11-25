@@ -4,9 +4,15 @@ import { StyleSheet, View } from 'react-native';
 import { colors, fonts } from '../../../shared/theme';
 import { Text } from '../../../shared/ui/Typography';
 import { NativeMathFormula } from '../../math/components/NativeMathFormula';
+import { formatReadableMathFallback } from '../../math/utils/latexReadable';
 import type { NativeMathSize } from '../../math/utils/nativeMathSvg';
 import { getRenderedStudyMath } from '../data/renderedMath.generated';
-import { stripInlineMathDelimiters, tokenizeInlineMathText } from '../utils/inlineMath';
+import {
+  hasInlineMathDelimiters,
+  isMultiRowLatex,
+  stripInlineMathDelimiters,
+  tokenizeInlineMathText,
+} from '../utils/inlineMath';
 
 type Props = {
   text: string;
@@ -37,7 +43,7 @@ export const StudyInlineText = memo(function StudyInlineText({
   containerStyle,
   numberOfLines,
 }: Props) {
-  const hasInlineMath = text.includes('$');
+  const hasInlineMath = hasInlineMathDelimiters(text);
   const atoms = useMemo(
     () => (hasInlineMath ? tokenizeInlineMathText(text) : null),
     [hasInlineMath, text],
@@ -102,6 +108,9 @@ export const StudyInlineText = memo(function StudyInlineText({
   }, [color, flatStyle, scale]);
 
   if (!hasInlineMath || !atoms) {
+    const safeDisplayText = /\\(?:frac|dfrac|tfrac|sqrt|begin|end|det|mathbb|mathrm|mathcal|operatorname|cdot|times|le|ge|ne|pm|infty|pi|Delta|alpha|beta|sin|cos|ln|log|int|sum|lim)\b/.test(text)
+      ? formatReadableMathFallback(text)
+      : text;
     const textNode = (
       <Text
         numberOfLines={numberOfLines}
@@ -112,7 +121,7 @@ export const StudyInlineText = memo(function StudyInlineText({
           align === 'center' && styles.textCenter,
         ]}
       >
-        {text}
+        {safeDisplayText}
       </Text>
     );
     return containerStyle ? <View style={containerStyle}>{textNode}</View> : textNode;
@@ -167,12 +176,28 @@ export const StudyInlineText = memo(function StudyInlineText({
             </Text>
           );
         }
-        const rendered = getRenderedStudyMath(atom.latex, 'inline');
+        const isTallMatrixOrCases = isMultiRowLatex(atom.latex);
+        const rendered = getRenderedStudyMath(atom.latex, isTallMatrixOrCases ? 'display' : 'inline');
         if (!rendered) {
           return (
-            <Text key={`m-${index}`} style={[styles.baseText, inlineAtomStyle]}>
-              {`${atom.prefix}${atom.latex}${atom.suffix}`}
+            <Text key={`m-${index}`} style={[styles.baseText, inlineAtomStyle, styles.fallbackMathText]}>
+              {`${atom.prefix}${formatReadableMathFallback(atom.latex)}${atom.suffix}`}
             </Text>
+          );
+        }
+        if (isTallMatrixOrCases || rendered.heightEx > 2.85) {
+          return (
+            <View key={`mb-${index}-${atom.latex}`} style={styles.promotedBlockAtom}>
+              <NativeMathFormula
+                rendered={rendered}
+                size="display"
+                scale={scale * 0.96}
+                color={String(flatStyle?.color ?? color)}
+                maxWidth={maxMathWidth}
+                align="center"
+                fadeColor="#FAF8FF"
+              />
+            </View>
           );
         }
         return (
@@ -227,6 +252,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexShrink: 1,
+  },
+  promotedBlockAtom: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginVertical: 2,
+    borderRadius: 12,
+    backgroundColor: '#FAF8FF',
+    borderWidth: 1,
+    borderColor: '#EBE3FA',
+  },
+  fallbackMathText: {
+    fontFamily: fonts.bodyBold,
   },
   singleMathWrap: {
     width: '100%',

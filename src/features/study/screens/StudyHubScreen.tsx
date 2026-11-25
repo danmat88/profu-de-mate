@@ -28,6 +28,7 @@ import { StreakInfoSheet } from '../../practice/components/StreakInfoSheet';
 import { getActiveStreakDays, usePracticeState } from '../../practice/services/practiceStorage';
 import { FormulaCard } from '../components/FormulaCard';
 import { StudyTrackSheet } from '../components/StudyTrackSheet';
+import { FORMULAS_CATALOG } from '../data/formulasCatalog';
 import { setStudyTrack, toggleFavoriteFormula, useStudyProfile } from '../services/studyStorage';
 import {
   FORMULA_CATEGORIES,
@@ -81,10 +82,13 @@ export const StudyHubScreen = memo(function StudyHubScreen({
   const trackMeta = getStudyTrackMeta(profile.track);
   const examGuide = useMemo(() => getExamGuide(trackMeta.examGuideId), [trackMeta.examGuideId]);
   const bestExamGrade = useMemo(
-    () => getBestGradeForExam(examHistory, trackMeta.examGuideId),
-    [examHistory, trackMeta.examGuideId],
+    () => (profile.hasChosenTrack ? getBestGradeForExam(examHistory, trackMeta.examGuideId) : null),
+    [examHistory, profile.hasChosenTrack, trackMeta.examGuideId],
   );
-  const trackFormulas = useMemo(() => getFormulasForTrack(profile.track), [profile.track]);
+  const trackFormulas = useMemo(
+    () => (profile.hasChosenTrack ? getFormulasForTrack(profile.track) : FORMULAS_CATALOG),
+    [profile.hasChosenTrack, profile.track],
+  );
   const favoriteSet = useMemo(() => new Set(profile.favoriteFormulaIds), [profile.favoriteFormulaIds]);
   const exploredSet = useMemo(() => new Set(profile.exploredFormulaIds), [profile.exploredFormulaIds]);
 
@@ -274,23 +278,31 @@ export const StudyHubScreen = memo(function StudyHubScreen({
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={`Nivel de studiu: ${trackMeta.label}. Apasă pentru a schimba`}
+              accessibilityLabel={
+                profile.hasChosenTrack
+                  ? `Nivel de studiu: ${trackMeta.label}. Apasă pentru a schimba`
+                  : 'Alege clasa sau examenul'
+              }
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
               style={styles.trackPillWrap}
-              contentStyle={styles.trackPill}
+              contentStyle={[styles.trackPill, !profile.hasChosenTrack && styles.trackPillUnchosen]}
             >
               <View pointerEvents="none" style={styles.pillTopGloss} />
-              <View style={styles.trackPillDot} />
+              <View style={[styles.trackPillDot, !profile.hasChosenTrack && styles.trackPillDotUnchosen]} />
               <Text
                 maxFontSizeMultiplier={1.15}
                 numberOfLines={1}
                 adjustsFontSizeToFit
                 minimumFontScale={0.82}
-                style={[styles.trackPillText, isVeryNarrow && styles.trackPillTextNarrow]}
+                style={[
+                  styles.trackPillText,
+                  !profile.hasChosenTrack && styles.trackPillTextUnchosen,
+                  isVeryNarrow && styles.trackPillTextNarrow,
+                ]}
               >
-                {trackMeta.shortLabel} ▾
+                {profile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Alege nivelul ▾'}
               </Text>
             </PressableScale>
 
@@ -309,16 +321,31 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               <View style={styles.heroEyebrowPill}>
                 <View style={styles.heroEyebrowDot} />
                 <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.heroEyebrowText}>
-                  {trackMeta.eyebrow}
+                  {profile.hasChosenTrack ? trackMeta.eyebrow : 'PROFIL DE STUDIU'}
                 </Text>
               </View>
-              <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.heroTitle}>
-                {trackMeta.label}
-              </Text>
+              {profile.hasChosenTrack ? (
+                <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.heroTitle}>
+                  {trackMeta.label}
+                </Text>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Alege clasa sau examenul"
+                  onPress={openTrackPicker}
+                  style={({ pressed }) => pressed && styles.pressed}
+                >
+                  <Text maxFontSizeMultiplier={1.2} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.heroTitle}>
+                    Alege clasa sau examenul ›
+                  </Text>
+                </Pressable>
+              )}
               <View style={styles.heroProgressWrap}>
                 <View style={styles.progressHeader}>
                   <Text maxFontSizeMultiplier={1.15} style={styles.progressLabel}>
-                    {exploredCount} / {trackFormulas.length} fișe
+                    {profile.hasChosenTrack
+                      ? `${exploredCount} / ${trackFormulas.length} fișe`
+                      : `${trackFormulas.length} fișe · clasele V–XII, EN & BAC`}
                   </Text>
                   <Text maxFontSizeMultiplier={1.15} style={styles.progressFavs}>
                     ★ {trackFavoritesCount} favorite
@@ -446,7 +473,9 @@ export const StudyHubScreen = memo(function StudyHubScreen({
             </View>
 
             <Text numberOfLines={2} style={styles.questDesc}>
-              {trackMeta.description}
+              {profile.hasChosenTrack
+                ? trackMeta.description
+                : 'Test rapid de 5 întrebări cu explicații pas cu pas. Alege nivelul tău mai sus pentru programă personalizată.'}
             </Text>
 
             <PressableScale
@@ -609,7 +638,9 @@ export const StudyHubScreen = memo(function StudyHubScreen({
             <View style={styles.sectionHeaderRow}>
               <View style={styles.sectionHeaderCopy}>
                 <Text style={styles.sectionKicker}>ESENȚIALE PENTRU TINE</Text>
-                <Text style={styles.sectionTitle}>Formule cheie · {trackMeta.shortLabel}</Text>
+                <Text style={styles.sectionTitle}>
+                  {profile.hasChosenTrack ? `Formule cheie · ${trackMeta.shortLabel}` : 'Formule cheie · V–XII, EN & BAC'}
+                </Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -658,7 +689,7 @@ export const StudyHubScreen = memo(function StudyHubScreen({
       {trackSheetEverOpened ? (
         <StudyTrackSheet
           visible={trackSheetOpen}
-          selectedTrack={profile.track}
+          selectedTrack={profile.hasChosenTrack ? profile.track : null}
           onSelect={handleSelectTrack}
           onClose={() => setTrackSheetOpen(false)}
         />
@@ -851,6 +882,14 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: colors.violet,
   },
+  trackPillUnchosen: {
+    backgroundColor: '#FFF7CF',
+    borderColor: '#F6E076',
+    borderBottomColor: '#C49F12',
+  },
+  trackPillDotUnchosen: {
+    backgroundColor: '#B87B00',
+  },
   trackPillText: {
     flexShrink: 1,
     fontFamily: fonts.bodyBold,
@@ -858,6 +897,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 15,
     includeFontPadding: false,
+  },
+  trackPillTextUnchosen: {
+    color: '#6E4600',
   },
   trackPillTextNarrow: {
     fontSize: 11,
