@@ -13,6 +13,10 @@ test('a bound pending notebook transfer survives eight offline days and stays sc
     '@react-native-firebase/app': { getApp() {} }, '@react-native-firebase/auth': { getAuth: () => state },
     '@react-native-firebase/functions': {}, 'src/shared/services/firebase.ts': {}, 'src/features/access/services/commercialAccessCache.ts': {},
     'src/shared/services/deviceIntegrity.ts': {}, 'src/shared/services/installationIdentity.ts': {}, 'src/shared/services/diagnostics.ts': {}, 'src/features/lessons/services/lessons.ts': {}, 'src/features/analysis/services/pendingAnalysis.ts': {}, 'src/features/access/services/purchases.ts': {}, 'src/features/math/services/mathDraft.ts': { clearMathDrafts() {} },
+    'src/features/exams/services/examStorage.ts': { clearExamLocalState() {} },
+    'src/features/practice/services/practiceStorage.ts': { clearPracticeLocalState() {} },
+    'src/features/study/services/studyStorage.ts': { clearStudyLocalState() {} },
+    'src/features/study/services/studySync.ts': { flushStudyProgressSync: async () => {}, refreshStudyProgressFromCloud() {}, stopStudyProgressSync() {} },
     'expo-secure-store': { getItemAsync: async (key: string) => disk.get(key) ?? null,
       setItemAsync: async (key: string, value: string) => { disk.set(key, value); }, deleteItemAsync: async (key: string) => { disk.delete(key); } },
   });
@@ -157,7 +161,7 @@ test('logout invalidates a late token response without recreating an account', a
 });
 
 test('actual logout completes locally even if Firebase verification and billing cleanup never resolve', async () => {
-  const state = auth(); let signs = 0; let verify = 0; let cleared = 0;
+  const state = auth(); let signs = 0; let verify = 0; let cleared = 0; let flushed = 0; let studyStopped = 0;
   const never = () => new Promise(() => {});
   const load = serviceLoader({
     'expo-secure-store': {},
@@ -170,12 +174,20 @@ test('actual logout completes locally even if Firebase verification and billing 
     'src/features/lessons/services/lessons.ts': { clearFavoriteLessonsCache: () => { cleared++; } },
     'src/features/analysis/services/pendingAnalysis.ts': { discardPendingAnalysis: () => { cleared++; } },
     'src/features/math/services/mathDraft.ts': { clearMathDrafts() {} },
+    'src/features/exams/services/examStorage.ts': { clearExamLocalState: () => { cleared++; } },
+    'src/features/practice/services/practiceStorage.ts': { clearPracticeLocalState: () => { cleared++; } },
+    'src/features/study/services/studyStorage.ts': { clearStudyLocalState: () => { cleared++; } },
+    'src/features/study/services/studySync.ts': {
+      flushStudyProgressSync: async () => { flushed++; },
+      refreshStudyProgressFromCloud() {},
+      stopStudyProgressSync: () => { studyStopped++; },
+    },
     'src/features/access/services/purchases.ts': { resetPurchasesForSignedOutUser: never },
     'react-native-nitro-google-signin': { GoogleOneTapSignIn: { signOut: never } },
   });
   const service = load('src/features/access/services/commercial.ts');
   assert.equal(await service.disconnectGoogleAccount(), null);
-  assert.equal(signs, 1); assert.equal(verify, 0); assert.equal(cleared, 3);
+  assert.equal(signs, 1); assert.equal(verify, 0); assert.equal(flushed, 1); assert.equal(studyStopped, 1); assert.equal(cleared, 6);
 });
 
 test('actual Firebase service verifies a restored identity once and replaces only terminal identities', async () => {

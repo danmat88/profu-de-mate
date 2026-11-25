@@ -39,6 +39,7 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text, TextInput } from '../../../shared/ui/Typography';
+import { useCommercial } from '../../access/context/CommercialContext';
 import { usePracticeState } from '../../practice/services/practiceStorage';
 import type { PracticeQuestion } from '../../practice/types';
 import { getPracticeQuestionById } from '../../practice/utils/practiceEngine';
@@ -620,8 +621,10 @@ export function NotebookScreen({
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const screenMotionActive = useScreenMotionActive(navigation, reducedMotion);
   const motionActive = screenMotionActive && active;
+  const { authSessionKey } = useCommercial();
   const studyProfile = useStudyProfile();
   const practiceState = usePracticeState();
+  const [syncedSessionKey, setSyncedSessionKey] = useState(authSessionKey);
   const [section, setSection] = useState<NotebookSection>('lessons');
   const [tabState, setTabState] = useState<{
     filter: NotebookFilter;
@@ -635,7 +638,7 @@ export function NotebookScreen({
   const deferredQueryText = useDeferredValue(queryText);
   const [initialWarmCache] = useState(() => getCachedFavoriteLessons() !== undefined);
   const [notes, setNotes] = useState<StoredLesson[]>(() => getCachedFavoriteLessons() ?? []);
-  const [loading, setLoading] = useState(() => !initialWarmCache);
+  const [loading, setLoading] = useState(() => Boolean(authSessionKey) && !initialWarmCache);
   const [loadError, setLoadError] = useState(false);
   const [subscriptionAttempt, setSubscriptionAttempt] = useState(0);
   const [pendingRemoval, setPendingRemoval] = useState<StoredLesson>();
@@ -645,6 +648,29 @@ export function NotebookScreen({
 
   const listRef = useRef<FlatList<StoredLesson>>(null);
   const openingNoteRef = useRef(false);
+  const activeSessionKeyRef = useRef(authSessionKey);
+
+  // Reset account-owned lesson state synchronously on the exact render that
+  // authSessionKey changes so old account lessons never flash on screen and
+  // already-prewarmed lessons appear on Frame 0 after connecting Google.
+  if (syncedSessionKey !== authSessionKey) {
+    const cachedForSession = authSessionKey ? getCachedFavoriteLessons() : undefined;
+    setSyncedSessionKey(authSessionKey);
+    setNotes(cachedForSession ?? []);
+    setLoading(Boolean(authSessionKey) && cachedForSession === undefined);
+    setLoadError(false);
+    setQueryText('');
+    setSelectedTopic(null);
+    setTabState({ filter: 'all', direction: 0, generation: 0 });
+    setPendingRemoval(undefined);
+    setRemoveVisible(false);
+    setRemoving(false);
+    setRemoveError(false);
+  }
+
+  useEffect(() => {
+    activeSessionKeyRef.current = authSessionKey;
+  }, [authSessionKey]);
 
   useFocusEffect(useCallback(() => {
     openingNoteRef.current = false;
@@ -654,6 +680,17 @@ export function NotebookScreen({
     // When cached lessons are already ready, wait for the slide transition to
     // finish before attaching the live screen-scoped Firestore subscription.
     if (initialWarmCache && !transitionSettled) return undefined;
+    if (!authSessionKey) {
+      setLoading(false);
+      setLoadError(false);
+      return undefined;
+    }
+    const cachedForSession = getCachedFavoriteLessons();
+    if (cachedForSession !== undefined) {
+      setNotes((current) => (sameLessonList(current, cachedForSession) ? current : cachedForSession));
+      setLoading(false);
+      setLoadError(false);
+    }
     let mounted = true;
     let unsubscribe: (() => void) | undefined;
     subscribeToFavoriteLessons(
@@ -679,7 +716,7 @@ export function NotebookScreen({
       setLoadError(true);
     });
     return () => { mounted = false; unsubscribe?.(); };
-  }, [initialWarmCache, subscriptionAttempt, transitionSettled]);
+  }, [authSessionKey, initialWarmCache, subscriptionAttempt, transitionSettled]);
 
   const { filter, direction, generation } = tabState;
   const normalizedQuery = deferredQueryText.trim();
@@ -826,15 +863,18 @@ export function NotebookScreen({
   const confirmRemoval = useCallback(async () => {
     const lesson = pendingRemoval;
     if (!lesson || removing) return;
+    const sessionAtStart = activeSessionKeyRef.current;
     setRemoving(true);
     setRemoveError(false);
     try {
       await setLessonFavorite(lesson.id, false);
+      if (activeSessionKeyRef.current !== sessionAtStart) return;
       setNotes((current) => current.filter((note) => note.id !== lesson.id));
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
       setRemoving(false);
       setRemoveVisible(false);
     } catch (error) {
+      if (activeSessionKeyRef.current !== sessionAtStart) return;
       recordDiagnosticError('notebook_update', error);
       setRemoveError(true);
       setRemoving(false);

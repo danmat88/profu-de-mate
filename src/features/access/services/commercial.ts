@@ -23,6 +23,14 @@ import {
 } from '../../../shared/services/firebase';
 import { getInstallationToken } from '../../../shared/services/installationIdentity';
 import { clearFavoriteLessonsCache } from '../../lessons/services/lessons';
+import { clearExamLocalState } from '../../exams/services/examStorage';
+import { clearPracticeLocalState } from '../../practice/services/practiceStorage';
+import { clearStudyLocalState } from '../../study/services/studyStorage';
+import {
+  flushStudyProgressSync,
+  refreshStudyProgressFromCloud,
+  stopStudyProgressSync,
+} from '../../study/services/studySync';
 import { initializePurchases, resetPurchasesForSignedOutUser } from './purchases';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { discardPendingAnalysis } from '../../analysis/services/pendingAnalysis';
@@ -213,7 +221,8 @@ async function completePendingMerges(user: User): Promise<void> {
         await complete({ ticket: pending.ticket, installationToken });
         assertSessionActive(session);
         remaining.splice(remaining.findIndex((value) => value.ticket === pending.ticket), 1);
-        clearFavoriteLessonsCache();
+        clearFavoriteLessonsCache({ preserveActiveSession: true });
+        refreshStudyProgressFromCloud();
       } catch (error) {
         if (terminalMergeError(error)) {
           remaining.splice(remaining.findIndex((value) => value.ticket === pending.ticket), 1);
@@ -476,6 +485,10 @@ export async function connectWithGoogle(): Promise<User | null> {
 
   const credential = GoogleAuthProvider.credential(idToken);
   assertSessionActive(sourceSession);
+  // Best-effort flush of any recent guest study/practice edits before switching
+  // credentials so the backend account merge sees them immediately.
+  await flushStudyProgressSync(800);
+  assertSessionActive(sourceSession);
   const auth = getAuth(getApp());
   let targetUser: User;
   let needsMerge = false;
@@ -494,6 +507,7 @@ export async function connectWithGoogle(): Promise<User | null> {
   // Activity-resume network hiccups so a succeeded login never reports failure.
   const postAuthGeneration = currentSessionGeneration();
   resetFirebaseInitialization();
+  stopStudyProgressSync();
   clearFavoriteLessonsCache();
   if (sourceUser.uid !== targetUser.uid) {
     discardPendingAnalysis();
@@ -539,7 +553,15 @@ export async function disconnectGoogleAccount(): Promise<User | null> {
   const app = getApp();
   const current = getAuth(app).currentUser;
   if (current?.isAnonymous) return current;
+  // Best-effort bounded flush so any favorite formula, track choice, or
+  // practice answer made right before logout reaches the Google account
+  // without ever blocking offline sign-out.
+  await flushStudyProgressSync(1_200);
   invalidateSessionOperations();
+  stopStudyProgressSync();
+  clearStudyLocalState();
+  clearPracticeLocalState();
+  clearExamLocalState();
   clearFavoriteLessonsCache();
   discardPendingAnalysis();
   clearMathDrafts();

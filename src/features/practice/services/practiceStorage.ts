@@ -183,6 +183,10 @@ export function removeWrongQuestion(questionId: string): PracticeState {
   });
 }
 
+function sameStringList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
+}
+
 export function mergeRemotePracticeState(remote: {
   masteredQuestionIds?: readonly string[];
   wrongQuestionIds?: readonly string[];
@@ -215,8 +219,8 @@ export function mergeRemotePracticeState(remote: {
   );
 
   if (
-    nextMastered.length === current.masteredQuestionIds.length
-    && nextWrong.length === current.wrongQuestionIds.length
+    sameStringList(nextMastered, current.masteredQuestionIds)
+    && sameStringList(nextWrong, current.wrongQuestionIds)
     && nextStreak === current.streakDays
     && nextDate === current.lastPracticeDateKey
     && nextSessions === current.sessionsCompleted

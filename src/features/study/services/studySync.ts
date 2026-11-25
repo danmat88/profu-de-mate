@@ -27,13 +27,48 @@ type RemoteStudyProgressDoc = {
   totalCorrect?: number;
 };
 
+type StudyProgressPayload = {
+  track: StudyTrackId;
+  hasChosenTrack: boolean;
+  favoriteFormulaIds: string[];
+  exploredFormulaIds: string[];
+  masteredQuestionIds: string[];
+  wrongQuestionIds: string[];
+  streakDays: number;
+  lastPracticeDateKey: string | null;
+  sessionsCompleted: number;
+  totalAnswered: number;
+  totalCorrect: number;
+};
+
+type PullState = 'idle' | 'pulling' | 'ready' | 'failed';
+
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPushedSignature = '';
 let activeSyncUid: string | null = null;
+let pullState: PullState = 'idle';
+let dirtyWhilePulling = false;
+let applyingRemoteMerge = false;
+let syncGeneration = 0;
 let unsubStudy: (() => void) | null = null;
 let unsubPractice: (() => void) | null = null;
 
-function buildPayload() {
+function sanitizeList(value: unknown, limit: number): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const output: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    output.push(trimmed);
+    if (output.length >= limit) break;
+  }
+  return output;
+}
+
+function buildPayload(): StudyProgressPayload {
   const study = getStudyProfile();
   const practice = getPracticeState();
   const safeAnswered = Math.min(1_000_000, Math.max(0, Math.floor(practice.totalAnswered)));
@@ -53,8 +88,49 @@ function buildPayload() {
   };
 }
 
-async function pushStudyProgressNow(expectedUid: string): Promise<void> {
+function canonicalRemoteSignature(data: RemoteStudyProgressDoc): string {
+  const safeAnswered = typeof data.totalAnswered === 'number' && Number.isFinite(data.totalAnswered)
+    ? Math.min(1_000_000, Math.max(0, Math.floor(data.totalAnswered)))
+    : 0;
+  const safeCorrect = typeof data.totalCorrect === 'number' && Number.isFinite(data.totalCorrect)
+    ? Math.min(safeAnswered, Math.max(0, Math.floor(data.totalCorrect)))
+    : 0;
+  const mastered = sanitizeList(data.masteredQuestionIds, 250);
+  const masteredSet = new Set(mastered);
+  const payload: StudyProgressPayload = {
+    track: data.track ?? 'en',
+    hasChosenTrack: data.hasChosenTrack === true,
+    favoriteFormulaIds: sanitizeList(data.favoriteFormulaIds, 100),
+    exploredFormulaIds: sanitizeList(data.exploredFormulaIds, 120),
+    masteredQuestionIds: mastered,
+    wrongQuestionIds: sanitizeList(data.wrongQuestionIds, 120).filter((id) => !masteredSet.has(id)),
+    streakDays: typeof data.streakDays === 'number' && Number.isFinite(data.streakDays)
+      ? Math.min(3650, Math.max(0, Math.floor(data.streakDays)))
+      : 0,
+    lastPracticeDateKey: typeof data.lastPracticeDateKey === 'string' ? data.lastPracticeDateKey : null,
+    sessionsCompleted: typeof data.sessionsCompleted === 'number' && Number.isFinite(data.sessionsCompleted)
+      ? Math.min(100_000, Math.max(0, Math.floor(data.sessionsCompleted)))
+      : 0,
+    totalAnswered: safeAnswered,
+    totalCorrect: safeCorrect,
+  };
+  return JSON.stringify(payload);
+}
+
+function hasMeaningfulProgress(payload: StudyProgressPayload): boolean {
+  return payload.hasChosenTrack
+    || payload.favoriteFormulaIds.length > 0
+    || payload.exploredFormulaIds.length > 0
+    || payload.masteredQuestionIds.length > 0
+    || payload.wrongQuestionIds.length > 0
+    || payload.streakDays > 0
+    || payload.sessionsCompleted > 0
+    || payload.totalAnswered > 0;
+}
+
+async function pushStudyProgressNow(expectedUid: string, expectedGeneration: number): Promise<void> {
   try {
+    if (expectedGeneration !== syncGeneration || activeSyncUid !== expectedUid || pullState !== 'ready') return;
     const user = getAuth(getApp()).currentUser;
     if (!user || user.uid !== expectedUid) return;
     const payload = buildPayload();
@@ -65,18 +141,114 @@ async function pushStudyProgressNow(expectedUid: string): Promise<void> {
       ...payload,
       updatedAt: serverTimestamp(),
     });
-    lastPushedSignature = signature;
+    if (expectedGeneration === syncGeneration && activeSyncUid === expectedUid) {
+      lastPushedSignature = signature;
+    }
   } catch {
     // Offline or rules not yet deployed: local persistence stays authoritative and retries later.
   }
 }
 
-function schedulePush(expectedUid: string): void {
+function schedulePush(expectedUid: string, expectedGeneration: number): void {
+  if (expectedGeneration !== syncGeneration || activeSyncUid !== expectedUid) return;
+  if (pullState !== 'ready') {
+    dirtyWhilePulling = true;
+    return;
+  }
   if (pushTimer) clearTimeout(pushTimer);
   pushTimer = setTimeout(() => {
     pushTimer = null;
-    void pushStudyProgressNow(expectedUid);
+    void pushStudyProgressNow(expectedUid, expectedGeneration);
   }, 1_800);
+}
+
+function pullAndSync(uid: string, generation: number): void {
+  pullState = 'pulling';
+  void (async () => {
+    try {
+      const ref = doc(getFirestore(getApp()), 'users', uid, 'studyProgress', 'summary');
+      const snapshot = await getDoc(ref);
+      if (generation !== syncGeneration || activeSyncUid !== uid) return;
+      const remoteData = snapshot.exists()
+        ? (snapshot.data() as RemoteStudyProgressDoc | undefined)
+        : undefined;
+      if (remoteData) {
+        applyingRemoteMerge = true;
+        try {
+          mergeRemoteStudyProfile(remoteData);
+          mergeRemotePracticeState(remoteData);
+        } finally {
+          applyingRemoteMerge = false;
+        }
+      }
+      if (generation !== syncGeneration || activeSyncUid !== uid) return;
+      pullState = 'ready';
+      const localPayload = buildPayload();
+      const localSignature = JSON.stringify(localPayload);
+      if (remoteData) {
+        const remoteSignature = canonicalRemoteSignature(remoteData);
+        dirtyWhilePulling = false;
+        if (localSignature === remoteSignature) {
+          lastPushedSignature = localSignature;
+        } else {
+          schedulePush(uid, generation);
+        }
+      } else if (hasMeaningfulProgress(localPayload) || dirtyWhilePulling) {
+        dirtyWhilePulling = false;
+        schedulePush(uid, generation);
+      } else {
+        lastPushedSignature = localSignature;
+      }
+    } catch {
+      if (generation === syncGeneration && activeSyncUid === uid) {
+        pullState = 'failed';
+      }
+    }
+  })();
+}
+
+/**
+ * Best-effort bounded flush of any unsynced local study/practice changes for
+ * the currently active session. Resolves immediately (0ms) when nothing is
+ * pending or before the initial pull completes, and never blocks offline
+ * sign-out or account switching.
+ */
+export async function flushStudyProgressSync(timeoutMs = 1_200): Promise<void> {
+  const uid = activeSyncUid;
+  const generation = syncGeneration;
+  if (!uid || pullState !== 'ready') return;
+  const currentSignature = JSON.stringify(buildPayload());
+  if (!pushTimer && currentSignature === lastPushedSignature) return;
+  if (pushTimer) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+  }
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    void pushStudyProgressNow(uid, generation).finally(finish);
+  });
+}
+
+/**
+ * Re-pulls cloud study progress for the active user (for example after a
+ * background retry of pending Google account merges completes).
+ */
+export function refreshStudyProgressFromCloud(): void {
+  if (!activeSyncUid || pullState === 'pulling') return;
+  pullAndSync(activeSyncUid, syncGeneration);
+}
+
+/** Retries the initial cloud pull when returning online/foreground after an offline failure. */
+export function retryStudyProgressSyncIfNeeded(): void {
+  if (!activeSyncUid || pullState !== 'failed') return;
+  pullAndSync(activeSyncUid, syncGeneration);
 }
 
 /**
@@ -84,7 +256,11 @@ function schedulePush(expectedUid: string): void {
  * Call before clearing local state during account deletion or sign-out.
  */
 export function stopStudyProgressSync(): void {
+  syncGeneration += 1;
   activeSyncUid = null;
+  pullState = 'idle';
+  dirtyWhilePulling = false;
+  lastPushedSignature = '';
   if (pushTimer) {
     clearTimeout(pushTimer);
     pushTimer = null;
@@ -112,41 +288,22 @@ export function startStudyProgressSync(): () => void {
 
   if (!user) return () => undefined;
   const uid = user.uid;
+  const generation = syncGeneration;
   activeSyncUid = uid;
   lastPushedSignature = '';
+  dirtyWhilePulling = false;
 
-  let cancelled = false;
-
-  void (async () => {
-    try {
-      const ref = doc(getFirestore(getApp()), 'users', uid, 'studyProgress', 'summary');
-      const snapshot = await getDoc(ref);
-      if (cancelled || activeSyncUid !== uid) return;
-      if (snapshot.exists()) {
-        const data = snapshot.data() as RemoteStudyProgressDoc | undefined;
-        if (data) {
-          mergeRemoteStudyProfile(data);
-          mergeRemotePracticeState(data);
-        }
-      }
-      if (!cancelled && activeSyncUid === uid) {
-        schedulePush(uid);
-      }
-    } catch {
-      // Silently ignore offline / unprovisioned rules during local development.
-    }
-  })();
+  pullAndSync(uid, generation);
 
   unsubStudy = subscribeStudyProfile(() => {
-    if (!cancelled && activeSyncUid === uid) schedulePush(uid);
+    if (!applyingRemoteMerge && generation === syncGeneration && activeSyncUid === uid) schedulePush(uid, generation);
   });
   unsubPractice = subscribePracticeState(() => {
-    if (!cancelled && activeSyncUid === uid) schedulePush(uid);
+    if (!applyingRemoteMerge && generation === syncGeneration && activeSyncUid === uid) schedulePush(uid, generation);
   });
 
   return () => {
-    cancelled = true;
-    if (activeSyncUid === uid) {
+    if (generation === syncGeneration && activeSyncUid === uid) {
       stopStudyProgressSync();
     }
   };

@@ -147,6 +147,10 @@ export function recordFormulaViewed(formulaId: string): void {
   });
 }
 
+function sameStringList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((item, index) => item === b[index]);
+}
+
 export function mergeRemoteStudyProfile(remote: {
   track?: StudyTrackId;
   hasChosenTrack?: boolean;
@@ -170,8 +174,8 @@ export function mergeRemoteStudyProfile(remote: {
   if (
     nextTrack === current.track
     && nextChosen === current.hasChosenTrack
-    && nextFavorites.length === current.favoriteFormulaIds.length
-    && nextExplored.length === current.exploredFormulaIds.length
+    && sameStringList(nextFavorites, current.favoriteFormulaIds)
+    && sameStringList(nextExplored, current.exploredFormulaIds)
   ) {
     return current;
   }

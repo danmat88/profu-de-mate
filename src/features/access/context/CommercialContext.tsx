@@ -9,6 +9,14 @@ import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { deleteAllUserData, type DataDeletionResult } from '../../account/services/dataManagement';
 import { firebaseUserSessionKey, resetFirebaseInitialization } from '../../../shared/services/firebase';
 import { clearFavoriteLessonsCache, prewarmFavoriteLessonsCache } from '../../lessons/services/lessons';
+import { clearExamLocalState } from '../../exams/services/examStorage';
+import { clearPracticeLocalState } from '../../practice/services/practiceStorage';
+import { clearStudyLocalState } from '../../study/services/studyStorage';
+import {
+  retryStudyProgressSyncIfNeeded,
+  startStudyProgressSync,
+  stopStudyProgressSync,
+} from '../../study/services/studySync';
 import { discardPendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { clearMathDrafts } from '../../math/services/mathDraft';
 import { invalidateSessionOperations } from '../../../shared/services/sessionGuard';
@@ -217,6 +225,12 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       // commit identity, session key and server access atomically once ready.
       return;
     }
+    if (previousUserId && previousUserId !== user?.uid) {
+      stopStudyProgressSync();
+      clearStudyLocalState();
+      clearPracticeLocalState();
+      clearExamLocalState();
+    }
     invalidateSessionOperations();
     identityGeneration.current += 1;
     refreshInFlight.current = null;
@@ -240,7 +254,19 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   useEffect(() => {
     // Prewarm notebook cache right as CommercialProvider mounts behind LaunchSplash
     // so saved lessons and badges are already ready before Home reveals.
+    if (!authSessionKey) return;
     void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error));
+  }, [authSessionKey]);
+
+  useEffect(() => {
+    // Own study/practice cloud sync above NavigationContainer (never frozen on
+    // blur) so connecting or disconnecting Google in Settings/Paywall updates
+    // track, favorite formulas, streak, and repeat queue immediately.
+    if (!authSessionKey) {
+      stopStudyProgressSync();
+      return undefined;
+    }
+    return startStudyProgressSync();
   }, [authSessionKey]);
 
   useEffect(() => {
@@ -253,6 +279,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       // itself, so an automatic refresh here would race the old account.
       if (returningToForeground && !identityTransitionActive.current) {
         expiryMonitor.current?.check();
+        retryStudyProgressSyncIfNeeded();
         void refreshIfStale();
       }
     });

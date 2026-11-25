@@ -159,7 +159,7 @@ test('cancelling the gallery preserves Home, releases the launch lock and permit
     'src/shared/ui/ReadinessScreen.tsx': {},
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access, status: 'ready', refreshIfStale: async () => {} }) },
     'src/features/analysis/services/pendingAnalysis.ts': { getPreparedPendingAnalysis: () => null },
-    'src/features/lessons/services/lessons.ts': { getCachedFavoriteLessons: () => undefined },
+    'src/features/lessons/services/lessons.ts': { getCachedFavoriteLessons: () => undefined, subscribeFavoriteLessonsCache: () => () => {} },
     'src/features/math/services/mathDraft.ts': { warmMathDrafts() {} },
     'src/shared/storage/localPreferences.ts': { hasSeenHomeGuide: () => true, markHomeGuideSeen() {} },
     'src/shared/services/sessionGuard.ts': { captureSession: () => ({}), assertSessionActive() {} },

@@ -9,7 +9,10 @@ import { beginAppTransition } from '../../../shared/context/TransitionMotionCont
 import { useScreenMotionActive } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
-import { getCachedFavoriteLessons } from '../../lessons/services/lessons';
+import {
+  getCachedFavoriteLessons,
+  subscribeFavoriteLessonsCache,
+} from '../../lessons/services/lessons';
 import { prewarmNotebookPresentations } from '../../lessons/utils/notebookPresentation';
 import { warmMathDrafts } from '../../math/services/mathDraft';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
@@ -84,8 +87,16 @@ export function HomeScreen(props?: HomeScreenProps) {
   }, []);
 
   useEffect(() => {
-    setNotebookPreview(readNotebookPreview());
+    const syncPreview = () => {
+      setNotebookPreview((previous) => {
+        const next = readNotebookPreview();
+        return previous.latestTitle === next.latestTitle && previous.count === next.count ? previous : next;
+      });
+    };
+    syncPreview();
     setPendingAnalysis(getPreparedPendingAnalysis() ?? null);
+    setGalleryError(null);
+    return subscribeFavoriteLessonsCache?.(syncPreview);
   }, [authSessionKey]);
 
   useFocusEffect(useCallback(() => {

@@ -7,11 +7,13 @@ import { useCommercial } from '../../features/access/context/CommercialContext';
 import { HomeMotionReadyContext } from '../../features/home/context/HomeMotionContext';
 import { HomeScreen } from '../../features/home/screens/HomeScreen';
 import { NotebookScreen } from '../../features/lessons/screens/NotebookScreen';
-import { getCachedFavoriteLessons } from '../../features/lessons/services/lessons';
+import {
+  getCachedFavoriteLessons,
+  subscribeFavoriteLessonsCache,
+} from '../../features/lessons/services/lessons';
 import { getActiveStreakDays, usePracticeState } from '../../features/practice/services/practiceStorage';
 import { StudyHubScreen } from '../../features/study/screens/StudyHubScreen';
 import { useStudyProfile } from '../../features/study/services/studyStorage';
-import { startStudyProgressSync } from '../../features/study/services/studySync';
 import { getStudyTrackMeta } from '../../features/study/types';
 import { useKeyboardHeight } from '../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../shared/hooks/useReducedMotion';
@@ -100,11 +102,16 @@ export function StudioScreen() {
   const railPosition = useRef(new Animated.Value(TAB_ORDER.solve)).current;
   const activeTabRef = useRef<StudioTabId>('solve');
 
-  // Start cloud study-progress sync immediately behind LaunchSplash so track,
-  // streak, and mistake data are ready right when Home appears.
+  // Keep the Caiet dock badge synchronized live whenever lessons finish
+  // prewarming, arrive after Google sign-in, are saved/removed, or clear on
+  // Google sign-out.
   useEffect(() => {
-    if (!authSessionKey) return undefined;
-    return startStudyProgressSync();
+    const syncCount = () => {
+      const next = getCachedFavoriteLessons()?.length ?? 0;
+      setSavedLessonsCount((current) => (current === next ? current : next));
+    };
+    syncCount();
+    return subscribeFavoriteLessonsCache(syncCount);
   }, [authSessionKey]);
 
   // Flip StatusBar icons strictly after Home entrance finishes landing so Android
