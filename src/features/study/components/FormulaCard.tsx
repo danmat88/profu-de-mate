@@ -131,9 +131,11 @@ export const FormulaCard = memo(function FormulaCard({
 const styles = StyleSheet.create({
   card: {
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    borderColor: '#E5DAFA',
+    borderBottomColor: '#D4C2F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     overflow: 'hidden',
   },

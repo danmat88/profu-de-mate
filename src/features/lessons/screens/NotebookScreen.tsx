@@ -1,5 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated,
@@ -25,16 +27,16 @@ import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
-import { AppIcon } from '../../../shared/ui/AppIcon';
+import { AppIcon, type AppIconName } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot, mascotAssets } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { usePracticeState } from '../../practice/services/practiceStorage';
@@ -611,7 +613,7 @@ export function NotebookScreen({
   const hookNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const navigation = propNavigation ?? hookNavigation;
   const frame = useSafeAreaFrame();
-  const { gutter, isNarrow } = useResponsiveLayout(frame);
+  const { gutter, contentWidth, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
@@ -1047,31 +1049,104 @@ export function NotebookScreen({
     setSection(next);
   }, []);
 
-  const sectionSwitchBar = (
-    <View style={[styles.sectionSwitchRow, { paddingHorizontal: gutter }]}>
-      <ComicTabBar
-        compact
-        options={sectionTabs}
-        value={section}
-        onChange={handleChangeSection}
-      />
-    </View>
+  const canopyColors: readonly [string, string, string, string] = section === 'mistakes'
+    ? ['#E04976', '#B2246C', '#7F155C', '#590D46']
+    : section === 'formulas'
+      ? ['#7B4BFF', '#5B22EA', '#4214BE', '#300E94']
+      : ['#8E49FF', '#6A22EC', '#4F14C4', '#3A0E9B'];
+
+  const renderCanopyHeader = (
+    rightIcon: AppIconName,
+    rightLabel: string,
+    onRight: () => void,
+  ) => (
+    <>
+      {!embedded ? <StatusBar style="light" /> : null}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={canopyColors}
+          start={{ x: 0.08, y: 0 }}
+          end={{ x: 0.92, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowRight} />
+        <View
+          pointerEvents="none"
+          style={[
+            styles.canopyGlowAccent,
+            section === 'formulas' && styles.canopyGlowGold,
+            section === 'mistakes' && styles.canopyGlowPeach,
+          ]}
+        />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyStar}>✦</Text>
+        <Text accessible={false} style={styles.canopyGlyph}>π</Text>
+
+        <View style={[styles.canopyInner, { width: contentWidth }]}>
+          <View style={styles.canopyRow}>
+            {headerBack ? (
+              <IconButton
+                label="Înapoi"
+                onPress={headerBack}
+                size={42}
+                style={styles.canopyActionBtn}
+              >
+                <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+              </IconButton>
+            ) : (
+              <View style={styles.canopyBadge}>
+                <AppIcon name="notebook" size={28} />
+              </View>
+            )}
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                Caietul <Text style={styles.canopyTitleAccent}>meu</Text>
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View
+                  style={[
+                    styles.canopyEyebrowDot,
+                    section === 'formulas' && { backgroundColor: colors.gold },
+                    section === 'mistakes' && { backgroundColor: '#FFD066' },
+                  ]}
+                />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  {headerCount}
+                </Text>
+              </View>
+            </View>
+
+            <IconButton
+              label={rightLabel}
+              onPress={onRight}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <AppIcon name={rightIcon} size={25} />
+            </IconButton>
+          </View>
+        </View>
+      </View>
+
+      <View style={[styles.sectionSwitchRow, { paddingHorizontal: gutter }]}>
+        <View style={[styles.sectionSwitchInner, { width: contentWidth }]}>
+          <ComicTabBar
+            compact
+            options={sectionTabs}
+            value={section}
+            onChange={handleChangeSection}
+          />
+        </View>
+      </View>
+    </>
   );
 
   if (section === 'mistakes') {
     return (
-      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+      <View style={styles.safe}>
         <ComicBackdrop />
-        <ScreenHeader
-          compact
-          title="Caietul meu"
-          eyebrow={headerCount}
-          onBack={headerBack}
-          rightIcon="practice"
-          rightLabel="Începe un test fulger"
-          onRight={startQuickPractice}
-        />
-        {sectionSwitchBar}
+        {renderCanopyHeader('practice', 'Începe un test fulger', startQuickPractice)}
 
         {wrongQuestions.length === 0 ? (
           <ScrollView
@@ -1131,18 +1206,9 @@ export function NotebookScreen({
 
   if (section === 'formulas') {
     return (
-      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+      <View style={styles.safe}>
         <ComicBackdrop />
-        <ScreenHeader
-          compact
-          title="Caietul meu"
-          eyebrow={headerCount}
-          onBack={headerBack}
-          rightIcon="explain"
-          rightLabel="Deschide toate formulele"
-          onRight={openFormulasCatalog}
-        />
-        {sectionSwitchBar}
+        {renderCanopyHeader('explain', 'Deschide toate formulele', openFormulasCatalog)}
 
         {favoriteFormulas.length === 0 ? (
           <ScrollView
@@ -1191,10 +1257,9 @@ export function NotebookScreen({
 
   if (loading && notes.length === 0) {
     return (
-      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+      <View style={styles.safe}>
         <ComicBackdrop />
-        <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={headerBack} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        {sectionSwitchBar}
+        {renderCanopyHeader('camera', 'Rezolvă o problemă nouă', () => startMode('solve'))}
         <NotebookLoading active={motionActive} />
       </View>
     );
@@ -1202,10 +1267,9 @@ export function NotebookScreen({
 
   if (notes.length === 0) {
     return (
-      <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+      <View style={styles.safe}>
         <ComicBackdrop />
-        <ScreenHeader title="Caietul meu" eyebrow={headerCount} onBack={headerBack} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-        {sectionSwitchBar}
+        {renderCanopyHeader('camera', 'Rezolvă o problemă nouă', () => startMode('solve'))}
         <View style={[styles.flex, embedded && { paddingBottom: bottomClearance }]}>
           <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
         </View>
@@ -1214,10 +1278,9 @@ export function NotebookScreen({
   }
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
       <ComicBackdrop />
-      <ScreenHeader compact title="Caietul meu" eyebrow={headerCount} onBack={headerBack} rightIcon="camera" rightLabel="Rezolvă o problemă nouă" onRight={() => startMode('solve')} />
-      {sectionSwitchBar}
+      {renderCanopyHeader('camera', 'Rezolvă o problemă nouă', () => startMode('solve'))}
 
       <View style={[styles.flex, keyboardVisible && { paddingBottom: keyboardInset }]}>
         <Pressable
@@ -1443,19 +1506,161 @@ export function NotebookScreen({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   flex: { flex: 1, minHeight: 0 },
-  sectionSwitchRow: {
-    paddingTop: 2,
-    paddingBottom: 6,
+
+  // Full-bleed curved Amethyst / Berry canopy matching Home & Învață architecture
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    paddingBottom: 30,
+    position: 'relative',
+    zIndex: 2,
   },
+  canopyGlowRight: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    top: -42,
+    right: -46,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  canopyGlowAccent: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    bottom: -86,
+    left: -38,
+    backgroundColor: 'rgba(216, 255, 62, 0.16)',
+  },
+  canopyGlowGold: {
+    backgroundColor: 'rgba(255, 212, 71, 0.2)',
+  },
+  canopyGlowPeach: {
+    backgroundColor: 'rgba(255, 198, 128, 0.22)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    top: -110,
+    right: -70,
+  },
+  canopyStar: {
+    position: 'absolute',
+    right: 78,
+    bottom: 28,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    color: 'rgba(216, 255, 62, 0.38)',
+  },
+  canopyGlyph: {
+    position: 'absolute',
+    left: '48%',
+    bottom: 16,
+    fontFamily: fonts.display,
+    fontSize: 30,
+    color: 'rgba(255, 255, 255, 0.08)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
+  canopyRow: {
+    height: 60,
+    paddingTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  canopyBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2.2,
+    borderColor: colors.lime,
+    borderBottomWidth: 3.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 22.5,
+    lineHeight: 26,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(24, 6, 68, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyTitleAccent: {
+    color: colors.lime,
+  },
+  canopyEyebrowRow: {
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5.5,
+  },
+  canopyEyebrowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.lime,
+    flexShrink: 0,
+  },
+  canopyEyebrow: {
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(246, 240, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.75,
+    lineHeight: 13,
+    includeFontPadding: false,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#D6C4FA',
+    backgroundColor: '#FFFFFF',
+  },
+
+  // Solid-white 3D section switcher straddling the curved canopy arch
+  sectionSwitchRow: {
+    marginTop: -21,
+    paddingBottom: 8,
+    zIndex: 5,
+    alignItems: 'center',
+  },
+  sectionSwitchInner: {
+    maxWidth: 560,
+  },
+
   mistakesHeaderCtaWrap: {
     marginBottom: 12,
   },
   mistakeRowCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 87, 109, 0.2)',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 24,
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    borderColor: '#FFD0C2',
+    borderBottomColor: '#EE9579',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 13,
@@ -1504,27 +1709,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   mistakeArrow: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.roseSoft,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFF0F3',
+    borderWidth: 1,
+    borderColor: '#FFD0D8',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  controls: { paddingTop: 4, gap: 9 },
+  controls: { paddingTop: 2, gap: 9 },
 
   topicStripWrap: { marginTop: 8 },
   topicStripContent: { gap: 7, paddingVertical: 2, alignItems: 'center' },
   topicFilterPill: {
-    minHeight: 32,
+    minHeight: 34,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E5DAFA',
+    borderBottomColor: '#D4C2F8',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
   },
   topicFilterPillActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#4312B5',
     backgroundColor: colors.violet,
   },
   topicFilterPillInner: {
@@ -1574,17 +1784,19 @@ const styles = StyleSheet.create({
 
   searchBox: {
     height: 46,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DAFA',
+    borderBottomColor: '#D4C2F8',
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     gap: 8,
     overflow: 'hidden',
   },
-  searchBoxFocused: { borderColor: colors.violet },
+  searchBoxFocused: { borderColor: colors.violet, borderBottomColor: colors.violetDeep },
   searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
   searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center' },
   searchPlaceholderText: { fontFamily: fonts.bodyMedium, color: colors.inkMuted, fontSize: 13.5 },
@@ -1641,7 +1853,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 13,
-    backgroundColor: '#F3FFD2',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E5DAFA',
+    borderBottomColor: '#D4C2F8',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1676,7 +1892,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 4,
     borderRadius: radii.pill,
-    backgroundColor: colors.violetSoft,
+    borderWidth: 1,
+    borderColor: '#E1D3FE',
+    backgroundColor: '#F4EEFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1697,9 +1915,11 @@ const styles = StyleSheet.create({
   lessonCard: {
     overflow: 'hidden',
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    borderColor: '#E5DAFA',
+    borderBottomColor: '#D4C2F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
   },
   lessonRail: {

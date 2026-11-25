@@ -195,7 +195,9 @@ export function ComicTabBar<T extends string>({
                 transform: [{ translateX: slideX }],
               },
             ]}
-          />
+          >
+            <View style={styles.pillGloss} />
+          </Animated.View>
         ) : null}
 
         <View collapsable={false} style={styles.tabsRow}>
@@ -233,9 +235,11 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: TRACK_PADDING,
     borderRadius: radii.pill,
-    borderWidth: TRACK_BORDER,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    borderWidth: 1.2,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DAFA',
+    borderBottomColor: '#D4C2F8',
+    backgroundColor: '#FFFFFF',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -246,7 +250,18 @@ const styles = StyleSheet.create({
     left: TRACK_PADDING,
     zIndex: 1,
     borderRadius: radii.pill,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(20, 8, 60, 0.18)',
     overflow: 'hidden',
+  },
+  pillGloss: {
+    position: 'absolute',
+    top: 1.5,
+    left: 14,
+    right: 14,
+    height: 2,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   tabsRow: {
     flex: 1,

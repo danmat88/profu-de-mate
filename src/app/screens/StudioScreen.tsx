@@ -233,7 +233,7 @@ export function StudioScreen() {
 
   return (
     <View style={styles.root}>
-      {statusBarReady && screenFocused && activeTab === 'solve' ? (
+      {statusBarReady && screenFocused ? (
         <StatusBar style="light" />
       ) : null}
       <View style={styles.contentStage}>
