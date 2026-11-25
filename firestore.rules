@@ -48,7 +48,8 @@ service cloud.firestore {
           'maxPoints',
           'grade',
           'elapsedSeconds',
-          'subjectPoints'
+          'subjectPoints',
+          'pauseCount'
         ])
         && record.id is string && record.id.size() >= 1 && record.id.size() <= 64
         && record.variantId is string && record.variantId.size() >= 1 && record.variantId.size() <= 64
@@ -64,7 +65,8 @@ service cloud.firestore {
         && record.subjectPoints.keys().hasOnly(['s1', 's2', 's3'])
         && record.subjectPoints.s1 is number && record.subjectPoints.s1 >= 0 && record.subjectPoints.s1 <= 100
         && record.subjectPoints.s2 is number && record.subjectPoints.s2 >= 0 && record.subjectPoints.s2 <= 100
-        && record.subjectPoints.s3 is number && record.subjectPoints.s3 >= 0 && record.subjectPoints.s3 <= 100;
+        && record.subjectPoints.s3 is number && record.subjectPoints.s3 >= 0 && record.subjectPoints.s3 <= 100
+        && (!('pauseCount' in record) || (record.pauseCount is int && record.pauseCount >= 0 && record.pauseCount <= 500));
     }
 
     function validStudyProgress(data) {

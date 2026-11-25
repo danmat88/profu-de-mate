@@ -233,6 +233,7 @@ export type RootStackParamList = {
     maxPoints: number;
     grade: number | null;
     elapsedSeconds: number;
+    pauseCount?: number;
     items: readonly ExamResultItemSummary[];
   };
   PracticeHub: undefined;

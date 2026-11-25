@@ -14,6 +14,7 @@ export type ExamSimulationDraft = {
   currentIndex: number;
   secondsLeft: number;
   elapsedSeconds: number;
+  pauseCount: number;
   choiceAnswers: Record<string, number>;
   textAnswers: Record<string, string>;
   checkedRubricSteps: Record<string, readonly string[]>;
@@ -169,6 +170,7 @@ export function sanitizeExamDraft(
   const currentIndex = clampInt(raw.currentIndex, 0, 100);
   const secondsLeft = clampInt(raw.secondsLeft, 0, 86_400);
   const elapsedSeconds = clampInt(raw.elapsedSeconds, 0, 86_400);
+  const pauseCount = clampInt(raw.pauseCount, 0, 500) ?? 0;
   const savedAt = typeof raw.savedAt === 'string' ? raw.savedAt.trim() : '';
   const savedMs = Date.parse(savedAt);
 
@@ -195,6 +197,7 @@ export function sanitizeExamDraft(
     currentIndex,
     secondsLeft,
     elapsedSeconds,
+    pauseCount,
     choiceAnswers: sanitizeChoiceMap(raw.choiceAnswers),
     textAnswers: sanitizeTextMap(raw.textAnswers),
     checkedRubricSteps: sanitizeCheckedRubricMap(raw.checkedRubricSteps),

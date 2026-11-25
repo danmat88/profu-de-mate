@@ -775,12 +775,17 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
   assert.match(examResSource, /RĂSPUNSUL TĂU/);
   assert.match(examResSource, /inspectEntry/);
   assert.match(examResSource, /fresh:\s*true/);
+  assert.match(examResSource, /Condiții reale de examen/);
   assert.match(examsHubSource, /useExamDraft/);
   assert.match(examsHubSource, /Continuă de unde ai rămas/);
+  assert.match(examsHubSource, /Condiții reale de examen/);
   assert.match(studyHubSource, /useExamDraft/);
   assert.match(studyHubSource, /Continuă simularea/);
   const examStorageSource = await readFile(path.resolve('src/features/exams/services/examStorage.ts'), 'utf8');
   assert.match(examStorageSource, /clearExamDraft\(\)/);
+  assert.match(examStorageSource, /pauseCount/);
+  const rulesSource = await readFile(path.resolve('firestore.rules'), 'utf8');
+  assert.match(rulesSource, /'pauseCount'/);
   assert.match(practiceSource, /AppState\.addEventListener/);
 
   // Exam simulation draft sanitization, expiry, progress counters, and countdown formatting.
@@ -798,6 +803,7 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
     currentIndex: 3,
     secondsLeft: 5412,
     elapsedSeconds: 1788,
+    pauseCount: 2,
     choiceAnswers: { [enChoiceItem.id]: 2 },
     textAnswers: enShortItem ? { [enShortItem.id]: '12' } : {},
     checkedRubricSteps: {},
@@ -807,6 +813,7 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
     savedAt: '2026-11-25T17:30:00.000Z',
   }, nowMs);
   assert.ok(validDraft, 'ciorna validă de simulare trebuie păstrată');
+  assert.equal(validDraft.pauseCount, 2);
   assert.equal(isDraftForSimulation(validDraft, firstEn.id, 'full'), true);
   assert.equal(isDraftForSimulation(validDraft, firstEn.id, 's1'), false);
   assert.equal(countDraftAnsweredItems(validDraft, enItems), enShortItem ? 3 : 2);

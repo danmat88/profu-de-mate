@@ -57,6 +57,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
     maxPoints,
     grade,
     elapsedSeconds,
+    pauseCount = 0,
     items,
   } = route.params;
 
@@ -151,6 +152,15 @@ export function ExamResultScreen({ navigation, route }: Props) {
               <Text numberOfLines={2} style={styles.subSummary}>
                 {awardedPoints} din {maxPoints} puncte ({percent}%) · Timp: {formatElapsed(elapsedSeconds)}
               </Text>
+              <View style={[styles.conditionPill, pauseCount === 0 ? styles.conditionPillReal : styles.conditionPillPaused]}>
+                <Text style={[styles.conditionPillText, pauseCount === 0 && styles.conditionPillTextReal]}>
+                  {pauseCount === 0
+                    ? '✓ Condiții reale de examen'
+                    : pauseCount === 1
+                      ? '⏸ Cu 1 pauză'
+                      : `⏸ Cu ${pauseCount} pauze`}
+                </Text>
+              </View>
             </View>
 
             <View style={styles.mascotStage}>
@@ -540,6 +550,31 @@ const styles = StyleSheet.create({
     minWidth: 0,
     alignItems: 'flex-start',
     gap: 6,
+  },
+  conditionPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    marginTop: 1,
+  },
+  conditionPillReal: {
+    backgroundColor: 'rgba(216, 255, 62, 0.2)',
+    borderColor: 'rgba(216, 255, 62, 0.55)',
+  },
+  conditionPillPaused: {
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  conditionPillText: {
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(244, 240, 255, 0.94)',
+    fontSize: 11,
+    includeFontPadding: false,
+  },
+  conditionPillTextReal: {
+    color: colors.lime,
   },
   mascotStage: {
     width: 98,

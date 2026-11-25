@@ -553,6 +553,27 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                         <Text style={styles.historyMeta}>
                           {record.awardedPoints} din {record.maxPoints} puncte · {Math.max(1, Math.round(record.elapsedSeconds / 60))} min
                         </Text>
+                        {typeof record.pauseCount === 'number' ? (
+                          <View
+                            style={[
+                              styles.historyConditionTag,
+                              record.pauseCount === 0 ? styles.historyConditionReal : styles.historyConditionPaused,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.historyConditionText,
+                                record.pauseCount === 0 ? styles.historyConditionTextReal : styles.historyConditionTextPaused,
+                              ]}
+                            >
+                              {record.pauseCount === 0
+                                ? '✓ Condiții reale de examen'
+                                : record.pauseCount === 1
+                                  ? '⏸ Cu 1 pauză'
+                                  : `⏸ Cu ${record.pauseCount} pauze`}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                     </View>
                   );
@@ -1219,6 +1240,33 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 12,
+  },
+  historyConditionTag: {
+    alignSelf: 'flex-start',
+    marginTop: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+  },
+  historyConditionReal: {
+    backgroundColor: colors.limeSoft,
+    borderColor: '#C5E67A',
+  },
+  historyConditionPaused: {
+    backgroundColor: '#FAF6FF',
+    borderColor: '#E5DCFF',
+  },
+  historyConditionText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10.5,
+    includeFontPadding: false,
+  },
+  historyConditionTextReal: {
+    color: colors.limeDeep,
+  },
+  historyConditionTextPaused: {
+    color: colors.inkSoft,
   },
   resumeCard: {
     borderRadius: 26,

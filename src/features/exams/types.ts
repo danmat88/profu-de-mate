@@ -73,4 +73,6 @@ export type ExamSimulationRecord = {
   grade: number | null;
   elapsedSeconds: number;
   subjectPoints: Record<ExamSubjectKey, number>;
+  /** Number of pauses or exits taken during the simulation (0 = strict uninterrupted run). */
+  pauseCount?: number;
 };

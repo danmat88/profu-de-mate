@@ -254,13 +254,28 @@ describe('Firestore rules', () => {
       totalAnswered: 5,
       totalCorrect: 5,
       examRecords: [
-        validExamRecord,
-        { ...validExamRecord, id: 'exam-partial', scope: 's2', awardedPoints: 25, maxPoints: 30, grade: null },
+        { ...validExamRecord, pauseCount: 0 },
+        { ...validExamRecord, id: 'exam-partial', scope: 's2', awardedPoints: 25, maxPoints: 30, grade: null, pauseCount: 2 },
       ],
       updatedAt: serverTimestamp(),
     }));
 
     // Înregistrări invalide sau peste limita de 24 sunt respinse.
+    await assertFails(setDoc(aliceSummary, {
+      track: 'bac_m1',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      examRecords: [{ ...validExamRecord, pauseCount: -1 }],
+      updatedAt: serverTimestamp(),
+    }));
     await assertFails(setDoc(aliceSummary, {
       track: 'bac_m1',
       hasChosenTrack: true,

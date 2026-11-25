@@ -166,6 +166,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const [rubricSheetEverOpened, setRubricSheetEverOpened] = useState(false);
   const [confirmMode, setConfirmMode] = useState<'submit' | 'exit' | null>(null);
   const [examPaused, setExamPaused] = useState(false);
+  const [pauseCount, setPauseCount] = useState(() => initialDraft?.pauseCount ?? 0);
   const [flaggedIds, setFlaggedIds] = useState<Record<string, boolean>>(
     () => initialDraft?.flaggedIds ?? {},
   );
@@ -174,6 +175,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const gradingLockRef = useRef(false);
   const leavingAllowedRef = useRef(false);
   const submittedOrDiscardedRef = useRef(false);
+  const pauseCountRef = useRef<number>(initialDraft?.pauseCount ?? 0);
   const startedAtRef = useRef<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const timeExpiredNotifiedRef = useRef(false);
@@ -234,6 +236,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       currentIndex: snap.currentIndex,
       secondsLeft: remaining,
       elapsedSeconds: elapsed,
+      pauseCount: pauseCountRef.current,
       choiceAnswers: snap.choiceAnswers,
       textAnswers: snap.textAnswers,
       checkedRubricSteps: snap.checkedRubricSteps,
@@ -277,10 +280,15 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         if (pausedAtRef.current === null) {
           pausedAtRef.current = Date.now();
         }
-        persistDraftNow(true);
         if (!gradingLockRef.current && !latestDraftRef.current.gradingBusy && !submittedOrDiscardedRef.current) {
+          if (!latestDraftRef.current.examPaused) {
+            latestDraftRef.current.examPaused = true;
+            pauseCountRef.current = Math.min(500, pauseCountRef.current + 1);
+            setPauseCount(pauseCountRef.current);
+          }
           setExamPaused(true);
         }
+        persistDraftNow(true);
       }
     });
     return () => sub.remove();
@@ -391,14 +399,19 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     Keyboard.dismiss();
     Haptics.selection();
     setRubricSheetOpen(false);
-    setExamPaused((prev) => {
-      const next = !prev;
-      if (next) {
-        if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
-        persistDraftNow(true);
+    if (!examPaused) {
+      if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
+      if (!latestDraftRef.current.examPaused) {
+        latestDraftRef.current.examPaused = true;
+        pauseCountRef.current = Math.min(500, pauseCountRef.current + 1);
+        setPauseCount(pauseCountRef.current);
       }
-      return next;
-    });
+      setExamPaused(true);
+      persistDraftNow(true);
+    } else {
+      latestDraftRef.current.examPaused = false;
+      setExamPaused(false);
+    }
   };
 
   const saveAndExitSimulation = () => {
@@ -406,6 +419,11 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     Keyboard.dismiss();
     Haptics.selection();
     if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
+    if (!latestDraftRef.current.examPaused) {
+      latestDraftRef.current.examPaused = true;
+      pauseCountRef.current = Math.min(500, pauseCountRef.current + 1);
+      setPauseCount(pauseCountRef.current);
+    }
     persistDraftNow(true);
     setConfirmMode(null);
     leavingAllowedRef.current = true;
@@ -647,6 +665,8 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     const effectiveNow = pausedAtRef.current ?? Date.now();
     const elapsedSeconds = Math.max(1, Math.floor((effectiveNow - (startedAtRef.current ?? effectiveNow)) / 1000));
 
+    const finalPauseCount = pauseCountRef.current;
+
     recordExamSimulation({
       id: `exam-${Date.now()}`,
       variantId: variant.id,
@@ -658,6 +678,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       grade: score.grade,
       elapsedSeconds,
       subjectPoints: score.subjectPoints,
+      pauseCount: finalPauseCount,
     });
 
     Haptics.notification(Haptics.NotificationFeedbackType.Success);
@@ -673,6 +694,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       maxPoints: score.maxPoints,
       grade: score.grade,
       elapsedSeconds,
+      pauseCount: finalPauseCount,
       items: summaryItems,
     });
   };
@@ -811,7 +833,9 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               <Mascot pose="wave" size={88} active={!reducedMotion} />
             </View>
             <View style={styles.pauseBadge}>
-              <Text style={styles.pauseBadgeText}>CRONOMETRU OPRIT · {formatCountdown(secondsLeft)}</Text>
+              <Text style={styles.pauseBadgeText}>
+                CRONOMETRU OPRIT · {formatCountdown(secondsLeft)}{pauseCount > 0 ? ` · PAUZA #${pauseCount}` : ''}
+              </Text>
             </View>
             <Text style={styles.pauseTitle}>Simulare în pauză</Text>
             <Text style={styles.pauseText}>

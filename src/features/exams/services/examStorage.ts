@@ -45,6 +45,7 @@ export function sanitizeExamRecord(value: unknown): ExamSimulationRecord | null 
   const s1 = rawSubjects ? clampFinite(rawSubjects.s1, 0, 100) : null;
   const s2 = rawSubjects ? clampFinite(rawSubjects.s2, 0, 100) : null;
   const s3 = rawSubjects ? clampFinite(rawSubjects.s3, 0, 100) : null;
+  const rawPauseCount = raw.pauseCount === undefined ? undefined : clampFinite(raw.pauseCount, 0, 500);
 
   if (
     !id || id.length > 64
@@ -70,6 +71,7 @@ export function sanitizeExamRecord(value: unknown): ExamSimulationRecord | null 
     grade,
     elapsedSeconds: Math.round(elapsedSeconds),
     subjectPoints: { s1, s2, s3 },
+    ...(rawPauseCount !== undefined && rawPauseCount !== null ? { pauseCount: Math.round(rawPauseCount) } : {}),
   };
 }
 
@@ -99,7 +101,8 @@ function sameExamRecord(a: ExamSimulationRecord, b: ExamSimulationRecord): boole
     && a.elapsedSeconds === b.elapsedSeconds
     && a.subjectPoints.s1 === b.subjectPoints.s1
     && a.subjectPoints.s2 === b.subjectPoints.s2
-    && a.subjectPoints.s3 === b.subjectPoints.s3;
+    && a.subjectPoints.s3 === b.subjectPoints.s3
+    && a.pauseCount === b.pauseCount;
 }
 
 function readFromDisk(): ExamHistoryState {
