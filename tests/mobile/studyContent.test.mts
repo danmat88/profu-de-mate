@@ -117,6 +117,13 @@ test('every curated formula has unique IDs, valid metadata, pre-compiled MathJax
       }
     }
 
+    const mainRendered = getRenderedStudyMath(formula.formulaLatex, 'display');
+    assert.ok(mainRendered && flattenNativeMathSvg(mainRendered.svg), `${formula.id}.formulaLatex trebuie să se aplatizeze într-un singur Path`);
+    for (const row of formula.formulas ?? []) {
+      const rowRendered = getRenderedStudyMath(row.latex, 'display');
+      assert.ok(rowRendered && flattenNativeMathSvg(rowRendered.svg), `${formula.id} sub-formulă trebuie să se aplatizeze fără fallback text`);
+    }
+
     const doc = buildFormulaDocument(formula);
     const html = buildMathDocumentMarkup(doc);
     assert.equal(html.includes('formulă indisponibilă'), false, `Formulă inline lipsă în ${formula.id}`);
@@ -124,8 +131,19 @@ test('every curated formula has unique IDs, valid metadata, pre-compiled MathJax
     assert.match(html, /<svg\b/, `HTML generat pentru ${formula.id} trebuie să conțină SVG`);
   }
 
+  assert.ok(FORMULAS_CATALOG.length >= 55, `Catalogul complet trebuie să aibă cel puțin 55 fișe (are ${FORMULAS_CATALOG.length})`);
+  const expectedMinPerTrack: Record<string, number> = {
+    gimnaziu: 15,
+    en: 20,
+    liceu: 40,
+    bac_m1: 40,
+    bac_m2: 40,
+    bac_m3: 35,
+  };
   for (const track of STUDY_TRACKS) {
-    assert.ok(getFormulasForTrack(track.id).length >= 5, `Track-ul ${track.id} trebuie să aibă cel puțin 5 fișe`);
+    const count = getFormulasForTrack(track.id).length;
+    const min = expectedMinPerTrack[track.id] ?? 15;
+    assert.ok(count >= min, `Track-ul ${track.id} trebuie să aibă cel puțin ${min} fișe (are ${count})`);
   }
 });
 

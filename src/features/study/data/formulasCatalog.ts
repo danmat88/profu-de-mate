@@ -1,4 +1,15 @@
-import type { FormulaEntry } from '../types';
+import type { FormulaCategoryId, FormulaEntry } from '../types.ts';
+import { GIMNAZIU_EN_FORMULAS } from './formulasGimnaziuEn.ts';
+import { LICEU_BAC_FORMULAS } from './formulasLiceuBac.ts';
+
+const CATEGORY_ORDER: Record<FormulaCategoryId, number> = {
+  algebra: 0,
+  geometry: 1,
+  trigonometry: 2,
+  combinatorics: 3,
+  matrices: 4,
+  analysis: 5,
+};
 
 /**
  * Curated Romanian mathematics formula sheets aligned to the national
@@ -7,7 +18,7 @@ import type { FormulaEntry } from '../types';
  * with inline `$...$` math, dedicated multi-row formulas, and step-by-step
  * worked examples pre-compiled to crisp MathJax Fira SVG.
  */
-export const FORMULAS_CATALOG: readonly FormulaEntry[] = [
+const CORE_FORMULAS: readonly FormulaEntry[] = [
   // ── ALGEBRĂ & ECUAȚII ───────────────────────────────────────────────────────
   {
     id: 'alg-prescurtat-patrat',
@@ -1095,3 +1106,9 @@ export const FORMULAS_CATALOG: readonly FormulaEntry[] = [
     keywords: ['arie integrala', 'volum rotatie', 'corp de rotatie', 'subiectul 3'],
   },
 ];
+
+export const FORMULAS_CATALOG: readonly FormulaEntry[] = [
+  ...CORE_FORMULAS,
+  ...GIMNAZIU_EN_FORMULAS,
+  ...LICEU_BAC_FORMULAS,
+].sort((a, b) => CATEGORY_ORDER[a.category] - CATEGORY_ORDER[b.category]);
