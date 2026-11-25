@@ -29,6 +29,7 @@ export type PracticeSelectionOptions = {
   track: StudyTrackId;
   category?: FormulaCategoryId;
   formulaId?: string;
+  questionId?: string;
   wrongIds?: readonly string[];
   masteredIds?: readonly string[];
   limit?: number;
@@ -193,10 +194,19 @@ export function selectPracticeQuestions(
   bank: readonly PracticeQuestion[],
   options: PracticeSelectionOptions,
 ): PracticeQuestion[] {
-  const limit = options.limit ?? 5;
   const seed = options.seed ?? Date.now();
   const wrongSet = new Set(options.wrongIds ?? []);
   const masteredSet = new Set(options.masteredIds ?? []);
+
+  // Targeted single-question drill (e.g. tapping a specific problem in Caiet -> De repetat).
+  if (options.questionId) {
+    const exact = bank.find((q) => q.id === options.questionId);
+    if (exact) {
+      return [shuffleQuestionChoices(exact, seed + 97)];
+    }
+  }
+
+  const limit = options.limit ?? (options.mode === 'mistakes' ? Math.max(20, wrongSet.size) : 5);
 
   let pool: PracticeQuestion[];
 

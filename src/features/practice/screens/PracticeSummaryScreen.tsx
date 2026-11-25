@@ -66,9 +66,9 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     beginAppTransition();
     navigation.replace('PracticeSession', {
-      mode: mode === 'ai' ? 'quick' : mode,
-      category,
-      formulaId,
+      mode: mode === 'ai' || mode === 'mistakes' ? 'quick' : mode,
+      category: mode === 'mistakes' ? undefined : category,
+      formulaId: mode === 'mistakes' ? undefined : formulaId,
     });
   };
 
@@ -297,7 +297,9 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
               }}
               style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
             >
-              <Text style={styles.backLinkText}>Înapoi la Teste & Practică</Text>
+              <Text style={styles.backLinkText}>
+                {mode === 'mistakes' ? 'Înapoi la De repetat' : mode === 'formula' ? 'Înapoi la formulă' : 'Înapoi'}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -307,6 +309,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
         <ComicBottomSheet
           visible={sheetOpen}
           onClose={() => setSheetOpen(false)}
+          onAfterClose={() => setInspectQuestion(null)}
           maxHeight="86%"
           sheetStyle={styles.sheetContainer}
         >
@@ -354,6 +357,34 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
               maxWidth={Math.max(230, contentWidth - 52)}
             />
           </ScrollView>
+          {practiceState.wrongQuestionIds.includes(inspectQuestion.id) ? (
+            <View style={styles.sheetFooter}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`Reia exercițiul ${inspectQuestion.title}`}
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={() => {
+                  const targetId = inspectQuestion.id;
+                  setSheetOpen(false);
+                  setInspectQuestion(null);
+                  beginAppTransition();
+                  navigation.replace('PracticeSession', { mode: 'mistakes', questionId: targetId });
+                }}
+                contentStyle={styles.sheetRetryBtn}
+              >
+                <LinearGradient
+                  colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <View pointerEvents="none" style={styles.ctaTopGloss} />
+                <AppIcon name="retake" size={20} />
+                <Text style={styles.sheetRetryText}>Reia acest exercițiu acum</Text>
+              </PressableScale>
+            </View>
+          ) : null}
         </ComicBottomSheet>
       ) : null}
     </View>
@@ -785,6 +816,30 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
     color: colors.ink,
+  },
+  sheetFooter: {
+    paddingTop: 10,
+  },
+  sheetRetryBtn: {
+    minHeight: 50,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  sheetRetryText: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 16,
   },
   pressed: { opacity: 0.78 },
 });

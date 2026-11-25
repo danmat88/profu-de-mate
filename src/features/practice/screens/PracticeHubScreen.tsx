@@ -290,7 +290,7 @@ export function PracticeHubScreen({ navigation }: Props) {
           {wrongCount > 0 ? (
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={`Repetă cele ${wrongCount} întrebări greșite`}
+              accessibilityLabel={wrongCount === 1 ? 'Repetă întrebarea greșită' : `Repetă cele ${wrongCount} întrebări greșite`}
               pressedScale={0.975}
               haptic="light"
               onPress={startMistakesReview}

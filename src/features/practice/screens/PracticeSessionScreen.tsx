@@ -63,10 +63,12 @@ import {
   getPracticeState,
   recordCompletedPracticeSession,
   recordPracticeAnswer,
+  usePracticeState,
 } from '../services/practiceStorage';
 import type { PracticeDifficulty, PracticeQuestion } from '../types';
 import {
   evaluatePracticeAnswer,
+  getPracticeQuestionById,
   selectPracticeQuestions,
   shuffleQuestionChoices,
 } from '../utils/practiceEngine';
@@ -137,7 +139,9 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
   const { runAfterKeyboardDismiss, cancelPending: cancelPendingKeyboardAction } = useAfterKeyboardDismiss(keyboardVisible);
   const { access, refresh: refreshAccess } = useCommercial();
-  const { mode, category, formulaId, aiExercise } = route.params;
+  const practiceState = usePracticeState();
+  const { mode, category, formulaId, questionId, aiExercise } = route.params;
+  const isTargetedMistake = mode === 'mistakes' && Boolean(questionId);
 
   const [sessionTrack] = useState(() => getStudyProfile().track);
   const [questions, setQuestions] = useState<PracticeQuestion[]>(() => {
@@ -150,14 +154,16 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
       track: getStudyProfile().track,
       category,
       formulaId,
+      questionId,
       wrongIds: state.wrongQuestionIds,
       masteredIds: state.masteredQuestionIds,
-      limit: 5,
+      limit: mode === 'mistakes' ? Math.max(20, state.wrongQuestionIds.length) : 5,
       seed: Date.now(),
     });
   });
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
   const [stepTransition, setStepTransition] = useState<{ direction: -1 | 0 | 1; animate: boolean }>({
     direction: 0,
     animate: false,
@@ -292,8 +298,8 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
   // Block gestures and navigation completely while Profu AI is generating/opening a lesson.
   useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !aiBusy && answers.length === 0 });
-  }, [aiBusy, answers.length, navigation]);
+    navigation.setOptions({ gestureEnabled: !aiBusy && (answers.length === 0 || isTargetedMistake) });
+  }, [aiBusy, answers.length, isTargetedMistake, navigation]);
 
   useEffect(() => {
     if (!aiBusy) return undefined;
@@ -309,9 +315,9 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     };
   }, [aiBusy, navigation]);
 
-  // Guard hardware Back when user already answered at least 1 question.
+  // Guard hardware Back when user already answered at least 1 question in a multi-question session.
   useEffect(() => {
-    if (aiBusy || answers.length === 0 || explanationOpen || exitConfirmOpen) return undefined;
+    if (aiBusy || answers.length === 0 || isTargetedMistake || explanationOpen || exitConfirmOpen) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       Keyboard.dismiss();
       Haptics.selection();
@@ -319,7 +325,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
       return true;
     });
     return () => sub.remove();
-  }, [aiBusy, answers.length, exitConfirmOpen, explanationOpen]);
+  }, [aiBusy, answers.length, exitConfirmOpen, explanationOpen, isTargetedMistake]);
 
   // Auto-scroll smoothly into short-answer input when the soft keyboard opens.
   useEffect(() => {
@@ -353,10 +359,25 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     });
   }, [aiBusy]);
 
+  const remainingOtherMistakeIds = useMemo(
+    () => practiceState.wrongQuestionIds.filter((id) => id !== currentQuestion?.id),
+    [currentQuestion?.id, practiceState.wrongQuestionIds],
+  );
+
+  const leaveToPrevious = useCallback(() => {
+    if (aiBusy) return;
+    cancelPendingKeyboardAction();
+    Keyboard.dismiss();
+    Haptics.selection();
+    leavingAllowedRef.current = true;
+    beginAppTransition();
+    navigation.goBack();
+  }, [aiBusy, cancelPendingKeyboardAction, navigation]);
+
   const requestCloseSession = useCallback(() => {
     if (aiBusy) return;
     Haptics.selection();
-    if (answers.length > 0) {
+    if (answers.length > 0 && !isTargetedMistake) {
       runAfterKeyboardDismiss(() => {
         if (mountedRef.current) setExitConfirmOpen(true);
       });
@@ -366,7 +387,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     leavingAllowedRef.current = true;
     beginAppTransition();
     navigation.goBack();
-  }, [aiBusy, answers.length, navigation, runAfterKeyboardDismiss]);
+  }, [aiBusy, answers.length, isTargetedMistake, navigation, runAfterKeyboardDismiss]);
 
   const commitQuestionAnswer = useCallback((
     question: PracticeQuestion,
@@ -439,6 +460,41 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     setShowHint(false);
     setSimilarError(null);
   }, [cancelPendingKeyboardAction, currentIndex]);
+
+  const handleRetryCurrentQuestion = useCallback(() => {
+    if (!currentQuestion || aiBusy) return;
+    cancelPendingKeyboardAction();
+    submittingShortRef.current = false;
+    setSubmittingShort(false);
+    Keyboard.dismiss();
+    Haptics.selection();
+    const reshuffled = shuffleQuestionChoices(currentQuestion, Date.now());
+    setQuestions((prev) => prev.map((q, idx) => (idx === currentIndex ? reshuffled : q)));
+    setRetryCount((value) => value + 1);
+    setStepTransition({ direction: 0, animate: true });
+    setSelectedChoice(null);
+    setShortInput('');
+    setSubmitted(false);
+    setLastCorrect(false);
+    setShowHint(false);
+    setSimilarError(null);
+    scrollRef.current?.scrollTo({ y: 0, animated: !reducedMotion });
+  }, [aiBusy, cancelPendingKeyboardAction, currentIndex, currentQuestion, reducedMotion]);
+
+  const handleNextRemainingMistake = useCallback(() => {
+    if (aiBusy) return;
+    const nextMistakeId = remainingOtherMistakeIds[0];
+    const nextQuestion = nextMistakeId ? getPracticeQuestionById(nextMistakeId) : undefined;
+    if (!nextQuestion) {
+      leaveToPrevious();
+      return;
+    }
+    Haptics.selection();
+    const shuffled = shuffleQuestionChoices(nextQuestion, Date.now());
+    const nextIdx = questions.length;
+    setQuestions((prev) => [...prev, shuffled]);
+    advanceToIndex(nextIdx);
+  }, [advanceToIndex, aiBusy, leaveToPrevious, questions.length, remainingOtherMistakeIds]);
 
   const handleNext = useCallback(() => {
     if (!submitted || aiBusy) return;
@@ -595,7 +651,9 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
           }}
           contentStyle={styles.emptyBackBtn}
         >
-          <Text style={styles.emptyBackText}>Înapoi la Teste</Text>
+          <Text style={styles.emptyBackText}>
+            {mode === 'mistakes' ? 'Înapoi la Caiet' : 'Înapoi la Teste'}
+          </Text>
         </PressableScale>
       </View>
     );
@@ -603,8 +661,13 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
   const categoryMeta = getFormulaCategoryMeta(currentQuestion.category);
   const diffMeta = DIFFICULTY_META[currentQuestion.difficulty];
-  const progressValue = (currentIndex + (submitted ? 1 : 0)) / Math.max(1, questions.length);
+  const progressValue = isTargetedMistake
+    ? submitted
+      ? (lastCorrect ? 1 : 0.48)
+      : 0.18
+    : (currentIndex + (submitted ? 1 : 0)) / Math.max(1, questions.length);
   const isLast = currentIndex + 1 >= questions.length;
+  const showTargetedPostFlow = isTargetedMistake && isLast;
   const innerMathWidth = Math.max(200, Math.min(contentWidth, frame.width - gutter * 2) - 42);
   const showShortKeyboardDock = currentQuestion.kind === 'short_answer' && !submitted && keyboardVisible;
   const scrollBottomPadding = keyboardVisible ? 18 : Math.max(insets.bottom, 14) + 20;
@@ -654,7 +717,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
           <View style={styles.metaPills}>
             <View style={styles.countPill}>
               <Text maxFontSizeMultiplier={1.15} style={styles.countText}>
-                {currentIndex + 1}/{questions.length}
+                {isTargetedMistake ? 'De repetat' : `${currentIndex + 1}/${questions.length}`}
               </Text>
             </View>
             {answers.length > 0 && !isNarrow ? (
@@ -783,7 +846,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
                 return (
                   <Pressable
-                    key={`${currentQuestion.id}-opt-${idx}`}
+                    key={`${currentQuestion.id}-r${retryCount}-opt-${idx}`}
                     accessibilityRole="button"
                     accessibilityState={{ selected: isSelected, disabled: submitted || aiBusy }}
                     disabled={submitted || aiBusy}
@@ -930,8 +993,10 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                 <View style={styles.verdictCopy}>
                   {lastCorrect ? (
                     <Text style={styles.verdictTitle}>
-                      {mode === 'mistakes'
-                        ? 'Corect! Eliminată din De repetat'
+                      {mode === 'mistakes' && !currentQuestion.aiGenerated
+                        ? remainingOtherMistakeIds.length === 0
+                          ? 'Corect! Lista De repetat e acum curată ★'
+                          : 'Corect! Eliminată din De repetat'
                         : 'Corect! Foarte bine!'}
                     </Text>
                   ) : (
@@ -944,7 +1009,9 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                   )}
                   {!lastCorrect && !currentQuestion.aiGenerated ? (
                     <Text style={styles.verdictSub}>
-                      Am salvat întrebarea în Caiet → De repetat ca să o reiei ușor.
+                      {mode === 'mistakes'
+                        ? 'A rămas în Caiet → De repetat. Verifică explicația și încearcă din nou.'
+                        : 'Am salvat întrebarea în Caiet → De repetat ca să o reiei ușor.'}
                     </Text>
                   ) : null}
                 </View>
@@ -1013,29 +1080,95 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                 <Text style={styles.similarErrorText}>{similarError}</Text>
               ) : null}
 
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={isLast ? 'Vezi rezultatul testului' : 'Treci la întrebarea următoare'}
-                disabled={aiBusy}
-                pressedScale={0.97}
-                haptic="medium"
-                onPress={handleNext}
-                contentStyle={styles.nextBtn}
-              >
-                <LinearGradient
-                  colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-                  start={{ x: 0.08, y: 0 }}
-                  end={{ x: 0.92, y: 1 }}
-                  style={styles.fill}
-                />
-                <View pointerEvents="none" style={styles.ctaTopGloss} />
-                <Text numberOfLines={2} style={styles.nextBtnText}>
-                  {isLast ? 'Vezi rezultatul ★' : 'Următoarea întrebare'}
-                </Text>
-                <View style={styles.nextArrow}>
-                  <MiniGlyph name="next" size={16} color={colors.paper} />
-                </View>
-              </PressableScale>
+              {showTargetedPostFlow ? (
+                <>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      !lastCorrect
+                        ? 'Reîncearcă acest exercițiu'
+                        : remainingOtherMistakeIds.length > 0
+                          ? `Continuă cu următoarea problemă din De repetat (${remainingOtherMistakeIds.length} rămase)`
+                          : 'Gata, înapoi'
+                    }
+                    disabled={aiBusy}
+                    pressedScale={0.97}
+                    haptic="medium"
+                    onPress={
+                      !lastCorrect
+                        ? handleRetryCurrentQuestion
+                        : remainingOtherMistakeIds.length > 0
+                          ? handleNextRemainingMistake
+                          : leaveToPrevious
+                    }
+                    contentStyle={styles.nextBtn}
+                  >
+                    <LinearGradient
+                      colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                      start={{ x: 0.08, y: 0 }}
+                      end={{ x: 0.92, y: 1 }}
+                      style={styles.fill}
+                    />
+                    <View pointerEvents="none" style={styles.ctaTopGloss} />
+                    <Text numberOfLines={2} style={styles.nextBtnText}>
+                      {!lastCorrect
+                        ? 'Reîncearcă exercițiul'
+                        : remainingOtherMistakeIds.length > 0
+                          ? `Următoarea din De repetat (${remainingOtherMistakeIds.length})`
+                          : 'Gata · Lista e curată ★'}
+                    </Text>
+                    {!lastCorrect ? (
+                      <View style={styles.retryBadge}>
+                        <AppIcon name="retake" size={22} />
+                      </View>
+                    ) : (
+                      <View style={styles.nextArrow}>
+                        <MiniGlyph
+                          name={remainingOtherMistakeIds.length > 0 ? 'next' : 'check'}
+                          size={16}
+                          color={colors.paper}
+                        />
+                      </View>
+                    )}
+                  </PressableScale>
+
+                  {(!lastCorrect || remainingOtherMistakeIds.length > 0) ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Înapoi"
+                      disabled={aiBusy}
+                      onPress={leaveToPrevious}
+                      style={({ pressed }) => [styles.returnNotebookBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.returnNotebookText}>Înapoi</Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              ) : (
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={isLast ? 'Vezi rezultatul testului' : 'Treci la întrebarea următoare'}
+                  disabled={aiBusy}
+                  pressedScale={0.97}
+                  haptic="medium"
+                  onPress={handleNext}
+                  contentStyle={styles.nextBtn}
+                >
+                  <LinearGradient
+                    colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <View pointerEvents="none" style={styles.ctaTopGloss} />
+                  <Text numberOfLines={2} style={styles.nextBtnText}>
+                    {isLast ? 'Vezi rezultatul ★' : 'Următoarea întrebare'}
+                  </Text>
+                  <View style={styles.nextArrow}>
+                    <MiniGlyph name="next" size={16} color={colors.paper} />
+                  </View>
+                </PressableScale>
+              )}
             </Animated.View>
           ) : null}
           </StepTransitionStage>
@@ -1833,6 +1966,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  retryBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  returnNotebookBtn: {
+    minHeight: 46,
+    borderRadius: radii.pill,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+  },
+  returnNotebookText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 14,
   },
 
   explanationSheet: {

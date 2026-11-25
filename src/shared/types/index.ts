@@ -236,6 +236,7 @@ export type RootStackParamList = {
     mode: PracticeSessionModeParam;
     category?: StudyFormulaCategoryParam;
     formulaId?: string;
+    questionId?: string;
     aiExercise?: AiPracticeExercisePayload;
   };
   PracticeSummary: {

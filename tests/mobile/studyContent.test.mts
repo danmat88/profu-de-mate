@@ -300,6 +300,27 @@ test('every curated practice question has valid MathJax SVG, valid formula link,
   assert.equal(picked.length, 5);
   assert.equal(picked[0].id, 'prac-geo-pitagora-2', 'întrebările greșite au prioritate în testul fulger');
 
+  // Targeted single-mistake selection opens strictly that exact exercise.
+  const sevenWrongIds = PRACTICE_BANK.slice(0, 7).map((q) => q.id);
+  const targetedMistake = selectPracticeQuestions(PRACTICE_BANK, {
+    mode: 'mistakes',
+    track: 'en',
+    questionId: sevenWrongIds[3],
+    wrongIds: sevenWrongIds,
+    seed: 42,
+  });
+  assert.equal(targetedMistake.length, 1, 'selectarea unei greșeli specifice trebuie să deschidă strict acel exercițiu');
+  assert.equal(targetedMistake[0].id, sevenWrongIds[3]);
+
+  // Batch mistakes review includes all saved mistakes (not silently capped at 5).
+  const batchMistakes = selectPracticeQuestions(PRACTICE_BANK, {
+    mode: 'mistakes',
+    track: 'en',
+    wrongIds: sevenWrongIds,
+    seed: 42,
+  });
+  assert.equal(batchMistakes.length, 7, 'reluarea tuturor greșelilor nu trebuie tăiată tacit la 5');
+
   const enStats = computeCategoryStats(PRACTICE_BANK, 'en', ['prac-alg-prescurtat-1'], ['prac-geo-pitagora-2']);
   assert.ok(enStats.length >= 3);
   assert.equal(enStats.find((s) => s.categoryId === 'algebra')?.mastered, 1);
@@ -603,4 +624,21 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
   assert.match(inlineTextSource, /includeFontPadding:\s*false/);
   const richContentSource = await readFile(path.resolve('src/features/study/components/StudyRichContent.tsx'), 'utf8');
   assert.match(richContentSource, /<StudyInlineText[\s\S]*?text=\{block\.title\}/);
+
+  // 7. Caiet -> De repetat opens a targeted single exercise on card tap, exposes
+  // inline explanation + remove actions, guards batch CTA for >= 2 items, and
+  // PracticeSummary never relaunches an empty mistakes session from "Încă un test rapid".
+  const notebookSource = await readFile(path.resolve('src/features/lessons/screens/NotebookScreen.tsx'), 'utf8');
+  assert.match(notebookSource, /navigation\.navigate\('PracticeSession',\s*\{\s*mode:\s*'mistakes',\s*questionId:\s*item\.id\s*\}\)/);
+  assert.match(notebookSource, /removeWrongQuestion\(questionId\)/);
+  assert.match(notebookSource, /wrongQuestions\.length >= 2/);
+  assert.doesNotMatch(notebookSource, /Reia toate cele \$\{wrongQuestions\.length\} greșeli/);
+
+  assert.match(practiceSource, /const isTargetedMistake = mode === 'mistakes' && Boolean\(questionId\)/);
+  assert.match(practiceSource, /handleRetryCurrentQuestion/);
+  assert.match(practiceSource, /handleNextRemainingMistake/);
+
+  const practiceSummarySource = await readFile(path.resolve('src/features/practice/screens/PracticeSummaryScreen.tsx'), 'utf8');
+  assert.match(practiceSummarySource, /mode:\s*mode === 'ai' \|\| mode === 'mistakes' \? 'quick' : mode/);
+  assert.match(practiceSummarySource, /mode:\s*'mistakes',\s*questionId:\s*targetId/);
 });

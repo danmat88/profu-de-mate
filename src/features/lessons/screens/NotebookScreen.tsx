@@ -40,12 +40,13 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { usePracticeState } from '../../practice/services/practiceStorage';
+import { MistakeCard, MistakeExplanationSheet } from '../../practice/components/MistakeCard';
+import { removeWrongQuestion, usePracticeState } from '../../practice/services/practiceStorage';
 import type { PracticeQuestion } from '../../practice/types';
 import { getPracticeQuestionById } from '../../practice/utils/practiceEngine';
 import { FormulaCard } from '../../study/components/FormulaCard';
 import { toggleFavoriteFormula, useStudyProfile } from '../../study/services/studyStorage';
-import { getFormulaCategoryMeta, type FormulaEntry } from '../../study/types';
+import { type FormulaEntry } from '../../study/types';
 import { getFormulaById } from '../../study/utils/studyDocumentBuilder';
 import { RemoveFromNotebookModal } from '../components/RemoveFromNotebookModal';
 import { getCachedFavoriteLessons, setLessonFavorite, subscribeToFavoriteLessons } from '../services/lessons';
@@ -645,6 +646,8 @@ export function NotebookScreen({
   const [removeVisible, setRemoveVisible] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState(false);
+  const [inspectMistake, setInspectMistake] = useState<PracticeQuestion | null>(null);
+  const [mistakeSheetOpen, setMistakeSheetOpen] = useState(false);
 
   const listRef = useRef<FlatList<StoredLesson>>(null);
   const openingNoteRef = useRef(false);
@@ -987,6 +990,8 @@ export function NotebookScreen({
       .filter((item): item is PracticeQuestion => Boolean(item)),
     [practiceState.wrongQuestionIds],
   );
+  const mistakeMathWidth = Math.max(190, Math.min(contentWidth, frame.width - gutter * 2) - 54);
+  const mistakeSheetMathWidth = Math.max(200, Math.min(contentWidth, frame.width - 32) - 24);
   const startMistakesPractice = useCallback(() => {
     if (openingNoteRef.current) return;
     Keyboard.dismiss();
@@ -994,6 +999,44 @@ export function NotebookScreen({
     beginAppTransition();
     navigation.navigate('PracticeSession', { mode: 'mistakes' });
   }, [navigation]);
+  const openSingleMistake = useCallback((item: PracticeQuestion) => {
+    if (openingNoteRef.current) return;
+    Keyboard.dismiss();
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    openingNoteRef.current = true;
+    setMistakeSheetOpen(false);
+    setInspectMistake(null);
+    beginAppTransition();
+    navigation.navigate('PracticeSession', { mode: 'mistakes', questionId: item.id });
+  }, [navigation]);
+  const openMistakeFormula = useCallback((formulaId: string) => {
+    if (openingNoteRef.current) return;
+    Keyboard.dismiss();
+    Haptics.selection();
+    openingNoteRef.current = true;
+    setMistakeSheetOpen(false);
+    setInspectMistake(null);
+    beginAppTransition();
+    navigation.navigate('FormulaDetail', { formulaId });
+  }, [navigation]);
+  const handleDismissMistake = useCallback((questionId: string) => {
+    Keyboard.dismiss();
+    Haptics.selection();
+    removeWrongQuestion(questionId);
+    setInspectMistake((current) => {
+      if (current?.id === questionId) {
+        setMistakeSheetOpen(false);
+        return null;
+      }
+      return current;
+    });
+  }, []);
+  const openMistakeExplanation = useCallback((item: PracticeQuestion) => {
+    Keyboard.dismiss();
+    Haptics.selection();
+    setInspectMistake(item);
+    setMistakeSheetOpen(true);
+  }, []);
   const startQuickPractice = useCallback(() => {
     if (openingNoteRef.current) return;
     Keyboard.dismiss();
@@ -1001,35 +1044,17 @@ export function NotebookScreen({
     beginAppTransition();
     navigation.navigate('PracticeSession', { mode: 'quick' });
   }, [navigation]);
-  const renderMistakeItem = useCallback<ListRenderItem<PracticeQuestion>>(({ item }) => {
-    const cat = getFormulaCategoryMeta(item.category);
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Reia exercițiul ${item.title}`}
-        onPress={startMistakesPractice}
-        style={({ pressed }) => [styles.mistakeRowCard, pressed && styles.actionPressed]}
-      >
-        <View style={[styles.mistakeRail, { backgroundColor: cat.accent }]} />
-        <View style={styles.mistakeBody}>
-          <View style={styles.mistakeTop}>
-            <View style={[styles.metaDot, { backgroundColor: cat.accent }]} />
-            <Text style={styles.metaKindText}>{cat.shortLabel}</Text>
-            <View style={styles.mistakeTag}>
-              <Text style={styles.mistakeTagText}>DE REPETAT</Text>
-            </View>
-          </View>
-          <Text numberOfLines={2} style={styles.mistakeTitle}>{item.title}</Text>
-          <Text numberOfLines={1} style={styles.mistakeHint}>
-            Atinge ca să reiei exercițiul și să-l rezolvi corect
-          </Text>
-        </View>
-        <View style={styles.mistakeArrow}>
-          <MiniGlyph name="next" size={15} color={colors.berryDeep} />
-        </View>
-      </Pressable>
-    );
-  }, [startMistakesPractice]);
+  const renderMistakeItem = useCallback<ListRenderItem<PracticeQuestion>>(({ item }) => (
+    <MistakeCard
+      item={item}
+      isNarrow={isNarrow}
+      previewMathWidth={mistakeMathWidth}
+      onRetry={openSingleMistake}
+      onExplain={openMistakeExplanation}
+      onOpenFormula={openMistakeFormula}
+      onRemove={handleDismissMistake}
+    />
+  ), [handleDismissMistake, isNarrow, mistakeMathWidth, openMistakeExplanation, openMistakeFormula, openSingleMistake]);
   const mistakeKeyExtractor = useCallback((item: PracticeQuestion) => item.id, []);
 
   const sectionTabs = useMemo<readonly ComicTabOption<NotebookSection>[]>(() => [
@@ -1221,15 +1246,25 @@ export function NotebookScreen({
             renderItem={renderMistakeItem}
             keyExtractor={mistakeKeyExtractor}
             ItemSeparatorComponent={LessonSeparator}
-            ListHeaderComponent={(
+            ListHeaderComponent={wrongQuestions.length >= 2 ? (
               <View style={styles.mistakesHeaderCtaWrap}>
                 <ComicButton
                   compact
-                  title={`Reia toate cele ${wrongQuestions.length} greșeli`}
+                  title={`Reia toate cele ${wrongQuestions.length} exerciții`}
                   icon="retake"
                   tone="lime"
                   onPress={startMistakesPractice}
                 />
+                <Text style={styles.mistakesHeaderSub}>
+                  Sau atinge orice card de mai jos ca să lucrezi doar acel exercițiu
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.mistakesSingleHintBar}>
+                <View style={styles.mistakesSingleDot} />
+                <Text style={styles.mistakesSingleHintText}>
+                  Ultimul exercițiu rămas — atinge-l ca să îl rezolvi și să cureți lista
+                </Text>
               </View>
             )}
             showsVerticalScrollIndicator={false}
@@ -1240,6 +1275,16 @@ export function NotebookScreen({
             ]}
           />
         )}
+
+        <MistakeExplanationSheet
+          question={inspectMistake}
+          visible={mistakeSheetOpen}
+          mathWidth={mistakeSheetMathWidth}
+          onClose={() => setMistakeSheetOpen(false)}
+          onAfterClose={() => setInspectMistake(null)}
+          onRetry={openSingleMistake}
+          onOpenFormula={openMistakeFormula}
+        />
       </View>
     );
   }
@@ -1692,71 +1737,41 @@ const styles = StyleSheet.create({
   },
 
   mistakesHeaderCtaWrap: {
-    marginBottom: 12,
-  },
-  mistakeRowCard: {
-    borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#FFD0C2',
-    borderBottomColor: '#EE9579',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 13,
-    gap: 11,
-    overflow: 'hidden',
-  },
-  mistakeRail: {
-    width: 4.5,
-    alignSelf: 'stretch',
-  },
-  mistakeBody: {
-    flex: 1,
-    minWidth: 0,
-    paddingVertical: 12,
-    paddingLeft: 2,
-  },
-  mistakeTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginBottom: 14,
     gap: 6,
   },
-  mistakeTag: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-    backgroundColor: colors.roseSoft,
-  },
-  mistakeTagText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.berryDeep,
-    fontSize: 9.5,
-    letterSpacing: 0.3,
-    includeFontPadding: false,
-  },
-  mistakeTitle: {
-    marginTop: 5,
-    fontFamily: fonts.display,
-    color: colors.ink,
-    fontSize: 17,
-    lineHeight: 21,
-  },
-  mistakeHint: {
-    marginTop: 2,
+  mistakesHeaderSub: {
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
   },
-  mistakeArrow: {
-    width: 32,
-    height: 32,
+  mistakesSingleHintBar: {
+    marginBottom: 12,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
     borderRadius: 16,
-    backgroundColor: '#FFF0F3',
-    borderWidth: 1,
-    borderColor: '#FFD0D8',
+    borderWidth: 1.2,
+    borderColor: '#FFD6C9',
+    backgroundColor: '#FFF7F4',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+  },
+  mistakesSingleDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.peach,
+    flexShrink: 0,
+  },
+  mistakesSingleHintText: {
+    flex: 1,
+    fontFamily: fonts.bodyBold,
+    color: colors.inkSoft,
+    fontSize: 12,
+    lineHeight: 16.5,
   },
   controls: { paddingTop: 2, gap: 9 },
 
