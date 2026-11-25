@@ -1,5 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -21,9 +23,10 @@ import { colors, fonts, radii } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
+import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { FormulaCard } from '../components/FormulaCard';
 import { StudyTrackSheet } from '../components/StudyTrackSheet';
@@ -46,7 +49,7 @@ function FormulaSeparator() {
 
 export function FormulasScreen({ navigation, route }: Props) {
   const frame = useSafeAreaFrame();
-  const { gutter, isNarrow } = useResponsiveLayout(frame);
+  const { gutter, contentWidth, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
@@ -153,131 +156,180 @@ export function FormulasScreen({ navigation, route }: Props) {
   const listBottomPadding = keyboardVisible ? 18 : Math.max(insets.bottom, 16) + 22;
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader
-        compact
-        title="Formule & Fișe"
-        eyebrow={eyebrowText}
-        onBack={() => {
-          Keyboard.dismiss();
-          navigation.goBack();
-        }}
-        rightIcon="class"
-        rightLabel="Schimbă nivelul de studiu"
-        onRight={openTrackPicker}
-      />
+
+      {/* Full-bleed curved Sapphire-Cyan formulas library canopy */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={['#1E8EE2', '#2E4DE8', '#3F1EC6', '#2B1098']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowCyan} />
+        <View pointerEvents="none" style={styles.canopyGlowRight} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
+        <Text accessible={false} style={styles.canopyGlyphRoot}>√</Text>
+
+        <View style={[styles.canopyInner, { width: contentWidth }]}>
+          <View style={styles.canopyRow}>
+            <IconButton
+              label="Înapoi"
+              onPress={() => {
+                Keyboard.dismiss();
+                navigation.goBack();
+              }}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+            </IconButton>
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                Formule <Text style={styles.canopyTitleAccent}>&amp; Fișe</Text>
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View style={styles.canopyEyebrowDot} />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  {eyebrowText}
+                </Text>
+              </View>
+            </View>
+
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Schimbă nivelul de studiu"
+              pressedScale={0.95}
+              haptic="selection"
+              onPress={openTrackPicker}
+              contentStyle={styles.trackPill}
+            >
+              <View style={styles.trackPillDot} />
+              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.trackPillText}>
+                {trackMeta.shortLabel} ▾
+              </Text>
+            </PressableScale>
+          </View>
+        </View>
+      </View>
 
       <View style={[styles.flex, keyboardVisible && { paddingBottom: keyboardInset }]}>
+        {/* Elevated 3D search box straddling the curved canopy horizon */}
         <Pressable
           accessible={false}
           onPress={Keyboard.dismiss}
           style={[styles.controls, { paddingHorizontal: gutter }]}
         >
-          <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
-            <AppIcon name="search" size={22} />
-            {mountSearchInput ? (
-              <TextInput
-                autoFocus={searchActivated}
-                autoCorrect={false}
-                returnKeyType="search"
-                value={queryText}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                onChangeText={setQueryText}
-                onSubmitEditing={() => Keyboard.dismiss()}
-                placeholder={searchPlaceholder}
-                placeholderTextColor={colors.inkSoft}
-                selectionColor={colors.violet}
-                style={styles.searchInput}
-              />
-            ) : (
-              <Pressable
-                accessibilityRole="search"
-                accessibilityLabel={searchPlaceholder}
-                onPress={() => setSearchActivated(true)}
-                style={styles.searchPlaceholderTouch}
-              >
-                <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
-              </Pressable>
-            )}
-            {queryText ? (
+          <View style={[styles.controlsInner, { maxWidth: contentWidth }]}>
+            <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+              <AppIcon name="search" size={22} />
+              {mountSearchInput ? (
+                <TextInput
+                  autoFocus={searchActivated}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  value={queryText}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  onChangeText={setQueryText}
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor={colors.inkSoft}
+                  selectionColor={colors.violet}
+                  style={styles.searchInput}
+                />
+              ) : (
+                <Pressable
+                  accessibilityRole="search"
+                  accessibilityLabel={searchPlaceholder}
+                  onPress={() => setSearchActivated(true)}
+                  style={styles.searchPlaceholderTouch}
+                >
+                  <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
+                </Pressable>
+              )}
+              {queryText ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Șterge căutarea"
+                  hitSlop={9}
+                  onPress={() => setQueryText('')}
+                  style={styles.clearSearch}
+                >
+                  <MiniGlyph name="close" size={14} color={colors.ink} />
+                </Pressable>
+              ) : null}
+              {searchFocused || keyboardVisible ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ascunde tastatura"
+                  hitSlop={6}
+                  onPress={() => {
+                    Haptics.selection();
+                    Keyboard.dismiss();
+                  }}
+                  style={({ pressed }) => [styles.dismissSearchChip, pressed && styles.pressed]}
+                >
+                  <Text style={styles.dismissSearchText}>Gata</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <View style={styles.scopeRow}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Șterge căutarea"
-                hitSlop={9}
-                onPress={() => setQueryText('')}
-                style={styles.clearSearch}
-              >
-                <MiniGlyph name="close" size={14} color={colors.ink} />
-              </Pressable>
-            ) : null}
-            {searchFocused || keyboardVisible ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ascunde tastatura"
-                hitSlop={6}
+                accessibilityState={{ selected: trackOnly }}
                 onPress={() => {
-                  Haptics.selection();
                   Keyboard.dismiss();
+                  Haptics.selection();
+                  setTrackOnly((value) => !value);
+                  listRef.current?.scrollToOffset({ offset: 0, animated: false });
                 }}
-                style={({ pressed }) => [styles.dismissSearchChip, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.scopeChip,
+                  trackOnly && styles.scopeChipActive,
+                  pressed && styles.pressed,
+                ]}
               >
-                <Text style={styles.dismissSearchText}>Gata</Text>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.84}
+                  style={[styles.scopeChipText, trackOnly && styles.scopeChipTextActive]}
+                >
+                  {trackOnly ? `✦ ${trackMeta.shortLabel}` : 'Toată programa'}
+                </Text>
               </Pressable>
-            ) : null}
-          </View>
 
-          <View style={styles.scopeRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: trackOnly }}
-              onPress={() => {
-                Keyboard.dismiss();
-                Haptics.selection();
-                setTrackOnly((value) => !value);
-                listRef.current?.scrollToOffset({ offset: 0, animated: false });
-              }}
-              style={({ pressed }) => [
-                styles.scopeChip,
-                trackOnly && styles.scopeChipActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.84}
-                style={[styles.scopeChipText, trackOnly && styles.scopeChipTextActive]}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: favoritesOnly }}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  Haptics.selection();
+                  setFavoritesOnly((value) => !value);
+                  listRef.current?.scrollToOffset({ offset: 0, animated: false });
+                }}
+                style={({ pressed }) => [
+                  styles.scopeChip,
+                  favoritesOnly && styles.favChipActive,
+                  pressed && styles.pressed,
+                ]}
               >
-                {trackOnly ? `✦ ${trackMeta.shortLabel}` : 'Toată programa'}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ selected: favoritesOnly }}
-              onPress={() => {
-                Keyboard.dismiss();
-                Haptics.selection();
-                setFavoritesOnly((value) => !value);
-                listRef.current?.scrollToOffset({ offset: 0, animated: false });
-              }}
-              style={({ pressed }) => [
-                styles.scopeChip,
-                favoritesOnly && styles.favChipActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.84}
-                style={[styles.scopeChipText, favoritesOnly && styles.favChipTextActive]}
-              >
-                ★ Favorite ({profile.favoriteFormulaIds.length})
-              </Text>
-            </Pressable>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.84}
+                  style={[styles.scopeChipText, favoritesOnly && styles.favChipTextActive]}
+                >
+                  ★ Favorite ({profile.favoriteFormulaIds.length})
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </Pressable>
 
@@ -397,20 +449,163 @@ export function FormulasScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   flex: { flex: 1, minHeight: 0 },
-  controls: { paddingTop: 4, gap: 9 },
-  searchBox: {
-    height: 46,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    paddingBottom: 34,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlowCyan: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -80,
+    left: -50,
+    backgroundColor: 'rgba(67, 214, 230, 0.24)',
+  },
+  canopyGlowRight: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    top: -40,
+    right: -40,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 270,
+    height: 270,
+    borderRadius: 135,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -80,
+  },
+  canopyGlyphPi: {
+    position: 'absolute',
+    right: 98,
+    bottom: 12,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    color: 'rgba(255, 255, 255, 0.12)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  canopyGlyphRoot: {
+    position: 'absolute',
+    left: 24,
+    bottom: 10,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    color: 'rgba(216, 255, 62, 0.24)',
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingTop: 6,
+  },
+  canopyRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 23,
+    lineHeight: 27,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyTitleAccent: {
+    color: colors.lime,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(240, 245, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.9,
+    includeFontPadding: false,
+  },
+  trackPill: {
+    minHeight: 38,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#FFFFFF',
+    borderBottomColor: '#BDD5FA',
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  trackPillDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.cyanDeep,
+  },
+  trackPillText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 11.5,
+    includeFontPadding: false,
+  },
+
+  controls: { marginTop: -23, zIndex: 8 },
+  controlsInner: { width: '100%', alignSelf: 'center', gap: 9 },
+  searchBox: {
+    height: 48,
+    borderWidth: 1.5,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    borderRadius: radii.pill,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     gap: 8,
   },
-  searchBoxFocused: { borderColor: colors.violet },
+  searchBoxFocused: {
+    borderColor: colors.violet,
+    borderBottomColor: colors.violetDeep,
+  },
   searchInput: {
     flex: 1,
     height: 42,
@@ -451,21 +646,25 @@ const styles = StyleSheet.create({
   },
   scopeChip: {
     flex: 1,
-    minHeight: 36,
+    minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E8E0FC',
+    borderBottomColor: '#D4C7F7',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scopeChipActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#4A18C4',
     backgroundColor: colors.violetSoft,
   },
   favChipActive: {
     borderColor: '#E3B63B',
+    borderBottomColor: '#C49218',
     backgroundColor: colors.goldSoft,
   },
   scopeChipText: {
@@ -491,11 +690,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   catPill: {
-    minHeight: 33,
+    minHeight: 35,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#EAE2FF',
+    borderBottomColor: '#D6CAFA',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -504,6 +705,7 @@ const styles = StyleSheet.create({
   },
   catPillActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#4114B4',
     backgroundColor: colors.violet,
   },
   catDot: {
@@ -552,9 +754,13 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     marginTop: 16,
-    minHeight: 44,
+    minHeight: 46,
     paddingHorizontal: 22,
     borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#BCEF12',
+    borderBottomColor: '#7EA508',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -562,7 +768,7 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 13,
+    fontSize: 13.5,
   },
-  pressed: { opacity: 0.78 },
+  pressed: { opacity: 0.82 },
 });

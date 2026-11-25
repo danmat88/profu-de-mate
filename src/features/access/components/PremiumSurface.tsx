@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import type { PurchasesPackage } from 'react-native-purchases';
@@ -122,64 +123,74 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         : 'Deschid Google Play…';
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <View style={[styles.header, { paddingHorizontal: gutter }]}>
-        <Text style={styles.brand}>
-          Profu’ de mate<Text style={styles.brandAccent}> / Premium</Text>
-        </Text>
-        <IconButton
-          label="Închide Premium"
-          disabled={Boolean(busy)}
-          dimWhenDisabled={false}
-          onPress={props.onClose}
-          size={42}
-        >
-          <MiniGlyph name="close" size={19} color={colors.ink} />
-        </IconButton>
+
+      {/* Full-bleed curved Royal-Violet Premium canopy unifying top bar and hero spotlight */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={['#924BFF', '#6822EE', '#4713C2', '#310C92']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowCyan} />
+        <View pointerEvents="none" style={styles.canopyGlowLime} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyStar}>✦</Text>
+
+        <View style={[styles.header, { paddingHorizontal: gutter }]}>
+          <View style={styles.brandRow}>
+            <Text style={styles.brand}>Profu’ de mate</Text>
+            <View style={styles.brandBadge}>
+              <Text style={styles.brandBadgeText}>PREMIUM</Text>
+            </View>
+          </View>
+          <IconButton
+            label="Închide Premium"
+            disabled={Boolean(busy)}
+            dimWhenDisabled={false}
+            onPress={props.onClose}
+            size={42}
+            style={styles.closeBtn}
+          >
+            <MiniGlyph name="close" size={18} color={colors.violetDeep} />
+          </IconButton>
+        </View>
+
+        <View style={[styles.hero, isVeryShort && styles.heroCompact, { paddingHorizontal: gutter }]}>
+          <View style={styles.heroCopy}>
+            <Chip
+              label={success || premium ? 'PREMIUM ACTIV' : 'MAI MULTĂ PRACTICĂ'}
+              tone="lime"
+            />
+            <Text style={styles.heroTitle}>
+              {success ? 'Gata. Continuăm!' : premium ? 'Ai loc pentru\nmai multe idei.' : 'Mai mult loc\npentru „aha!”'}
+            </Text>
+            <Text style={styles.heroNote}>
+              {success
+                ? `Ai până la ${successLimit} de probleme pe zi.`
+                : dailyLimit
+                  ? `Până la ${dailyLimit} de probleme pe zi, explicate pas cu pas.`
+                  : 'Mai multă practică, cu explicații pas cu pas.'}
+            </Text>
+          </View>
+          <View pointerEvents="none" style={styles.art}>
+            <SpotlightAura size={118} tone="onViolet" active={active} />
+            <Mascot pose={success || premium ? 'cheer' : 'wave'} size={114} active={active} />
+          </View>
+        </View>
       </View>
 
       <ScrollView
         scrollEnabled={!busy}
         removeClippedSubviews={false}
         showsVerticalScrollIndicator={false}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
       >
         <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'}>
-          <View style={{ paddingHorizontal: gutter }}>
-            <View style={styles.heroShadow}>
-              <LinearGradient
-                colors={['#8D50FF', '#6222E6', '#4212B0']}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
-                style={[styles.hero, isVeryShort && styles.heroCompact]}
-              >
-                <View pointerEvents="none" style={styles.heroGlow} />
-                <View pointerEvents="none" style={styles.heroShine} />
-                <View style={styles.heroCopy}>
-                  <Chip
-                    label={success || premium ? 'PREMIUM ACTIV' : 'MAI MULTĂ PRACTICĂ'}
-                    tone="lime"
-                  />
-                  <Text style={styles.heroTitle}>
-                    {success ? 'Gata. Continuăm!' : premium ? 'Ai loc pentru\nmai multe idei.' : 'Mai mult loc\npentru „aha!”'}
-                  </Text>
-                  <Text style={styles.heroNote}>
-                    {success
-                      ? `Ai până la ${successLimit} de probleme pe zi.`
-                      : dailyLimit
-                        ? `Până la ${dailyLimit} de probleme pe zi, explicate pas cu pas.`
-                        : 'Mai multă practică, cu explicații pas cu pas.'}
-                  </Text>
-                </View>
-                <View pointerEvents="none" style={styles.art}>
-                  <SpotlightAura size={126} tone="onViolet" active={active} />
-                  <Mascot pose={success || premium ? 'cheer' : 'wave'} size={122} active={active} />
-                </View>
-              </LinearGradient>
-            </View>
-          </View>
-
           <View style={{ paddingHorizontal: gutter }}>
             <View style={styles.benefits}>
               {['Rezolvi', 'Verifici', 'Păstrezi în Caiet'].map((label) => (
@@ -359,6 +370,8 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  scroll: { flex: 1 },
   lockOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 },
   busyDock: {
     position: 'absolute',
@@ -381,59 +394,99 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   busyPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 18 },
-  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  brand: { flex: 1, fontFamily: fonts.display, fontSize: 19, color: colors.ink },
-  brandAccent: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.violetDeep },
-  content: { paddingTop: 4, paddingBottom: 14 },
 
-  heroShadow: {
-    borderRadius: 30,
-    elevation: 6,
-    shadowColor: '#4B1FB8',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    paddingBottom: 18,
+    position: 'relative',
+    zIndex: 4,
   },
-  hero: {
-    minHeight: 190,
-    borderRadius: 30,
+  canopyGlowCyan: {
+    position: 'absolute',
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    top: -85,
+    left: -55,
+    backgroundColor: 'rgba(67, 214, 230, 0.22)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    bottom: -85,
+    right: 16,
+    backgroundColor: 'rgba(216, 255, 62, 0.16)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 290,
+    height: 290,
+    borderRadius: 145,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -85,
+  },
+  canopyStar: {
+    position: 'absolute',
+    left: 22,
+    bottom: 20,
+    fontFamily: fonts.display,
+    fontSize: 14,
+    color: 'rgba(216, 255, 62, 0.38)',
+  },
+  header: { minHeight: 54, paddingTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  brand: { fontFamily: fonts.display, fontSize: 19, color: colors.paper },
+  brandBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(216, 255, 62, 0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: 18,
-    paddingVertical: 18,
+    borderColor: 'rgba(216, 255, 62, 0.55)',
+  },
+  brandBadgeText: { fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 0.7, color: colors.lime, includeFontPadding: false },
+  closeBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  content: { paddingTop: 12, paddingBottom: 14 },
+
+  hero: {
+    paddingTop: 6,
+    paddingBottom: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
   },
-  heroCompact: { minHeight: 168, paddingVertical: 14 },
-  heroGlow: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -100,
-    right: -45,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-  },
-  heroShine: {
-    position: 'absolute',
-    top: 0,
-    left: 26,
-    right: 26,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
-  },
+  heroCompact: { paddingTop: 2 },
   heroCopy: { flex: 1, minWidth: 0, zIndex: 1 },
-  heroTitle: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, color: colors.paper, marginTop: 10 },
-  heroNote: { maxWidth: 230, fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18, color: 'rgba(244, 238, 255, 0.92)', marginTop: 7 },
-  art: { width: 120, height: 136, justifyContent: 'center', alignItems: 'center', marginLeft: 4, position: 'relative' },
+  heroTitle: {
+    fontFamily: fonts.display,
+    fontSize: 27,
+    lineHeight: 31,
+    color: colors.paper,
+    marginTop: 9,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  heroNote: { maxWidth: 230, fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18, color: 'rgba(244, 238, 255, 0.92)', marginTop: 6 },
+  art: { width: 116, height: 126, justifyContent: 'center', alignItems: 'center', marginLeft: 4, position: 'relative' },
 
   benefits: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 8,
-    paddingVertical: 16,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(124, 60, 255, 0.08)',
   },
@@ -444,9 +497,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 6.5,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.2,
+    borderBottomWidth: 3,
+    borderColor: '#E8E0FC',
+    borderBottomColor: '#D4C7F7',
+    backgroundColor: '#FFFFFF',
   },
   benefitCheck: {
     width: 19,
@@ -465,21 +520,25 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.display, fontSize: 23, lineHeight: 27, color: colors.ink },
   plans: { gap: 10 },
   plan: {
-    minHeight: 78,
+    minHeight: 80,
     padding: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E8E0FC',
+    borderBottomColor: '#D4C7F7',
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     overflow: 'hidden',
   },
   planSelected: {
-    backgroundColor: '#F4EEFF',
+    backgroundColor: '#F5EEFF',
     borderWidth: 1.75,
+    borderBottomWidth: 4,
     borderColor: colors.violet,
+    borderBottomColor: '#4E16CE',
   },
   radio: {
     width: 24,

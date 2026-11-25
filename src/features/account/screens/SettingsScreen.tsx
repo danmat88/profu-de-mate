@@ -2,6 +2,8 @@ import { getApp } from '@react-native-firebase/app';
 import { getCrashlytics, setCrashlyticsCollectionEnabled } from '@react-native-firebase/crashlytics';
 import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -20,13 +22,12 @@ import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
-import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicSwitch } from '../../../shared/ui/ComicSwitch';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
@@ -46,6 +47,64 @@ function SettingsSectionTitle({ children, tone }: { children: string; tone: stri
     <View style={styles.sectionHeading}>
       <View style={[styles.sectionMark, { backgroundColor: tone }]} />
       <Text style={styles.sectionTitle}>{children}</Text>
+    </View>
+  );
+}
+
+function SettingsCanopyHeader({
+  canopyTopStyle,
+  contentWidth,
+  backDisabled,
+  onBack,
+}: {
+  canopyTopStyle: { paddingTop: number };
+  contentWidth: number;
+  backDisabled: boolean;
+  onBack: () => void;
+}) {
+  return (
+    <View style={[styles.canopy, canopyTopStyle]}>
+      <LinearGradient
+        colors={['#7E46FF', '#5A21EA', '#4113BC', '#2D0C8E']}
+        start={{ x: 0.08, y: 0 }}
+        end={{ x: 0.92, y: 1 }}
+        style={styles.fill}
+      />
+      <View pointerEvents="none" style={styles.canopyGlowCyan} />
+      <View pointerEvents="none" style={styles.canopyGlowLime} />
+      <View pointerEvents="none" style={styles.canopyOrbitArc} />
+      <Text accessible={false} style={styles.canopyStar}>✦</Text>
+
+      <View style={[styles.canopyInner, { width: contentWidth }]}>
+        <View style={styles.canopyRow}>
+          <IconButton
+            label="Înapoi"
+            disabled={backDisabled}
+            dimWhenDisabled={false}
+            onPress={onBack}
+            size={42}
+            style={styles.canopyActionBtn}
+          >
+            <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+          </IconButton>
+
+          <View style={styles.canopyCopy}>
+            <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+              Setări
+            </Text>
+            <View style={styles.canopyEyebrowRow}>
+              <View style={styles.canopyEyebrowDot} />
+              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                APLICAȚIA TA
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.canopyBadge}>
+            <AppIcon name="settings" size={26} />
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -92,7 +151,7 @@ function ComicSheetModal({
 
 export function SettingsScreen({ navigation }: Props) {
   const frame = useSafeAreaFrame();
-  const { gutter } = useResponsiveLayout(frame);
+  const { gutter, contentWidth } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const focused = useIsFocused();
@@ -324,24 +383,27 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader
-        title="Setări"
-        eyebrow="APLICAȚIA TA"
+      <SettingsCanopyHeader
+        canopyTopStyle={{ paddingTop: insets.top ?? 0 }}
+        contentWidth={contentWidth}
         backDisabled={accountBusy}
         onBack={() => { if (!isInteractionLocked()) navigation.goBack(); }}
-        rightIcon="settings"
       />
       <ScrollView
         scrollEnabled={!accountBusy}
         removeClippedSubviews={false}
         showsVerticalScrollIndicator={false}
+        style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 14) + 20 }]}
       >
-        <View collapsable={false} style={styles.contentInner}>
+        <View collapsable={false} style={[styles.contentInner, { maxWidth: contentWidth }]}>
           <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} style={identityAnimated}>
-            <ComicCard tone="paper" radius={26} shine contentStyle={styles.identity}>
+            <View style={styles.identityCard}>
+              <View pointerEvents="none" style={styles.identityTopGloss} />
+              <View pointerEvents="none" style={styles.identityCornerTint} />
               <View style={styles.identityTopRow}>
                 <View style={styles.identityMascotWrap}>
                   <SpotlightAura size={76} tone={access?.premium.active ? 'lime' : 'violet'} active={ambientActive} />
@@ -368,7 +430,7 @@ export function SettingsScreen({ navigation }: Props) {
                   style={styles.identityTimer}
                 />
               ) : null}
-            </ComicCard>
+            </View>
           </Animated.View>
 
           <View style={styles.accountGroup}>
@@ -397,7 +459,7 @@ export function SettingsScreen({ navigation }: Props) {
             ) : null}
 
             <View pointerEvents={accountBusy ? 'none' : 'auto'}>
-              <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
+              <View style={styles.porcelainGroup}>
                 {hasGoogleAccount ? (
                   <Pressable
                     accessibilityRole="button"
@@ -433,7 +495,7 @@ export function SettingsScreen({ navigation }: Props) {
                   </View>
                   <MiniGlyph name="next" size={17} color={colors.violetDeep} />
                 </Pressable>
-              </ComicCard>
+              </View>
             </View>
           </View>
 
@@ -443,7 +505,7 @@ export function SettingsScreen({ navigation }: Props) {
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.violet}>Profil de studiu</SettingsSectionTitle>
-            <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
+            <View style={styles.porcelainGroup}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Nivelul de studiu: ${trackMeta.label}. Apasă pentru schimbare`}
@@ -463,12 +525,12 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="next" size={17} color={colors.violetDeep} />
               </Pressable>
-            </ComicCard>
+            </View>
           </View>
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
-            <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
+            <View style={styles.porcelainGroup}>
               <Pressable
                 accessibilityRole="switch"
                 accessibilityState={{ checked: diagnostics, disabled: accountBusy }}
@@ -492,12 +554,12 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="check" size={17} color={colors.violetDeep} />
               </View>
-            </ComicCard>
+            </View>
           </View>
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
-            <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
+            <View style={styles.porcelainGroup}>
               <View style={[styles.row, styles.rowBorder]}>
                 <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={30} /></View>
                 <View style={styles.rowCopy}>
@@ -519,12 +581,12 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="next" size={17} color={colors.rose} />
               </Pressable>
-            </ComicCard>
+            </View>
           </View>
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.limeDeep}>Despre aplicație</SettingsSectionTitle>
-            <ComicCard tone="paper" radius={24} contentStyle={styles.cardList}>
+            <View style={styles.porcelainGroup}>
               <Pressable
                 accessibilityRole="button"
                 disabled={accountBusy}
@@ -538,7 +600,7 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="next" size={17} color={colors.violetDeep} />
               </Pressable>
-            </ComicCard>
+            </View>
           </View>
 
           <View style={styles.versionRow}>
@@ -706,8 +768,120 @@ export function SettingsScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  content: { paddingTop: 4 },
-  contentInner: { gap: 13 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    paddingBottom: 16,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlowCyan: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    top: -80,
+    left: -50,
+    backgroundColor: 'rgba(67, 214, 230, 0.2)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    bottom: -70,
+    right: 24,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -115,
+    right: -80,
+  },
+  canopyStar: {
+    position: 'absolute',
+    right: 88,
+    bottom: 12,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    color: 'rgba(216, 255, 62, 0.36)',
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingTop: 6,
+  },
+  canopyRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 24,
+    lineHeight: 28,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(242, 238, 255, 0.9)',
+    fontSize: 10,
+    letterSpacing: 0.9,
+    includeFontPadding: false,
+  },
+  canopyBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderBottomWidth: 3.5,
+    borderColor: colors.lime,
+    borderBottomColor: '#98C40E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  scroll: { flex: 1 },
+  content: { paddingTop: 14 },
+  contentInner: { width: '100%', alignSelf: 'center', gap: 13 },
   accountGroup: { gap: 12 },
   sectionBlock: { gap: 8 },
   lockOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 },
@@ -755,7 +929,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   noticePillText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13, lineHeight: 17 },
-  identity: { minHeight: 152, padding: 16, gap: 12 },
+  identityCard: {
+    minHeight: 152,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    gap: 12,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  identityTopGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 22,
+    right: 22,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+  },
+  identityCornerTint: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    top: -60,
+    right: -40,
+    backgroundColor: 'rgba(124, 60, 255, 0.06)',
+  },
   identityTopRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   identityTimer: { width: '100%' },
   identityMascotWrap: {
@@ -770,8 +973,8 @@ const styles = StyleSheet.create({
   identityText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18.5, marginTop: 3 },
   accountError: {
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 87, 109, 0.28)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 87, 109, 0.3)',
     backgroundColor: colors.roseSoft,
     padding: 12,
     fontFamily: fonts.bodyBold,
@@ -783,8 +986,10 @@ const styles = StyleSheet.create({
   accountRetry: {
     minHeight: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(18, 125, 140, 0.2)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3.5,
+    borderColor: '#A6E6F2',
+    borderBottomColor: '#72C9DC',
     backgroundColor: colors.cyanSoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -797,7 +1002,17 @@ const styles = StyleSheet.create({
   sectionMark: { width: 8, height: 8, borderRadius: 4 },
   sectionTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17.5, lineHeight: 21 },
 
-  cardList: { paddingHorizontal: 14, paddingVertical: 4 },
+  porcelainGroup: {
+    borderRadius: 24,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E8E0FC',
+    borderBottomColor: '#D4C7F7',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    overflow: 'hidden',
+  },
   row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(124, 60, 255, 0.07)' },
   rowPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
