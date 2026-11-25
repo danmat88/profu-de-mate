@@ -150,7 +150,13 @@ export const StudyBlocksView = memo(function StudyBlocksView({
               </View>
               <View style={styles.stepBody}>
                 {block.title ? (
-                  <Text style={styles.stepTitle}>{block.title}</Text>
+                  <StudyInlineText
+                    text={block.title}
+                    scale={scale * 0.92}
+                    color={colors.violetDeep}
+                    maxMathWidth={maxWidth - 46}
+                    textStyle={styles.stepTitle}
+                  />
                 ) : null}
                 <StudyInlineText
                   text={block.text}

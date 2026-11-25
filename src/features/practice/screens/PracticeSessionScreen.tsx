@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   BackHandler,
   InteractionManager,
   Keyboard,
@@ -13,9 +14,12 @@ import {
 } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useAfterKeyboardDismiss } from '../../../shared/hooks/useAfterKeyboardDismiss';
 import { useKeyboardHeight } from '../../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
+import { SILKY_EASE_OUT } from '../../../shared/motion/nativeMotion';
 import { initializeVerifiedFirebaseServices } from '../../../shared/services/firebase';
 import * as Haptics from '../../../shared/services/haptics';
 import {
@@ -129,7 +133,9 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
   const { gutter, contentWidth, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
+  const { runAfterKeyboardDismiss, cancelPending: cancelPendingKeyboardAction } = useAfterKeyboardDismiss(keyboardVisible);
   const { access, refresh: refreshAccess } = useCommercial();
   const { mode, category, formulaId, aiExercise } = route.params;
 
@@ -158,6 +164,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
   });
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [shortInput, setShortInput] = useState('');
+  const [submittingShort, setSubmittingShort] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [lastCorrect, setLastCorrect] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -175,10 +182,13 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
   const mountedRef = useRef(true);
   const aiLockRef = useRef(false);
+  const submittingShortRef = useRef(false);
+  const feedbackScrolledRef = useRef(false);
   const leavingAllowedRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const feedbackReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const currentQuestion = questions[currentIndex];
 
   useEffect(() => () => {
@@ -190,20 +200,69 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [currentIndex]);
 
-  // Silently pre-parse the next question SVG ASTs while the user reads this one.
+  // Smooth pure native-driver entrance for the post-answer verdict block.
+  useEffect(() => {
+    feedbackReveal.stopAnimation();
+    if (!submitted) {
+      feedbackScrolledRef.current = false;
+      feedbackReveal.setValue(reducedMotion ? 1 : 0);
+      return undefined;
+    }
+    if (reducedMotion) {
+      feedbackReveal.setValue(1);
+      return undefined;
+    }
+    feedbackReveal.setValue(0);
+    const anim = Animated.timing(feedbackReveal, {
+      toValue: 1,
+      duration: 240,
+      easing: SILKY_EASE_OUT,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => {
+      anim.stop();
+      feedbackReveal.stopAnimation();
+    };
+  }, [feedbackReveal, reducedMotion, submitted]);
+
+  const feedbackRevealStyle = useMemo(() => ({
+    opacity: feedbackReveal,
+    transform: [
+      {
+        translateY: feedbackReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: [14, 0],
+        }),
+      },
+    ],
+  }), [feedbackReveal]);
+
+  // Silently pre-parse current answer/hint + next question SVG ASTs so verdict
+  // reveal and question stepping paint in 0ms with zero JS jank.
   useEffect(() => {
     const upcoming = questions[currentIndex + 1];
-    if (!upcoming) return undefined;
+    const current = questions[currentIndex];
+    if (!current && !upcoming) return undefined;
     const task = InteractionManager.runAfterInteractions(() => {
-      prewarmStudyMath({
-        blocks: upcoming.prompt,
-        liveContent: upcoming.renderedPrompt,
-        inlineTexts: [
-          upcoming.hint,
-          upcoming.answerDisplay,
-          ...(upcoming.choices?.map((choice) => choice.label) ?? []),
-        ],
-      });
+      if (current) {
+        prewarmStudyMath({
+          inlineTexts: [current.hint, current.answerDisplay],
+          blocks: current.explanation,
+          liveContent: current.renderedExplanation,
+        });
+      }
+      if (upcoming) {
+        prewarmStudyMath({
+          blocks: upcoming.prompt,
+          liveContent: upcoming.renderedPrompt,
+          inlineTexts: [
+            upcoming.hint,
+            upcoming.answerDisplay,
+            ...(upcoming.choices?.map((choice) => choice.label) ?? []),
+          ],
+        });
+      }
     });
     return () => task.cancel();
   }, [currentIndex, questions]);
@@ -264,14 +323,14 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
   // Auto-scroll smoothly into short-answer input when the soft keyboard opens.
   useEffect(() => {
-    if (!keyboardVisible || !currentQuestion || currentQuestion.kind !== 'short_answer' || submitted) {
+    if (!keyboardVisible || !currentQuestion || currentQuestion.kind !== 'short_answer' || submitted || submittingShort) {
       return undefined;
     }
     const timer = setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true });
     }, 90);
     return () => clearTimeout(timer);
-  }, [currentQuestion, keyboardVisible, submitted]);
+  }, [currentQuestion, keyboardVisible, submitted, submittingShort]);
 
   const linkedFormula = useMemo(
     () => (currentQuestion?.formulaId ? getFormulaById(currentQuestion.formulaId) : undefined),
@@ -296,20 +355,27 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
   const requestCloseSession = useCallback(() => {
     if (aiBusy) return;
-    Keyboard.dismiss();
     Haptics.selection();
     if (answers.length > 0) {
-      setExitConfirmOpen(true);
+      runAfterKeyboardDismiss(() => {
+        if (mountedRef.current) setExitConfirmOpen(true);
+      });
       return;
     }
+    Keyboard.dismiss();
     leavingAllowedRef.current = true;
     beginAppTransition();
     navigation.goBack();
-  }, [aiBusy, answers.length, navigation]);
+  }, [aiBusy, answers.length, navigation, runAfterKeyboardDismiss]);
 
-  const finalizeQuestionAnswer = useCallback((correct: boolean, userAnswerLabel: string) => {
-    if (!currentQuestion || submitted || aiBusy) return;
-    Keyboard.dismiss();
+  const commitQuestionAnswer = useCallback((
+    question: PracticeQuestion,
+    correct: boolean,
+    userAnswerLabel: string,
+  ) => {
+    if (!mountedRef.current) return;
+    submittingShortRef.current = false;
+    setSubmittingShort(false);
     setSubmitted(true);
     setLastCorrect(correct);
     Haptics.notification(
@@ -317,40 +383,52 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
         ? Haptics.NotificationFeedbackType.Success
         : Haptics.NotificationFeedbackType.Error,
     );
-    recordPracticeAnswer(currentQuestion.id, correct, !currentQuestion.aiGenerated);
     setAnswers((prev) => [
       ...prev,
       {
-        questionId: currentQuestion.id,
-        title: currentQuestion.title,
-        category: currentQuestion.category,
-        formulaId: currentQuestion.formulaId,
+        questionId: question.id,
+        title: question.title,
+        category: question.category,
+        formulaId: question.formulaId,
         correct,
         userAnswerLabel,
-        correctAnswerLabel: currentQuestion.answerDisplay,
+        correctAnswerLabel: question.answerDisplay,
       },
     ]);
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: !reducedMotion });
-    }, 110);
-  }, [aiBusy, currentQuestion, reducedMotion, submitted]);
+    InteractionManager.runAfterInteractions(() => {
+      recordPracticeAnswer(question.id, correct, !question.aiGenerated);
+    });
+  }, []);
 
   const handleSelectChoice = useCallback((index: number) => {
-    if (!currentQuestion || submitted || aiBusy || currentQuestion.kind !== 'choice' || !currentQuestion.choices) return;
+    if (!currentQuestion || submitted || submittingShortRef.current || aiBusy || currentQuestion.kind !== 'choice' || !currentQuestion.choices) return;
     setSelectedChoice(index);
     const correct = evaluatePracticeAnswer(currentQuestion, { choiceIndex: index });
-    finalizeQuestionAnswer(correct, currentQuestion.choices[index]?.label ?? CHOICE_LETTERS[index]);
-  }, [aiBusy, currentQuestion, finalizeQuestionAnswer, submitted]);
+    const label = currentQuestion.choices[index]?.label ?? CHOICE_LETTERS[index];
+    runAfterKeyboardDismiss(() => commitQuestionAnswer(currentQuestion, correct, label));
+  }, [aiBusy, commitQuestionAnswer, currentQuestion, runAfterKeyboardDismiss, submitted]);
 
   const handleSubmitShortAnswer = useCallback(() => {
-    if (!currentQuestion || submitted || aiBusy || currentQuestion.kind !== 'short_answer') return;
+    if (!currentQuestion || submitted || submittingShortRef.current || aiBusy || currentQuestion.kind !== 'short_answer') return;
     const trimmed = shortInput.trim();
     if (!trimmed) return;
-    const correct = evaluatePracticeAnswer(currentQuestion, { text: trimmed });
-    finalizeQuestionAnswer(correct, trimmed);
-  }, [aiBusy, currentQuestion, finalizeQuestionAnswer, shortInput, submitted]);
+    const question = currentQuestion;
+    const correct = evaluatePracticeAnswer(question, { text: trimmed });
+    if (keyboardVisible) {
+      // Lock cleanly and let Android IME finish closing BEFORE revealing the verdict
+      // so keyboardInset collapse, dock unmount, and feedback entrance never collide.
+      submittingShortRef.current = true;
+      setSubmittingShort(true);
+      runAfterKeyboardDismiss(() => commitQuestionAnswer(question, correct, trimmed));
+      return;
+    }
+    commitQuestionAnswer(question, correct, trimmed);
+  }, [aiBusy, commitQuestionAnswer, currentQuestion, keyboardVisible, runAfterKeyboardDismiss, shortInput, submitted]);
 
   const advanceToIndex = useCallback((nextIdx: number) => {
+    cancelPendingKeyboardAction();
+    submittingShortRef.current = false;
+    setSubmittingShort(false);
     Keyboard.dismiss();
     setStepTransition({ direction: nextIdx >= currentIndex ? 1 : -1, animate: true });
     setCurrentIndex(nextIdx);
@@ -360,7 +438,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     setLastCorrect(false);
     setShowHint(false);
     setSimilarError(null);
-  }, [currentIndex]);
+  }, [cancelPendingKeyboardAction, currentIndex]);
 
   const handleNext = useCallback(() => {
     if (!submitted || aiBusy) return;
@@ -397,10 +475,12 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
 
   const handleOpenExplanation = () => {
     if (aiBusy) return;
-    Keyboard.dismiss();
     Haptics.selection();
-    setExplanationEverOpened(true);
-    setExplanationOpen(true);
+    runAfterKeyboardDismiss(() => {
+      if (!mountedRef.current) return;
+      setExplanationEverOpened(true);
+      setExplanationOpen(true);
+    });
   };
 
   const handleOpenFormula = useCallback(() => {
@@ -566,7 +646,8 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
               progress={Math.max(0.06, progressValue)}
               height={9}
               tone="dark"
-              shimmer={!reducedMotion && !aiBusy}
+              shimmer={!reducedMotion && !aiBusy && transitionSettled}
+              active={transitionSettled && !aiBusy}
             />
           </View>
 
@@ -759,9 +840,6 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                   autoCapitalize="none"
                   returnKeyType="done"
                   value={shortInput}
-                  onFocus={() => {
-                    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 140);
-                  }}
                   onChangeText={setShortInput}
                   onSubmitEditing={handleSubmitShortAnswer}
                   placeholder={currentQuestion.inputHint ?? 'Scrie răspunsul tău'}
@@ -769,7 +847,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                   selectionColor={colors.violet}
                   style={styles.shortInput}
                 />
-                {shortInput && !submitted ? (
+                {shortInput && !submitted && !submittingShort ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Șterge răspunsul"
@@ -782,7 +860,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                 ) : null}
               </View>
 
-              {!submitted && !showShortKeyboardDock ? (
+              {!submitted && !submittingShort && !showShortKeyboardDock ? (
                 <>
                   <View style={styles.symbolChipsRow}>
                     {QUICK_MATH_SYMBOLS.map((sym) => (
@@ -831,7 +909,16 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
           )}
 
           {submitted ? (
-            <View style={styles.feedbackSection}>
+            <Animated.View
+              onLayout={() => {
+                if (feedbackScrolledRef.current) return;
+                feedbackScrolledRef.current = true;
+                requestAnimationFrame(() => {
+                  scrollRef.current?.scrollToEnd({ animated: !reducedMotion });
+                });
+              }}
+              style={[styles.feedbackSection, feedbackRevealStyle]}
+            >
               <View style={[styles.verdictBanner, lastCorrect ? styles.verdictCorrect : styles.verdictWrong]}>
                 <View style={[styles.verdictIcon, lastCorrect ? styles.verdictIconCorrect : styles.verdictIconWrong]}>
                   <MiniGlyph
@@ -949,7 +1036,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                   <MiniGlyph name="next" size={16} color={colors.paper} />
                 </View>
               </PressableScale>
-            </View>
+            </Animated.View>
           ) : null}
           </StepTransitionStage>
         </ScrollView>
@@ -963,6 +1050,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
                   key={`dock-${sym}`}
                   accessibilityRole="button"
                   accessibilityLabel={`Inserează simbolul ${sym}`}
+                  disabled={submittingShort}
                   onPress={() => {
                     Haptics.selection();
                     setShortInput((prev) => `${prev}${sym === '−' ? '-' : sym}`);
@@ -988,7 +1076,8 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Verifică răspunsul scris"
-              disabled={!shortInput.trim() || aiBusy}
+              disabled={!shortInput.trim() || aiBusy || submittingShort}
+              dimWhenDisabled={!submittingShort}
               pressedScale={0.97}
               haptic="medium"
               onPress={handleSubmitShortAnswer}
@@ -1005,7 +1094,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
               />
               <View pointerEvents="none" style={styles.ctaTopGloss} />
               <Text numberOfLines={2} style={styles.verifyBtnText}>
-                Verifică răspunsul
+                {submittingShort ? 'Verificăm...' : 'Verifică răspunsul'}
               </Text>
               <MiniGlyph name="check" size={16} color={colors.ink} />
             </PressableScale>

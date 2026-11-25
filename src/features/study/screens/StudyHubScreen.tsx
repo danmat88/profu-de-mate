@@ -1,8 +1,8 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -33,6 +33,7 @@ import {
   type FormulaEntry,
   type StudyTrackId,
 } from '../types';
+import { prewarmStudyMath } from '../utils/prewarmStudyMath';
 import { getFormulasForTrack } from '../utils/studyDocumentBuilder';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
@@ -64,6 +65,11 @@ export const StudyHubScreen = memo(function StudyHubScreen({
 
   const [trackSheetOpen, setTrackSheetOpen] = useState(false);
   const [trackSheetEverOpened, setTrackSheetEverOpened] = useState(false);
+  const navLockRef = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    navLockRef.current = false;
+  }, []));
 
   const trackMeta = getStudyTrackMeta(profile.track);
   const examGuide = useMemo(() => getExamGuide(trackMeta.examGuideId), [trackMeta.examGuideId]);
@@ -108,32 +114,71 @@ export const StudyHubScreen = memo(function StudyHubScreen({
     setStudyTrack(next);
   }, []);
 
+  // Quietly pre-flatten the first visible track cards & featured formula sheets
+  // while idle so Formulas and FormulaDetail open in 0ms JS math time.
+  useEffect(() => {
+    if (!active) return undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      const topTrack = trackFormulas.slice(0, 6);
+      prewarmStudyMath({
+        displayLatex: topTrack.map((item) => item.formulas?.[0]?.latex ?? item.formulaLatex),
+      });
+      for (const entry of featuredFormulas) {
+        prewarmStudyMath({
+          displayLatex: [
+            entry.formulaLatex,
+            ...(entry.formulas?.map((item) => item.latex) ?? []),
+          ],
+          inlineTexts: [
+            entry.whenToUse,
+            entry.pitfall,
+            ...(entry.formulas?.map((item) => item.label) ?? []),
+          ],
+          blocks: entry.example,
+        });
+      }
+    });
+    return () => task.cancel();
+  }, [active, featuredFormulas, trackFormulas]);
+
   const openSettings = useCallback(() => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('Settings');
   }, [navigation]);
 
   const openFormulas = useCallback((category?: FormulaCategoryId) => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('Formulas', category ? { initialCategory: category } : undefined);
   }, [navigation]);
 
   const openExamsHub = useCallback(() => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('ExamsHub', { examId: trackMeta.examGuideId });
   }, [navigation, trackMeta.examGuideId]);
 
   const openPracticeHub = useCallback(() => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('PracticeHub');
   }, [navigation]);
 
   const startQuickQuiz = useCallback(() => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('PracticeSession', { mode: 'quick' });
   }, [navigation]);
 
   const openFormulaDetail = useCallback((formula: FormulaEntry) => {
+    if (navLockRef.current) return;
+    navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('FormulaDetail', {
       formulaId: formula.id,

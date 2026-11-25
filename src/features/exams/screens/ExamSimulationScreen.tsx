@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useAfterKeyboardDismiss } from '../../../shared/hooks/useAfterKeyboardDismiss';
 import { useKeyboardHeight } from '../../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -96,6 +97,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
+  const { runAfterKeyboardDismiss } = useAfterKeyboardDismiss(keyboardVisible);
   const { access, refresh: refreshAccess } = useCommercial();
   const { variantId, scope } = route.params;
 
@@ -263,20 +265,30 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
 
   const jumpToIndex = (nextIdx: number) => {
     if (gradingBusy || nextIdx < 0 || nextIdx >= items.length || nextIdx === currentIndex) return;
-    Keyboard.dismiss();
     const stepDirection: -1 | 1 = nextIdx > currentIndex ? 1 : -1;
     Haptics.selection();
-    setGradingError(null);
-    setStepTransition({ direction: stepDirection, animate: true });
-    setCurrentIndex(nextIdx);
-    const chipX = navChipPositionsRef.current[nextIdx];
-    if (chipX !== undefined) {
-      navStripRef.current?.scrollTo({
-        x: Math.max(0, chipX - Math.round(frame.width * 0.32)),
-        animated: !reducedMotion,
-      });
-    }
+    runAfterKeyboardDismiss(() => {
+      if (!mountedRef.current) return;
+      setGradingError(null);
+      setStepTransition({ direction: stepDirection, animate: true });
+      setCurrentIndex(nextIdx);
+      const chipX = navChipPositionsRef.current[nextIdx];
+      if (chipX !== undefined) {
+        navStripRef.current?.scrollTo({
+          x: Math.max(0, chipX - Math.round(frame.width * 0.32)),
+          animated: !reducedMotion,
+        });
+      }
+    });
   };
+
+  const openConfirmModal = useCallback((mode: 'submit' | 'exit') => {
+    if (gradingBusy) return;
+    Haptics.selection();
+    runAfterKeyboardDismiss(() => {
+      if (mountedRef.current) setConfirmMode(mode);
+    });
+  }, [gradingBusy, runAfterKeyboardDismiss]);
 
   const toggleRubricCriterion = (criterionId: string) => {
     if (!currentItem.rubric || gradingBusy) return;
@@ -467,10 +479,11 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             disabled={gradingBusy}
             hitSlop={8}
             onPress={() => {
-              Keyboard.dismiss();
-              Haptics.selection();
-              if (answeredCount > 0) setConfirmMode('exit');
-              else {
+              if (answeredCount > 0) {
+                openConfirmModal('exit');
+              } else {
+                Keyboard.dismiss();
+                Haptics.selection();
                 leavingAllowedRef.current = true;
                 beginAppTransition();
                 navigation.goBack();
@@ -516,11 +529,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Predă lucrarea și calculează nota"
             disabled={gradingBusy}
-            onPress={() => {
-              Keyboard.dismiss();
-              Haptics.selection();
-              setConfirmMode('submit');
-            }}
+            onPress={() => openConfirmModal('submit')}
             style={({ pressed }) => [styles.submitPill, pressed && styles.pressed]}
           >
             <Text maxFontSizeMultiplier={1.12} style={styles.submitPillText}>Predă</Text>
@@ -660,13 +669,11 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   autoCapitalize="none"
                   returnKeyType={currentIndex + 1 < items.length ? 'next' : 'done'}
                   value={currentTextValue}
-                  onFocus={() => {
-                    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 140);
-                  }}
                   onSubmitEditing={() => {
-                    Keyboard.dismiss();
                     if (currentTextValue.trim() && currentIndex + 1 < items.length) {
                       jumpToIndex(currentIndex + 1);
+                    } else {
+                      Keyboard.dismiss();
                     }
                   }}
                   onChangeText={(value) => setTextAnswers((map) => ({ ...map, [currentItem.id]: value }))}
@@ -903,10 +910,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   disabled={gradingBusy}
                   pressedScale={0.97}
                   haptic="medium"
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setConfirmMode('submit');
-                  }}
+                  onPress={() => openConfirmModal('submit')}
                   style={styles.mainNavWrap}
                   contentStyle={styles.dockNextBtn}
                 >

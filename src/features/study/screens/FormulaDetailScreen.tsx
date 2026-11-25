@@ -5,7 +5,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import {
   getMathReadingScale,
@@ -48,6 +50,8 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
   const frame = useSafeAreaFrame();
   const { gutter, contentWidth } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const profile = useStudyProfile();
 
   const sequenceIds = useMemo(
@@ -83,17 +87,24 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
   const prevId = currentIndex > 0 ? sequenceIds[currentIndex - 1] : undefined;
   const nextId = currentIndex >= 0 && currentIndex < sequenceIds.length - 1 ? sequenceIds[currentIndex + 1] : undefined;
 
+  // Persist viewed progress strictly after the push transition settles so disk
+  // writes and cross-stack profile notifications never stall the slide-in.
   useEffect(() => {
-    recordFormulaViewed(formula.id);
-  }, [formula.id]);
+    if (!transitionSettled) return undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      recordFormulaViewed(formula.id);
+    });
+    return () => task.cancel();
+  }, [formula.id, transitionSettled]);
 
   // Reset scroll atomically with the newly mounted formula sheet.
   useLayoutEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [formula.id]);
 
-  // Pre-parse neighboring formula sheet SVG ASTs so stepping feels instant.
+  // Pre-flatten neighboring formula sheets strictly after the active sheet settles.
   useEffect(() => {
+    if (!transitionSettled) return undefined;
     const neighborIds = [nextId, prevId].filter((id): id is string => Boolean(id));
     if (neighborIds.length === 0) return undefined;
     const task = InteractionManager.runAfterInteractions(() => {
@@ -115,7 +126,7 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
       }
     });
     return () => task.cancel();
-  }, [nextId, prevId]);
+  }, [nextId, prevId, transitionSettled]);
 
   const keyFormulas = useMemo(() => {
     if (formula.formulas && formula.formulas.length > 0) return formula.formulas;

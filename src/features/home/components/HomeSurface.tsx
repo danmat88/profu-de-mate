@@ -34,6 +34,7 @@ type Props = {
   mode: FlowMode;
   focused?: boolean;
   pending: boolean;
+  pendingKind?: 'photo' | 'written' | null;
   galleryBusy: boolean;
   galleryError: string | null;
   allowance: AllowancePresentation;
@@ -51,6 +52,7 @@ type Props = {
   bottomClearance?: number;
   onDismissGuide?: () => void;
   onClearGalleryError?: () => void;
+  onDiscardPending?: () => void;
   onMode: (mode: FlowMode) => void;
   onCapture: () => void;
   onGallery: () => void;
@@ -144,6 +146,7 @@ export const HomeSurface = memo(function HomeSurface({
   mode,
   focused = true,
   pending,
+  pendingKind = null,
   galleryBusy,
   galleryError,
   allowance,
@@ -161,6 +164,7 @@ export const HomeSurface = memo(function HomeSurface({
   bottomClearance = 8,
   onDismissGuide,
   onClearGalleryError,
+  onDiscardPending,
   onMode,
   onCapture,
   onGallery,
@@ -211,7 +215,7 @@ export const HomeSurface = memo(function HomeSurface({
   const skyDomeEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const stagePop = useRef(new Animated.Value(1)).current;
   const medallionPop = useRef(new Animated.Value(1)).current;
-  const modeBlend = useRef(new Animated.Value(isSolve || hasPendingAnalysis ? 0 : 1)).current;
+  const modeBlend = useRef(new Animated.Value(isSolve ? 0 : 1)).current;
   const beamProgress = useRef(new Animated.Value(0)).current;
   const beamVisible = useRef(new Animated.Value(0)).current;
   const sparkPulse = useRef(new Animated.Value(0)).current;
@@ -313,21 +317,8 @@ export const HomeSurface = memo(function HomeSurface({
     };
 
     const startTimer = setTimeout(() => {
-      if (hasPendingAnalysis) {
-        beamProgress.stopAnimation();
-        beamVisible.stopAnimation();
-        sparkPulse.stopAnimation();
-        arrowNudge.stopAnimation();
-        ctaSheen.stopAnimation();
-        beamProgress.setValue(0.25);
-        beamVisible.setValue(0);
-        sparkPulse.setValue(0);
-        arrowNudge.setValue(0);
-        ctaSheen.setValue(0);
-        return;
-      }
-      startNativeLoop(beamProgress, 3_400);
-      startNativeLoop(sparkPulse, 2_800);
+      startNativeLoop(beamProgress, hasPendingAnalysis ? 2_600 : 3_400);
+      startNativeLoop(sparkPulse, hasPendingAnalysis ? 2_200 : 2_800);
       startNativeLoop(arrowNudge, 1_900);
       startNativeLoop(ctaSheen, 3_600);
       fadeAnim = Animated.timing(beamVisible, {
@@ -352,7 +343,7 @@ export const HomeSurface = memo(function HomeSurface({
   }, [ambientReady, arrowNudge, beamProgress, beamVisible, ctaSheen, hasPendingAnalysis, sparkPulse]);
 
   useEffect(() => {
-    const targetBlend = isSolve || hasPendingAnalysis ? 0 : 1;
+    const targetBlend = isSolve ? 0 : 1;
     const anims: Animated.CompositeAnimation[] = [];
     if (reducedMotion || !motionReady || !focused) {
       modeBlend.stopAnimation();
@@ -469,9 +460,9 @@ export const HomeSurface = memo(function HomeSurface({
     [beamProgress, beamRange],
   );
   const beamStyle = useMemo(() => ({
-    opacity: hasPendingAnalysis ? 0 : beamVisible,
+    opacity: beamVisible,
     transform: [{ translateY: beamTranslateY }],
-  }), [beamTranslateY, beamVisible, hasPendingAnalysis]);
+  }), [beamTranslateY, beamVisible]);
 
   const sparkStyle = useMemo(() => ({
     opacity: sparkPulse.interpolate({
@@ -616,10 +607,11 @@ export const HomeSurface = memo(function HomeSurface({
             ? solveGreeting(new Date().getHours())
             : 'Hai să verificăm!';
 
+  const isWrittenPending = hasPendingAnalysis && pendingKind === 'written';
   const fullGreetingBody = galleryError
     ?? activeCheer?.body
     ?? (hasPendingAnalysis
-      ? 'Fotografia și progresul sunt păstrate.'
+      ? (isWrittenPending ? 'Exercițiul scris și progresul sunt păstrate.' : 'Fotografia și progresul sunt păstrate.')
       : quotaExhausted
         ? 'Revin la 00:00. Între timp vezi Caietul.'
         : isSolve
@@ -642,8 +634,8 @@ export const HomeSurface = memo(function HomeSurface({
   const spotlightSize = compact ? 66 : isVeryNarrow ? 92 : 104;
   // Curved sky dome extends seamlessly behind the StatusBar down to the vertical midpoint of SegmentedToggle.
   const skyDomeHeight = insets.top + (compact ? 83 : 110) + mascotSize;
-  const cornerColor = isSolve || hasPendingAnalysis ? colors.lime : colors.gold;
-  const isCheckTheme = !isSolve && !hasPendingAnalysis;
+  const isCheckTheme = !isSolve;
+  const cornerColor = isCheckTheme ? colors.gold : colors.lime;
   const energyPercent = energyRatio !== null
     ? `${Math.round((energyRatio > 0 ? Math.max(0.08, energyRatio) : 0) * 100)}%` as `${number}%`
     : null;
@@ -835,7 +827,7 @@ export const HomeSurface = memo(function HomeSurface({
               value={mode}
               onChange={onMode}
               disabled={pending || galleryBusy}
-              dimWhenDisabled={!galleryBusy}
+              dimWhenDisabled={false}
               compact={compact}
               style={styles.modeSwitchFloating}
             />
@@ -985,7 +977,7 @@ export const HomeSurface = memo(function HomeSurface({
 
                       <Animated.View pointerEvents="none" style={[styles.focusMedallion, compact && styles.focusMedallionCompact, medallionAnimated]}>
                         <AppIcon
-                          name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'}
+                          name={isWrittenPending ? 'practice' : isSolve ? 'scan' : 'verify'}
                           size={compact ? 38 : isVeryNarrow ? 48 : 54}
                         />
                       </Animated.View>
@@ -1010,7 +1002,11 @@ export const HomeSurface = memo(function HomeSurface({
                       minimumFontScale={0.82}
                       style={[styles.stageTitle, isVeryNarrow && styles.stageTitleNarrow, compact && styles.stageTitleCompact]}
                     >
-                      {hasPendingAnalysis ? 'Revino la analiză' : isSolve ? 'Fotografiază problema' : 'Fotografiază rezolvarea'}
+                      {hasPendingAnalysis
+                        ? 'Analiză în curs'
+                        : isSolve
+                          ? 'Fotografiază problema'
+                          : 'Fotografiază rezolvarea'}
                     </Text>
                     <Text
                       maxFontSizeMultiplier={1.3}
@@ -1018,21 +1014,31 @@ export const HomeSurface = memo(function HomeSurface({
                       style={[styles.stageNote, compact && styles.stageNoteCompact]}
                     >
                       {hasPendingAnalysis
-                        ? 'Rezultatul tău se pregătește.'
+                        ? (isWrittenPending
+                          ? (isSolve ? 'Exercițiul scris se rezolvă în fundal.' : 'Rezolvarea scrisă se verifică în fundal.')
+                          : (isSolve ? 'Fotografia ta se analizează în fundal.' : 'Rezolvarea fotografiată se verifică în fundal.'))
                         : isSolve
                           ? 'Încadrezi enunțul și primești pașii clari.'
                           : 'Vezi ce ai făcut bine și ce corectezi.'}
                     </Text>
-                    {!compact && !hasPendingAnalysis ? (
+                    {!compact ? (
                       <View style={styles.featurePillsRow}>
-                        <View style={[styles.featurePill, isCheckTheme && styles.featurePillCheck]}>
-                          <Text maxFontSizeMultiplier={1.1} style={[styles.featurePillText, isCheckTheme && styles.featurePillTextCheck]}>
-                            {isSolve ? '✦ Pas cu pas' : '✦ Corectare'}
+                        <View style={[styles.featurePill, hasPendingAnalysis && styles.featurePillPending, !hasPendingAnalysis && isCheckTheme && styles.featurePillCheck]}>
+                          <Text maxFontSizeMultiplier={1.1} style={[styles.featurePillText, hasPendingAnalysis && styles.featurePillTextPending, !hasPendingAnalysis && isCheckTheme && styles.featurePillTextCheck]}>
+                            {hasPendingAnalysis
+                              ? (isWrittenPending ? '✦ Exercițiu scris' : '✦ Fotografie')
+                              : isSolve
+                                ? '✦ Pas cu pas'
+                                : '✦ Corectare'}
                           </Text>
                         </View>
                         <View style={[styles.featurePill, isCheckTheme && styles.featurePillCheck]}>
                           <Text maxFontSizeMultiplier={1.1} style={[styles.featurePillText, isCheckTheme && styles.featurePillTextCheck]}>
-                            {isSolve ? '✦ Clar' : '✦ Indicii'}
+                            {hasPendingAnalysis
+                              ? (isSolve ? '✦ Mod Rezolvă' : '✦ Mod Verifică')
+                              : isSolve
+                                ? '✦ Clar'
+                                : '✦ Indicii'}
                           </Text>
                         </View>
                       </View>
@@ -1091,7 +1097,94 @@ export const HomeSurface = memo(function HomeSurface({
           </Enter>
 
           <View style={[styles.lowerStack, compact && styles.lowerStackCompact]}>
-            {!hasPendingAnalysis ? (
+            {hasPendingAnalysis ? (
+              <Enter
+                ready={motionReady}
+                delay={410}
+                duration={500}
+                distance={16}
+                scaleFrom={0.96}
+                preRasterize
+                hardwareLayer={hardwareEntranceLayer}
+                style={[styles.inputPairRow, compact && styles.inputPairRowCompact]}
+              >
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Anulează analiza în curs și începe altă problemă"
+                  disabled={galleryBusy}
+                  dimWhenDisabled={false}
+                  pressedScale={0.96}
+                  haptic="light"
+                  onPress={onDiscardPending}
+                  style={styles.inputPairWrap}
+                  contentStyle={[
+                    styles.secondaryTile,
+                    styles.discardTile,
+                    compact && styles.secondaryTileCompact,
+                  ]}
+                >
+                  <View style={[styles.tileIconBadge, styles.discardIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                    <MiniGlyph name="close" size={compact || isVeryNarrow ? 16 : 19} color={colors.berryDeep} />
+                  </View>
+                  <View style={styles.tileCopy}>
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, styles.discardTitle, compact && styles.tileTitleCompact]}>
+                      Anulează
+                    </Text>
+                    {!compact ? (
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
+                        Începe altă problemă
+                      </Text>
+                    ) : null}
+                  </View>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['#FFF8F6', '#FFE5E0']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.fill, styles.behind]}
+                  />
+                  <View pointerEvents="none" style={styles.cardTopGloss} />
+                </PressableScale>
+
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
+                  disabled={galleryBusy}
+                  dimWhenDisabled={false}
+                  pressedScale={0.96}
+                  haptic="light"
+                  onPress={onNotebook}
+                  style={styles.inputPairWrap}
+                  contentStyle={[
+                    styles.secondaryTile,
+                    styles.galleryTile,
+                    compact && styles.secondaryTileCompact,
+                  ]}
+                >
+                  <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                    <AppIcon name="notebook" size={compact || isVeryNarrow ? 25 : 31} />
+                  </View>
+                  <View style={styles.tileCopy}>
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
+                      Caiet
+                    </Text>
+                    {!compact ? (
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
+                        {savedCountLabel ?? 'Lecții salvate'}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['#F5FEFF', '#DCF7FE']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.fill, styles.behind]}
+                  />
+                  <View pointerEvents="none" style={styles.cardTopGloss} />
+                </PressableScale>
+              </Enter>
+            ) : (
               <Enter
                 ready={motionReady}
                 delay={410}
@@ -1184,9 +1277,9 @@ export const HomeSurface = memo(function HomeSurface({
                   <View pointerEvents="none" style={styles.cardTopGloss} />
                 </PressableScale>
               </Enter>
-            ) : null}
+            )}
 
-            {!hasPendingAnalysis && embedded && onQuickPractice ? (
+            {embedded && onQuickPractice ? (
               <Enter
                 ready={motionReady}
                 delay={470}
@@ -1941,6 +2034,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF2ED',
     borderColor: '#FFD3C4',
   },
+  featurePillPending: {
+    backgroundColor: '#F2FFD0',
+    borderColor: '#CBEB70',
+  },
   featurePillText: {
     fontFamily: fonts.bodyBold,
     fontSize: 10.5,
@@ -1950,6 +2047,9 @@ const styles = StyleSheet.create({
   },
   featurePillTextCheck: {
     color: colors.peachDeep,
+  },
+  featurePillTextPending: {
+    color: colors.limeDeep,
   },
 
   stageCtaWrap: { zIndex: 3 },
@@ -2058,6 +2158,11 @@ const styles = StyleSheet.create({
     borderColor: '#F8DC82',
     borderBottomColor: '#E5B72F',
   },
+  discardTile: {
+    backgroundColor: '#FFF4F2',
+    borderColor: '#FFC4BA',
+    borderBottomColor: '#EE8F82',
+  },
   tileIconBadge: {
     width: 42,
     height: 42,
@@ -2072,8 +2177,10 @@ const styles = StyleSheet.create({
   tileIconBadgeCompact: { width: 34, height: 34, borderRadius: 11 },
   galleryIconBadge: { borderColor: '#BCEFFA' },
   mathIconBadge: { borderColor: '#FAE5A2' },
+  discardIconBadge: { borderColor: '#FFD0C8' },
   tileCopy: { flex: 1, minWidth: 0, zIndex: 2 },
   tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
+  discardTitle: { color: colors.berryDeep },
   tileTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
   tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
 

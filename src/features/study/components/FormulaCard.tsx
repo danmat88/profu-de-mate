@@ -18,8 +18,8 @@ type Props = {
 
 /**
  * Editorial formula card shared across StudyHub, FormulasScreen, and the
- * Favorite Formulas tab inside Caiet. Renders the clean primary MathJax Fira
- * SVG formula natively in Skia on Frame 0, strictly bounded within card margins.
+ * Favorite Formulas tab inside Caiet. Renders the final single-path MathJax
+ * Fira SVG vector on Frame 0 (2 Fabric views total, zero text-to-SVG morph).
  */
 export const FormulaCard = memo(function FormulaCard({
   formula,
@@ -43,7 +43,6 @@ export const FormulaCard = memo(function FormulaCard({
       accessibilityRole="button"
       accessibilityLabel={`${formula.title}. ${categoryMeta.shortLabel}. ${formula.formulaSpoken}`}
       onPress={() => {
-        Keyboard.dismiss();
         Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
         onOpen(formula);
       }}

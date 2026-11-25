@@ -8,7 +8,12 @@ import { useCommercial } from '../../access/context/CommercialContext';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useScreenMotionActive } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
-import { getPreparedPendingAnalysis, preparePendingAnalysisOnStartup, type PendingAnalysis } from '../../analysis/services/pendingAnalysis';
+import {
+  discardPendingAnalysis,
+  getPreparedPendingAnalysis,
+  preparePendingAnalysisOnStartup,
+  type PendingAnalysis,
+} from '../../analysis/services/pendingAnalysis';
 import {
   getCachedFavoriteLessons,
   subscribeFavoriteLessonsCache,
@@ -146,6 +151,14 @@ export function HomeScreen(props?: HomeScreenProps) {
 
   const clearGalleryError = useCallback(() => setGalleryError(null), []);
 
+  const discardPending = useCallback(() => {
+    if (navigationLocked.current || galleryLocked.current) return;
+    Haptics.selection();
+    discardPendingAnalysis();
+    setPendingAnalysis(null);
+    setGalleryError(null);
+  }, []);
+
   const resume = useCallback(() => {
     const pending = getPreparedPendingAnalysis();
     if (!pending) {
@@ -194,7 +207,12 @@ export function HomeScreen(props?: HomeScreenProps) {
 
   const openGallery = useCallback(async () => {
     if (galleryLocked.current || navigationLocked.current) return;
-    if (resume()) return;
+    if (getPreparedPendingAnalysis()) {
+      navigationLocked.current = true;
+      beginAppTransition();
+      if (resume()) return;
+      navigationLocked.current = false;
+    }
     galleryLocked.current = true;
     setGalleryError(null);
     setGalleryBusy(true);
@@ -259,12 +277,16 @@ export function HomeScreen(props?: HomeScreenProps) {
   }
 
   const allowance = allowancePresentation(access);
+  const pendingKind = pendingAnalysis
+    ? (pendingAnalysis.schemaVersion === 3 ? 'written' : 'photo')
+    : null;
 
   return (
     <HomeSurface
       mode={activeMode}
       focused={homeFocused}
       pending={Boolean(pendingAnalysis)}
+      pendingKind={pendingKind}
       galleryBusy={galleryBusy}
       galleryError={galleryError}
       allowance={allowance}
@@ -282,6 +304,7 @@ export function HomeScreen(props?: HomeScreenProps) {
       bottomClearance={bottomClearance}
       onDismissGuide={dismissGuide}
       onClearGalleryError={clearGalleryError}
+      onDiscardPending={discardPending}
       onMode={chooseMode}
       onCapture={openCapture}
       onGallery={handleOpenGallery}

@@ -61,6 +61,7 @@ export function prewarmStudyMath(options: {
         prewarmInlineMath(block.text, color);
         prewarmDisplayLatex(block.math, color);
       } else if (block.type === 'step') {
+        prewarmInlineMath(block.title, colors.violetDeep);
         prewarmInlineMath(block.text, color);
         prewarmDisplayLatex(block.math, color);
       } else if (block.type === 'note') {

@@ -44,30 +44,78 @@ export const StudyInlineText = memo(function StudyInlineText({
   );
 
   const flatStyle = useMemo(() => StyleSheet.flatten(textStyle), [textStyle]);
-  const scaledTextStyle = useMemo<TextStyle>(() => {
+
+  // Separate container layout props (flex, margins, widths) from pure typography
+  // so properties like `flex: 1` or `marginTop: 12` on `textStyle` NEVER leak
+  // onto individual word `<Text>` atoms inside `inlineFlow`!
+  const { extractedContainerStyle, hasFlexContainer, pureTextStyle, inlineAtomStyle } = useMemo(() => {
     const baseSize = flatStyle?.fontSize ?? 14.5;
+    const scaledSize = Number((baseSize * scale).toFixed(1));
     const baseLine = flatStyle?.lineHeight ?? Math.round(baseSize * 1.42);
-    return {
-      ...flatStyle,
+    const scaledLine = Math.round(baseLine * scale);
+
+    const container: ViewStyle = {};
+    if (flatStyle) {
+      if (flatStyle.flex !== undefined) container.flex = flatStyle.flex;
+      if (flatStyle.flexGrow !== undefined) container.flexGrow = flatStyle.flexGrow;
+      if (flatStyle.flexShrink !== undefined) container.flexShrink = flatStyle.flexShrink;
+      if (flatStyle.flexBasis !== undefined) container.flexBasis = flatStyle.flexBasis;
+      if (flatStyle.alignSelf !== undefined) container.alignSelf = flatStyle.alignSelf;
+      if (flatStyle.width !== undefined) container.width = flatStyle.width;
+      if (flatStyle.minWidth !== undefined) container.minWidth = flatStyle.minWidth;
+      if (flatStyle.maxWidth !== undefined) container.maxWidth = flatStyle.maxWidth;
+      if (flatStyle.margin !== undefined) container.margin = flatStyle.margin;
+      if (flatStyle.marginTop !== undefined) container.marginTop = flatStyle.marginTop;
+      if (flatStyle.marginBottom !== undefined) container.marginBottom = flatStyle.marginBottom;
+      if (flatStyle.marginLeft !== undefined) container.marginLeft = flatStyle.marginLeft;
+      if (flatStyle.marginRight !== undefined) container.marginRight = flatStyle.marginRight;
+      if (flatStyle.marginHorizontal !== undefined) container.marginHorizontal = flatStyle.marginHorizontal;
+      if (flatStyle.marginVertical !== undefined) container.marginVertical = flatStyle.marginVertical;
+    }
+
+    const typographyOnly: TextStyle = {
+      ...(flatStyle?.fontFamily ? { fontFamily: flatStyle.fontFamily } : null),
+      ...(flatStyle?.fontWeight ? { fontWeight: flatStyle.fontWeight } : null),
+      ...(flatStyle?.fontStyle ? { fontStyle: flatStyle.fontStyle } : null),
+      ...(flatStyle?.letterSpacing !== undefined ? { letterSpacing: flatStyle.letterSpacing } : null),
+      ...(flatStyle?.textTransform ? { textTransform: flatStyle.textTransform } : null),
+      ...(flatStyle?.textDecorationLine ? { textDecorationLine: flatStyle.textDecorationLine } : null),
+      ...(flatStyle?.opacity !== undefined ? { opacity: flatStyle.opacity } : null),
       color: flatStyle?.color ?? color,
-      fontSize: Number((baseSize * scale).toFixed(1)),
-      lineHeight: Math.round(baseLine * scale),
+      fontSize: scaledSize,
+      lineHeight: scaledLine,
+    };
+
+    const atomTypography: TextStyle = {
+      ...typographyOnly,
+      lineHeight: Math.max(Math.round(scaledSize * 1.28), Math.round(scaledLine * 0.92)),
+      includeFontPadding: false,
+    };
+
+    const hasFlex = container.flex !== undefined || container.flexGrow !== undefined;
+    return {
+      extractedContainerStyle: Object.keys(container).length > 0 ? container : undefined,
+      hasFlexContainer: hasFlex,
+      pureTextStyle: typographyOnly,
+      inlineAtomStyle: atomTypography,
     };
   }, [color, flatStyle, scale]);
 
   if (!hasInlineMath || !atoms) {
-    return (
+    const textNode = (
       <Text
         numberOfLines={numberOfLines}
         style={[
           styles.baseText,
-          scaledTextStyle,
+          extractedContainerStyle,
+          pureTextStyle,
           align === 'center' && styles.textCenter,
         ]}
       >
         {text}
       </Text>
     );
+    return containerStyle ? <View style={containerStyle}>{textNode}</View> : textNode;
   }
 
   // Single standalone math chip (e.g. choice label "$\\frac{5}{12}$") renders centered & crisp.
@@ -80,7 +128,9 @@ export const StudyInlineText = memo(function StudyInlineText({
           accessibilityLabel={stripInlineMathDelimiters(text)}
           style={[
             styles.singleMathWrap,
+            hasFlexContainer && styles.flexFlowOverride,
             align === 'center' ? styles.singleMathCenter : styles.singleMathLeft,
+            extractedContainerStyle,
             containerStyle,
           ]}
         >
@@ -103,14 +153,16 @@ export const StudyInlineText = memo(function StudyInlineText({
       accessibilityLabel={stripInlineMathDelimiters(text)}
       style={[
         styles.inlineFlow,
+        hasFlexContainer && styles.flexFlowOverride,
         align === 'center' && styles.inlineFlowCenter,
+        extractedContainerStyle,
         containerStyle,
       ]}
     >
       {atoms.map((atom, index) => {
         if (atom.kind === 'word') {
           return (
-            <Text key={`w-${index}`} style={[styles.baseText, scaledTextStyle]}>
+            <Text key={`w-${index}`} style={[styles.baseText, inlineAtomStyle]}>
               {atom.text}
             </Text>
           );
@@ -118,7 +170,7 @@ export const StudyInlineText = memo(function StudyInlineText({
         const rendered = getRenderedStudyMath(atom.latex, 'inline');
         if (!rendered) {
           return (
-            <Text key={`m-${index}`} style={[styles.baseText, scaledTextStyle]}>
+            <Text key={`m-${index}`} style={[styles.baseText, inlineAtomStyle]}>
               {`${atom.prefix}${atom.latex}${atom.suffix}`}
             </Text>
           );
@@ -126,7 +178,7 @@ export const StudyInlineText = memo(function StudyInlineText({
         return (
           <View key={`m-${index}-${atom.latex}`} style={styles.gluedAtom}>
             {atom.prefix ? (
-              <Text style={[styles.baseText, scaledTextStyle]}>{atom.prefix}</Text>
+              <Text style={[styles.baseText, inlineAtomStyle]}>{atom.prefix}</Text>
             ) : null}
             <NativeMathFormula
               rendered={rendered}
@@ -136,7 +188,7 @@ export const StudyInlineText = memo(function StudyInlineText({
               maxWidth={maxMathWidth}
             />
             {atom.suffix ? (
-              <Text style={[styles.baseText, scaledTextStyle]}>{atom.suffix}</Text>
+              <Text style={[styles.baseText, inlineAtomStyle]}>{atom.suffix}</Text>
             ) : null}
           </View>
         );
@@ -159,9 +211,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    columnGap: 3.5,
-    rowGap: 3,
+    columnGap: 4,
+    rowGap: 4,
     overflow: 'hidden',
+  },
+  flexFlowOverride: {
+    width: undefined,
+    minWidth: 0,
   },
   inlineFlowCenter: {
     justifyContent: 'center',
@@ -171,7 +227,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexShrink: 1,
-    paddingHorizontal: 1,
   },
   singleMathWrap: {
     width: '100%',

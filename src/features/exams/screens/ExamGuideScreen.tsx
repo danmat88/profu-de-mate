@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import {
   getMathReadingScale,
@@ -61,6 +63,8 @@ export function ExamGuideScreen({ navigation, route }: Props) {
   const frame = useSafeAreaFrame();
   const { gutter, contentWidth, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const profile = useStudyProfile();
   const defaultExamId = route.params?.examId ?? getStudyTrackMeta(profile.track).examGuideId;
 
@@ -80,9 +84,12 @@ export function ExamGuideScreen({ navigation, route }: Props) {
     () => guide.subjects.find((item) => item.id === subjectId) ?? guide.subjects[0],
     [guide, subjectId],
   );
+  const boundedPageWidth = Math.min(contentWidth, frame.width - gutter * 2);
 
-  // Silently pre-parse the model problem & solution SVGs for this guide's subjects.
+  // Silently pre-parse the model problem & solution SVGs strictly after the
+  // push transition settles so opening Cum arată examenul stays locked at 60fps.
   useEffect(() => {
+    if (!transitionSettled) return undefined;
     const task = InteractionManager.runAfterInteractions(() => {
       for (const item of guide.subjects) {
         prewarmStudyMath({
@@ -95,7 +102,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
       }
     });
     return () => task.cancel();
-  }, [guide]);
+  }, [guide, transitionSettled]);
 
   const subjectTabs = useMemo<readonly ComicTabOption<SubjectId>[]>(() => [
     {
@@ -311,7 +318,8 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             scale={0.93}
             color={colors.inkSoft}
             textStyle={styles.heroOverview}
-            maxMathWidth={Math.max(220, contentWidth - 36)}
+            containerStyle={styles.heroOverviewWrap}
+            maxMathWidth={Math.max(210, boundedPageWidth - 38)}
           />
 
           <PressableScale
@@ -430,9 +438,9 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                   <StudyInlineText
                     text={tip}
                     scale={0.93}
-                    color={colors.inkSoft}
+                    color={colors.ink}
                     textStyle={styles.gradingTipText}
-                    maxMathWidth={Math.max(190, frame.width - gutter * 2 - 74)}
+                    maxMathWidth={Math.max(180, boundedPageWidth - 72)}
                   />
                 </View>
               </View>
@@ -457,10 +465,10 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                 <View style={styles.flexOne}>
                   <StudyInlineText
                     text={item.step}
-                    scale={0.86}
+                    scale={0.9}
                     color={colors.ink}
                     textStyle={styles.rubricPillStep}
-                    maxMathWidth={Math.max(170, frame.width - gutter * 2 - 110)}
+                    maxMathWidth={Math.max(170, boundedPageWidth - 96)}
                   />
                 </View>
               </View>
@@ -571,7 +579,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                 key={`prob-${examId}-${subjectId}`}
                 blocks={subject.modelProblem}
                 scale={readingScale}
-                maxWidth={Math.max(230, frame.width - 72)}
+                maxWidth={Math.max(220, boundedPageWidth - 32)}
                 accent={guide.accent === 'gold' ? 'lime' : guide.accent}
               />
             </View>
@@ -582,7 +590,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                 key={`sol-${examId}-${subjectId}`}
                 blocks={subject.modelSolution}
                 scale={readingScale}
-                maxWidth={Math.max(230, frame.width - 72)}
+                maxWidth={Math.max(220, boundedPageWidth - 32)}
                 accent={guide.accent === 'gold' ? 'lime' : guide.accent}
               />
             </View>
@@ -599,7 +607,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                       <StudyInlineText
                         text={item.step}
                         scale={readingScale * 0.94}
-                        maxMathWidth={Math.max(180, frame.width - 134)}
+                        maxMathWidth={Math.max(180, boundedPageWidth - 94)}
                       />
                     </View>
                   </View>
@@ -900,12 +908,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     includeFontPadding: false,
   },
-  heroOverview: {
+  heroOverviewWrap: {
     marginTop: 12,
+  },
+  heroOverview: {
     fontFamily: fonts.body,
     color: colors.inkSoft,
-    fontSize: 13,
-    lineHeight: 18.5,
+    fontSize: 13.5,
+    lineHeight: 19.5,
   },
   heroSimCta: {
     marginTop: 14,
@@ -1160,11 +1170,10 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   gradingTipText: {
-    flex: 1,
     fontFamily: fonts.body,
     color: colors.ink,
-    fontSize: 13,
-    lineHeight: 18.5,
+    fontSize: 13.5,
+    lineHeight: 19.5,
   },
 
   modelCard: {
@@ -1212,8 +1221,8 @@ const styles = StyleSheet.create({
   },
   rubricPill: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-start',
+    gap: 9,
     borderRadius: 14,
     borderWidth: 1.2,
     borderBottomWidth: 2.8,
@@ -1221,13 +1230,14 @@ const styles = StyleSheet.create({
     borderBottomColor: '#D4C7F7',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
-    paddingVertical: 7,
+    paddingVertical: 8,
   },
   rubricPillPoints: {
     minWidth: 30,
     textAlign: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 3,
+    marginTop: 1,
     borderRadius: 8,
     backgroundColor: colors.lime,
     fontFamily: fonts.bodyBold,
@@ -1237,10 +1247,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   rubricPillStep: {
-    flex: 1,
     fontFamily: fonts.bodyMedium,
     color: colors.ink,
-    fontSize: 12.5,
+    fontSize: 13,
+    lineHeight: 18.5,
   },
   modelCta: {
     marginTop: 2,

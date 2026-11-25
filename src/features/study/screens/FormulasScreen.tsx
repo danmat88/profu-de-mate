@@ -2,9 +2,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  InteractionManager,
   Keyboard,
   Pressable,
   ScrollView,
@@ -39,6 +40,7 @@ import {
   type FormulaEntry,
   type StudyTrackId,
 } from '../types';
+import { prewarmStudyMath } from '../utils/prewarmStudyMath';
 import { filterFormulas } from '../utils/studyDocumentBuilder';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Formulas'>;
@@ -69,9 +71,27 @@ export function FormulasScreen({ navigation, route }: Props) {
   const [trackOnly, setTrackOnly] = useState(!route.params?.showAllTracks && !route.params?.initialFavoritesOnly);
   const [trackSheetOpen, setTrackSheetOpen] = useState(false);
   const [trackSheetEverOpened, setTrackSheetEverOpened] = useState(false);
+  const [listExpanded, setListExpanded] = useState(reducedMotion);
 
   const listRef = useRef<FlatList<FormulaEntry>>(null);
   const openingRef = useRef(false);
+
+  // Stagger full list expansion one frame after the visible cards upgrade to SVG
+  // vectors so Android never bursts SearchInput + 25 cards + SVG ASTs on one tick.
+  useEffect(() => {
+    if (!transitionSettled) {
+      setListExpanded(reducedMotion);
+      return undefined;
+    }
+    if (reducedMotion) {
+      setListExpanded(true);
+      return undefined;
+    }
+    const raf = requestAnimationFrame(() => {
+      setListExpanded(true);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [reducedMotion, transitionSettled]);
 
   useFocusEffect(useCallback(() => {
     openingRef.current = false;
@@ -91,8 +111,8 @@ export function FormulasScreen({ navigation, route }: Props) {
   );
 
   const renderedFormulas = useMemo(
-    () => (transitionSettled || filteredFormulas.length <= 4 ? filteredFormulas : filteredFormulas.slice(0, 4)),
-    [filteredFormulas, transitionSettled],
+    () => (listExpanded || filteredFormulas.length <= 4 ? filteredFormulas : filteredFormulas.slice(0, 4)),
+    [filteredFormulas, listExpanded],
   );
 
   const visibleIds = useMemo(
@@ -115,28 +135,52 @@ export function FormulasScreen({ navigation, route }: Props) {
 
   const openFormula = useCallback((formula: FormulaEntry) => {
     if (openingRef.current) return;
-    Keyboard.dismiss();
+    if (keyboardVisible) Keyboard.dismiss();
     openingRef.current = true;
     beginAppTransition();
     navigation.navigate('FormulaDetail', {
       formulaId: formula.id,
       formulaIds: visibleIds,
     });
-  }, [navigation, visibleIds]);
+  }, [keyboardVisible, navigation, visibleIds]);
 
   const handleToggleFavorite = useCallback((formulaId: string) => {
-    Keyboard.dismiss();
+    if (keyboardVisible) Keyboard.dismiss();
     toggleFavoriteFormula(formulaId);
-  }, []);
+  }, [keyboardVisible]);
 
   const resetFilters = () => {
-    Keyboard.dismiss();
+    if (keyboardVisible) Keyboard.dismiss();
     Haptics.selection();
     setQueryText('');
     setSelectedCategory('all');
     setFavoritesOnly(false);
     setTrackOnly(false);
   };
+
+  // Quietly pre-flatten the first visible formula sheets while idle so tapping
+  // any card opens FormulaDetail in 0ms JS math time with zero morphing.
+  useEffect(() => {
+    if (!transitionSettled || filteredFormulas.length === 0) return undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      const top = filteredFormulas.slice(0, 6);
+      for (const entry of top) {
+        prewarmStudyMath({
+          displayLatex: [
+            entry.formulaLatex,
+            ...(entry.formulas?.map((item) => item.latex) ?? []),
+          ],
+          inlineTexts: [
+            entry.whenToUse,
+            entry.pitfall,
+            ...(entry.formulas?.map((item) => item.label) ?? []),
+          ],
+          blocks: entry.example,
+        });
+      }
+    });
+    return () => task.cancel();
+  }, [filteredFormulas, transitionSettled]);
 
   const renderItem = useCallback<ListRenderItem<FormulaEntry>>(({ item }) => (
     <FormulaCard
@@ -425,9 +469,10 @@ export function FormulasScreen({ navigation, route }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={false}
-          initialNumToRender={5}
-          maxToRenderPerBatch={5}
-          windowSize={7}
+          initialNumToRender={4}
+          maxToRenderPerBatch={2}
+          updateCellsBatchingPeriod={48}
+          windowSize={5}
           contentContainerStyle={[
             styles.listContent,
             { paddingHorizontal: gutter, paddingBottom: listBottomPadding },

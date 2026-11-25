@@ -339,3 +339,43 @@ test('top-left owl icon adapts tutor messages for exhausted free, exhausted prem
   bubble = find(tree, node => node.type === 'SpeechBubble');
   assert.ok(bubble.props.body.length <= 32, 'compact phones get a short 1-line owl message without clipping');
 });
+
+test('Home pending analysis keeps balanced lower tiles, distinguishes photo vs written math, and lets user cancel cleanly', () => {
+  let discarded = 0;
+  let openedPractice = 0;
+  const fixture = statefulSurfaceFixture();
+  const photoPending = fixture.render({
+    mode: 'solve',
+    pending: true,
+    pendingKind: 'photo',
+    embedded: true,
+    onDiscardPending: () => { discarded += 1; },
+    onQuickPractice: () => { openedPractice += 1; },
+  });
+
+  const toggle = find(photoPending, node => node.type === 'SegmentedToggle');
+  assert.equal(toggle.props.disabled, true);
+  assert.equal(toggle.props.dimWhenDisabled, false);
+
+  const photoBubble = find(photoPending, node => node.type === 'SpeechBubble');
+  assert.equal(photoBubble.props.body, 'Fotografia și progresul sunt păstrate.');
+
+  const discardBtn = find(photoPending, node => node.props?.accessibilityLabel === 'Anulează analiza în curs și începe altă problemă');
+  assert.ok(discardBtn, 'pending state must expose an explicit cancel tile');
+  discardBtn.props.onPress();
+  assert.equal(discarded, 1);
+
+  const quickPracticeBtn = find(photoPending, node => node.props?.accessibilityLabel === 'Începe un antrenament fulger de 5 minute');
+  assert.ok(quickPracticeBtn, 'embedded pending state keeps quick practice banner so hero proportions never break');
+  quickPracticeBtn.props.onPress();
+  assert.equal(openedPractice, 1);
+
+  const writtenPending = fixture.render({
+    mode: 'check',
+    pending: true,
+    pendingKind: 'written',
+    embedded: true,
+  });
+  const writtenBubble = find(writtenPending, node => node.type === 'SpeechBubble');
+  assert.equal(writtenBubble.props.body, 'Exercițiul scris și progresul sunt păstrate.');
+});

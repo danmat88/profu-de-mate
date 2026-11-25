@@ -1,10 +1,11 @@
 import { memo, useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { parse, SvgAst, type JsxAST } from 'react-native-svg';
+import Svg, { parse, Path, SvgAst, type JsxAST } from 'react-native-svg';
 import { colors } from '../../../shared/theme';
 import type { RenderedMath } from '../../../shared/types';
 import {
   computeNativeMathDimensions,
+  flattenNativeMathSvg,
   prepareNativeMathSvg,
   type NativeMathSize,
 } from '../utils/nativeMathSvg';
@@ -48,20 +49,22 @@ function getOrParseSvgAst(rawSvg: string, color: string): { key: string; ast: Js
 }
 
 /**
- * Pre-parses a compiled MathJax SVG into the module-level AST cache so the
- * next question, exam item, or formula sheet mounts in 0ms with zero JS jank.
+ * Pre-flattens (or pre-parses) a compiled MathJax SVG into the module cache so
+ * upcoming formula sheets, practice questions, and exam items mount in 0ms
+ * with zero JS jank.
  */
 export function prewarmNativeMathSvg(rawSvg: string, color: string = colors.ink): void {
   if (!rawSvg) return;
+  if (flattenNativeMathSvg(rawSvg)) return;
   getOrParseSvgAst(rawSvg, color);
 }
 
 /**
  * Pure native Skia SVG renderer for pre-compiled and server-rendered MathJax
- * Fira equations. Caches parsed SVG AST trees globally (0ms repeat/prewarmed
- * mount), keys every `<SvgAst>` by content so Android Fabric never paints
- * stale glyphs across step swaps, and enforces `maxWidth: '100%'` + exact
- * `aspectRatio` so formulas never overflow card margins.
+ * Fira equations. Flattens every MathJax glyph tree into a single `<Path>`
+ * inside `<Svg>` (2 Fabric views instead of 25–111 per formula, zero XML
+ * parser overhead), falls back cleanly to cached `<SvgAst>` for exotic SVGs,
+ * and enforces `maxWidth: '100%'` + exact `aspectRatio` on every frame.
  */
 export const NativeMathFormula = memo(function NativeMathFormula({
   rendered,
@@ -72,9 +75,14 @@ export const NativeMathFormula = memo(function NativeMathFormula({
   align = 'center',
   accessibilityLabel,
 }: Props) {
-  const { key: astKey, ast } = useMemo(
-    () => getOrParseSvgAst(rendered.svg, color),
-    [color, rendered.svg],
+  const flat = useMemo(
+    () => flattenNativeMathSvg(rendered.svg),
+    [rendered.svg],
+  );
+
+  const fallbackAst = useMemo(
+    () => (flat ? null : getOrParseSvgAst(rendered.svg, color)),
+    [color, flat, rendered.svg],
   );
 
   const dims = useMemo(
@@ -82,7 +90,21 @@ export const NativeMathFormula = memo(function NativeMathFormula({
     [maxWidth, rendered, scale, size],
   );
 
-  if (!ast) return null;
+  if (!flat && !fallbackAst?.ast) return null;
+
+  const svgNode = flat ? (
+    <Svg
+      key={`${rendered.svg}\u0000${color}`}
+      width="100%"
+      height="100%"
+      viewBox={flat.viewBox}
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <Path d={flat.d} fill={color} stroke="none" />
+    </Svg>
+  ) : (
+    <SvgAst key={fallbackAst!.key} ast={fallbackAst!.ast} override={SVG_FILL_OVERRIDE} />
+  );
 
   if (size === 'inline') {
     return (
@@ -98,7 +120,7 @@ export const NativeMathFormula = memo(function NativeMathFormula({
           },
         ]}
       >
-        <SvgAst key={astKey} ast={ast} override={SVG_FILL_OVERRIDE} />
+        {svgNode}
       </View>
     );
   }
@@ -117,7 +139,7 @@ export const NativeMathFormula = memo(function NativeMathFormula({
           accessibilityLabel={accessibilityLabel}
         >
           <View style={{ width: dims.width, height: dims.height }}>
-            <SvgAst key={astKey} ast={ast} override={SVG_FILL_OVERRIDE} />
+            {svgNode}
           </View>
         </ScrollView>
       </View>
@@ -143,7 +165,7 @@ export const NativeMathFormula = memo(function NativeMathFormula({
           },
         ]}
       >
-        <SvgAst key={astKey} ast={ast} override={SVG_FILL_OVERRIDE} />
+        {svgNode}
       </View>
     </View>
   );

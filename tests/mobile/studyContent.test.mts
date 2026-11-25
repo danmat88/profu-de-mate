@@ -19,6 +19,7 @@ import {
 import { buildMathDocumentMarkup } from '../../src/features/math/utils/mathDocument.ts';
 import {
   computeNativeMathDimensions,
+  flattenNativeMathSvg,
   prepareNativeMathSvg,
 } from '../../src/features/math/utils/nativeMathSvg.ts';
 import { PRACTICE_BANK } from '../../src/features/practice/data/practiceBank.ts';
@@ -442,7 +443,8 @@ test('native Skia math engine compiles every inline $...$ expression, expands se
     }
   }
 
-  // 2. Verify server-style <defs>/<use> SVG expansion & currentColor replacement.
+  // 2. Verify server-style <defs>/<use> SVG expansion, currentColor replacement,
+  // and lossless single-path flattening across compiled & server MathJax SVGs.
   const serverSvg = '<svg viewBox="0 -700 1000 900"><defs><path id="p1" d="M0 0L100 100"/></defs><g fill="currentColor" stroke="currentColor"><use href="#p1" transform="translate(10,0)"/></g></svg>';
   const expanded = prepareNativeMathSvg(serverSvg, '#1C1233');
   assert.equal(expanded.includes('<defs>'), false);
@@ -450,6 +452,18 @@ test('native Skia math engine compiles every inline $...$ expression, expands se
   assert.equal(expanded.includes('currentColor'), false);
   assert.match(expanded, /<path d="M0 0L100 100" transform="translate\(10,0\)"\/>/);
   assert.match(expanded, /fill="#1C1233"/);
+
+  const flatServer = flattenNativeMathSvg(serverSvg);
+  assert.ok(flatServer, 'server MathJax SVG trebuie aplatizat într-un singur <Path>');
+  assert.equal(flatServer.viewBox, '0 -700 1000 900');
+  assert.equal(flatServer.d, 'M10 0L110 100');
+
+  for (const formula of FORMULAS_CATALOG) {
+    const rendered = getRenderedStudyMath(formula.formulaLatex, 'display');
+    assert.ok(rendered);
+    const flat = flattenNativeMathSvg(rendered.svg);
+    assert.ok(flat && flat.d.startsWith('M'), `formula ${formula.id} trebuie aplatizată curat într-un singur Path`);
+  }
 
   // 3. Verify pixel dimension scaling and overflow bounds.
   const wideFormula = { svg: expanded, viewBox: '0 -700 4000 900', widthEx: 48, heightEx: 2.2, depthEx: 0.4 };
@@ -563,4 +577,30 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
     const source = await readFile(path.resolve(rel), 'utf8');
     assert.doesNotMatch(source, /(?:heroCta|heroSimCta|modelCta|generateBtn):\s*\{[^}]*\bheight:\s*\d+/, `${rel} nu trebuie să folosească height fix pe butoanele CTA principale`);
   }
+
+  // 6. NativeMathFormula flattens every MathJax equation into a single <Path>
+  // (2 Fabric views total) so Formulas & FormulaDetail paint final vector math
+  // immediately on Frame 0 with zero text-to-SVG morphing, tests settle the
+  // Android keyboard before revealing verdicts/steps, and inline math strips
+  // container layout props from individual word atoms.
+  assert.match(nativeMathFormulaSource, /flattenNativeMathSvg/);
+  const formulasSource = await readFile(path.resolve('src/features/study/screens/FormulasScreen.tsx'), 'utf8');
+  assert.doesNotMatch(formulasSource, /renderMath=\{transitionSettled\}/);
+  const formulaDetailSource = await readFile(path.resolve('src/features/study/screens/FormulaDetailScreen.tsx'), 'utf8');
+  assert.match(formulaDetailSource, /useTransitionSettled\(navigation, reducedMotion\)/);
+  assert.doesNotMatch(formulaDetailSource, /formulaPreviewFallback/);
+
+  const practiceSource = await readFile(path.resolve('src/features/practice/screens/PracticeSessionScreen.tsx'), 'utf8');
+  assert.match(practiceSource, /useAfterKeyboardDismiss\(keyboardVisible\)/);
+  assert.match(practiceSource, /runAfterKeyboardDismiss\(/);
+  const examSimSource = await readFile(path.resolve('src/features/exams/screens/ExamSimulationScreen.tsx'), 'utf8');
+  assert.match(examSimSource, /useAfterKeyboardDismiss\(keyboardVisible\)/);
+  assert.match(examSimSource, /runAfterKeyboardDismiss\(/);
+
+  const inlineTextSource = await readFile(path.resolve('src/features/study/components/StudyInlineText.tsx'), 'utf8');
+  assert.match(inlineTextSource, /extractedContainerStyle/);
+  assert.match(inlineTextSource, /inlineAtomStyle/);
+  assert.match(inlineTextSource, /includeFontPadding:\s*false/);
+  const richContentSource = await readFile(path.resolve('src/features/study/components/StudyRichContent.tsx'), 'utf8');
+  assert.match(richContentSource, /<StudyInlineText[\s\S]*?text=\{block\.title\}/);
 });
