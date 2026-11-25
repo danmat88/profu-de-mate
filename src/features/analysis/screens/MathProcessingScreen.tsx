@@ -31,6 +31,7 @@ import { MathExpression } from '../../math/components/MathEditor';
 import { readMathDraft } from '../../math/services/mathDraft';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
 import { serializeMathDocument } from '../../math/utils/mathEditor';
+import { recordDailyStudyActivity } from '../../practice/services/practiceStorage';
 import { AnalysisActivity } from '../components/AnalysisActivity';
 import { analyzeOrResumeWrittenMath } from '../services/mathAnalysis';
 import { clearPendingAnalysis } from '../services/pendingAnalysis';
@@ -179,6 +180,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
           await celebrationBeat;
           if (!active()) return;
           clearPendingAnalysis(requestId);
+          recordDailyStudyActivity();
           beginAppTransition();
           navigation.replace('Lesson', params);
         } else if (result.status !== 'ready') {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useActionToast } from '../../../shared/hooks/useActionToast';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
@@ -18,8 +19,10 @@ import {
 } from '../../../shared/storage/localPreferences';
 import { colors, fonts, radii } from '../../../shared/theme';
 import type { AiPracticeExercisePayload, RootStackParamList } from '../../../shared/types';
+import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
+import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -139,10 +142,26 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
   );
   const hasFormulaPractice = formulaPracticeQuestions.length > 0;
 
+  const { toast, showToast } = useActionToast();
+
   const handleToggleFavorite = useCallback(() => {
-    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-    toggleFavoriteFormula(formula.id);
-  }, [formula.id]);
+    const added = toggleFavoriteFormula(formula.id);
+    if (added) {
+      showToast({
+        message: 'Salvată în Caiet → Formule',
+        tone: 'gold',
+      });
+    } else {
+      showToast({
+        message: 'Scoasă din favorite',
+        tone: 'neutral',
+        actionLabel: 'Anulează',
+        onAction: () => {
+          toggleFavoriteFormula(formula.id);
+        },
+      });
+    }
+  }, [formula.id, showToast]);
 
   const cycleScale = useCallback(() => {
     Haptics.selection();
@@ -237,14 +256,13 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            <IconButton
-              label={isFavorite ? 'Scoate formula din favorite' : 'Păstrează formula la favorite'}
+            <FavoriteStarButton
+              active={isFavorite}
+              variant="canopy"
+              icon="bookmark"
+              accessibilityLabel={isFavorite ? 'Scoate formula din favorite' : 'Păstrează formula la favorite'}
               onPress={handleToggleFavorite}
-              size={42}
-              style={[styles.canopyActionBtn, isFavorite && styles.canopyFavActive]}
-            >
-              <AppIcon name="bookmark" size={22} />
-            </IconButton>
+            />
           </View>
         </View>
       </View>
@@ -484,6 +502,8 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
           onClose={() => setAiSheetOpen(false)}
         />
       ) : null}
+
+      <ActionToast toast={toast} bottomOffset={Math.max(insets.bottom, 16) + 72} />
     </View>
   );
 }

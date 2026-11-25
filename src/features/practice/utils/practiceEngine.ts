@@ -87,6 +87,86 @@ export function isStreakActiveTodayOrYesterday(
   return todayDays - prevDays <= 1 && todayDays >= prevDays;
 }
 
+function utcDaysToDateKey(utcDays: number): string {
+  const date = new Date(utcDays * 86_400_000);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function reconstructStreakDateKeys(
+  lastDateKey: string | null,
+  streakDays: number,
+  maxDays = 14,
+): string[] {
+  if (!lastDateKey || !Number.isFinite(streakDays) || streakDays <= 0) return [];
+  const endDays = parseDateKeyUtcDays(lastDateKey);
+  if (endDays === null) return [];
+  const count = Math.min(maxDays, Math.floor(streakDays));
+  const keys: string[] = [];
+  for (let i = 0; i < count; i++) {
+    keys.push(utcDaysToDateKey(endDays - i));
+  }
+  return keys;
+}
+
+export type WeeklyStreakDay = {
+  key: string;
+  shortLabel: string;
+  fullLabel: string;
+  completed: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+};
+
+const RO_WEEK_DAYS = [
+  { shortLabel: 'L', fullLabel: 'Luni' },
+  { shortLabel: 'Ma', fullLabel: 'Marți' },
+  { shortLabel: 'Mi', fullLabel: 'Miercuri' },
+  { shortLabel: 'J', fullLabel: 'Joi' },
+  { shortLabel: 'V', fullLabel: 'Vineri' },
+  { shortLabel: 'S', fullLabel: 'Sâmbătă' },
+  { shortLabel: 'D', fullLabel: 'Duminică' },
+] as const;
+
+/**
+ * Builds the 7-day Monday-to-Sunday Romanian week strip for the streak sheet,
+ * combining explicitly recorded local activity keys with reconstructed streak keys.
+ */
+export function buildWeeklyStreakCalendar(
+  activeDateKeys: readonly string[],
+  lastPracticeDateKey: string | null,
+  streakDays: number,
+  today = new Date(),
+): WeeklyStreakDay[] {
+  const todayKey = getLocalDateKey(today);
+  const todayUtc = parseDateKeyUtcDays(todayKey);
+  if (todayUtc === null) return [];
+
+  // JS getDay(): 0 = Sunday, 1 = Monday ... 6 = Saturday -> Monday offset 0..6
+  const mondayOffset = (today.getDay() + 6) % 7;
+  const mondayUtc = todayUtc - mondayOffset;
+
+  const completedSet = new Set<string>([
+    ...activeDateKeys,
+    ...reconstructStreakDateKeys(lastPracticeDateKey, streakDays, 14),
+  ]);
+
+  return RO_WEEK_DAYS.map((meta, index) => {
+    const dayUtc = mondayUtc + index;
+    const key = utcDaysToDateKey(dayUtc);
+    return {
+      key,
+      shortLabel: meta.shortLabel,
+      fullLabel: meta.fullLabel,
+      completed: completedSet.has(key),
+      isToday: dayUtc === todayUtc,
+      isFuture: dayUtc > todayUtc,
+    };
+  });
+}
+
 function parseSimpleNumeric(value: string): number | null {
   const fractionMatch = /^(-?\d+(?:\.\d+)?)\/(-?\d+(?:\.\d+)?)$/.exec(value);
   if (fractionMatch) {

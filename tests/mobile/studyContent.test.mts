@@ -26,10 +26,12 @@ import { PRACTICE_BANK } from '../../src/features/practice/data/practiceBank.ts'
 import {
   buildPracticeExplanationDocument,
   buildPracticePromptDocument,
+  buildWeeklyStreakCalendar,
   computeCategoryStats,
   computeNextStreak,
   evaluatePracticeAnswer,
   normalizeShortAnswer,
+  reconstructStreakDateKeys,
   selectPracticeQuestions,
   shuffleQuestionChoices,
 } from '../../src/features/practice/utils/practiceEngine.ts';
@@ -641,4 +643,51 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
   const practiceSummarySource = await readFile(path.resolve('src/features/practice/screens/PracticeSummaryScreen.tsx'), 'utf8');
   assert.match(practiceSummarySource, /mode:\s*mode === 'ai' \|\| mode === 'mistakes' \? 'quick' : mode/);
   assert.match(practiceSummarySource, /mode:\s*'mistakes',\s*questionId:\s*targetId/);
+
+  // 8. Weekly streak calendar builds a 7-day Monday-Sunday Romanian strip and
+  // reconstructs streak days cleanly.
+  assert.deepEqual(reconstructStreakDateKeys('2026-11-25', 3), ['2026-11-25', '2026-11-24', '2026-11-23']);
+  const wednesday = new Date(2026, 10, 25, 12, 0, 0); // Wed Nov 25, 2026
+  const weekStrip = buildWeeklyStreakCalendar(['2026-11-25'], '2026-11-25', 3, wednesday);
+  assert.equal(weekStrip.length, 7);
+  assert.equal(weekStrip[0].shortLabel, 'L');
+  assert.equal(weekStrip[6].shortLabel, 'D');
+  assert.equal(weekStrip[0].completed, true, 'Luni face parte din seria de 3 zile');
+  assert.equal(weekStrip[1].completed, true, 'Marți face parte din seria de 3 zile');
+  assert.equal(weekStrip[2].isToday, true, 'Miercuri este ziua curentă');
+  assert.equal(weekStrip[2].completed, true);
+  assert.equal(weekStrip[3].isFuture, true, 'Joi este în viitor');
+
+  // 9. Pachet 1 UX invariants: offline calculator, celebratory favorites,
+  // universal explainable streak, and grouped first-time class/exam selector.
+  const writtenMathInputSource = await readFile(path.resolve('src/features/math/screens/MathInputScreen.tsx'), 'utf8');
+  assert.match(writtenMathInputSource, /evaluateInstantMath\(draft\.problem\)/);
+  const mathEditorSource = await readFile(path.resolve('src/features/math/components/MathEditor.tsx'), 'utf8');
+  assert.match(mathEditorSource, /testID="math-instant-result"/);
+
+  const favBtnSource = await readFile(path.resolve('src/shared/ui/FavoriteStarButton.tsx'), 'utf8');
+  assert.doesNotMatch(favBtnSource, /react-native-reanimated/);
+  assert.match(favBtnSource, /useNativeDriver:\s*true/);
+  const formulaCardSource = await readFile(path.resolve('src/features/study/components/FormulaCard.tsx'), 'utf8');
+  assert.match(formulaCardSource, /<FavoriteStarButton/);
+  assert.match(formulaDetailSource, /<FavoriteStarButton/);
+
+  const studyHubSource = await readFile(path.resolve('src/features/study/screens/StudyHubScreen.tsx'), 'utf8');
+  assert.match(studyHubSource, /!profile\.hasChosenTrack/);
+  assert.match(studyHubSource, /<StreakInfoSheet/);
+  assert.match(studyHubSource, /<ActionToast/);
+  const practiceHubSource = await readFile(path.resolve('src/features/practice/screens/PracticeHubScreen.tsx'), 'utf8');
+  assert.match(practiceHubSource, /<StreakInfoSheet/);
+  const trackSheetSource = await readFile(path.resolve('src/features/study/components/StudyTrackSheet.tsx'), 'utf8');
+  assert.match(trackSheetSource, /EXAMENE NAȚIONALE/);
+  assert.match(trackSheetSource, /CLASE GENERALE/);
+
+  for (const rel of [
+    'src/features/exams/services/examStorage.ts',
+    'src/features/analysis/screens/ProcessingScreen.tsx',
+    'src/features/analysis/screens/MathProcessingScreen.tsx',
+  ]) {
+    const src = await readFile(path.resolve(rel), 'utf8');
+    assert.match(src, /recordDailyStudyActivity\(\)/, `${rel} trebuie să conteze la seria zilnică`);
+  }
 });

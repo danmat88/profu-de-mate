@@ -1,5 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 import { useSyncExternalStore } from 'react';
+import { recordDailyStudyActivity } from '../../practice/services/practiceStorage';
 import type { ExamGuideId } from '../../study/types';
 import type { ExamSimulationRecord, ExamSimulationScope } from '../types';
 
@@ -152,6 +153,7 @@ export function recordExamSimulation(record: ExamSimulationRecord): ExamHistoryS
   const current = getExamHistory();
   const sanitized = sanitizeExamRecord(record) ?? record;
   const records = sanitizeExamRecords([sanitized, ...current.records]);
+  recordDailyStudyActivity();
   return commit({ records });
 }
 

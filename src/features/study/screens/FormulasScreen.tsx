@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useActionToast } from '../../../shared/hooks/useActionToast';
 import { useKeyboardHeight } from '../../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -22,6 +23,7 @@ import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hoo
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
+import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -144,10 +146,27 @@ export function FormulasScreen({ navigation, route }: Props) {
     });
   }, [keyboardVisible, navigation, visibleIds]);
 
+  const { toast, showToast } = useActionToast();
+
   const handleToggleFavorite = useCallback((formulaId: string) => {
     if (keyboardVisible) Keyboard.dismiss();
-    toggleFavoriteFormula(formulaId);
-  }, [keyboardVisible]);
+    const added = toggleFavoriteFormula(formulaId);
+    if (added) {
+      showToast({
+        message: 'Salvată în Caiet → Formule',
+        tone: 'gold',
+      });
+    } else {
+      showToast({
+        message: 'Scoasă din favorite',
+        tone: 'neutral',
+        actionLabel: 'Anulează',
+        onAction: () => {
+          toggleFavoriteFormula(formulaId);
+        },
+      });
+    }
+  }, [keyboardVisible, showToast]);
 
   const resetFilters = () => {
     if (keyboardVisible) Keyboard.dismiss();
@@ -488,6 +507,8 @@ export function FormulasScreen({ navigation, route }: Props) {
           onClose={() => setTrackSheetOpen(false)}
         />
       ) : null}
+
+      <ActionToast toast={toast} bottomOffset={Math.max(insets.bottom, 16) + 14} />
     </View>
   );
 }

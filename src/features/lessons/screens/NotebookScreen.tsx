@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useActionToast } from '../../../shared/hooks/useActionToast';
 import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useKeyboardHeight } from '../../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -27,6 +28,7 @@ import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
+import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon, type AppIconName } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
@@ -970,10 +972,26 @@ export function NotebookScreen({
     beginAppTransition();
     navigation.navigate('Formulas');
   }, [navigation]);
+  const { toast: formulaToast, showToast: showFormulaToast } = useActionToast();
   const toggleStarFormula = useCallback((formulaId: string) => {
     Keyboard.dismiss();
-    toggleFavoriteFormula(formulaId);
-  }, []);
+    const added = toggleFavoriteFormula(formulaId);
+    if (!added) {
+      showFormulaToast({
+        message: 'Formulă scoasă din favorite',
+        tone: 'neutral',
+        actionLabel: 'Anulează',
+        onAction: () => {
+          toggleFavoriteFormula(formulaId);
+        },
+      });
+    } else {
+      showFormulaToast({
+        message: 'Formulă adăugată la favorite',
+        tone: 'gold',
+      });
+    }
+  }, [showFormulaToast]);
   const renderFormulaItem = useCallback<ListRenderItem<FormulaEntry>>(({ item }) => (
     <FormulaCard
       formula={item}
@@ -1336,6 +1354,10 @@ export function NotebookScreen({
             ]}
           />
         )}
+        <ActionToast
+          toast={formulaToast}
+          bottomOffset={embedded ? bottomClearance + 14 : Math.max(insets.bottom, 16) + 14}
+        />
       </View>
     );
   }

@@ -33,6 +33,7 @@ import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { commercialGateFromError } from '../../access/services/commercial';
 import { deleteTemporaryCapturedImages } from '../../capture/services/temporaryImages';
+import { recordDailyStudyActivity } from '../../practice/services/practiceStorage';
 import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { beginLessonPresentation, waitForLessonPresentation } from '../../lessons/services/lessonPresentation';
 import { contentToAccessibleText } from '../../math/utils/mathContent';
@@ -301,6 +302,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             await celebrationBeat;
             if (!isActive()) return;
             clearPendingAnalysis(route.params.requestId);
+            recordDailyStudyActivity();
             beginAppTransition();
             navigation.replace('Lesson', lessonParams);
           } else if (result.status !== 'ready') {

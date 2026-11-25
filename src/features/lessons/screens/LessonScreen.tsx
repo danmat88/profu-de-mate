@@ -25,6 +25,7 @@ import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
+import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { LiquidProgressBar } from '../../../shared/ui/LiquidProgressBar';
 import { Mascot } from '../../../shared/ui/Mascot';
@@ -795,14 +796,13 @@ export function LessonScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            <IconButton
-              label={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'}
+            <FavoriteStarButton
+              active={saved}
+              variant="canopy"
+              icon="bookmark"
+              accessibilityLabel={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'}
               onPress={toggleSaved}
-              size={42}
-              style={[styles.canopyActionBtn, saved && styles.canopyFavActive]}
-            >
-              <AppIcon name="bookmark" size={22} />
-            </IconButton>
+            />
           </View>
 
           <LiquidProgressBar

@@ -8,6 +8,7 @@ import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts } from '../../../shared/theme';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
+import type { InstantMathResult } from '../utils/instantMathEvaluator';
 import {
   applyMathEditorCommand,
   createMathEditorState,
@@ -581,6 +582,8 @@ export type MathEditorProps = {
   placeholder?: string;
   referenceText?: string;
   onPressReference?: () => void;
+  /** Optional offline instant calculator result shown live inside the formula card. */
+  instantResult?: InstantMathResult | null;
 };
 
 /** Native formula studio: notebook spine, 2D bounded scrolling, auto-scaling, zero Reanimated churn. */
@@ -596,6 +599,7 @@ export function MathEditor({
   placeholder = 'Tastează formula cu tastele de mai jos',
   referenceText,
   onPressReference,
+  instantResult,
 }: MathEditorProps) {
   const frame = useSafeAreaFrame();
   const { isVeryShort, isShort } = useResponsiveLayout(frame);
@@ -985,6 +989,62 @@ export function MathEditor({
               )}
             </View>
 
+            {instantResult && !isEmpty ? (
+              <View
+                testID="math-instant-result"
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={`${instantResult.badge}: ${instantResult.primary}${instantResult.secondary ? ` ${instantResult.secondary}` : ''}`}
+                style={[
+                  styles.instantBar,
+                  compact && styles.instantBarCompact,
+                  instantResult.kind === 'warning' && styles.instantBarWarning,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.instantBadge,
+                    instantResult.kind === 'warning' && styles.instantBadgeWarning,
+                  ]}
+                >
+                  <Text
+                    maxFontSizeMultiplier={1.1}
+                    numberOfLines={1}
+                    style={[
+                      styles.instantBadgeText,
+                      instantResult.kind === 'warning' && styles.instantBadgeTextWarning,
+                    ]}
+                  >
+                    {instantResult.kind === 'warning' ? '! ATENȚIE' : '⚡ INSTANT'}
+                  </Text>
+                </View>
+
+                <View style={styles.instantValues}>
+                  <Text
+                    maxFontSizeMultiplier={1.2}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.78}
+                    style={[
+                      styles.instantPrimary,
+                      compact && styles.instantPrimaryCompact,
+                      instantResult.kind === 'warning' && styles.instantPrimaryWarning,
+                    ]}
+                  >
+                    {instantResult.primary}
+                  </Text>
+                  {instantResult.secondary ? (
+                    <Text
+                      maxFontSizeMultiplier={1.15}
+                      numberOfLines={1}
+                      style={styles.instantSecondary}
+                    >
+                      {instantResult.secondary}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.canvasFooter}>
               <View style={styles.navCluster}>
                 <Pressable
@@ -1259,6 +1319,81 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 12,
     color: colors.ink,
+  },
+
+  instantBar: {
+    flexShrink: 0,
+    minHeight: 36,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderTopWidth: 1.25,
+    borderTopColor: '#D6EC8C',
+    backgroundColor: '#F4FFD2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  instantBarCompact: {
+    minHeight: 31,
+    paddingVertical: 3,
+  },
+  instantBarWarning: {
+    borderTopColor: '#F5C2CC',
+    backgroundColor: '#FFF2F4',
+  },
+  instantBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 999,
+    backgroundColor: colors.lime,
+    borderWidth: 1,
+    borderColor: '#B5DF26',
+    flexShrink: 0,
+  },
+  instantBadgeWarning: {
+    backgroundColor: colors.roseSoft,
+    borderColor: '#F2B0BE',
+  },
+  instantBadgeText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 0.55,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  instantBadgeTextWarning: {
+    color: colors.berryDeep,
+  },
+  instantValues: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    gap: 7,
+  },
+  instantPrimary: {
+    flexShrink: 1,
+    fontFamily: fonts.display,
+    fontSize: 16.5,
+    lineHeight: 20,
+    color: colors.ink,
+  },
+  instantPrimaryCompact: {
+    fontSize: 15,
+    lineHeight: 18,
+  },
+  instantPrimaryWarning: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12.5,
+    color: colors.berryDeep,
+  },
+  instantSecondary: {
+    flexShrink: 0,
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.limeDeep,
   },
 
   canvasArea: {

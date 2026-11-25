@@ -5,11 +5,13 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
+import { useActionToast } from '../../../shared/hooks/useActionToast';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
+import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -22,6 +24,7 @@ import { Text } from '../../../shared/ui/Typography';
 import { getExamGuide } from '../../exams/data/examGuidesCatalog';
 import { getBestGradeForExam, useExamHistory } from '../../exams/services/examStorage';
 import { formatRomanianGrade } from '../../exams/utils/examEngine';
+import { StreakInfoSheet } from '../../practice/components/StreakInfoSheet';
 import { getActiveStreakDays, usePracticeState } from '../../practice/services/practiceStorage';
 import { FormulaCard } from '../components/FormulaCard';
 import { StudyTrackSheet } from '../components/StudyTrackSheet';
@@ -29,6 +32,7 @@ import { setStudyTrack, toggleFavoriteFormula, useStudyProfile } from '../servic
 import {
   FORMULA_CATEGORIES,
   getStudyTrackMeta,
+  STUDY_TRACKS,
   type FormulaCategoryId,
   type FormulaEntry,
   type StudyTrackId,
@@ -65,6 +69,9 @@ export const StudyHubScreen = memo(function StudyHubScreen({
 
   const [trackSheetOpen, setTrackSheetOpen] = useState(false);
   const [trackSheetEverOpened, setTrackSheetEverOpened] = useState(false);
+  const [streakSheetOpen, setStreakSheetOpen] = useState(false);
+  const [streakSheetEverOpened, setStreakSheetEverOpened] = useState(false);
+  const { toast, showToast } = useActionToast();
   const navLockRef = useRef(false);
 
   useFocusEffect(useCallback(() => {
@@ -110,9 +117,20 @@ export const StudyHubScreen = memo(function StudyHubScreen({
     setTrackSheetOpen(true);
   }, []);
 
+  const openStreakSheet = useCallback(() => {
+    Haptics.selection();
+    setStreakSheetEverOpened(true);
+    setStreakSheetOpen(true);
+  }, []);
+
   const handleSelectTrack = useCallback((next: StudyTrackId) => {
     setStudyTrack(next);
-  }, []);
+    const chosenMeta = getStudyTrackMeta(next);
+    showToast({
+      message: `Nivel activ: ${chosenMeta.label}`,
+      tone: 'lime',
+    });
+  }, [showToast]);
 
   // Quietly pre-flatten the first visible track cards & featured formula sheets
   // while idle so Formulas and FormulaDetail open in 0ms JS math time.
@@ -187,8 +205,23 @@ export const StudyHubScreen = memo(function StudyHubScreen({
   }, [navigation, trackFormulas]);
 
   const handleToggleFavorite = useCallback((formulaId: string) => {
-    toggleFavoriteFormula(formulaId);
-  }, []);
+    const added = toggleFavoriteFormula(formulaId);
+    if (added) {
+      showToast({
+        message: 'Salvată în Caiet → Formule',
+        tone: 'gold',
+      });
+    } else {
+      showToast({
+        message: 'Scoasă din favorite',
+        tone: 'neutral',
+        actionLabel: 'Anulează',
+        onAction: () => {
+          toggleFavoriteFormula(formulaId);
+        },
+      });
+    }
+  }, [showToast]);
 
   const motionActive = active && !reducedMotion;
 
@@ -221,13 +254,22 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.headerTitle}>
                 Învață
               </Text>
-              {streakDays > 0 ? (
-                <View style={styles.headerStreakPill}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.headerStreakText}>
-                    🔥 {streakDays}z
-                  </Text>
-                </View>
-              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  streakDays > 0
+                    ? `Seria zilnică: ${streakDays} zile. Apasă pentru detalii`
+                    : 'Seria zilnică. Apasă pentru detalii'
+                }
+                hitSlop={6}
+                onPress={openStreakSheet}
+                style={({ pressed }) => [styles.headerStreakPill, pressed && styles.pressed]}
+              >
+                <AppIcon name="streak" size={13} />
+                <Text maxFontSizeMultiplier={1.1} style={styles.headerStreakText}>
+                  {streakDays > 0 ? `${streakDays}z` : 'Seria'}
+                </Text>
+              </Pressable>
             </View>
 
             <PressableScale
@@ -309,6 +351,61 @@ export const StudyHubScreen = memo(function StudyHubScreen({
         ]}
       >
         <View style={[styles.page, { width: contentWidth }]}>
+          {!profile.hasChosenTrack ? (
+            <View style={styles.trackSetupCard}>
+              <View style={styles.trackSetupHeader}>
+                <View style={styles.trackSetupEyebrowPill}>
+                  <Text style={styles.trackSetupEyebrow}>PERSONALIZEAZĂ NIVELUL</Text>
+                </View>
+                <Text style={styles.trackSetupTitle}>
+                  În ce clasă ești sau ce examen pregătești?
+                </Text>
+                <Text style={styles.trackSetupSub}>
+                  Alege o variantă — adaptăm formulele, testele și simulările pentru tine.
+                </Text>
+              </View>
+
+              <View style={styles.trackSetupGrid}>
+                {STUDY_TRACKS.map((item) => {
+                  const dotColor = item.accent === 'violet'
+                    ? colors.violet
+                    : item.accent === 'cyan'
+                      ? colors.cyanDeep
+                      : item.accent === 'lime'
+                        ? colors.limeDeep
+                        : item.accent === 'peach'
+                          ? colors.peachDeep
+                          : '#A36A00';
+                  return (
+                    <Pressable
+                      key={item.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Alege nivelul ${item.label}`}
+                      onPress={() => {
+                        Haptics.notification(Haptics.NotificationFeedbackType.Success);
+                        handleSelectTrack(item.id);
+                      }}
+                      style={({ pressed }) => [
+                        styles.trackSetupOption,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <View style={styles.trackSetupOptionTop}>
+                        <View style={[styles.trackSetupDot, { backgroundColor: dotColor }]} />
+                        <Text numberOfLines={1} style={styles.trackSetupOptEyebrow}>
+                          {item.eyebrow}
+                        </Text>
+                      </View>
+                      <Text numberOfLines={1} style={styles.trackSetupOptLabel}>
+                        {item.shortLabel}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
           {/* Pure-white 3D Quick-Start Quest Card matching Home optical studio craft */}
           <View style={styles.questCard}>
             <View pointerEvents="none" style={styles.studioTopGloss} />
@@ -566,6 +663,17 @@ export const StudyHubScreen = memo(function StudyHubScreen({
           onClose={() => setTrackSheetOpen(false)}
         />
       ) : null}
+
+      {streakSheetEverOpened ? (
+        <StreakInfoSheet
+          visible={streakSheetOpen}
+          practiceState={practiceState}
+          onClose={() => setStreakSheetOpen(false)}
+          onStartQuickPractice={startQuickQuiz}
+        />
+      ) : null}
+
+      <ActionToast toast={toast} bottomOffset={bottomClearance + 10} />
     </View>
   );
 });
@@ -690,8 +798,11 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   headerStreakPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: radii.pill,
     backgroundColor: 'rgba(216, 255, 62, 0.22)',
     borderWidth: 1,
@@ -1314,6 +1425,90 @@ const styles = StyleSheet.create({
     color: colors.violetDeep,
     fontSize: 13.5,
     textAlign: 'center',
+  },
+
+  trackSetupCard: {
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#D6F08A',
+    borderBottomColor: '#98C40E',
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+    gap: 12,
+  },
+  trackSetupHeader: {
+    gap: 4,
+  },
+  trackSetupEyebrowPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.limeSoft,
+  },
+  trackSetupEyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.75,
+    color: colors.limeDeep,
+    includeFontPadding: false,
+  },
+  trackSetupTitle: {
+    marginTop: 2,
+    fontFamily: fonts.display,
+    fontSize: 19,
+    lineHeight: 23,
+    color: colors.ink,
+  },
+  trackSetupSub: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12.8,
+    lineHeight: 18,
+    color: colors.inkSoft,
+  },
+  trackSetupGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  trackSetupOption: {
+    width: '48.2%',
+    flexGrow: 1,
+    borderRadius: 17,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FAF8FF',
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+    gap: 3,
+  },
+  trackSetupOptionTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  trackSetupDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    flexShrink: 0,
+  },
+  trackSetupOptEyebrow: {
+    flex: 1,
+    fontFamily: fonts.bodyBold,
+    fontSize: 9.5,
+    letterSpacing: 0.55,
+    color: colors.inkMuted,
+    includeFontPadding: false,
+  },
+  trackSetupOptLabel: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    lineHeight: 19,
+    color: colors.ink,
   },
   pressed: { opacity: 0.78 },
 });

@@ -29,6 +29,7 @@ import { StudyTrackSheet } from '../../study/components/StudyTrackSheet';
 import { setStudyTrack, useStudyProfile } from '../../study/services/studyStorage';
 import { getStudyTrackMeta, type StudyTrackId } from '../../study/types';
 import { AiPracticeSheet } from '../components/AiPracticeSheet';
+import { StreakInfoSheet } from '../components/StreakInfoSheet';
 import { PRACTICE_BANK } from '../data/practiceBank';
 import { getActiveStreakDays, usePracticeState } from '../services/practiceStorage';
 import { computeCategoryStats } from '../utils/practiceEngine';
@@ -48,6 +49,8 @@ export function PracticeHubScreen({ navigation }: Props) {
   const [trackSheetEverOpened, setTrackSheetEverOpened] = useState(false);
   const [aiSheetOpen, setAiSheetOpen] = useState(false);
   const [aiSheetEverOpened, setAiSheetEverOpened] = useState(false);
+  const [streakSheetOpen, setStreakSheetOpen] = useState(false);
+  const [streakSheetEverOpened, setStreakSheetEverOpened] = useState(false);
   const navLockRef = useRef(false);
 
   useFocusEffect(useCallback(() => {
@@ -92,6 +95,12 @@ export function PracticeHubScreen({ navigation }: Props) {
     Haptics.selection();
     setAiSheetEverOpened(true);
     setAiSheetOpen(true);
+  };
+
+  const openStreakSheet = () => {
+    Haptics.selection();
+    setStreakSheetEverOpened(true);
+    setStreakSheetOpen(true);
   };
 
   const handleSelectTrack = useCallback((next: StudyTrackId) => {
@@ -189,14 +198,20 @@ export function PracticeHubScreen({ navigation }: Props) {
           <View style={styles.canopyHeroRow}>
             <View style={styles.canopyHeroCopy}>
               <View style={styles.canopyPillsRow}>
-                <View style={styles.streakPill}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Vezi detalii despre seria ta zilnică"
+                  hitSlop={6}
+                  onPress={openStreakSheet}
+                  style={({ pressed }) => [styles.streakPill, pressed && styles.pressed]}
+                >
                   <AppIcon name="streak" size={15} />
                   <Text maxFontSizeMultiplier={1.1} style={styles.streakText}>
                     {streakDays > 0
                       ? `${streakDays} ${streakDays === 1 ? 'zi' : 'zile'} la rând`
-                      : 'Seria de azi'}
+                      : 'Seria de azi'} ›
                   </Text>
-                </View>
+                </Pressable>
                 {accuracyPercent !== null ? (
                   <View style={styles.accuracyPill}>
                     <Text maxFontSizeMultiplier={1.1} style={styles.accuracyText}>
@@ -426,6 +441,15 @@ export function PracticeHubScreen({ navigation }: Props) {
           track={studyProfile.track}
           onGenerated={handleAiGenerated}
           onClose={() => setAiSheetOpen(false)}
+        />
+      ) : null}
+
+      {streakSheetEverOpened ? (
+        <StreakInfoSheet
+          visible={streakSheetOpen}
+          practiceState={practiceState}
+          onClose={() => setStreakSheetOpen(false)}
+          onStartQuickPractice={startQuickTest}
         />
       ) : null}
     </View>

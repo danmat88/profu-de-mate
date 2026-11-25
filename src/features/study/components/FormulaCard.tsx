@@ -1,7 +1,8 @@
 import { memo, useMemo } from 'react';
-import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii } from '../../../shared/theme';
+import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
 import { NativeMathFormula } from '../../math/components/NativeMathFormula';
@@ -69,27 +70,14 @@ export const FormulaCard = memo(function FormulaCard({
             ) : null}
           </View>
 
-          <Pressable
-            accessibilityRole="button"
+          <FavoriteStarButton
+            active={isFavorite}
+            variant="card"
+            icon="star"
+            stopPropagation
             accessibilityLabel={isFavorite ? `Scoate ${formula.title} din favorite` : `Adaugă ${formula.title} la favorite`}
-            accessibilityState={{ selected: isFavorite }}
-            hitSlop={10}
-            onPress={(event) => {
-              event.stopPropagation();
-              Keyboard.dismiss();
-              Haptics.selection();
-              onToggleFavorite(formula.id);
-            }}
-            style={({ pressed }) => [
-              styles.starButton,
-              isFavorite && styles.starButtonActive,
-              pressed && styles.starPressed,
-            ]}
-          >
-            <Text style={[styles.starGlyph, isFavorite && styles.starGlyphActive]}>
-              {isFavorite ? '★' : '☆'}
-            </Text>
-          </Pressable>
+            onPress={() => onToggleFavorite(formula.id)}
+          />
         </View>
 
         <Text numberOfLines={2} style={[styles.title, compact && styles.titleCompact]}>
@@ -199,37 +187,6 @@ const styles = StyleSheet.create({
     color: colors.limeDeep,
     letterSpacing: 0.3,
     includeFontPadding: false,
-  },
-  starButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FAF7FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  starButtonActive: {
-    backgroundColor: '#FFE88A',
-    borderColor: '#FFF3BD',
-    borderBottomColor: '#D6A118',
-  },
-  starPressed: {
-    opacity: 0.72,
-  },
-  starGlyph: {
-    fontFamily: fonts.display,
-    fontSize: 16,
-    lineHeight: 19,
-    color: colors.inkMuted,
-    includeFontPadding: false,
-  },
-  starGlyphActive: {
-    color: '#8C5600',
   },
   title: {
     marginTop: 5,

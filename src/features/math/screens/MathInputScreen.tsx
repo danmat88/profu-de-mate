@@ -23,6 +23,7 @@ import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
 import { getPreparedPendingAnalysis, savePendingWrittenMath } from '../../analysis/services/pendingAnalysis';
 import { MathEditor, type MathEditorExample } from '../components/MathEditor';
 import { getCachedMathDraft, readMathDraft, writeMathDraft, type MathDraft } from '../services/mathDraft';
+import { evaluateInstantMath } from '../utils/instantMathEvaluator';
 import {
   createEmptyMathDocument,
   formatMathPreview,
@@ -266,6 +267,10 @@ export function MathInputScreen({ navigation, route }: Props) {
     () => (isCheck && field === 'solution' ? formatMathPreview(draft.problem) : ''),
     [draft.problem, field, isCheck],
   );
+  const instantResult = useMemo(
+    () => (!isCheck ? evaluateInstantMath(draft.problem) : null),
+    [draft.problem, isCheck],
+  );
   const shouldAdvanceToSolution = isCheck && field === 'problem' && problemValid && draft.solution.nodes.length === 0;
 
   const submit = async () => {
@@ -344,7 +349,9 @@ export function MathInputScreen({ navigation, route }: Props) {
     ? 'Pasul 2: adaugă rezolvarea pe care o verificăm.'
     : isCheck
       ? 'Verificăm fiecare pas și îți arătăm rezultatul.'
-      : 'Primești explicația completă, pas cu pas.';
+      : instantResult && instantResult.kind !== 'warning'
+        ? 'Rezultatul instant e sus gratis · apasă pentru pașii AI.'
+        : 'Primești explicația completă, pas cu pas.';
 
   return (
     <View style={styles.safe}>
@@ -462,6 +469,7 @@ export function MathInputScreen({ navigation, route }: Props) {
             placeholder={currentPlaceholder}
             referenceText={problemPreview || undefined}
             onPressReference={problemPreview ? () => selectField('problem') : undefined}
+            instantResult={instantResult}
             errorSignal={errorSignal}
             onChange={updateDocument}
           />
