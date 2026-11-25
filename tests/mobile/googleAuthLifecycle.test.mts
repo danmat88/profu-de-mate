@@ -357,6 +357,18 @@ test('studySync pulls before pushing, avoids overwriting cloud during slow pull,
     sessionsCompleted: 3,
     totalAnswered: 15,
     totalCorrect: 13,
+    examRecords: [{
+      id: 'exam-cloud-1',
+      variantId: 'bac-m1-2026-1',
+      examId: 'bac_m1',
+      scope: 'full',
+      completedAt: '2026-11-24T12:00:00.000Z',
+      awardedPoints: 94,
+      maxPoints: 100,
+      grade: 9.4,
+      elapsedSeconds: 5400,
+      subjectPoints: { s1: 30, s2: 28, s3: 26 },
+    }],
   };
   let failGetDoc = false;
   let setDocCalls = 0;
@@ -383,6 +395,8 @@ test('studySync pulls before pushing, avoids overwriting cloud during slow pull,
     recentSessions: [] as unknown[],
   };
   const practiceListeners = new Set<() => void>();
+  let examHistory = { records: [] as any[] };
+  const examListeners = new Set<() => void>();
 
   const load = serviceLoader({
     '@react-native-firebase/app': { getApp: () => ({}) },
@@ -443,6 +457,22 @@ test('studySync pulls before pushing, avoids overwriting cloud during slow pull,
         return practiceState;
       },
     },
+    'src/features/exams/services/examStorage.ts': {
+      getExamHistory: () => examHistory,
+      subscribeExamHistory: (cb: () => void) => {
+        examListeners.add(cb);
+        return () => examListeners.delete(cb);
+      },
+      sanitizeExamRecords: (records: unknown) => (Array.isArray(records) ? [...records] : []),
+      mergeRemoteExamHistory: (records: unknown) => {
+        if (!Array.isArray(records) || records.length === 0) return examHistory;
+        const seen = new Set(examHistory.records.map((r) => r.id));
+        const merged = [...examHistory.records, ...records.filter((r: any) => !seen.has(r.id))];
+        examHistory = { records: merged };
+        examListeners.forEach((cb) => cb());
+        return examHistory;
+      },
+    },
   });
 
   const studySync = load('src/features/study/services/studySync.ts');
@@ -460,10 +490,13 @@ test('studySync pulls before pushing, avoids overwriting cloud during slow pull,
   assert.equal(studyProfile.track, 'bac_m1');
   assert.deepEqual(Array.from(studyProfile.favoriteFormulaIds), ['f-local', 'f-cloud']);
   assert.equal(practiceState.streakDays, 4);
+  assert.equal(examHistory.records.length, 1);
+  assert.equal(examHistory.records[0].grade, 9.4);
 
   await studySync.flushStudyProgressSync(200);
   assert.equal(setDocCalls, 1);
   assert.deepEqual(Array.from((lastWritten?.favoriteFormulaIds as string[]) ?? []), ['f-local', 'f-cloud']);
+  assert.equal((lastWritten?.examRecords as any[])?.length, 1);
 
   // Second flush with no further edits must be a 0ms no-op.
   await studySync.flushStudyProgressSync(200);
@@ -475,6 +508,7 @@ test('studySync pulls before pushing, avoids overwriting cloud during slow pull,
   remoteDoc = null;
   studyProfile = { track: 'en', hasChosenTrack: false, favoriteFormulaIds: [], recentFormulaIds: [], exploredFormulaIds: [] };
   practiceState = { wrongQuestionIds: [], masteredQuestionIds: [], streakDays: 0, lastPracticeDateKey: null, sessionsCompleted: 0, totalAnswered: 0, totalCorrect: 0, recentSessions: [] };
+  examHistory = { records: [] };
   authState.currentUser = { uid: 'guest-empty', isAnonymous: true, providerData: [] };
   const stopGuest = studySync.startStudyProgressSync();
   await new Promise((resolve) => setTimeout(resolve, 10));
@@ -521,6 +555,76 @@ test('practiceStorage merge commits when wrongQuestionIds changes content at ide
   });
   assert.deepEqual(Array.from(storage.getPracticeState().wrongQuestionIds), ['q2']);
   assert.deepEqual(Array.from(storage.getPracticeState().masteredQuestionIds), ['q1']);
+});
+
+test('examStorage merges cloud simulations by id, sorts newest first, rejects invalid entries, and caps at 24', () => {
+  let savedText = '';
+  let emitCount = 0;
+  class MockFile {
+    exists = false;
+    create() { this.exists = true; }
+    textSync() { return savedText; }
+    write(value: string) { this.exists = true; savedText = value; }
+    delete() { this.exists = false; savedText = ''; }
+  }
+  const load = serviceLoader({
+    'expo-file-system': { File: MockFile, Paths: { document: 'doc' } },
+    react: { useSyncExternalStore: () => null },
+  });
+  const exams = load('src/features/exams/services/examStorage.ts');
+  const unsub = exams.subscribeExamHistory(() => { emitCount += 1; });
+
+  const localRecord = {
+    id: 'exam-local',
+    variantId: 'en-2026-1',
+    examId: 'en',
+    scope: 'full',
+    completedAt: '2026-11-24T10:00:00.000Z',
+    awardedPoints: 85,
+    maxPoints: 100,
+    grade: 8.5,
+    elapsedSeconds: 3200,
+    subjectPoints: { s1: 25, s2: 25, s3: 25 },
+  };
+  const newerCloudRecord = {
+    id: 'exam-cloud',
+    variantId: 'en-2026-1',
+    examId: 'en',
+    scope: 'full',
+    completedAt: '2026-11-25T09:00:00.000Z',
+    awardedPoints: 96,
+    maxPoints: 100,
+    grade: 9.6,
+    elapsedSeconds: 4100,
+    subjectPoints: { s1: 30, s2: 30, s3: 26 },
+  };
+
+  exams.recordExamSimulation(localRecord);
+  exams.mergeRemoteExamHistory([
+    localRecord,
+    newerCloudRecord,
+    { id: 'corrupt', examId: 'invalid', awardedPoints: 999 },
+  ]);
+
+  const state = exams.getExamHistory();
+  assert.deepEqual(Array.from(state.records.map((r: any) => r.id)), ['exam-cloud', 'exam-local']);
+  assert.equal(exams.getBestGradeForExam(state, 'en'), 9.6);
+
+  // Merging the exact same records again must not re-emit or rewrite.
+  const emitsBeforeRepeat = emitCount;
+  exams.mergeRemoteExamHistory([newerCloudRecord, localRecord]);
+  assert.equal(emitCount, emitsBeforeRepeat);
+
+  // Capping at 24 records retains the 24 most recent simulations.
+  const extra = Array.from({ length: 30 }, (_, index) => ({
+    ...localRecord,
+    id: `exam-extra-${index}`,
+    completedAt: `2026-11-${String((index % 20) + 1).padStart(2, '0')}T08:00:${String(index).padStart(2, '0')}.000Z`,
+  }));
+  exams.mergeRemoteExamHistory(extra);
+  assert.equal(exams.getExamHistory().records.length, 24);
+  assert.equal(exams.getExamHistory().records[0].id, 'exam-cloud');
+  unsub();
 });
 
 test('Caiet, Studio, Home, and CommercialContext stay wired for instant live identity transitions', async () => {

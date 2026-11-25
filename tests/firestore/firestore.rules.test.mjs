@@ -227,5 +227,69 @@ describe('Firestore rules', () => {
       totalCorrect: 9,
       updatedAt: serverTimestamp(),
     }));
+
+    // Istoricul simulărilor EN/BAC este acceptat cu înregistrări valide (inclusiv note cu zecimale și scope parțial cu grade null).
+    const validExamRecord = {
+      id: 'exam-1795270926952',
+      variantId: 'bac-m1-2026-1',
+      examId: 'bac_m1',
+      scope: 'full',
+      completedAt: '2026-11-25T08:30:00.000Z',
+      awardedPoints: 94,
+      maxPoints: 100,
+      grade: 9.4,
+      elapsedSeconds: 5400,
+      subjectPoints: { s1: 30, s2: 28, s3: 26 },
+    };
+    await assertSucceeds(setDoc(aliceSummary, {
+      track: 'bac_m1',
+      hasChosenTrack: true,
+      favoriteFormulaIds: ['alg-ecuatie-gr2'],
+      exploredFormulaIds: ['alg-ecuatie-gr2'],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 1,
+      lastPracticeDateKey: '2026-11-25',
+      sessionsCompleted: 1,
+      totalAnswered: 5,
+      totalCorrect: 5,
+      examRecords: [
+        validExamRecord,
+        { ...validExamRecord, id: 'exam-partial', scope: 's2', awardedPoints: 25, maxPoints: 30, grade: null },
+      ],
+      updatedAt: serverTimestamp(),
+    }));
+
+    // Înregistrări invalide sau peste limita de 24 sunt respinse.
+    await assertFails(setDoc(aliceSummary, {
+      track: 'bac_m1',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      examRecords: [{ ...validExamRecord, examId: 'invalid_exam' }],
+      updatedAt: serverTimestamp(),
+    }));
+    await assertFails(setDoc(aliceSummary, {
+      track: 'bac_m1',
+      hasChosenTrack: true,
+      favoriteFormulaIds: [],
+      exploredFormulaIds: [],
+      masteredQuestionIds: [],
+      wrongQuestionIds: [],
+      streakDays: 0,
+      lastPracticeDateKey: null,
+      sessionsCompleted: 0,
+      totalAnswered: 0,
+      totalCorrect: 0,
+      examRecords: Array.from({ length: 25 }, (_, i) => ({ ...validExamRecord, id: `exam-${i}` })),
+      updatedAt: serverTimestamp(),
+    }));
   });
 });

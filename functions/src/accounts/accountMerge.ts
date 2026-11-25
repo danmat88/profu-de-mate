@@ -19,6 +19,93 @@ import { isCommercialPrincipalId } from '../access/commercialIdentity.js';
 // user to lose the anonymous notebook after Google authentication succeeds.
 const MERGE_TICKET_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const COMPLETED_TICKET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_EXAM_RECORDS = 24;
+const VALID_EXAM_IDS = new Set(['en', 'bac_m1', 'bac_m2', 'bac_m3']);
+const VALID_EXAM_SCOPES = new Set(['full', 's1', 's2', 's3']);
+
+export type StoredExamRecord = {
+  id: string;
+  variantId: string;
+  examId: 'en' | 'bac_m1' | 'bac_m2' | 'bac_m3';
+  scope: 'full' | 's1' | 's2' | 's3';
+  completedAt: string;
+  awardedPoints: number;
+  maxPoints: number;
+  grade: number | null;
+  elapsedSeconds: number;
+  subjectPoints: { s1: number; s2: number; s3: number };
+};
+
+function clampFinite(value: unknown, min: number, max: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeExamRecord(value: unknown): StoredExamRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+  const variantId = typeof raw.variantId === 'string' ? raw.variantId.trim() : '';
+  const examId = typeof raw.examId === 'string' && VALID_EXAM_IDS.has(raw.examId)
+    ? (raw.examId as StoredExamRecord['examId'])
+    : null;
+  const scope = typeof raw.scope === 'string' && VALID_EXAM_SCOPES.has(raw.scope)
+    ? (raw.scope as StoredExamRecord['scope'])
+    : null;
+  const completedAt = typeof raw.completedAt === 'string' ? raw.completedAt.trim() : '';
+  const maxPoints = clampFinite(raw.maxPoints, 1, 100);
+  const awardedPoints = maxPoints === null ? null : clampFinite(raw.awardedPoints, 0, maxPoints);
+  const grade = raw.grade === null ? null : clampFinite(raw.grade, 1, 10);
+  const elapsedSeconds = clampFinite(raw.elapsedSeconds, 0, 86_400);
+  const rawSubjects = raw.subjectPoints && typeof raw.subjectPoints === 'object'
+    ? (raw.subjectPoints as Record<string, unknown>)
+    : null;
+  const s1 = rawSubjects ? clampFinite(rawSubjects.s1, 0, 100) : null;
+  const s2 = rawSubjects ? clampFinite(rawSubjects.s2, 0, 100) : null;
+  const s3 = rawSubjects ? clampFinite(rawSubjects.s3, 0, 100) : null;
+
+  if (
+    !id || id.length > 64
+    || !variantId || variantId.length > 64
+    || !examId || !scope
+    || completedAt.length < 10 || completedAt.length > 40
+    || awardedPoints === null || maxPoints === null
+    || (raw.grade !== null && grade === null)
+    || elapsedSeconds === null
+    || s1 === null || s2 === null || s3 === null
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    variantId,
+    examId,
+    scope,
+    completedAt,
+    awardedPoints,
+    maxPoints,
+    grade,
+    elapsedSeconds: Math.round(elapsedSeconds),
+    subjectPoints: { s1, s2, s3 },
+  };
+}
+
+export function mergeExamRecords(targetRecords: unknown, sourceRecords: unknown): StoredExamRecord[] {
+  const byId = new Map<string, StoredExamRecord>();
+  for (const list of [targetRecords, sourceRecords]) {
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) {
+      const sanitized = sanitizeExamRecord(entry);
+      if (sanitized && !byId.has(sanitized.id)) {
+        byId.set(sanitized.id, sanitized);
+      }
+    }
+  }
+  return [...byId.values()]
+    .sort((a, b) => (a.completedAt === b.completedAt ? a.id.localeCompare(b.id) : b.completedAt.localeCompare(a.completedAt)))
+    .slice(0, MAX_EXAM_RECORDS);
+}
 
 function numeric(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -208,9 +295,19 @@ async function mergeStudyProgress(db: Firestore, sourceUserId: string, targetUse
     const srcDate = typeof src.lastPracticeDateKey === 'string' ? src.lastPracticeDateKey : null;
     const tgtDate = typeof tgt.lastPracticeDateKey === 'string' ? tgt.lastPracticeDateKey : null;
     const lastPracticeDateKey = srcDate && tgtDate ? (srcDate > tgtDate ? srcDate : tgtDate) : (tgtDate ?? srcDate);
+    const examRecords = mergeExamRecords(tgt.examRecords, src.examRecords);
+    const mergedTrack = tgt.hasChosenTrack === true && typeof tgt.track === 'string'
+      ? tgt.track
+      : src.hasChosenTrack === true && typeof src.track === 'string'
+        ? src.track
+        : typeof tgt.track === 'string'
+          ? tgt.track
+          : typeof src.track === 'string'
+            ? src.track
+            : 'en';
 
     transaction.set(targetRef, {
-      track: typeof tgt.track === 'string' ? tgt.track : (typeof src.track === 'string' ? src.track : 'en'),
+      track: mergedTrack,
       hasChosenTrack: tgt.hasChosenTrack === true || src.hasChosenTrack === true,
       favoriteFormulaIds,
       exploredFormulaIds,
@@ -224,6 +321,7 @@ async function mergeStudyProgress(db: Firestore, sourceUserId: string, targetUse
         Math.min(1000000, numeric(tgt.totalAnswered) + numeric(src.totalAnswered)),
         numeric(tgt.totalCorrect) + numeric(src.totalCorrect),
       ),
+      examRecords,
       updatedAt: FieldValue.serverTimestamp(),
     });
   });

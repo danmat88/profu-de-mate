@@ -36,6 +36,37 @@ service cloud.firestore {
           || data.onboardingCompleted is bool);
     }
 
+    function validExamRecord(record) {
+      return record is map
+        && record.keys().hasOnly([
+          'id',
+          'variantId',
+          'examId',
+          'scope',
+          'completedAt',
+          'awardedPoints',
+          'maxPoints',
+          'grade',
+          'elapsedSeconds',
+          'subjectPoints'
+        ])
+        && record.id is string && record.id.size() >= 1 && record.id.size() <= 64
+        && record.variantId is string && record.variantId.size() >= 1 && record.variantId.size() <= 64
+        && record.examId is string && record.examId in ['en', 'bac_m1', 'bac_m2', 'bac_m3']
+        && record.scope is string && record.scope in ['full', 's1', 's2', 's3']
+        && record.completedAt is string && record.completedAt.size() >= 10 && record.completedAt.size() <= 40
+        && record.awardedPoints is number && record.awardedPoints >= 0 && record.awardedPoints <= 100
+        && record.maxPoints is number && record.maxPoints >= 1 && record.maxPoints <= 100
+        && record.awardedPoints <= record.maxPoints
+        && (record.grade == null || (record.grade is number && record.grade >= 1 && record.grade <= 10))
+        && record.elapsedSeconds is number && record.elapsedSeconds >= 0 && record.elapsedSeconds <= 86400
+        && record.subjectPoints is map
+        && record.subjectPoints.keys().hasOnly(['s1', 's2', 's3'])
+        && record.subjectPoints.s1 is number && record.subjectPoints.s1 >= 0 && record.subjectPoints.s1 <= 100
+        && record.subjectPoints.s2 is number && record.subjectPoints.s2 >= 0 && record.subjectPoints.s2 <= 100
+        && record.subjectPoints.s3 is number && record.subjectPoints.s3 >= 0 && record.subjectPoints.s3 <= 100;
+    }
+
     function validStudyProgress(data) {
       return data.keys().hasOnly([
           'track',
@@ -49,6 +80,7 @@ service cloud.firestore {
           'sessionsCompleted',
           'totalAnswered',
           'totalCorrect',
+          'examRecords',
           'updatedAt'
         ])
         && data.track is string && validStudyTrack(data.track)
@@ -63,6 +95,10 @@ service cloud.firestore {
         && data.sessionsCompleted is int && data.sessionsCompleted >= 0 && data.sessionsCompleted <= 100000
         && data.totalAnswered is int && data.totalAnswered >= 0 && data.totalAnswered <= 1000000
         && data.totalCorrect is int && data.totalCorrect >= 0 && data.totalCorrect <= data.totalAnswered
+        && (!('examRecords' in data)
+          || (data.examRecords is list
+            && data.examRecords.size() <= 24
+            && (data.examRecords.size() == 0 || validExamRecord(data.examRecords[0]))))
         && data.updatedAt == request.time;
     }
 

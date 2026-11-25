@@ -2,6 +2,13 @@ import { getApp } from '@react-native-firebase/app';
 import { getAuth } from '@react-native-firebase/auth';
 import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
 import {
+  getExamHistory,
+  mergeRemoteExamHistory,
+  sanitizeExamRecords,
+  subscribeExamHistory,
+} from '../../exams/services/examStorage';
+import type { ExamSimulationRecord } from '../../exams/types';
+import {
   getPracticeState,
   mergeRemotePracticeState,
   subscribePracticeState,
@@ -25,6 +32,7 @@ type RemoteStudyProgressDoc = {
   sessionsCompleted?: number;
   totalAnswered?: number;
   totalCorrect?: number;
+  examRecords?: readonly unknown[];
 };
 
 type StudyProgressPayload = {
@@ -39,6 +47,7 @@ type StudyProgressPayload = {
   sessionsCompleted: number;
   totalAnswered: number;
   totalCorrect: number;
+  examRecords: ExamSimulationRecord[];
 };
 
 type PullState = 'idle' | 'pulling' | 'ready' | 'failed';
@@ -52,6 +61,7 @@ let applyingRemoteMerge = false;
 let syncGeneration = 0;
 let unsubStudy: (() => void) | null = null;
 let unsubPractice: (() => void) | null = null;
+let unsubExams: (() => void) | null = null;
 
 function sanitizeList(value: unknown, limit: number): string[] {
   if (!Array.isArray(value)) return [];
@@ -71,6 +81,7 @@ function sanitizeList(value: unknown, limit: number): string[] {
 function buildPayload(): StudyProgressPayload {
   const study = getStudyProfile();
   const practice = getPracticeState();
+  const examHistory = getExamHistory();
   const safeAnswered = Math.min(1_000_000, Math.max(0, Math.floor(practice.totalAnswered)));
   const safeCorrect = Math.min(safeAnswered, Math.max(0, Math.floor(practice.totalCorrect)));
   return {
@@ -85,6 +96,7 @@ function buildPayload(): StudyProgressPayload {
     sessionsCompleted: Math.min(100_000, Math.max(0, Math.floor(practice.sessionsCompleted))),
     totalAnswered: safeAnswered,
     totalCorrect: safeCorrect,
+    examRecords: sanitizeExamRecords(examHistory.records),
   };
 }
 
@@ -113,6 +125,7 @@ function canonicalRemoteSignature(data: RemoteStudyProgressDoc): string {
       : 0,
     totalAnswered: safeAnswered,
     totalCorrect: safeCorrect,
+    examRecords: sanitizeExamRecords(data.examRecords),
   };
   return JSON.stringify(payload);
 }
@@ -125,7 +138,8 @@ function hasMeaningfulProgress(payload: StudyProgressPayload): boolean {
     || payload.wrongQuestionIds.length > 0
     || payload.streakDays > 0
     || payload.sessionsCompleted > 0
-    || payload.totalAnswered > 0;
+    || payload.totalAnswered > 0
+    || payload.examRecords.length > 0;
 }
 
 async function pushStudyProgressNow(expectedUid: string, expectedGeneration: number): Promise<void> {
@@ -177,6 +191,7 @@ function pullAndSync(uid: string, generation: number): void {
         try {
           mergeRemoteStudyProfile(remoteData);
           mergeRemotePracticeState(remoteData);
+          mergeRemoteExamHistory(remoteData.examRecords);
         } finally {
           applyingRemoteMerge = false;
         }
@@ -267,14 +282,16 @@ export function stopStudyProgressSync(): void {
   }
   unsubStudy?.();
   unsubPractice?.();
+  unsubExams?.();
   unsubStudy = null;
   unsubPractice = null;
+  unsubExams = null;
 }
 
 /**
  * Starts non-blocking offline-first synchronization of study track, favorite
- * formulas, practice mastery, repeat queue, and daily streak for the active
- * Firebase user. Returns a cleanup function.
+ * formulas, practice mastery, repeat queue, daily streak, and exam simulations
+ * for the active Firebase user. Returns a cleanup function.
  */
 export function startStudyProgressSync(): () => void {
   stopStudyProgressSync();
@@ -299,6 +316,9 @@ export function startStudyProgressSync(): () => void {
     if (!applyingRemoteMerge && generation === syncGeneration && activeSyncUid === uid) schedulePush(uid, generation);
   });
   unsubPractice = subscribePracticeState(() => {
+    if (!applyingRemoteMerge && generation === syncGeneration && activeSyncUid === uid) schedulePush(uid, generation);
+  });
+  unsubExams = subscribeExamHistory(() => {
     if (!applyingRemoteMerge && generation === syncGeneration && activeSyncUid === uid) schedulePush(uid, generation);
   });
 
