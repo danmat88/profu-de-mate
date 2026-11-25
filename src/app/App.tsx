@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationBar } from 'expo-navigation-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze } from 'react-native-screens';
@@ -94,7 +94,7 @@ function SystemBarChrome({
   );
 }
 
-function AppExperience({ startup, interactive, revealReady, onReady }: { startup: AppStartup; interactive: boolean; revealReady: boolean; onReady: () => void }) {
+const AppExperience = memo(function AppExperience({ startup, interactive, revealReady, onReady }: { startup: AppStartup; interactive: boolean; revealReady: boolean; onReady: () => void }) {
   const { pendingAnalysis } = startup;
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
   const initialRoute: keyof RootStackParamList = startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home';
@@ -196,7 +196,7 @@ function AppExperience({ startup, interactive, revealReady, onReady }: { startup
       </View>
     </View>
   );
-}
+});
 
 function AppRoot() {
   const [startup, setStartup] = useState<AppStartup>();
@@ -308,7 +308,7 @@ function AppRoot() {
       {startup && (splashIntroDone || reducedMotion) ? <CommercialProvider initialAccess={startup.initialAccess} initialVerifiedAt={startup.verifiedAt} initiallyOffline={startup.offline}>
         <AppExperience
           startup={startup}
-          interactive={!showLaunchSplash}
+          interactive={homeRevealReady || !showLaunchSplash}
           revealReady={homeRevealReady || reducedMotion}
           onReady={markNavigationReady}
         />

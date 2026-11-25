@@ -238,12 +238,9 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   }, [initiallyOffline, refreshIfStale]);
 
   useEffect(() => {
-    // Defer notebook cache prewarm past splash exit so Firestore parsing never contends with launch motion.
-    const timer = setTimeout(
-      () => void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error)),
-      450,
-    );
-    return () => clearTimeout(timer);
+    // Prewarm notebook cache right as CommercialProvider mounts behind LaunchSplash
+    // so saved lessons and badges are already ready before Home reveals.
+    void prewarmFavoriteLessonsCache().catch((error) => recordDiagnosticError('notebook_prewarm', error));
   }, [authSessionKey]);
 
   useEffect(() => {

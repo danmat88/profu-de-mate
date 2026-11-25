@@ -83,8 +83,14 @@ export function SpeechBubble({
 
   const cardInner = isSky && !isSkyError ? (
     <View style={styles.skyCopy}>
+      {!compact ? (
+        <View style={styles.skyTagPill}>
+          <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} />
+          <Text maxFontSizeMultiplier={1.1} style={styles.skyTagText}>PROFU’</Text>
+        </View>
+      ) : null}
       <View style={styles.skyTitleRow}>
-        <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} />
+        {compact ? <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} /> : null}
         <Text
           maxFontSizeMultiplier={1.3}
           numberOfLines={1}
@@ -182,7 +188,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.985 }],
   },
   skyShell: {
-    paddingVertical: 4,
+    paddingVertical: 2,
     paddingRight: 4,
   },
   skyShellCompact: {
@@ -190,16 +196,38 @@ const styles = StyleSheet.create({
   },
   skyCopy: {
     minWidth: 0,
+    alignItems: 'flex-start',
+  },
+  skyTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5.5,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    marginBottom: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  skyTagText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.paper,
+    fontSize: 9.5,
+    letterSpacing: 1.0,
+    lineHeight: 11.5,
+    includeFontPadding: false,
   },
   skyTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
+    width: '100%',
   },
   skyDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     flexShrink: 0,
   },
   skyTitle: {
@@ -207,26 +235,28 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: fonts.display,
     color: colors.paper,
-    fontSize: 22.5,
-    lineHeight: 26,
+    fontSize: 23.5,
+    lineHeight: 27,
     letterSpacing: -0.35,
+    textShadowColor: 'rgba(24, 6, 68, 0.24)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
   },
   skyTitleCompact: {
     fontSize: 17.5,
     lineHeight: 21,
   },
   skyBody: {
-    marginTop: 4,
-    paddingLeft: 16,
-    minHeight: 34,
+    marginTop: 3,
+    minHeight: 33,
     fontFamily: fonts.bodyMedium,
-    color: 'rgba(246, 240, 255, 0.9)',
+    color: 'rgba(248, 243, 255, 0.94)',
     fontSize: 13,
-    lineHeight: 17,
+    lineHeight: 16.5,
   },
   skyBodyCompact: {
     marginTop: 1.5,
-    paddingLeft: 16,
+    paddingLeft: 14,
     minHeight: 16,
     fontSize: 11.5,
     lineHeight: 15,

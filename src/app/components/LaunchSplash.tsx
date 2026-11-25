@@ -169,6 +169,7 @@ export function LaunchSplash({
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
   const [introStarted, setIntroStarted] = useState(reducedMotion);
   const [introComplete, setIntroComplete] = useState(reducedMotion);
+  const [passThrough, setPassThrough] = useState(false);
 
   // Pure native-driver Animated values (100% Android RenderThread, 0 Reanimated worklets).
   const auraEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -199,6 +200,7 @@ export function LaunchSplash({
   const progressGlideStarted = useRef(false);
   const progressCompleted = useRef(false);
   const victoryHapticFired = useRef(false);
+  const ambientLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
 
   const handleSceneLayout = useCallback(() => setSceneReady(true), []);
   const compact = height < 720;
@@ -272,6 +274,7 @@ export function LaunchSplash({
     const startNativeLoop = (value: Animated.Value, duration: number) => {
       const loop = createNativeLoop(value, duration);
       loops.push(loop);
+      ambientLoopsRef.current.push(loop);
       loop.start();
     };
 
@@ -327,6 +330,7 @@ export function LaunchSplash({
       clearTimeout(introFallback);
       oneShotAnims.forEach((anim) => anim.stop());
       loops.forEach((loop) => loop.stop());
+      ambientLoopsRef.current = [];
       floatPhase.stopAnimation();
       auraBreathPhase.stopAnimation();
       orbitPhase.stopAnimation();
@@ -407,6 +411,7 @@ export function LaunchSplash({
       return undefined;
     }
     let revealTimer: ReturnType<typeof setTimeout> | undefined;
+    let passThroughTimer: ReturnType<typeof setTimeout> | undefined;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
     const exitAnims: Animated.CompositeAnimation[] = [];
 
@@ -436,7 +441,14 @@ export function LaunchSplash({
     }));
 
     const beatTimer = setTimeout(() => {
-      // Staggered unhurried exit: progress fades down -> copy dissolves -> owl glides toward Home -> canvas melts.
+      // Quietly release splash idle loops right before the curtain opens so RenderThread stays 100% focused on the handoff.
+      ambientLoopsRef.current.forEach((loop) => loop.stop());
+      ambientLoopsRef.current = [];
+      floatPhase.stopAnimation();
+      auraBreathPhase.stopAnimation();
+      orbitPhase.stopAnimation();
+
+      // Unhurried cinema exit matching LaunchSplash intro: progress glides down -> copy dissolves -> owl arcs up-right -> canvas melts.
       startAnim(Animated.timing(progressExit, {
         toValue: 1,
         duration: 340,
@@ -445,42 +457,50 @@ export function LaunchSplash({
       }));
       startAnim(Animated.timing(chromeExit, {
         toValue: 1,
-        duration: 380,
+        duration: 360,
         delay: 70,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(owlExit, {
         toValue: 1,
-        duration: 480,
+        duration: 500,
         delay: 110,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(backdropOpacity, {
         toValue: 0,
-        duration: 380,
-        delay: 240,
-        easing: Easing.out(Easing.quad),
+        duration: 420,
+        delay: 260,
+        easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
-      revealTimer = setTimeout(notifyRevealOnce, 290);
-      exitTimer = setTimeout(finishOnce, 640);
+      // Launch Home unhurried pre-baked GPU choreography right as the cream veil turns translucent.
+      revealTimer = setTimeout(notifyRevealOnce, 300);
+      // Pass touches cleanly to Home the instant the splash veil reaches opacity 0.
+      passThroughTimer = setTimeout(() => setPassThrough(true), 680);
+      // Unmount LaunchSplash strictly AFTER Home entrance finishes landing so zero view-teardown hitch interrupts motion.
+      exitTimer = setTimeout(finishOnce, 1_320);
     }, 480);
 
     return () => {
       clearTimeout(beatTimer);
       if (revealTimer) clearTimeout(revealTimer);
+      if (passThroughTimer) clearTimeout(passThroughTimer);
       if (exitTimer) clearTimeout(exitTimer);
       exitAnims.forEach((anim) => anim.stop());
     };
   }, [
+    auraBreathPhase,
     backdropOpacity,
     chromeExit,
     finishOnce,
+    floatPhase,
     introComplete,
     nativeSplashHidden,
     notifyRevealOnce,
+    orbitPhase,
     owlCelebrate,
     owlExit,
     progressExit,
@@ -536,28 +556,28 @@ export function LaunchSplash({
   const owlSpatialExitStyle = useMemo(() => ({
     opacity: owlExit.interpolate({
       inputRange: [0, 0.72, 1],
-      outputRange: [1, 0.58, 0],
+      outputRange: [1, 0.62, 0],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         translateX: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -58],
+          outputRange: [0, 76],
           extrapolate: 'clamp',
         }),
       },
       {
         translateY: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -86],
+          outputRange: [0, -116],
           extrapolate: 'clamp',
         }),
       },
       {
         scale: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [1, 0.56],
+          outputRange: [1, 0.46],
           extrapolate: 'clamp',
         }),
       },
@@ -925,7 +945,7 @@ export function LaunchSplash({
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       onLayout={handleSceneLayout}
-      pointerEvents="auto"
+      pointerEvents={passThrough ? 'none' : 'auto'}
       style={[styles.root, rootAnimated]}
     >
       <StatusBar style="dark" />

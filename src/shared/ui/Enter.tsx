@@ -7,11 +7,16 @@ import { SILKY_EASE_OUT } from '../motion/nativeMotion';
 type Props = {
   children: ReactNode;
   delay?: number;
+  duration?: number;
   distance?: number;
   scaleFrom?: number;
   tiltFrom?: number;
   bouncy?: boolean;
   ready?: boolean;
+  /** Start at 0.01 opacity behind opaque overlays so Android HWUI pre-rasterizes textures before reveal. */
+  preRasterize?: boolean;
+  /** Promote to a temporary GPU hardware layer while entering so transforms move pre-baked textures. */
+  hardwareLayer?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -23,16 +28,20 @@ type Props = {
 export function Enter({
   children,
   delay = 0,
+  duration,
   distance = 16,
   scaleFrom = 0.94,
   tiltFrom = 0,
   bouncy = true,
   ready = true,
+  preRasterize = false,
+  hardwareLayer = false,
   style,
 }: Props) {
   const reducedMotion = useReducedMotion();
   const played = useRef(reducedMotion);
   const progress = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const resolvedDuration = duration ?? (bouncy ? 380 : 300);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -53,27 +62,19 @@ export function Enter({
 
     let anim: Animated.CompositeAnimation | undefined;
     const frame = requestAnimationFrame(() => {
-      anim = bouncy
-        ? Animated.timing(progress, {
-          toValue: 1,
-          duration: 380,
-          delay,
-          easing: SILKY_EASE_OUT,
-          useNativeDriver: true,
-        })
-        : Animated.timing(progress, {
-          toValue: 1,
-          duration: 300,
-          delay,
-          easing: SILKY_EASE_OUT,
-          useNativeDriver: true,
-        });
+      anim = Animated.timing(progress, {
+        toValue: 1,
+        duration: resolvedDuration,
+        delay,
+        easing: SILKY_EASE_OUT,
+        useNativeDriver: true,
+      });
       anim.start();
     });
     const watchdog = setTimeout(() => {
       progress.stopAnimation();
       progress.setValue(1);
-    }, delay + 580);
+    }, delay + resolvedDuration + 220);
 
     return () => {
       cancelAnimationFrame(frame);
@@ -81,12 +82,12 @@ export function Enter({
       anim?.stop();
       progress.stopAnimation();
     };
-  }, [bouncy, delay, progress, ready, reducedMotion]);
+  }, [delay, progress, ready, reducedMotion, resolvedDuration]);
 
   const animatedStyle = useMemo(() => {
     const opacity = progress.interpolate({
-      inputRange: [0, 0.65, 1],
-      outputRange: [0, 1, 1],
+      inputRange: [0, 0.58, 1],
+      outputRange: [preRasterize ? 0.01 : 0, 1, 1],
       extrapolate: 'clamp',
     });
     const translateY = progress.interpolate({
@@ -113,7 +114,14 @@ export function Enter({
       ]
       : [{ translateY }, { scale }];
     return { opacity, transform };
-  }, [distance, progress, scaleFrom, tiltFrom]);
+  }, [distance, preRasterize, progress, scaleFrom, tiltFrom]);
 
-  return <Animated.View style={[animatedStyle, style]}>{children}</Animated.View>;
+  return (
+    <Animated.View
+      renderToHardwareTextureAndroid={hardwareLayer}
+      style={[animatedStyle, style]}
+    >
+      {children}
+    </Animated.View>
+  );
 }

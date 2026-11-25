@@ -172,7 +172,9 @@ export function SegmentedToggle<T extends string>({
                 transform: [{ translateX: slideX }],
               },
             ]}
-          />
+          >
+            <View style={styles.pillGloss} />
+          </Animated.View>
         ) : null}
 
         <View collapsable={false} style={styles.tabsRow}>
@@ -227,7 +229,18 @@ const styles = StyleSheet.create({
     left: TRACK_PADDING,
     zIndex: 1,
     borderRadius: radii.pill,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'rgba(20, 8, 60, 0.2)',
     overflow: 'hidden',
+  },
+  pillGloss: {
+    position: 'absolute',
+    top: 1.5,
+    left: 16,
+    right: 16,
+    height: 2,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   tabsRow: {
     flex: 1,

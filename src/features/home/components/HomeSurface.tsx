@@ -178,10 +178,13 @@ export const HomeSurface = memo(function HomeSurface({
   const reducedMotion = useReducedMotion();
   const motionReady = useContext(HomeMotionReadyContext);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [ambientReady, setAmbientReady] = useState(false);
   const [cheer, setCheer] = useState<{ index: number; scope: string } | null>(null);
   const [mascotNudge, setMascotNudge] = useState(0);
   const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMode = useRef(mode);
+  const skyDomePlayed = useRef(reducedMotion);
+  const initialRevealSettled = useRef(false);
 
   const isSolve = mode === 'solve';
   const hasPendingAnalysis = pending;
@@ -205,10 +208,12 @@ export const HomeSurface = memo(function HomeSurface({
   const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index % cheerPool.length : null;
   const motionActive = motionReady && focused && foreground && !reducedMotion;
 
+  const skyDomeEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const stagePop = useRef(new Animated.Value(1)).current;
   const medallionPop = useRef(new Animated.Value(1)).current;
   const modeBlend = useRef(new Animated.Value(isSolve || hasPendingAnalysis ? 0 : 1)).current;
   const beamProgress = useRef(new Animated.Value(0)).current;
+  const beamVisible = useRef(new Animated.Value(0)).current;
   const sparkPulse = useRef(new Animated.Value(0)).current;
   const arrowNudge = useRef(new Animated.Value(0)).current;
   const ctaSheen = useRef(new Animated.Value(0)).current;
@@ -230,18 +235,77 @@ export const HomeSurface = memo(function HomeSurface({
     }
   }, [cheerScope]);
 
-  // Ambient studio loops execute via pure single-timing native _startNativeLoop(-1)
-  // on Android RenderThread with zero JS callbacks, pausing cleanly when unfocused.
+  // Smoothly unfurl the curved Royal-Violet/Coral sky canopy with unhurried splash-like ease.
+  useEffect(() => {
+    if (reducedMotion) {
+      skyDomeEnter.stopAnimation();
+      skyDomeEnter.setValue(1);
+      skyDomePlayed.current = true;
+      return undefined;
+    }
+    if (!motionReady) {
+      if (!skyDomePlayed.current) skyDomeEnter.setValue(0);
+      return undefined;
+    }
+    if (skyDomePlayed.current) {
+      skyDomeEnter.setValue(1);
+      return undefined;
+    }
+    skyDomePlayed.current = true;
+
+    let anim: Animated.CompositeAnimation | undefined;
+    const frame = requestAnimationFrame(() => {
+      anim = Animated.timing(skyDomeEnter, {
+        toValue: 1,
+        duration: 580,
+        easing: SILKY_EASE_OUT,
+        useNativeDriver: true,
+      });
+      anim.start();
+    });
+    const watchdog = setTimeout(() => {
+      skyDomeEnter.stopAnimation();
+      skyDomeEnter.setValue(1);
+    }, 820);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(watchdog);
+      anim?.stop();
+      skyDomeEnter.stopAnimation();
+    };
+  }, [motionReady, reducedMotion, skyDomeEnter]);
+
+  // Gate all self-running Home ambient loops strictly AFTER the unhurried entrance lands
+  // so cold-start reveal runs at an uninterrupted 60fps with zero RenderThread contention.
   useEffect(() => {
     if (!motionActive) {
+      setAmbientReady(false);
+      return undefined;
+    }
+    const wakeDelay = initialRevealSettled.current ? 180 : 1_080;
+    const wakeTimer = setTimeout(() => {
+      initialRevealSettled.current = true;
+      setAmbientReady(true);
+    }, wakeDelay);
+    return () => clearTimeout(wakeTimer);
+  }, [motionActive]);
+
+  // Ambient studio loops execute via pure single-timing native _startNativeLoop(-1)
+  // on Android RenderThread with zero JS callbacks, waking smoothly in Wave B after the owl.
+  useEffect(() => {
+    if (!ambientReady) {
       beamProgress.stopAnimation();
+      beamVisible.stopAnimation();
       sparkPulse.stopAnimation();
       arrowNudge.stopAnimation();
       ctaSheen.stopAnimation();
+      beamVisible.setValue(0);
       return undefined;
     }
 
     const loops: Animated.CompositeAnimation[] = [];
+    let fadeAnim: Animated.CompositeAnimation | undefined;
     const startNativeLoop = (value: Animated.Value, duration: number) => {
       const loop = createNativeLoop(value, duration);
       loops.push(loop);
@@ -251,10 +315,12 @@ export const HomeSurface = memo(function HomeSurface({
     const startTimer = setTimeout(() => {
       if (hasPendingAnalysis) {
         beamProgress.stopAnimation();
+        beamVisible.stopAnimation();
         sparkPulse.stopAnimation();
         arrowNudge.stopAnimation();
         ctaSheen.stopAnimation();
         beamProgress.setValue(0.25);
+        beamVisible.setValue(0);
         sparkPulse.setValue(0);
         arrowNudge.setValue(0);
         ctaSheen.setValue(0);
@@ -264,17 +330,26 @@ export const HomeSurface = memo(function HomeSurface({
       startNativeLoop(sparkPulse, 2_800);
       startNativeLoop(arrowNudge, 1_900);
       startNativeLoop(ctaSheen, 3_600);
-    }, 240);
+      fadeAnim = Animated.timing(beamVisible, {
+        toValue: 0.96,
+        duration: 320,
+        easing: SILKY_EASE_OUT,
+        useNativeDriver: true,
+      });
+      fadeAnim.start();
+    }, 200);
 
     return () => {
       clearTimeout(startTimer);
+      fadeAnim?.stop();
       loops.forEach((loop) => loop.stop());
       beamProgress.stopAnimation();
+      beamVisible.stopAnimation();
       sparkPulse.stopAnimation();
       arrowNudge.stopAnimation();
       ctaSheen.stopAnimation();
     };
-  }, [arrowNudge, beamProgress, ctaSheen, hasPendingAnalysis, motionActive, sparkPulse]);
+  }, [ambientReady, arrowNudge, beamProgress, beamVisible, ctaSheen, hasPendingAnalysis, sparkPulse]);
 
   useEffect(() => {
     const targetBlend = isSolve || hasPendingAnalysis ? 0 : 1;
@@ -356,6 +431,23 @@ export const HomeSurface = memo(function HomeSurface({
     cycleEncouragement();
   };
 
+  const skyDomeAnimatedStyle = useMemo(() => ({
+    opacity: skyDomeEnter.interpolate({
+      inputRange: [0, 0.45, 1],
+      outputRange: [0.01, 1, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: skyDomeEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-60, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [skyDomeEnter]);
+
   const stageAnimated = useMemo(() => ({
     transform: [{ scale: stagePop }],
   }), [stagePop]);
@@ -377,9 +469,9 @@ export const HomeSurface = memo(function HomeSurface({
     [beamProgress, beamRange],
   );
   const beamStyle = useMemo(() => ({
-    opacity: hasPendingAnalysis ? 0 : 0.96,
+    opacity: hasPendingAnalysis ? 0 : beamVisible,
     transform: [{ translateY: beamTranslateY }],
-  }), [beamTranslateY, hasPendingAnalysis]);
+  }), [beamTranslateY, beamVisible, hasPendingAnalysis]);
 
   const sparkStyle = useMemo(() => ({
     opacity: sparkPulse.interpolate({
@@ -546,8 +638,8 @@ export const HomeSurface = memo(function HomeSurface({
 
   const greetingBody = compact ? compactGreetingBody : fullGreetingBody;
 
-  const mascotSize = compact ? 68 : isVeryNarrow ? 92 : 102;
-  const spotlightSize = compact ? 66 : isVeryNarrow ? 90 : 100;
+  const mascotSize = compact ? 68 : isVeryNarrow ? 94 : 106;
+  const spotlightSize = compact ? 66 : isVeryNarrow ? 92 : 104;
   // Curved sky dome extends seamlessly behind the StatusBar down to the vertical midpoint of SegmentedToggle.
   const skyDomeHeight = insets.top + (compact ? 83 : 110) + mascotSize;
   const cornerColor = isSolve || hasPendingAnalysis ? colors.lime : colors.gold;
@@ -558,6 +650,8 @@ export const HomeSurface = memo(function HomeSurface({
   const savedCountLabel = savedLessonsCount > 0
     ? `${savedLessonsCount} ${savedLessonsCount === 1 ? 'lecție' : 'lecții'}`
     : null;
+
+  const hardwareEntranceLayer = !ambientReady && !reducedMotion;
 
   return (
     <View style={styles.safe}>
@@ -571,7 +665,16 @@ export const HomeSurface = memo(function HomeSurface({
             embedded && { paddingBottom: bottomClearance },
           ]}
         >
-          <Enter ready={motionReady} delay={20} distance={10} scaleFrom={0.98} style={[styles.header, compact && styles.headerCompact]}>
+          <Enter
+            ready={motionReady}
+            delay={100}
+            duration={500}
+            distance={14}
+            scaleFrom={0.98}
+            preRasterize
+            hardwareLayer={hardwareEntranceLayer}
+            style={[styles.header, compact && styles.headerCompact]}
+          >
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
               <PressableScale
                 accessibilityRole="button"
@@ -615,6 +718,7 @@ export const HomeSurface = memo(function HomeSurface({
                 quotaExhausted && styles.allowancePillExhausted,
               ]}
             >
+              <View pointerEvents="none" style={styles.pillTopGloss} />
               {quotaExhausted ? (
                 <ComicClockIcon size={14} color={colors.peachDeep} accent={colors.peach} />
               ) : (
@@ -667,13 +771,22 @@ export const HomeSurface = memo(function HomeSurface({
               label="Deschide setările"
               onPress={onSettings}
               size={compact ? 38 : 42}
-              style={styles.settingsWrap}
+              style={[styles.settingsWrap, compact && styles.settingsWrapCompact]}
             >
               <AppIcon name="settings" size={compact ? 25 : 28} />
             </IconButton>
           </Enter>
 
-          <Enter ready={motionReady} delay={65} distance={12} scaleFrom={0.97} style={[styles.tutorRow, compact && styles.tutorRowCompact]}>
+          <Enter
+            ready={motionReady}
+            delay={180}
+            duration={520}
+            distance={18}
+            scaleFrom={0.96}
+            preRasterize
+            hardwareLayer={hardwareEntranceLayer}
+            style={[styles.tutorRow, compact && styles.tutorRowCompact]}
+          >
             <SpeechBubble
               variant="sky"
               title={greetingTitle}
@@ -685,7 +798,8 @@ export const HomeSurface = memo(function HomeSurface({
               onPress={triggerTutorFromHeader}
             />
             <View style={[styles.tutorMascotStage, { width: mascotSize + 4, height: mascotSize + 2 }]}>
-              <SpotlightAura size={spotlightSize} tone={auraTone} active={motionActive} />
+              <SpotlightAura size={spotlightSize} tone={auraTone} active={ambientReady} />
+              <View pointerEvents="none" style={[styles.mascotFloorGlow, compact && styles.mascotFloorGlowCompact]} />
               <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkTop, sparkTopStyle]}>
                 <Text accessible={false} style={styles.tapSparkLime}>✦</Text>
               </Animated.View>
@@ -698,7 +812,7 @@ export const HomeSurface = memo(function HomeSurface({
               <Mascot
                 pose={mascotPose}
                 size={mascotSize}
-                active={motionActive}
+                active={ambientReady}
                 interactive
                 nudgeSignal={mascotNudge}
                 onPress={cycleEncouragement}
@@ -706,7 +820,16 @@ export const HomeSurface = memo(function HomeSurface({
             </View>
           </Enter>
 
-          <Enter ready={motionReady} delay={110} distance={12} scaleFrom={0.97} style={styles.modeSwitchEnter}>
+          <Enter
+            ready={motionReady}
+            delay={260}
+            duration={500}
+            distance={16}
+            scaleFrom={0.96}
+            preRasterize
+            hardwareLayer={hardwareEntranceLayer}
+            style={styles.modeSwitchEnter}
+          >
             <SegmentedToggle
               options={modeOptions}
               value={mode}
@@ -718,7 +841,16 @@ export const HomeSurface = memo(function HomeSurface({
             />
           </Enter>
 
-          <Enter ready={motionReady} delay={155} distance={14} scaleFrom={0.96} style={styles.cameraStageEnter}>
+          <Enter
+            ready={motionReady}
+            delay={330}
+            duration={540}
+            distance={22}
+            scaleFrom={0.95}
+            preRasterize
+            hardwareLayer={hardwareEntranceLayer}
+            style={styles.cameraStageEnter}
+          >
             <Animated.View
               style={[
                 styles.cameraStageShadow,
@@ -727,8 +859,23 @@ export const HomeSurface = memo(function HomeSurface({
               ]}
             >
               <View style={[styles.cameraStage, isCheckTheme && styles.cameraStageCheck, compact && styles.cameraStageCompact]}>
+                <View pointerEvents="none" style={styles.studioTopGloss} />
                 <View pointerEvents="none" style={[styles.studioTintCorner, isCheckTheme && styles.studioTintCornerCheck]} />
                 <View pointerEvents="none" style={[styles.studioTintBottom, isCheckTheme && styles.studioTintBottomCheck]} />
+                {!compact ? (
+                  <View pointerEvents="none" style={styles.studioDotGrid}>
+                    <View style={styles.studioDotRow}>
+                      <View style={styles.studioDot} />
+                      <View style={styles.studioDot} />
+                      <View style={styles.studioDot} />
+                    </View>
+                    <View style={styles.studioDotRow}>
+                      <View style={styles.studioDot} />
+                      <View style={styles.studioDot} />
+                      <View style={styles.studioDot} />
+                    </View>
+                  </View>
+                ) : null}
                 <Text accessible={false} style={[styles.stageWatermark, isCheckTheme && styles.stageWatermarkCheck]}>
                   {isSolve ? 'π' : '✓'}
                 </Text>
@@ -777,6 +924,7 @@ export const HomeSurface = memo(function HomeSurface({
                       onPress={onStudy}
                       style={({ pressed }) => [styles.stageTrackChip, pressed && styles.stageTrackChipPressed]}
                     >
+                      <View style={styles.stageTrackDot} />
                       <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.stageTrackText}>
                         {studyTrackLabel} ↗
                       </Text>
@@ -814,29 +962,31 @@ export const HomeSurface = memo(function HomeSurface({
                       ]}
                     >
                       <LinearGradient
-                        colors={['#904EFF', '#6522EB', '#4512BA']}
+                        colors={['#9B58FF', '#6B24F0', '#4110B3']}
                         start={{ x: 0.1, y: 0 }}
                         end={{ x: 0.9, y: 1 }}
                         style={styles.fill}
                       />
                       <Animated.View pointerEvents="none" style={[styles.fill, checkGradientStyle]}>
                         <LinearGradient
-                          colors={['#FF7C64', '#E53D78', '#A51E5B']}
+                          colors={['#FF8260', '#E83E78', '#9D1856']}
                           start={{ x: 0.1, y: 0 }}
                           end={{ x: 0.9, y: 1 }}
                           style={styles.fill}
                         />
                       </Animated.View>
+                      <View pointerEvents="none" style={styles.lensPodGloss} />
 
                       <View pointerEvents="none" style={[styles.corner, styles.cornerTL, { borderColor: cornerColor }]} />
                       <View pointerEvents="none" style={[styles.corner, styles.cornerTR, { borderColor: cornerColor }]} />
                       <View pointerEvents="none" style={[styles.corner, styles.cornerBL, { borderColor: cornerColor }]} />
                       <View pointerEvents="none" style={[styles.corner, styles.cornerBR, { borderColor: cornerColor }]} />
+                      <View pointerEvents="none" style={[styles.lensLiveDot, { backgroundColor: cornerColor }]} />
 
                       <Animated.View pointerEvents="none" style={[styles.focusMedallion, compact && styles.focusMedallionCompact, medallionAnimated]}>
                         <AppIcon
                           name={hasPendingAnalysis || isSolve ? 'scan' : 'verify'}
-                          size={compact ? 38 : isVeryNarrow ? 46 : 52}
+                          size={compact ? 38 : isVeryNarrow ? 48 : 54}
                         />
                       </Animated.View>
 
@@ -911,6 +1061,13 @@ export const HomeSurface = memo(function HomeSurface({
                       isCheckTheme && styles.captureCtaCheck,
                     ]}
                   >
+                    <LinearGradient
+                      colors={isCheckTheme ? ['#FFE28A', '#FFD066', '#F4B72E'] : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                      start={{ x: 0.08, y: 0 }}
+                      end={{ x: 0.92, y: 1 }}
+                      style={styles.fill}
+                    />
+                    <View pointerEvents="none" style={styles.ctaTopGloss} />
                     <Animated.View pointerEvents="none" style={[styles.ctaSweep, ctaSheenStyle]} />
                     <View style={[styles.captureIconBadge, compact && styles.captureIconBadgeCompact]}>
                       <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 26 : 31} />
@@ -935,7 +1092,16 @@ export const HomeSurface = memo(function HomeSurface({
 
           <View style={[styles.lowerStack, compact && styles.lowerStackCompact]}>
             {!hasPendingAnalysis ? (
-              <Enter ready={motionReady} delay={205} distance={14} scaleFrom={0.96} style={[styles.inputPairRow, compact && styles.inputPairRowCompact]}>
+              <Enter
+                ready={motionReady}
+                delay={410}
+                duration={500}
+                distance={16}
+                scaleFrom={0.96}
+                preRasterize
+                hardwareLayer={hardwareEntranceLayer}
+                style={[styles.inputPairRow, compact && styles.inputPairRowCompact]}
+              >
                 <PressableScale
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
@@ -956,7 +1122,7 @@ export const HomeSurface = memo(function HomeSurface({
                     {galleryBusy ? (
                       <PlayfulLoader micro />
                     ) : (
-                      <AppIcon name="gallery" size={compact || isVeryNarrow ? 26 : 33} />
+                      <AppIcon name="gallery" size={compact || isVeryNarrow ? 26 : 34} />
                     )}
                   </View>
                   <View style={styles.tileCopy}>
@@ -969,6 +1135,14 @@ export const HomeSurface = memo(function HomeSurface({
                       </Text>
                     ) : null}
                   </View>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['#F5FEFF', '#DCF7FE']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.fill, styles.behind]}
+                  />
+                  <View pointerEvents="none" style={styles.cardTopGloss} />
                 </PressableScale>
 
                 <PressableScale
@@ -988,7 +1162,7 @@ export const HomeSurface = memo(function HomeSurface({
                   ]}
                 >
                   <View style={[styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    <AppIcon name="practice" size={compact || isVeryNarrow ? 26 : 33} />
+                    <AppIcon name="practice" size={compact || isVeryNarrow ? 26 : 34} />
                   </View>
                   <View style={styles.tileCopy}>
                     <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
@@ -1000,12 +1174,28 @@ export const HomeSurface = memo(function HomeSurface({
                       </Text>
                     ) : null}
                   </View>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['#FFFDF2', '#FFF1BE']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.fill, styles.behind]}
+                  />
+                  <View pointerEvents="none" style={styles.cardTopGloss} />
                 </PressableScale>
               </Enter>
             ) : null}
 
             {!hasPendingAnalysis && embedded && onQuickPractice ? (
-              <Enter ready={motionReady} delay={245} distance={12} scaleFrom={0.97}>
+              <Enter
+                ready={motionReady}
+                delay={470}
+                duration={480}
+                distance={14}
+                scaleFrom={0.97}
+                preRasterize
+                hardwareLayer={hardwareEntranceLayer}
+              >
                 <PressableScale
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -1025,6 +1215,14 @@ export const HomeSurface = memo(function HomeSurface({
                     compact && styles.practiceBannerCompact,
                   ]}
                 >
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={wrongCount > 0 ? ['#FFF9F6', '#FFE7DD'] : ['#FCF9FF', '#EFE3FF']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <View pointerEvents="none" style={styles.cardTopGloss} />
                   <View style={[styles.practiceSpine, wrongCount > 0 && styles.practiceSpineMistakes]} />
                   <View
                     style={[
@@ -1033,7 +1231,7 @@ export const HomeSurface = memo(function HomeSurface({
                       compact && styles.practiceIconBadgeCompact,
                     ]}
                   >
-                    <AppIcon name="streak" size={compact ? 25 : 31} />
+                    <AppIcon name="streak" size={compact ? 25 : 32} />
                   </View>
                   <View style={styles.practiceCopy}>
                     <View style={styles.practiceHeaderRow}>
@@ -1155,34 +1353,40 @@ export const HomeSurface = memo(function HomeSurface({
         </View>
       </View>
 
-      {/* Full-bleed curved Royal-Violet / Coral-Berry sky canopy pinned behind Home content */}
-      <View
+      {/* Full-bleed curved Royal-Violet / Coral-Berry sky canopy unfurling smoothly from top */}
+      <Animated.View
         pointerEvents="none"
+        renderToHardwareTextureAndroid={hardwareEntranceLayer}
         style={[
           styles.skyDome,
           { height: skyDomeHeight },
+          skyDomeAnimatedStyle,
         ]}
       >
         <LinearGradient
-          colors={['#904EFF', '#6824EE', '#4712BD']}
+          colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
           start={{ x: 0.08, y: 0 }}
           end={{ x: 0.92, y: 1 }}
           style={styles.fill}
         />
         <Animated.View style={[styles.fill, checkGradientStyle]}>
           <LinearGradient
-            colors={['#FF7B5C', '#E43A77', '#A21957']}
+            colors={['#FF8764', '#EE457C', '#C42064', '#94144F']}
             start={{ x: 0.08, y: 0 }}
             end={{ x: 0.92, y: 1 }}
             style={styles.fill}
           />
         </Animated.View>
+        <View style={styles.skyGlowRightLime} />
         <View style={styles.skyGlowRight} />
         <View style={styles.skyGlowLime} />
+        <View style={styles.skyOrbitArc} />
+        <Text accessible={false} style={styles.skyStarA}>✦</Text>
+        <Text accessible={false} style={styles.skyStarB}>✦</Text>
         <Text accessible={false} style={styles.skyGlyphPi}>π</Text>
         <Text accessible={false} style={styles.skyGlyphRoot}>√</Text>
         <Text accessible={false} style={styles.skyGlyphSum}>∑</Text>
-      </View>
+      </Animated.View>
     </View>
   );
 });
@@ -1191,6 +1395,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, overflow: 'hidden', backgroundColor: colors.canvas },
   homeScene: { flex: 1, overflow: 'hidden', zIndex: 2 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  behind: { zIndex: 0 },
   page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 10, paddingTop: 4, paddingBottom: 8 },
   pageCompact: { gap: 6, paddingTop: 2 },
 
@@ -1205,23 +1410,58 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 28,
     overflow: 'hidden',
   },
+  skyGlowRightLime: {
+    position: 'absolute',
+    width: 270,
+    height: 270,
+    borderRadius: 135,
+    top: -28,
+    right: -64,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
   skyGlowRight: {
     position: 'absolute',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    top: -40,
-    right: -52,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    top: -12,
+    right: -32,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
   skyGlowLime: {
     position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    bottom: -75,
-    left: -38,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+    width: 196,
+    height: 196,
+    borderRadius: 98,
+    bottom: -82,
+    left: -42,
+    backgroundColor: 'rgba(216, 255, 62, 0.16)',
+  },
+  skyOrbitArc: {
+    position: 'absolute',
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    top: -115,
+    right: -120,
+  },
+  skyStarA: {
+    position: 'absolute',
+    left: 26,
+    top: 88,
+    fontFamily: fonts.display,
+    fontSize: 13,
+    color: 'rgba(216, 255, 62, 0.34)',
+  },
+  skyStarB: {
+    position: 'absolute',
+    right: 126,
+    bottom: 34,
+    fontFamily: fonts.display,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.34)',
   },
   skyGlyphPi: {
     position: 'absolute',
@@ -1257,21 +1497,31 @@ const styles = StyleSheet.create({
   brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
   brandRowNarrow: { gap: 6 },
   logo: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
-    borderWidth: 2.2,
+    borderWidth: 2.5,
     borderColor: colors.lime,
+    borderBottomWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  logoCompact: { width: 35, height: 35, borderRadius: 17.5 },
-  logoImage: { width: 34, height: 34 },
+  logoCompact: { width: 35, height: 35, borderRadius: 17.5, borderWidth: 2, borderBottomWidth: 2.5 },
+  logoImage: { width: 35, height: 35 },
   logoImageCompact: { width: 28, height: 28 },
   brandWordWrap: { flex: 1, minWidth: 0, justifyContent: 'center' },
-  brand: { fontFamily: fonts.display, color: colors.paper, fontSize: 22, lineHeight: 26, letterSpacing: -0.3 },
+  brand: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 23,
+    lineHeight: 27,
+    letterSpacing: -0.35,
+    textShadowColor: 'rgba(24, 6, 68, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
   brandAccent: { color: colors.lime },
   brandAccentCheck: { color: '#FFE169' },
   brandCompact: { fontSize: 18, lineHeight: 22 },
@@ -1300,14 +1550,23 @@ const styles = StyleSheet.create({
   allowancePillCompact: { minWidth: 90, height: 36, paddingHorizontal: 9 },
   allowancePillPremium: { backgroundColor: '#F4FFE0', borderColor: '#E5FFAD', borderBottomColor: '#A9D632' },
   allowancePillExhausted: { backgroundColor: '#FFF2EC', borderColor: '#FFD9CB', borderBottomColor: '#EE9E84' },
+  pillTopGloss: {
+    position: 'absolute',
+    top: 1,
+    left: 14,
+    right: 14,
+    height: 1.5,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
   energyTrack: {
     position: 'absolute',
     left: 12,
     right: 12,
     bottom: 2,
-    height: 2.5,
+    height: 3,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(124, 60, 255, 0.12)',
+    backgroundColor: 'rgba(124, 60, 255, 0.13)',
     overflow: 'hidden',
   },
   energyFill: {
@@ -1320,7 +1579,17 @@ const styles = StyleSheet.create({
   allowanceCopy: { flexShrink: 1, minWidth: 0, alignItems: 'flex-start' },
   allowanceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 13.5, includeFontPadding: false },
   allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9.5, letterSpacing: 0.4, lineHeight: 11.5, includeFontPadding: false },
-  settingsWrap: { marginLeft: 8 },
+  settingsWrap: {
+    marginLeft: 8,
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#D6C4FA',
+    backgroundColor: '#FFFFFF',
+  },
+  settingsWrapCompact: {
+    borderRadius: 19,
+    borderBottomWidth: 3,
+  },
 
   // Hero owl + borderless luminous message row inside the sky dome
   tutorRow: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -1331,6 +1600,15 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexShrink: 0,
   },
+  mascotFloorGlow: {
+    position: 'absolute',
+    bottom: 2,
+    width: 66,
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(20, 4, 64, 0.24)',
+  },
+  mascotFloorGlowCompact: { width: 44, height: 8 },
   tapSpark: { position: 'absolute', zIndex: 8 },
   tapSparkTop: { top: 8, left: '42%' },
   tapSparkRight: { top: 18, right: 6 },
@@ -1347,7 +1625,7 @@ const styles = StyleSheet.create({
 
   // Sculpted pure-white 3D optical studio card
   cameraStageEnter: { flex: 1, minHeight: 0, width: '100%', zIndex: 3 },
-  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: 32, elevation: 5, shadowColor: '#4B1FB8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.13, shadowRadius: 16 },
+  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: 32, shadowColor: '#4B1FB8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.13, shadowRadius: 16 },
   cameraStageShadowCheck: { shadowColor: '#B5265D' },
   cameraStage: {
     flex: 1,
@@ -1368,6 +1646,16 @@ const styles = StyleSheet.create({
     borderBottomColor: '#EEADC2',
   },
   cameraStageCompact: { padding: 11 },
+  studioTopGloss: {
+    position: 'absolute',
+    top: 1,
+    left: 28,
+    right: 28,
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    zIndex: 2,
+  },
   studioTintCorner: {
     position: 'absolute',
     width: 190,
@@ -1375,10 +1663,10 @@ const styles = StyleSheet.create({
     borderRadius: 95,
     top: -90,
     right: -70,
-    backgroundColor: 'rgba(124, 60, 255, 0.055)',
+    backgroundColor: 'rgba(124, 60, 255, 0.065)',
   },
   studioTintCornerCheck: {
-    backgroundColor: 'rgba(255, 141, 107, 0.08)',
+    backgroundColor: 'rgba(255, 141, 107, 0.09)',
   },
   studioTintBottom: {
     position: 'absolute',
@@ -1387,10 +1675,26 @@ const styles = StyleSheet.create({
     borderRadius: 85,
     bottom: -70,
     left: -55,
-    backgroundColor: 'rgba(216, 255, 62, 0.1)',
+    backgroundColor: 'rgba(216, 255, 62, 0.12)',
   },
   studioTintBottomCheck: {
-    backgroundColor: 'rgba(255, 212, 71, 0.1)',
+    backgroundColor: 'rgba(255, 212, 71, 0.12)',
+  },
+  studioDotGrid: {
+    position: 'absolute',
+    top: 48,
+    right: 18,
+    gap: 7,
+  },
+  studioDotRow: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  studioDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(124, 60, 255, 0.12)',
   },
   stageWatermark: {
     position: 'absolute',
@@ -1456,11 +1760,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radii.pill,
     borderWidth: 1,
+    borderBottomWidth: 2,
     borderColor: '#DCD0F8',
-    backgroundColor: '#F6F2FF',
+    borderBottomColor: '#CBB6FA',
+    backgroundColor: '#F4EEFF',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 5,
     flexShrink: 1,
+  },
+  stageTrackDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.violet,
   },
   stageTrackChipPressed: { opacity: 0.78 },
   stageTrackText: {
@@ -1519,8 +1833,8 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1.5,
     borderBottomWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderBottomColor: '#360F94',
+    borderColor: 'rgba(255, 255, 255, 0.34)',
+    borderBottomColor: '#310B8C',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -1533,6 +1847,24 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     borderBottomWidth: 3,
   },
+  lensPodGloss: {
+    position: 'absolute',
+    top: -18,
+    left: -10,
+    right: -10,
+    height: 44,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  lensLiveDot: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    zIndex: 4,
+  },
   corner: {
     position: 'absolute',
     width: 15,
@@ -1544,12 +1876,12 @@ const styles = StyleSheet.create({
   cornerBL: { bottom: 9, left: 9, borderBottomWidth: 2.8, borderLeftWidth: 2.8, borderBottomLeftRadius: 6 },
   cornerBR: { bottom: 9, right: 9, borderBottomWidth: 2.8, borderRightWidth: 2.8, borderBottomRightRadius: 6 },
   focusMedallion: {
-    width: 68,
-    height: 68,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255, 253, 248, 0.96)',
+    width: 70,
+    height: 70,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: 'rgba(255, 255, 255, 0.96)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1625,21 +1957,32 @@ const styles = StyleSheet.create({
     height: 55,
     borderRadius: radii.pill,
     borderWidth: 1.4,
-    borderColor: '#E8FF85',
-    borderBottomWidth: 4,
-    borderBottomColor: '#92BE00',
+    borderColor: '#EEFF96',
+    borderBottomWidth: 4.5,
+    borderBottomColor: '#8CB600',
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 9,
     gap: 11,
     overflow: 'hidden',
+    position: 'relative',
   },
   captureCtaCompact: { height: 45, paddingHorizontal: 8, gap: 8 },
   captureCtaCheck: {
     backgroundColor: '#FFD066',
-    borderColor: '#FFE59E',
-    borderBottomColor: '#CC9214',
+    borderColor: '#FFE8A8',
+    borderBottomColor: '#C98E10',
+  },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 1.5,
+    left: 24,
+    right: 24,
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    zIndex: 1,
   },
   ctaSweep: {
     position: 'absolute',
@@ -1647,17 +1990,21 @@ const styles = StyleSheet.create({
     bottom: -10,
     width: 48,
     backgroundColor: 'rgba(255, 255, 255, 0.56)',
+    zIndex: 1,
   },
   captureIconBadge: {
     width: 37,
     height: 37,
     borderRadius: 18.5,
     backgroundColor: colors.paper,
+    borderWidth: 1.2,
+    borderColor: 'rgba(86, 120, 0, 0.16)',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   captureIconBadgeCompact: { width: 31, height: 31, borderRadius: 15.5 },
-  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 22 },
+  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 22, zIndex: 2 },
   captureCtaTextCompact: { fontSize: 16.5, lineHeight: 20 },
   captureArrow: {
     width: 35,
@@ -1666,6 +2013,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   captureArrowCompact: { width: 29, height: 29, borderRadius: 14.5 },
 
@@ -1675,6 +2023,16 @@ const styles = StyleSheet.create({
   inputPairRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
   inputPairRowCompact: { gap: 8 },
   inputPairWrap: { flex: 1, minWidth: 0 },
+  cardTopGloss: {
+    position: 'absolute',
+    top: 1,
+    left: 16,
+    right: 16,
+    height: 1.5,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    zIndex: 1,
+  },
 
   secondaryTile: {
     height: 60,
@@ -1686,30 +2044,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 10,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   secondaryTileCompact: { height: 46, borderRadius: 16, borderBottomWidth: 3, paddingHorizontal: 8, gap: 7 },
   galleryTile: {
     backgroundColor: '#EBFBFF',
-    borderColor: '#98E6F5',
+    borderColor: '#9EE8F7',
     borderBottomColor: '#5BC9DE',
   },
   mathTile: {
     backgroundColor: '#FFFBEB',
-    borderColor: '#F8DA7A',
+    borderColor: '#F8DC82',
     borderBottomColor: '#E5B72F',
   },
   tileIconBadge: {
     width: 42,
     height: 42,
     borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   tileIconBadgeCompact: { width: 34, height: 34, borderRadius: 11 },
-  galleryIconBadge: { backgroundColor: '#D4F5FD' },
-  mathIconBadge: { backgroundColor: '#FFF0B8' },
-  tileCopy: { flex: 1, minWidth: 0 },
+  galleryIconBadge: { borderColor: '#BCEFFA' },
+  mathIconBadge: { borderColor: '#FAE5A2' },
+  tileCopy: { flex: 1, minWidth: 0, zIndex: 2 },
   tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
   tileTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
   tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
@@ -1745,10 +2108,11 @@ const styles = StyleSheet.create({
     left: 0,
     top: 11,
     bottom: 11,
-    width: 4,
+    width: 4.5,
     borderTopRightRadius: 4,
     borderBottomRightRadius: 4,
     backgroundColor: colors.violet,
+    zIndex: 2,
   },
   practiceSpineMistakes: {
     backgroundColor: colors.peachDeep,
@@ -1757,14 +2121,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   practiceIconBadgeCompact: { width: 32, height: 32, borderRadius: 11 },
-  quizIconBadge: { backgroundColor: '#E5D6FF' },
-  mistakesIconBadge: { backgroundColor: '#FFDCD0' },
-  practiceCopy: { flex: 1, minWidth: 0 },
+  quizIconBadge: { borderColor: '#DFD0FF' },
+  mistakesIconBadge: { borderColor: '#FFD3C4' },
+  practiceCopy: { flex: 1, minWidth: 0, zIndex: 2 },
   practiceHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   practiceTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16.5, lineHeight: 19.5, flexShrink: 1 },
   practiceTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
@@ -1802,18 +2169,22 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   practiceArrow: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#E8DCFF',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DFD0FF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   practiceArrowMistakes: {
-    backgroundColor: '#FFE0D4',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFD3C4',
   },
-  practiceArrowCompact: { width: 25, height: 25, borderRadius: 12.5 },
+  practiceArrowCompact: { width: 26, height: 26, borderRadius: 13 },
 
   notebookGroup: { gap: 7 },
   notebookShelf: {

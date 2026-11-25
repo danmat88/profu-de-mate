@@ -95,25 +95,43 @@ export function StudioScreen() {
     () => getCachedFavoriteLessons()?.length ?? 0,
   );
   const [screenFocused, setScreenFocused] = useState(true);
+  const [statusBarReady, setStatusBarReady] = useState(reducedMotion);
   const captureActionRef = useRef<(() => void) | null>(null);
   const railPosition = useRef(new Animated.Value(TAB_ORDER.solve)).current;
   const activeTabRef = useRef<StudioTabId>('solve');
 
+  // Start cloud study-progress sync immediately behind LaunchSplash so track,
+  // streak, and mistake data are ready right when Home appears.
   useEffect(() => {
     if (!authSessionKey) return undefined;
     return startStudyProgressSync();
   }, [authSessionKey]);
 
-  // Pre-warm Învață and Caiet silently offscreen after Home intro finishes
-  // so the very first tab tap glides immediately with zero mount freeze.
+  // Flip StatusBar icons strictly after Home entrance finishes landing so Android
+  // WindowInsetsController never triggers a mid-animation window relayout hitch.
+  useEffect(() => {
+    if (reducedMotion) {
+      setStatusBarReady(true);
+      return undefined;
+    }
+    if (!motionReady) {
+      setStatusBarReady(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setStatusBarReady(true), 940);
+    return () => clearTimeout(timer);
+  }, [motionReady, reducedMotion]);
+
+  // Pre-warm offscreen Învață and Caiet tabs quietly after Home entrance finishes
+  // landing (all Home data is already loaded during splash).
   useEffect(() => {
     if (!motionReady) return undefined;
     const studyTimer = setTimeout(() => {
       setMountedTabs((current) => (current.study ? current : { ...current, study: true }));
-    }, 520);
+    }, 1_900);
     const notebookTimer = setTimeout(() => {
       setMountedTabs((current) => (current.notebook ? current : { ...current, notebook: true }));
-    }, 940);
+    }, 2_600);
     return () => {
       clearTimeout(studyTimer);
       clearTimeout(notebookTimer);
@@ -215,7 +233,7 @@ export function StudioScreen() {
 
   return (
     <View style={styles.root}>
-      {motionReady && screenFocused && activeTab === 'solve' ? (
+      {statusBarReady && screenFocused && activeTab === 'solve' ? (
         <StatusBar style="light" />
       ) : null}
       <View style={styles.contentStage}>
@@ -267,6 +285,8 @@ export function StudioScreen() {
       {!keyboardVisible ? (
         <StudioTabBar
           activeTab={activeTab}
+          ready={motionReady}
+          active={screenFocused}
           notebookBadgeCount={notebookBadgeCount}
           studyDot={hasStudyAlerts}
           onSelect={selectTab}

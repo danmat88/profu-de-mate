@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../shared/hooks/useReducedMotion';
@@ -7,6 +7,7 @@ import { useResponsiveLayout } from '../../shared/hooks/useResponsiveLayout';
 import {
   cosinePulseRange,
   createNativeLoop,
+  SILKY_EASE_OUT,
   WAVE_INPUT_17,
 } from '../../shared/motion/nativeMotion';
 import * as Haptics from '../../shared/services/haptics';
@@ -53,6 +54,8 @@ const TABS: readonly TabSpec[] = [
 
 type Props = {
   activeTab: StudioTabId;
+  ready?: boolean;
+  active?: boolean;
   notebookBadgeCount?: number;
   studyDot?: boolean;
   onSelect: (tab: StudioTabId) => void;
@@ -173,12 +176,14 @@ const MorphTabButton = memo(function MorphTabButton({
       ]}
     >
       <Animated.View pointerEvents="none" style={[styles.tabFill, pressStyle]}>
-        {/* Pure crisp white 3D morphing active pill inside the Royal-Violet capsule */}
+        {/* Pure crisp white 3D porcelain active pill inside the Royal-Violet capsule */}
         {active ? (
           <Animated.View
             pointerEvents="none"
             style={[styles.activeWhitePill, activePillStyle]}
-          />
+          >
+            <View style={styles.activeAccentBar} />
+          </Animated.View>
         ) : null}
 
         <View style={[styles.tabInner, active && styles.tabInnerActive]}>
@@ -189,7 +194,7 @@ const MorphTabButton = memo(function MorphTabButton({
               iconMotionStyle,
             ]}
           >
-            <AppIcon name={tab.icon} size={isVeryNarrow ? 27 : 30} />
+            <AppIcon name={tab.icon} size={active ? (isVeryNarrow ? 28 : 31) : (isVeryNarrow ? 26 : 29)} />
             {badgeCount > 0 ? (
               <View collapsable={false} style={[styles.badgePill, active && styles.badgePillActive]}>
                 <Text
@@ -233,6 +238,8 @@ const MorphTabButton = memo(function MorphTabButton({
  */
 export const StudioTabBar = memo(function StudioTabBar({
   activeTab,
+  ready = true,
+  active = true,
   notebookBadgeCount = 0,
   studyDot = false,
   onSelect,
@@ -247,22 +254,122 @@ export const StudioTabBar = memo(function StudioTabBar({
   const dockWidth = Math.round(Math.min(contentWidth, 430));
   const bottomPad = Math.max(insets.bottom, 10) + 4;
 
+  const dockPlayed = useRef(reducedMotion || ready);
+  const orbInitialWakeDone = useRef(false);
+  const [dockSettled, setDockSettled] = useState(reducedMotion || ready);
+  const dockEnter = useRef(new Animated.Value(reducedMotion || ready ? 1 : 0)).current;
   const orbPress = useRef(new Animated.Value(0)).current;
   const orbPulse = useRef(new Animated.Value(0)).current;
+  const orbHaloReveal = useRef(new Animated.Value(0)).current;
 
+  // Glide the Split-Island dock smoothly up from below on a pre-baked GPU texture.
   useEffect(() => {
     if (reducedMotion) {
-      orbPulse.stopAnimation();
-      orbPulse.setValue(0);
+      dockEnter.stopAnimation();
+      dockEnter.setValue(1);
+      dockPlayed.current = true;
+      setDockSettled(true);
       return undefined;
     }
-    const loop = createNativeLoop(orbPulse, 3_000);
-    loop.start();
+    if (!ready) {
+      if (!dockPlayed.current) dockEnter.setValue(0);
+      return undefined;
+    }
+    if (dockPlayed.current) {
+      dockEnter.setValue(1);
+      setDockSettled(true);
+      return undefined;
+    }
+    dockPlayed.current = true;
+
+    let anim: Animated.CompositeAnimation | undefined;
+    const frameId = requestAnimationFrame(() => {
+      anim = Animated.timing(dockEnter, {
+        toValue: 1,
+        duration: 540,
+        delay: 360,
+        easing: SILKY_EASE_OUT,
+        useNativeDriver: true,
+      });
+      anim.start(({ finished }) => {
+        if (finished) setDockSettled(true);
+      });
+    });
+    const watchdog = setTimeout(() => {
+      dockEnter.stopAnimation();
+      dockEnter.setValue(1);
+      setDockSettled(true);
+    }, 1_060);
+
     return () => {
-      loop.stop();
-      orbPulse.stopAnimation();
+      cancelAnimationFrame(frameId);
+      clearTimeout(watchdog);
+      anim?.stop();
+      dockEnter.stopAnimation();
     };
-  }, [orbPulse, reducedMotion]);
+  }, [dockEnter, ready, reducedMotion]);
+
+  // Wake the camera orb ambient halo strictly AFTER cold-start entrance settles.
+  useEffect(() => {
+    if (reducedMotion || !ready || !active) {
+      orbPulse.stopAnimation();
+      orbHaloReveal.stopAnimation();
+      orbPulse.setValue(0);
+      orbHaloReveal.setValue(0);
+      return undefined;
+    }
+
+    let loop: Animated.CompositeAnimation | undefined;
+    let fade: Animated.CompositeAnimation | undefined;
+    const wakeDelay = orbInitialWakeDone.current ? 240 : 1_360;
+    const timer = setTimeout(() => {
+      orbInitialWakeDone.current = true;
+      loop = createNativeLoop(orbPulse, 3_000);
+      loop.start();
+      fade = Animated.timing(orbHaloReveal, {
+        toValue: 1,
+        duration: 380,
+        easing: SILKY_EASE_OUT,
+        useNativeDriver: true,
+      });
+      fade.start();
+    }, wakeDelay);
+
+    return () => {
+      clearTimeout(timer);
+      loop?.stop();
+      fade?.stop();
+      orbPulse.stopAnimation();
+      orbHaloReveal.stopAnimation();
+    };
+  }, [active, orbHaloReveal, orbPulse, ready, reducedMotion]);
+
+  const dockEnterStyle = useMemo(
+    () => ({
+      opacity: dockEnter.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [0.01, 1, 1],
+        extrapolate: 'clamp',
+      }),
+      transform: [
+        {
+          translateY: dockEnter.interpolate({
+            inputRange: [0, 1],
+            outputRange: [52, 0],
+            extrapolate: 'clamp',
+          }),
+        },
+        {
+          scale: dockEnter.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.94, 1],
+            extrapolate: 'clamp',
+          }),
+        },
+      ],
+    }),
+    [dockEnter],
+  );
 
   const orbMotionStyle = useMemo(
     () => ({
@@ -286,10 +393,13 @@ export const StudioTabBar = memo(function StudioTabBar({
 
   const orbHaloStyle = useMemo(
     () => ({
-      opacity: orbPulse.interpolate({
-        inputRange: WAVE_INPUT_17,
-        outputRange: COS_PULSE.map((v) => 0.18 + v * 0.36),
-      }),
+      opacity: Animated.multiply(
+        orbHaloReveal,
+        orbPulse.interpolate({
+          inputRange: WAVE_INPUT_17,
+          outputRange: COS_PULSE.map((v) => 0.18 + v * 0.36),
+        }),
+      ),
       transform: [
         {
           scale: orbPulse.interpolate({
@@ -299,7 +409,7 @@ export const StudioTabBar = memo(function StudioTabBar({
         },
       ],
     }),
-    [orbPulse],
+    [orbHaloReveal, orbPulse],
   );
 
   const handleOrbPressIn = () => {
@@ -341,19 +451,23 @@ export const StudioTabBar = memo(function StudioTabBar({
         />
       ) : null}
 
-      <View style={[styles.splitRow, { width: dockWidth }]}>
-        {/* Left Island: Vibrant Royal-Violet 3D Floating Capsule with pure-white morphing active pill */}
+      <Animated.View
+        renderToHardwareTextureAndroid={!dockSettled && !reducedMotion}
+        style={[styles.splitRow, { width: dockWidth }, dockEnterStyle]}
+      >
+        {/* Left Island: Jewel-grade Royal-Violet 3D Floating Capsule with porcelain active pill */}
         <View
           collapsable={false}
           accessibilityRole="tablist"
           style={styles.pillIsland}
         >
           <LinearGradient
-            colors={['#8443FF', '#6421EA', '#4C14C2']}
+            colors={['#8E4BFF', '#6722EE', '#4611BA']}
             start={{ x: 0.05, y: 0 }}
             end={{ x: 0.95, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
+          <View pointerEvents="none" style={styles.pillAmbientGlow} />
           <View pointerEvents="none" style={styles.pillIslandShine} />
 
           {TABS.map((tab) => {
@@ -394,17 +508,20 @@ export const StudioTabBar = memo(function StudioTabBar({
           >
             <Animated.View pointerEvents="none" style={[styles.cameraOrb, orbMotionStyle]}>
               <LinearGradient
-                colors={['#EEFF7A', '#D7FF33', '#BCEE18']}
+                colors={['#F4FF8C', '#D8FF3E', '#B5E808']}
                 start={{ x: 0.12, y: 0 }}
                 end={{ x: 0.88, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.cameraOrbShine} />
-              <AppIcon name="camera" size={38} />
+              <AppIcon name="camera" size={39} />
             </Animated.View>
           </Pressable>
+          <View pointerEvents="none" style={styles.cameraSparkBadge}>
+            <Text accessible={false} style={styles.cameraSparkGlyph}>✦</Text>
+          </View>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 });
@@ -446,19 +563,28 @@ const styles = StyleSheet.create({
     gap: 5,
     overflow: 'hidden',
     position: 'relative',
-    elevation: 7,
     shadowColor: '#4112B5',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.24,
     shadowRadius: 14,
   },
+  pillAmbientGlow: {
+    position: 'absolute',
+    width: 140,
+    height: 90,
+    borderRadius: 60,
+    top: -42,
+    right: -12,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
   pillIslandShine: {
     position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
+    top: 1,
+    left: 26,
+    right: 26,
     height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.36)',
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.44)',
   },
   tabButton: {
     minWidth: 0,
@@ -486,9 +612,18 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.9)',
-    borderBottomWidth: 3,
-    borderBottomColor: '#DFD2FA',
+    borderColor: '#FFFFFF',
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#D6C4FA',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 3,
+  },
+  activeAccentBar: {
+    width: 20,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.lime,
   },
   tabInner: {
     flexDirection: 'row',
@@ -500,6 +635,7 @@ const styles = StyleSheet.create({
   tabInnerActive: {
     gap: 7,
     paddingHorizontal: 11,
+    paddingBottom: 2,
   },
   iconWrap: {
     width: 34,
@@ -511,16 +647,18 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   iconWrapInactiveBubble: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.88)',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1.8,
+    borderColor: 'rgba(255, 255, 255, 0.34)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
   },
   activeLabel: {
     fontFamily: fonts.display,
-    fontSize: 15,
-    lineHeight: 18,
-    letterSpacing: -0.2,
+    fontSize: 15.5,
+    lineHeight: 18.5,
+    letterSpacing: -0.25,
     flexShrink: 1,
     includeFontPadding: false,
   },
@@ -598,14 +736,13 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: '#FFFFFF',
     borderBottomWidth: 5,
-    borderBottomColor: '#8BB500',
+    borderBottomColor: '#84AD00',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    elevation: 6,
     shadowColor: '#5B8000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.24,
+    shadowOpacity: 0.26,
     shadowRadius: 8,
   },
   cameraOrbShine: {
@@ -613,8 +750,29 @@ const styles = StyleSheet.create({
     top: 3,
     left: 13,
     right: 13,
-    height: 10,
+    height: 11,
     borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.42)',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  cameraSparkBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.violet,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  cameraSparkGlyph: {
+    fontFamily: fonts.display,
+    color: colors.lime,
+    fontSize: 10,
+    lineHeight: 12,
+    includeFontPadding: false,
   },
 });
