@@ -1,5 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, BackHandler, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +9,7 @@ import { beginAppTransition } from '../../../shared/context/TransitionMotionCont
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
-import { colors, fonts, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
@@ -345,47 +347,65 @@ export function MathInputScreen({ navigation, route }: Props) {
       : 'Primești explicația completă, pas cu pas.';
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
 
-      <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
-        <IconButton
-          label="Înapoi"
-          disabled={busy}
-          onPress={() => {
-            if (busy) return;
-            beginAppTransition();
-            navigation.goBack();
-          }}
-          size={compact ? 38 : 42}
-        >
-          <MiniGlyph name="back" size={compact ? 21 : 23} color={colors.ink} />
-        </IconButton>
+      {/* Ultra-compact curved mode-aware Math Input Canopy */}
+      <View style={[styles.canopy, compact && styles.canopyCompact, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={isCheck
+            ? ['#C83B67', '#7F23A8', '#44138F']
+            : ['#7A38FF', '#581EE0', '#380E9F']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlow} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
 
-        <View style={styles.headerCopy}>
-          <View style={styles.headerMetaRow}>
-            <Text style={styles.eyebrow}>{isCheck ? 'MOD VERIFICARE' : 'MOD REZOLVARE'}</Text>
-            <View accessibilityLabel={saveLabel} style={[styles.saveDot, saveState === 'error' && styles.saveDotError]} />
+        <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
+          <IconButton
+            label="Înapoi"
+            disabled={busy}
+            onPress={() => {
+              if (busy) return;
+              beginAppTransition();
+              navigation.goBack();
+            }}
+            size={compact ? 38 : 42}
+            style={styles.canopyActionBtn}
+          >
+            <MiniGlyph name="back" size={compact ? 18 : 19} color={colors.violetDeep} />
+          </IconButton>
+
+          <View style={styles.headerCopy}>
+            <View style={styles.headerMetaRow}>
+              <View accessibilityLabel={saveLabel} style={[styles.saveDot, saveState === 'error' && styles.saveDotError]} />
+              <Text style={styles.eyebrow}>{isCheck ? 'MOD VERIFICARE' : 'MOD REZOLVARE'}</Text>
+            </View>
+            <Text numberOfLines={1} style={[styles.title, (isNarrow || compact) && styles.titleNarrow]}>
+              Scrie <Text style={styles.titleAccent}>problema</Text>
+            </Text>
           </View>
-          <Text numberOfLines={1} style={[styles.title, (isNarrow || compact) && styles.titleNarrow]}>Scrie problema</Text>
-        </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isCheck ? 'Schimbă în modul Rezolvă' : 'Schimbă în modul Verifică'}
-          disabled={busy}
-          onPress={toggleMode}
-          style={({ pressed }) => [
-            styles.modeSwitchPill,
-            isCheck && styles.modeSwitchPillCheck,
-            pressed && styles.pillPressed,
-          ]}
-        >
-          <View style={[styles.modeSwitchDot, isCheck && styles.modeSwitchDotCheck]} />
-          <Text numberOfLines={1} style={styles.modeSwitchText}>
-            {isCheck ? 'Verifică ⇄' : 'Rezolvă ⇄'}
-          </Text>
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isCheck ? 'Schimbă în modul Rezolvă' : 'Schimbă în modul Verifică'}
+            disabled={busy}
+            onPress={toggleMode}
+            style={({ pressed }) => [
+              styles.modeSwitchPill,
+              isCheck && styles.modeSwitchPillCheck,
+              pressed && styles.pillPressed,
+            ]}
+          >
+            <View style={[styles.modeSwitchDot, isCheck && styles.modeSwitchDotCheck]} />
+            <Text numberOfLines={1} style={styles.modeSwitchText}>
+              {isCheck ? 'Verifică ⇄' : 'Rezolvă ⇄'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.workspace, { paddingHorizontal: gutter }]}>
@@ -465,9 +485,7 @@ export function MathInputScreen({ navigation, route }: Props) {
             accessibilityState={{ disabled: busy, busy }}
             disabled={busy}
             dimWhenDisabled={false}
-            depth={compact ? shadows.sm + 1 : shadows.md}
-            radius={18}
-            shadowColor={colors.ink}
+            pressedScale={0.97}
             haptic="medium"
             onPress={() => { void submit(); }}
             contentStyle={[
@@ -476,6 +494,14 @@ export function MathInputScreen({ navigation, route }: Props) {
               isCheck && !shouldAdvanceToSolution && styles.submitCheck,
             ]}
           >
+            <LinearGradient
+              colors={isCheck && !shouldAdvanceToSolution
+                ? ['#FFE17A', '#FFBE52', '#FF9F38']
+                : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={styles.fill}
+            />
             <View pointerEvents="none" style={styles.submitShine} />
             {busy
               ? <PlayfulLoader micro />
@@ -506,32 +532,87 @@ export function MathInputScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas, overflow: 'hidden' },
-  header: { flexShrink: 0, minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    paddingBottom: 6,
+    position: 'relative',
+    zIndex: 4,
+    flexShrink: 0,
+  },
+  canopyCompact: {
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    paddingBottom: 4,
+  },
+  canopyGlow: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    top: -90,
+    right: -35,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 230,
+    height: 230,
+    borderRadius: 115,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    left: -65,
+  },
+  header: { flexShrink: 0, minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   headerCompact: { minHeight: 44, paddingVertical: 2 },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.2,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
   headerCopy: { flex: 1, minWidth: 0 },
   headerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  eyebrow: { ...typography.kicker, fontSize: 10, color: colors.violetDeep },
+  eyebrow: { ...typography.kicker, fontSize: 10, color: 'rgba(242, 240, 255, 0.92)', includeFontPadding: false },
   saveDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.mint,
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
   },
-  saveDotError: { backgroundColor: colors.rose },
-  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 20.5, lineHeight: 24 },
+  saveDotError: { backgroundColor: '#FF8EA0' },
+  title: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 20.5,
+    lineHeight: 24,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  titleAccent: { color: colors.lime },
   titleNarrow: { fontSize: 18.5, lineHeight: 21.5 },
   modeSwitchPill: {
     minHeight: 36,
     paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.16)',
-    backgroundColor: colors.violetSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#FFFFFF',
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  modeSwitchPillCheck: { backgroundColor: colors.peachSoft, borderColor: 'rgba(255, 141, 107, 0.34)' },
+  modeSwitchPillCheck: {
+    borderBottomColor: '#F2B8A2',
+  },
   modeSwitchDot: {
     width: 7,
     height: 7,
@@ -539,9 +620,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.violet,
   },
   modeSwitchDotCheck: { backgroundColor: colors.peach },
-  modeSwitchText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5 },
+  modeSwitchText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 11.5 },
   pillPressed: { transform: [{ scale: 0.96 }] },
-  workspace: { flex: 1, minHeight: 0, overflow: 'hidden', maxWidth: 560, width: '100%', alignSelf: 'center', paddingTop: 2 },
+  workspace: { flex: 1, minHeight: 0, overflow: 'hidden', maxWidth: 560, width: '100%', alignSelf: 'center', paddingTop: 7 },
 
   tabs: { flexShrink: 0, flexDirection: 'row', gap: 8, marginBottom: 7 },
   tab: {
@@ -549,17 +630,19 @@ const styles = StyleSheet.create({
     minWidth: 0,
     height: 40,
     paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    borderRadius: radii.pill,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
   },
-  tabActive: { borderColor: colors.violet, backgroundColor: '#F4EEFF' },
-  tabActiveCheck: { borderColor: colors.peach, backgroundColor: '#FFF2EC' },
+  tabActive: { borderColor: colors.violet, borderBottomColor: '#4715B8', backgroundColor: '#F4EEFF' },
+  tabActiveCheck: { borderColor: colors.peach, borderBottomColor: '#C45A38', backgroundColor: '#FFF2EC' },
   tabPressed: { transform: [{ scale: 0.97 }] },
   step: {
     width: 22,
@@ -585,8 +668,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.3,
+    borderBottomWidth: 2.8,
     borderColor: '#FBC4CE',
+    borderBottomColor: '#E595A4',
     backgroundColor: colors.roseSoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -600,34 +685,38 @@ const styles = StyleSheet.create({
   submit: {
     minHeight: 54,
     paddingHorizontal: 11,
-    borderWidth: 1,
-    borderColor: 'rgba(86, 120, 0, 0.16)',
-    borderRadius: 999,
-    backgroundColor: colors.lime,
+    paddingVertical: 6,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
+    borderRadius: radii.pill,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     overflow: 'hidden',
+    position: 'relative',
   },
   submitCompact: { minHeight: 46, gap: 8 },
-  submitCheck: { backgroundColor: '#FFC26E', borderColor: 'rgba(179, 59, 34, 0.16)' },
+  submitCheck: { borderColor: '#FFEB9C', borderBottomColor: '#C46C0E' },
   submitShine: {
     position: 'absolute',
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.55)',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
   },
   submitIcon: {
     width: 36,
     height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.paper,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitIconCompact: { width: 30, height: 30, borderRadius: 10 },
+  submitIconCompact: { width: 30, height: 30, borderRadius: 15 },
   submitCopy: { flex: 1, minWidth: 0 },
   submitText: { color: colors.ink, fontSize: 17, lineHeight: 20, fontFamily: fonts.display },
   submitTextCompact: { fontSize: 16, lineHeight: 19 },

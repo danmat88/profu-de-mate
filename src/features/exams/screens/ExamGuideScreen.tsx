@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,9 +20,9 @@ import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { StepTransitionStage } from '../../../shared/ui/StepTransitionStage';
 import { Text } from '../../../shared/ui/Typography';
 import { StudyInlineText } from '../../study/components/StudyInlineText';
@@ -58,7 +59,7 @@ const SEGMENT_COLORS = {
 
 export function ExamGuideScreen({ navigation, route }: Props) {
   const frame = useSafeAreaFrame();
-  const { gutter, isNarrow } = useResponsiveLayout(frame);
+  const { gutter, contentWidth, isNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const profile = useStudyProfile();
   const defaultExamId = route.params?.examId ?? getStudyTrackMeta(profile.track).examGuideId;
@@ -173,16 +174,67 @@ export function ExamGuideScreen({ navigation, route }: Props) {
   }, [navigation, relatedFormulas]);
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader
-        compact
-        title="Cum arată examenul"
-        eyebrow={guide.eyebrow}
-        onBack={() => navigation.goBack()}
-        rightIcon="trophy"
-      />
 
+      {/* Full-bleed curved dynamic Exam Guide Canopy */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={HERO_GRADIENTS[guide.accent]}
+          start={{ x: 0.05, y: 0 }}
+          end={{ x: 0.95, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlow} />
+        <View pointerEvents="none" style={styles.canopyGlowLime} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyGlyphSum}>∑</Text>
+        <Text accessible={false} style={styles.canopyGlyphStar}>★</Text>
+
+        <View style={[styles.canopyInner, { width: contentWidth }]}>
+          <View style={styles.canopyRow}>
+            <IconButton
+              label="Înapoi"
+              onPress={() => navigation.goBack()}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+            </IconButton>
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                Cum arată <Text style={styles.canopyTitleAccent}>examenul</Text>
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View style={styles.canopyEyebrowDot} />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  {guide.eyebrow}
+                </Text>
+              </View>
+            </View>
+
+            <View accessible={false} style={styles.canopyTrophyBadge}>
+              <AppIcon name="trophy" size={24} />
+            </View>
+          </View>
+
+          <View style={styles.canopyMetaRow}>
+            <View style={styles.heroBadge}>
+              <Text style={styles.heroBadgeText}>⏱ {guide.durationMinutes} min</Text>
+            </View>
+            <View style={styles.heroBadgeLime}>
+              <Text style={styles.heroBadgeLimeText}>★ {guide.totalPoints} puncte</Text>
+            </View>
+            <Text numberOfLines={1} style={styles.canopyExamTitle}>
+              {guide.title}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Straddling 3D tactile exam switcher */}
       <View style={styles.examPickerWrap}>
         <ScrollView
           horizontal
@@ -219,27 +271,13 @@ export function ExamGuideScreen({ navigation, route }: Props) {
           { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 18) + 22 },
         ]}
       >
-        <View style={styles.heroCard}>
-          <LinearGradient
-            colors={HERO_GRADIENTS[guide.accent]}
-            start={{ x: 0.05, y: 0 }}
-            end={{ x: 0.95, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View pointerEvents="none" style={styles.heroGlow} />
-          <View pointerEvents="none" style={styles.heroTopShine} />
+        <View style={[styles.page, { maxWidth: contentWidth }]}>
+        {/* Pure-white 3D porcelain structure & points breakdown studio card */}
+        <View style={styles.overviewCard}>
+          <View pointerEvents="none" style={styles.cardTopGloss} />
 
-          <View style={styles.heroBadgesRow}>
-            <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>⏱ {guide.durationMinutes} min</Text>
-            </View>
-            <View style={styles.heroBadgeLime}>
-              <Text style={styles.heroBadgeLimeText}>★ {guide.totalPoints} puncte</Text>
-            </View>
-          </View>
-
-          <Text style={styles.heroTitle}>{guide.title}</Text>
-          <Text style={styles.heroSubtitle}>{guide.subtitle}</Text>
+          <Text style={styles.overviewTitle}>{guide.title}</Text>
+          <Text style={styles.overviewSubtitle}>{guide.subtitle}</Text>
 
           <View style={styles.pointsBarWrap}>
             <View style={styles.pointsBarTrack}>
@@ -271,9 +309,9 @@ export function ExamGuideScreen({ navigation, route }: Props) {
           <StudyInlineText
             text={guide.overviewNote}
             scale={0.93}
-            color="rgba(255, 255, 255, 0.92)"
+            color={colors.inkSoft}
             textStyle={styles.heroOverview}
-            maxMathWidth={Math.max(220, frame.width - gutter * 2 - 44)}
+            maxMathWidth={Math.max(220, contentWidth - 36)}
           />
 
           <PressableScale
@@ -289,7 +327,16 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             }}
             contentStyle={styles.heroSimCta}
           >
-            <AppIcon name="trophy" size={22} />
+            <LinearGradient
+              colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={styles.fill}
+            />
+            <View pointerEvents="none" style={styles.ctaTopGloss} />
+            <View style={styles.ctaIconBadge}>
+              <AppIcon name="trophy" size={22} />
+            </View>
             <Text numberOfLines={2} style={styles.heroSimCtaText}>
               Simulare completă · {guide.shortTitle}
             </Text>
@@ -428,7 +475,16 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             onPress={openModelSheet}
             contentStyle={styles.modelCta}
           >
-            <AppIcon name="explain" size={24} />
+            <LinearGradient
+              colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={styles.fill}
+            />
+            <View pointerEvents="none" style={styles.ctaTopGloss} />
+            <View style={styles.ctaIconBadge}>
+              <AppIcon name="explain" size={22} />
+            </View>
             <Text numberOfLines={2} style={styles.modelCtaText}>
               Vezi modelul rezolvat pe barem
             </Text>
@@ -467,6 +523,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
           </View>
         ) : null}
         </StepTransitionStage>
+        </View>
       </ScrollView>
 
       {modelSheetEverOpened ? (
@@ -558,27 +615,170 @@ export function ExamGuideScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  page: { width: '100%', alignSelf: 'center', gap: 14 },
   subjectStage: { gap: 14 },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    paddingBottom: 32,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlow: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -80,
+    right: -45,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    bottom: -70,
+    left: -30,
+    backgroundColor: 'rgba(216, 255, 62, 0.15)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -85,
+  },
+  canopyGlyphSum: {
+    position: 'absolute',
+    right: 78,
+    bottom: 14,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    color: 'rgba(255, 255, 255, 0.12)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  canopyGlyphStar: {
+    position: 'absolute',
+    left: 24,
+    bottom: 10,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: 'rgba(216, 255, 62, 0.25)',
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingTop: 6,
+    gap: 10,
+  },
+  canopyRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyTitleAccent: {
+    color: colors.lime,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(242, 240, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.85,
+    includeFontPadding: false,
+  },
+  canopyTrophyBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderBottomWidth: 3.5,
+    borderColor: colors.lime,
+    borderBottomColor: '#98C40E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  canopyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  canopyExamTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(248, 245, 255, 0.94)',
+    fontSize: 12,
+    includeFontPadding: false,
+  },
+
   examPickerWrap: {
-    paddingTop: 2,
+    marginTop: -20,
     paddingBottom: 10,
+    zIndex: 8,
   },
   examPickerRow: {
     gap: 8,
     alignItems: 'center',
   },
   examPill: {
-    minHeight: 36,
+    minHeight: 38,
     paddingHorizontal: 15,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.13)',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   examPillActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#3C12A8',
     backgroundColor: colors.violet,
   },
   examPillText: {
@@ -592,86 +792,79 @@ const styles = StyleSheet.create({
     color: colors.paper,
   },
   content: {
-    gap: 14,
+    paddingTop: 2,
+    alignItems: 'center',
   },
 
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
+  overviewCard: {
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     padding: 18,
     overflow: 'hidden',
     position: 'relative',
   },
-  heroGlow: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -100,
-    right: -60,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-  },
-  heroTopShine: {
+  cardTopGloss: {
     position: 'absolute',
     top: 0,
     left: 24,
     right: 24,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
-  },
-  heroBadgesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   heroBadge: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(18, 12, 46, 0.28)',
+    backgroundColor: 'rgba(18, 12, 46, 0.3)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    flexShrink: 0,
   },
   heroBadgeText: {
     fontFamily: fonts.bodyBold,
     color: colors.paper,
-    fontSize: 11.5,
+    fontSize: 11,
     includeFontPadding: false,
   },
   heroBadgeLime: {
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
     backgroundColor: colors.lime,
+    flexShrink: 0,
   },
   heroBadgeLimeText: {
     fontFamily: fonts.bodyBold,
     color: colors.ink,
-    fontSize: 11.5,
+    fontSize: 11,
     includeFontPadding: false,
   },
-  heroTitle: {
-    marginTop: 12,
+  overviewTitle: {
     fontFamily: fonts.display,
-    color: colors.paper,
-    fontSize: 22,
-    lineHeight: 26,
+    color: colors.ink,
+    fontSize: 20,
+    lineHeight: 24,
   },
-  heroSubtitle: {
+  overviewSubtitle: {
     marginTop: 4,
     fontFamily: fonts.bodyMedium,
-    color: 'rgba(244, 238, 255, 0.9)',
-    fontSize: 12.5,
-    lineHeight: 17,
+    color: colors.inkSoft,
+    fontSize: 13,
+    lineHeight: 18,
   },
   pointsBarWrap: {
     marginTop: 14,
     padding: 12,
     borderRadius: 18,
-    backgroundColor: 'rgba(18, 12, 46, 0.24)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.14)',
+    backgroundColor: '#F7F2FF',
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#D2C2FA',
     gap: 9,
   },
   pointsBarTrack: {
@@ -703,27 +896,50 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontFamily: fonts.bodyBold,
-    color: colors.paper,
+    color: colors.ink,
     fontSize: 11,
     includeFontPadding: false,
   },
   heroOverview: {
     marginTop: 12,
     fontFamily: fonts.body,
-    color: 'rgba(255, 255, 255, 0.92)',
-    fontSize: 12.5,
-    lineHeight: 18,
+    color: colors.inkSoft,
+    fontSize: 13,
+    lineHeight: 18.5,
   },
   heroSimCta: {
     marginTop: 14,
-    minHeight: 50,
+    minHeight: 54,
     borderRadius: radii.pill,
-    backgroundColor: colors.lime,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 13,
     paddingVertical: 9,
     gap: 9,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  ctaIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   heroSimCtaText: {
     flex: 1,
@@ -745,10 +961,12 @@ const styles = StyleSheet.create({
 
   strategyCard: {
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 14,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    padding: 15,
   },
   strategyHeader: {
     flexDirection: 'row',
@@ -756,9 +974,13 @@ const styles = StyleSheet.create({
     gap: 11,
   },
   strategyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#FBE08A',
+    borderBottomColor: '#E2B84A',
     backgroundColor: colors.goldSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -777,9 +999,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   chevronBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#E2D6FF',
+    borderBottomColor: '#C8B5FA',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -836,9 +1062,11 @@ const styles = StyleSheet.create({
 
   detailCard: {
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.11)',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     padding: 16,
   },
   detailMetaRow: {
@@ -849,7 +1077,7 @@ const styles = StyleSheet.create({
   },
   formatPill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
     backgroundColor: colors.violetSoft,
   },
@@ -861,7 +1089,7 @@ const styles = StyleSheet.create({
   },
   timePill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
     backgroundColor: colors.cyanSoft,
   },
@@ -903,8 +1131,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: radii.pill,
     backgroundColor: '#F7F2FF',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#D0C0F8',
   },
   topicChipText: {
     fontFamily: fonts.bodyMedium,
@@ -939,9 +1169,11 @@ const styles = StyleSheet.create({
 
   modelCard: {
     borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.16)',
-    backgroundColor: '#F6F0FF',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
+    backgroundColor: '#F7F2FF',
     padding: 16,
     gap: 10,
   },
@@ -953,7 +1185,7 @@ const styles = StyleSheet.create({
   },
   modelBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
     backgroundColor: colors.violet,
   },
@@ -982,8 +1214,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#E8E0FC',
+    borderBottomColor: '#D4C7F7',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
@@ -1008,14 +1244,19 @@ const styles = StyleSheet.create({
   },
   modelCta: {
     marginTop: 2,
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: radii.pill,
-    backgroundColor: colors.lime,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 13,
     paddingVertical: 9,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   modelCtaText: {
     flex: 1,
@@ -1039,13 +1280,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   formulasList: {
-    gap: 8,
+    gap: 9,
   },
   miniFormulaRow: {
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 13,
@@ -1074,9 +1317,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   miniFormulaArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E2D6FF',
+    borderBottomColor: '#C8B5FA',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1104,12 +1351,14 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   scaleButton: {
-    minWidth: 42,
-    height: 34,
+    minWidth: 44,
+    minHeight: 36,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1121,10 +1370,14 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   sheetCloseBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(124, 60, 255, 0.08)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1138,10 +1391,12 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sheetSectionCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#EAE1FA',
-    backgroundColor: colors.paper,
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     padding: 14,
     gap: 10,
   },
@@ -1154,8 +1409,10 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 14,
     backgroundColor: '#FAF8FF',
-    borderWidth: 1,
-    borderColor: '#EFE8FC',
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#ECE4FC',
+    borderBottomColor: '#D8CAF8',
     padding: 10,
   },
   sheetRubricPts: {

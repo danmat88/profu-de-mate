@@ -1,4 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,11 +15,11 @@ import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ConfettiBurst } from '../../../shared/ui/ConfettiBurst';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { LiquidProgressBar } from '../../../shared/ui/LiquidProgressBar';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { StudyInlineText } from '../../study/components/StudyInlineText';
@@ -87,15 +89,77 @@ export function ExamResultScreen({ navigation, route }: Props) {
   };
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader
-        compact
-        title="Rezultat simulare"
-        eyebrow={`${guide.shortTitle} · ${getScopeTitle(scope).toUpperCase()}`}
-        onBack={() => navigation.goBack()}
-        rightIcon="trophy"
-      />
+
+      {/* Full-bleed curved Exam Result Celebration Canopy */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={celebrate
+            ? ['#823EFF', '#5A1EE0', '#380E9F']
+            : ['#4D2EE0', '#3518AC', '#230D75']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowTop} />
+        <View pointerEvents="none" style={styles.canopyGlowLime} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyGlyphSum}>∑</Text>
+        <Text accessible={false} style={styles.canopyGlyphStar}>★</Text>
+
+        <View style={[styles.canopyInner, { width: contentWidth }]}>
+          <View style={styles.canopyRow}>
+            <IconButton
+              label="Înapoi"
+              onPress={() => navigation.goBack()}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+            </IconButton>
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                Rezultat <Text style={styles.canopyTitleAccent}>simulare</Text>
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View style={styles.canopyEyebrowDot} />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  {guide.shortTitle} · {getScopeTitle(scope).toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            <View accessible={false} style={styles.canopyTrophyBadge}>
+              <AppIcon name="trophy" size={24} />
+            </View>
+          </View>
+
+          <View style={styles.canopyHeroRow}>
+            <View style={styles.canopyHeroCopy}>
+              <View style={styles.gradeBadge}>
+                <Text style={styles.gradeBadgeText}>
+                  {grade !== null ? `Nota ${formatRomanianGrade(grade)}` : `${awardedPoints} / ${maxPoints}p`}
+                </Text>
+              </View>
+              <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.headline}>
+                {headline}
+              </Text>
+              <Text numberOfLines={2} style={styles.subSummary}>
+                {awardedPoints} din {maxPoints} puncte ({percent}%) · Timp: {formatElapsed(elapsedSeconds)}
+              </Text>
+            </View>
+
+            <View style={styles.mascotStage}>
+              <SpotlightAura size={94} tone="onViolet" active={motionActive} />
+              {celebrate ? <ConfettiBurst /> : null}
+              <Mascot pose={celebrate ? 'cheer' : 'wave'} size={88} active={motionActive} interactive />
+            </View>
+          </View>
+        </View>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -105,25 +169,11 @@ export function ExamResultScreen({ navigation, route }: Props) {
         ]}
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
-          <View style={styles.heroCard}>
-            <View style={styles.mascotStage}>
-              <SpotlightAura size={142} tone={celebrate ? 'lime' : 'violet'} active={motionActive} />
-              {celebrate ? <ConfettiBurst /> : null}
-              <Mascot pose={celebrate ? 'cheer' : 'wave'} size={126} active={motionActive} interactive />
-            </View>
+          {scope === 'full' ? (
+            <View style={styles.breakdownCard}>
+              <View pointerEvents="none" style={styles.cardTopGloss} />
+              <Text style={styles.sectionKicker}>DISTRIBUȚIA PUNCTAJULUI</Text>
 
-            <View style={styles.gradeBadge}>
-              <Text style={styles.gradeBadgeText}>
-                {grade !== null ? `Nota ${formatRomanianGrade(grade)}` : `${awardedPoints} / ${maxPoints}p`}
-              </Text>
-            </View>
-
-            <Text style={styles.headline}>{headline}</Text>
-            <Text style={styles.subSummary}>
-              {awardedPoints} din {maxPoints} puncte ({percent}%) · Timp: {formatElapsed(elapsedSeconds)}
-            </Text>
-
-            {scope === 'full' ? (
               <View style={styles.breakdownBox}>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Din oficiu</Text>
@@ -149,8 +199,8 @@ export function ExamResultScreen({ navigation, route }: Props) {
                 </View>
                 <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s3 / 30)} height={6} tone="warm" shimmer={false} />
               </View>
-            ) : null}
-          </View>
+            </View>
+          ) : null}
 
           <View style={styles.itemsSection}>
             <Text style={styles.sectionKicker}>PUNCTAJ PE FIECARE ITEM (ATINGE PENTRU BAREM)</Text>
@@ -207,7 +257,16 @@ export function ExamResultScreen({ navigation, route }: Props) {
               onPress={handleRestart}
               contentStyle={styles.primaryBtn}
             >
-              <AppIcon name="retake" size={24} />
+              <LinearGradient
+                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <View style={styles.primaryCtaBadge}>
+                <AppIcon name="retake" size={22} />
+              </View>
               <Text style={styles.primaryBtnText}>Reia simularea</Text>
               <View style={styles.primaryArrow}>
                 <MiniGlyph name="next" size={16} color={colors.paper} />
@@ -303,55 +362,210 @@ export function ExamResultScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  scrollContent: { flexGrow: 1, paddingTop: 4 },
-  page: { width: '100%', alignSelf: 'center', gap: 16 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
 
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    padding: 18,
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    paddingBottom: 20,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlowTop: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    top: -80,
+    right: -45,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    bottom: -70,
+    left: -35,
+    backgroundColor: 'rgba(216, 255, 62, 0.16)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 270,
+    height: 270,
+    borderRadius: 135,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -85,
+  },
+  canopyGlyphSum: {
+    position: 'absolute',
+    right: 112,
+    bottom: 14,
+    fontFamily: fonts.display,
+    fontSize: 28,
+    color: 'rgba(255, 255, 255, 0.12)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  canopyGlyphStar: {
+    position: 'absolute',
+    left: 24,
+    bottom: 12,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: 'rgba(216, 255, 62, 0.28)',
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingTop: 6,
+    gap: 10,
+  },
+  canopyRow: {
+    minHeight: 50,
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyTitleAccent: {
+    color: colors.lime,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(242, 240, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.85,
+    includeFontPadding: false,
+  },
+  canopyTrophyBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderBottomWidth: 3.5,
+    borderColor: colors.lime,
+    borderBottomColor: '#98C40E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  canopyHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyHeroCopy: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-start',
+    gap: 6,
+  },
   mascotStage: {
-    width: 150,
-    height: 140,
+    width: 98,
+    height: 94,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    flexShrink: 0,
   },
   gradeBadge: {
-    paddingHorizontal: 22,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#ECFF8A',
+    borderBottomColor: '#8BB509',
     backgroundColor: colors.lime,
   },
   gradeBadgeText: {
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 26,
-    lineHeight: 30,
+    fontSize: 21,
+    lineHeight: 25,
   },
   headline: {
     fontFamily: fonts.display,
-    color: colors.ink,
-    fontSize: 22,
-    lineHeight: 26,
-    textAlign: 'center',
+    color: colors.paper,
+    fontSize: 19,
+    lineHeight: 23,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
   },
   subSummary: {
     fontFamily: fonts.bodyBold,
-    color: colors.inkSoft,
-    fontSize: 12.5,
-    textAlign: 'center',
+    color: 'rgba(242, 240, 255, 0.9)',
+    fontSize: 12,
+    lineHeight: 16.5,
+  },
+
+  scrollContent: { flexGrow: 1, paddingTop: 14 },
+  page: { width: '100%', alignSelf: 'center', gap: 16 },
+
+  breakdownCard: {
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  cardTopGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    right: 24,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   breakdownBox: {
     width: '100%',
-    marginTop: 6,
-    padding: 14,
-    borderRadius: 20,
+    padding: 13,
+    borderRadius: 18,
+    borderWidth: 1.2,
+    borderColor: '#ECE4FC',
     backgroundColor: '#F8F4FF',
     gap: 7,
   },
@@ -378,28 +592,42 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: colors.violetDeep,
   },
-  itemsList: { gap: 8 },
+  itemsList: { gap: 9 },
   itemRow: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     gap: 11,
   },
   scorePill: {
-    minWidth: 54,
-    height: 32,
+    minWidth: 56,
+    minHeight: 34,
     borderRadius: radii.pill,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#FFC8D3',
+    borderBottomColor: '#E691A2',
     backgroundColor: colors.roseSoft,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
   },
-  scorePillFull: { backgroundColor: colors.lime },
-  scorePillPartial: { backgroundColor: colors.goldSoft },
+  scorePillFull: {
+    backgroundColor: colors.lime,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#98C40E',
+  },
+  scorePillPartial: {
+    backgroundColor: colors.goldSoft,
+    borderColor: '#FBE08A',
+    borderBottomColor: '#DDB038',
+  },
   scorePillText: {
     fontFamily: fonts.bodyBold,
     color: colors.berryDeep,
@@ -421,9 +649,13 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   itemArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E2D6FF',
+    borderBottomColor: '#C8B5FA',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -433,12 +665,35 @@ const styles = StyleSheet.create({
   primaryBtn: {
     minHeight: 54,
     borderRadius: radii.pill,
-    backgroundColor: colors.lime,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 9,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  primaryCtaBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   primaryBtnText: {
     flex: 1,
@@ -490,7 +745,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(124, 60, 255, 0.08)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -501,8 +760,10 @@ const styles = StyleSheet.create({
   },
   sheetAnswerCard: {
     borderRadius: 18,
-    borderWidth: 1,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
     borderColor: '#D6F08A',
+    borderBottomColor: '#AED442',
     backgroundColor: '#F5FFD6',
     padding: 13,
     gap: 4,
@@ -528,8 +789,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 10,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#EAE1FA',
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#ECE4FC',
+    borderBottomColor: '#D8CAF8',
     backgroundColor: '#FAF8FF',
     padding: 11,
   },

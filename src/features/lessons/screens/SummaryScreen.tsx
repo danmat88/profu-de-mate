@@ -1,4 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -414,13 +416,37 @@ export function SummaryScreen({ navigation, route }: Props) {
   );
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <View style={[styles.main, { paddingHorizontal: gutter }]}>
-        <View style={[styles.heroCard, !isPositive && styles.heroCardReview, isShort && styles.heroCardShort]}>
+
+      {/* Full-bleed curved Celebration Summary Canopy */}
+      <View
+        style={[
+          styles.canopy,
+          isShort && styles.canopyShort,
+          hasTakeaways && styles.canopyWithTabs,
+          { paddingTop: insets.top ?? 0 },
+        ]}
+      >
+        <LinearGradient
+          colors={isPositive
+            ? ['#823EFF', '#5A1EE0', '#380E9F']
+            : ['#C83B67', '#8622A2', '#44138F']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowTop} />
+        <View pointerEvents="none" style={styles.canopyGlowLime} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyGlyphStar}>★</Text>
+        <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
+
+        <View style={[styles.heroRow, { paddingHorizontal: gutter }, isShort && styles.heroRowShort]}>
           <Animated.View style={[styles.celebration, isShort && styles.celebrationShort, { transform: [{ scale: heroPop }] }]}>
             {isPositive && celebrationReady && motionActive ? <ConfettiBurst /> : null}
-            <SpotlightAura size={isShort ? 74 : 86} tone={isPositive ? 'lime' : 'peach'} active={motionActive} />
+            <SpotlightAura size={isShort ? 74 : 86} tone="onViolet" active={motionActive} />
             <Mascot pose={mascotPose} size={isShort ? 68 : 78} active={motionActive} interactive style={styles.mascot} />
           </Animated.View>
 
@@ -431,38 +457,42 @@ export function SummaryScreen({ navigation, route }: Props) {
               </View>
               <Text numberOfLines={1} style={styles.eyebrow}>{verdictEyebrow}</Text>
             </View>
-            <View style={styles.titleWrap}>
-              {isPositive ? <View pointerEvents="none" style={styles.titleHighlight} /> : null}
-              <Text
-                adjustsFontSizeToFit
-                minimumFontScale={0.78}
-                numberOfLines={2}
-                style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}
-              >
-                {lesson.headline}
-              </Text>
-            </View>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+              numberOfLines={2}
+              style={[styles.title, isNarrow && styles.titleNarrow, isShort && styles.titleShort]}
+            >
+              {lesson.headline}
+            </Text>
             <Text numberOfLines={1} style={styles.heroMetaSummary}>
               {lesson.topic} · {stepCountLabel}
             </Text>
           </View>
 
-          <IconButton label="Închide recapitularea" onPress={closeSummary} size={40}>
-            <MiniGlyph name="close" size={18} color={colors.ink} />
+          <IconButton
+            label="Închide recapitularea"
+            onPress={closeSummary}
+            size={40}
+            style={styles.canopyActionBtn}
+          >
+            <MiniGlyph name="close" size={18} color={colors.violetDeep} />
           </IconButton>
         </View>
+      </View>
 
-        {hasTakeaways ? (
-          <View style={styles.tabsWrap}>
-            <ComicTabBar
-              compact
-              options={summaryTabs}
-              value={activeTab}
-              onChange={switchTab}
-            />
-          </View>
-        ) : null}
+      {hasTakeaways ? (
+        <View style={[styles.tabsWrap, { paddingHorizontal: gutter }]}>
+          <ComicTabBar
+            compact
+            options={summaryTabs}
+            value={activeTab}
+            onChange={switchTab}
+          />
+        </View>
+      ) : null}
 
+      <View style={[styles.main, { paddingHorizontal: gutter }, !hasTakeaways && styles.mainNoTabs]}>
         <View style={styles.documentCardWrap}>
           <GestureDetector gesture={swipeGesture}>
             <Animated.View
@@ -660,31 +690,85 @@ export function SummaryScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  main: { flex: 1, minHeight: 0, paddingTop: 6 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
 
-  // Celebratory LaunchSplash-grade spotlight banner
-  heroCard: {
-    minHeight: 92,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    paddingBottom: 14,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyShort: {
+    paddingBottom: 10,
+  },
+  canopyWithTabs: {
+    paddingBottom: 30,
+  },
+  canopyGlowTop: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    top: -80,
+    right: -45,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    bottom: -70,
+    left: -30,
+    backgroundColor: 'rgba(216, 255, 62, 0.15)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -80,
+  },
+  canopyGlyphStar: {
+    position: 'absolute',
+    left: 24,
+    bottom: 10,
+    fontFamily: fonts.display,
+    fontSize: 18,
+    color: 'rgba(216, 255, 62, 0.25)',
+  },
+  canopyGlyphPi: {
+    position: 'absolute',
+    right: 68,
+    bottom: 12,
+    fontFamily: fonts.display,
+    fontSize: 26,
+    color: 'rgba(255, 255, 255, 0.12)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  heroRow: {
+    minHeight: 88,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    overflow: 'hidden',
-    position: 'relative',
+    paddingTop: 6,
   },
-  heroCardReview: {
-    backgroundColor: 'rgba(255, 249, 244, 0.95)',
-    borderColor: 'rgba(255, 141, 107, 0.28)',
-  },
-  heroCardShort: {
-    minHeight: 80,
-    paddingVertical: 7,
+  heroRowShort: {
+    minHeight: 76,
     gap: 8,
+    paddingTop: 4,
+  },
+  canopyActionBtn: {
+    borderRadius: 20,
+    borderBottomWidth: 3.2,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
   },
   celebration: { width: 84, height: 84, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   celebrationShort: { width: 74, height: 74 },
@@ -692,42 +776,42 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, minWidth: 0, gap: 3 },
   heroBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   verdictPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 9,
+    paddingVertical: 2.5,
     borderRadius: radii.pill,
   },
   verdictPillPositive: { backgroundColor: colors.lime },
   verdictPillReview: { backgroundColor: colors.gold },
   verdictPillText: { fontFamily: fonts.bodyBold, fontSize: 9.5, lineHeight: 13, letterSpacing: 0.4, color: colors.ink, includeFontPadding: false },
-  eyebrow: { flexShrink: 1, ...typography.kicker, fontSize: 10, color: colors.violetDeep, includeFontPadding: false },
-  titleWrap: { position: 'relative', alignSelf: 'flex-start' },
-  titleHighlight: {
-    position: 'absolute',
-    left: 0,
-    right: 6,
-    bottom: 1,
-    height: 7,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(216, 255, 62, 0.55)',
+  eyebrow: { flexShrink: 1, ...typography.kicker, fontSize: 10, color: 'rgba(242, 240, 255, 0.92)', includeFontPadding: false },
+  title: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 19,
+    lineHeight: 22.5,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
   },
-  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 22 },
-  titleNarrow: { fontSize: 17, lineHeight: 20.5 },
+  titleNarrow: { fontSize: 17.5, lineHeight: 21 },
   titleShort: { fontSize: 16.5, lineHeight: 19.5 },
   heroMetaSummary: {
     fontFamily: fonts.bodyMedium,
-    color: colors.inkMuted,
+    color: 'rgba(240, 236, 255, 0.88)',
     fontSize: 11.5,
     lineHeight: 15,
     marginTop: 1,
   },
 
-  tabsWrap: { marginTop: 9, marginBottom: 6 },
+  tabsWrap: { marginTop: -20, marginBottom: 6, zIndex: 8 },
+  main: { flex: 1, minHeight: 0, paddingTop: 2 },
+  mainNoTabs: { paddingTop: 10 },
 
-  // Pure floating paper canvas
+  // Pure-white 3D porcelain paper canvas
   documentCardWrap: {
     flex: 1,
     minHeight: 0,
-    marginTop: 4,
+    marginTop: 2,
     paddingBottom: 2,
   },
   cardMotion: {
@@ -740,8 +824,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: 'hidden',
     borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFDF9',
   },
   cardRibbon: {
@@ -858,18 +944,20 @@ const styles = StyleSheet.create({
   secondaryActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   saveActionWrap: { flex: 1.5 },
   saveAction: {
-    height: 44,
+    height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 11,
   },
-  saveActionActive: { backgroundColor: '#F3FFE0', borderColor: 'rgba(86, 120, 0, 0.22)' },
+  saveActionActive: { backgroundColor: '#F3FFE0', borderColor: '#C5EA63', borderBottomColor: '#98C40E' },
   saveBadge: {
     width: 22,
     height: 22,
@@ -883,10 +971,12 @@ const styles = StyleSheet.create({
   },
   homeActionWrap: { flex: 0.85 },
   shareAction: {
-    height: 44,
+    height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
     backgroundColor: colors.violetSoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -897,12 +987,14 @@ const styles = StyleSheet.create({
   shareGlyph: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 14, lineHeight: 16, includeFontPadding: false },
   shareLinkText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12.5 },
   reportButton: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },

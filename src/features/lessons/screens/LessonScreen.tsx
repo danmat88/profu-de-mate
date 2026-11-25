@@ -1,5 +1,7 @@
 import { useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Modal, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -29,7 +31,6 @@ import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { ProgressDots } from '../../../shared/ui/ProgressDots';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { Text } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { deleteTemporaryCapturedImages } from '../../capture/services/temporaryImages';
@@ -75,7 +76,7 @@ function verdictChipMeta(verdict: AnalysisVerdict, isCheck: boolean): { label: s
   return { label: '! De corectat', bg: colors.roseSoft, color: '#991F33' };
 }
 
-function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; reducedMotion: boolean }) {
+function LessonSaveToast({ kind, reducedMotion, topOffset }: { kind: 'saved' | 'removed'; reducedMotion: boolean; topOffset: number }) {
   const reveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
 
   useEffect(() => {
@@ -106,7 +107,7 @@ function LessonSaveToast({ kind, reducedMotion }: { kind: 'saved' | 'removed'; r
       style={[
         styles.savedToast,
         kind === 'removed' && styles.removedToast,
-        { opacity, transform: [{ translateY }, { scale }] },
+        { top: topOffset, opacity, transform: [{ translateY }, { scale }] },
       ]}
     >
       <MiniGlyph name={kind === 'saved' ? 'check' : 'wrong'} size={15} color={colors.ink} />
@@ -754,28 +755,74 @@ export function LessonScreen({ navigation, route }: Props) {
   );
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader
-        compact
-        title={isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'}
-        eyebrow={isFromNotebook ? 'DIN CAIETUL TĂU' : `PASUL ${step + 1} DIN ${lesson.steps.length}`}
-        onBack={back}
-        rightIcon="bookmark"
-        rightLabel={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'}
-        rightActive={saved}
-        onRight={toggleSaved}
-      />
 
-      {saveToast ? <LessonSaveToast kind={saveToast} reducedMotion={reducedMotion} /> : null}
+      {/* Compact curved Lesson Canopy */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={isCheck
+            ? ['#C83B67', '#7F23A8', '#44138F']
+            : ['#7A38FF', '#581EE0', '#380E9F']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlow} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+
+        <View style={[styles.canopyInner, { paddingHorizontal: gutter }]}>
+          <View style={styles.canopyRow}>
+            <IconButton
+              label="Înapoi"
+              onPress={back}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+            </IconButton>
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                {isCheck ? 'Verificarea rezolvării' : 'Rezolvarea pas cu pas'}
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View style={styles.canopyEyebrowDot} />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  {isFromNotebook ? 'DIN CAIETUL TĂU' : `PASUL ${step + 1} DIN ${lesson.steps.length}`}
+                </Text>
+              </View>
+            </View>
+
+            <IconButton
+              label={saved ? 'Scoate din Caiet' : 'Salvează în Caiet'}
+              onPress={toggleSaved}
+              size={42}
+              style={[styles.canopyActionBtn, saved && styles.canopyFavActive]}
+            >
+              <AppIcon name="bookmark" size={22} />
+            </IconButton>
+          </View>
+
+          <LiquidProgressBar
+            progress={(step + 1) / Math.max(1, lesson.steps.length)}
+            height={6}
+            tone={isCheck ? 'warm' : 'dark'}
+            active={motionActive}
+          />
+        </View>
+      </View>
+
+      {saveToast ? (
+        <LessonSaveToast
+          kind={saveToast}
+          reducedMotion={reducedMotion}
+          topOffset={(insets.top ?? 0) + 58}
+        />
+      ) : null}
 
       <View style={[styles.progressBlock, { marginHorizontal: gutter }]}>
-        <LiquidProgressBar
-          progress={(step + 1) / Math.max(1, lesson.steps.length)}
-          height={5}
-          tone={isCheck ? 'warm' : 'studio'}
-          active={motionActive}
-        />
         <ProgressDots
           total={lesson.steps.length}
           current={step}
@@ -1038,16 +1085,104 @@ export function LessonScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  progressBlock: { gap: 6, marginBottom: 8 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+    paddingBottom: 12,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlow: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    top: -85,
+    right: -40,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    left: -70,
+  },
+  canopyInner: {
+    width: '100%',
+    paddingTop: 5,
+    gap: 8,
+  },
+  canopyRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyFavActive: {
+    backgroundColor: '#FFE57A',
+    borderColor: '#FFF3B8',
+    borderBottomColor: '#D6A118',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.2,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(242, 240, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.85,
+    includeFontPadding: false,
+  },
+
+  progressBlock: { marginTop: 9, marginBottom: 8 },
   savedToast: {
     position: 'absolute',
     zIndex: 20,
     right: 18,
-    top: 56,
     minHeight: 36,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(86, 120, 0, 0.2)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#ECFF8A',
+    borderBottomColor: '#8BB509',
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1058,11 +1193,12 @@ const styles = StyleSheet.create({
   removedToast: {
     backgroundColor: colors.peachSoft,
     borderColor: '#FFD1BE',
+    borderBottomColor: '#E5A68E',
   },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
   stage: { flex: 1, minHeight: 0, gap: 9, paddingBottom: 2 },
 
-  // Airy studio statement header bar
+  // Pure-white 3D porcelain statement header bar
   problemWrap: {},
   problemRow: {
     minHeight: 46,
@@ -1070,9 +1206,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 7,
     overflow: 'hidden',
@@ -1167,8 +1305,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFDF9',
     overflow: 'hidden',
   },
@@ -1341,22 +1481,26 @@ const styles = StyleSheet.create({
   actionDock: { backgroundColor: colors.canvas, paddingTop: 7, gap: 7 },
   secondaryRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prevStepAction: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryActionWrap: { flex: 1 },
   secondaryAction: {
-    height: 44,
+    height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: '#F4EEFF',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
+    backgroundColor: '#F6F1FF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1387,12 +1531,14 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   reportAction: {
-    width: 44,
-    height: 44,
+    width: 46,
+    height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },

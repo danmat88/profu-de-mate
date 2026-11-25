@@ -1,4 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,10 +11,9 @@ import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
-import { ComicCard } from '../../../shared/ui/ComicCard';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text } from '../../../shared/ui/Typography';
 
@@ -54,7 +55,7 @@ function Bullet({ children }: { children: React.ReactNode }) {
 
 export function LegalScreen({ navigation }: Props) {
   const frame = useSafeAreaFrame();
-  const { gutter } = useResponsiveLayout(frame);
+  const { gutter, contentWidth } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const [tabState, setTabState] = useState<{ tab: DocumentTab; direction: -1 | 0 | 1 }>({
     tab: 'overview',
@@ -72,23 +73,71 @@ export function LegalScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader title="Legal și siguranță" eyebrow="INFORMAȚII CLARE" onBack={() => navigation.goBack()} rightIcon="privacy" />
 
-      <View style={[styles.tabWrap, { marginHorizontal: gutter }]}>
-        <ComicTabBar options={tabs} value={tab} onChange={chooseTab} />
+      {/* Full-bleed curved Indigo-Sapphire Trust & Safety Canopy */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={['#1A8CC4', '#2C4CE0', '#3E1EC4', '#29108F']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowCyan} />
+        <View pointerEvents="none" style={styles.canopyGlowLime} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyGlyphStar}>✦</Text>
+
+        <View style={[styles.canopyInner, { width: contentWidth }]}>
+          <View style={styles.canopyRow}>
+            <IconButton
+              label="Înapoi"
+              onPress={() => navigation.goBack()}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+            </IconButton>
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                Legal și <Text style={styles.canopyTitleAccent}>siguranță</Text>
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View style={styles.canopyEyebrowDot} />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  INFORMAȚII CLARE
+                </Text>
+              </View>
+            </View>
+
+            <View accessible={false} style={styles.canopyShieldBadge}>
+              <AppIcon name="privacy" size={24} />
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Straddling 3D tactile tab switcher */}
+      <View style={[styles.tabWrap, { paddingHorizontal: gutter }]}>
+        <View style={[styles.tabInner, { maxWidth: contentWidth }]}>
+          <ComicTabBar options={tabs} value={tab} onChange={chooseTab} />
+        </View>
       </View>
 
       <TabPanel key={tab} direction={direction} style={styles.tabStage}>
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, styles.tabBody, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 20 }]}
+          contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 16) + 22 }]}
         >
+          <View style={[styles.tabBody, { maxWidth: contentWidth }]}>
           {tab === 'overview' ? (
             <>
-              <ComicCard tone="paper" radius={26} shine contentStyle={styles.hero}>
-                <View style={styles.heroIcon}><AppIcon name="privacy" size={56} /></View>
+              <View style={styles.heroCard}>
+                <View pointerEvents="none" style={styles.cardTopGloss} />
+                <View style={styles.heroIcon}><AppIcon name="privacy" size={52} /></View>
                 <Text style={styles.heroEyebrow}>PE SCURT</Text>
                 <View style={styles.heroTitleWrap}>
                   <View pointerEvents="none" style={styles.heroTitleHighlight} />
@@ -100,7 +149,7 @@ export function LegalScreen({ navigation }: Props) {
                   <Chip label="Fără reclame" tone="lime" />
                   <Chip label="Ștergere din aplicație" tone="cyanSoft" />
                 </View>
-              </ComicCard>
+              </View>
 
               <Section number="01" title="Ce se întâmplă cu poza">
                 <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
@@ -215,15 +264,16 @@ export function LegalScreen({ navigation }: Props) {
                 <Paragraph>Din fiecare lecție sau recapitulare poți semnala un răspuns greșit, neclar ori nepotrivit fără să ieși din aplicație. Mesajul tău ne ajută să îmbunătățim filtrele și explicațiile.</Paragraph>
               </Section>
 
-              <ComicCard tone="limeSoft" depth={4} radius={22} shine contentStyle={styles.safetyCard}>
-                <AppIcon name="help" size={50} />
+              <View style={styles.safetyCard}>
+                <AppIcon name="help" size={48} />
                 <View style={styles.safetyCopy}>
                   <Text style={styles.safetyTitle}>Ai găsit o greșeală?</Text>
                   <Text style={styles.safetyText}>Atinge butonul de raportare din lecție sau recapitulare. Lecția rămâne în Caiet, iar trimiterea durează câteva secunde.</Text>
                 </View>
-              </ComicCard>
+              </View>
             </>
           ) : null}
+          </View>
         </ScrollView>
       </TabPanel>
     </View>
@@ -232,16 +282,162 @@ export function LegalScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  tabWrap: { marginBottom: 10 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    paddingBottom: 32,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlowCyan: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    top: -80,
+    left: -50,
+    backgroundColor: 'rgba(67, 214, 230, 0.24)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    top: -40,
+    right: -40,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -82,
+  },
+  canopyGlyphStar: {
+    position: 'absolute',
+    right: 78,
+    bottom: 12,
+    fontFamily: fonts.display,
+    fontSize: 22,
+    color: 'rgba(216, 255, 62, 0.24)',
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingTop: 6,
+  },
+  canopyRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyTitleAccent: {
+    color: colors.lime,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(240, 245, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.9,
+    includeFontPadding: false,
+  },
+  canopyShieldBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderBottomWidth: 3.5,
+    borderColor: colors.lime,
+    borderBottomColor: '#98C40E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  tabWrap: {
+    marginTop: -22,
+    paddingBottom: 10,
+    zIndex: 8,
+    alignItems: 'center',
+  },
+  tabInner: {
+    width: '100%',
+  },
   tabStage: { flex: 1, minHeight: 0 },
-  content: { paddingTop: 4 },
-  tabBody: { gap: 14 },
-  hero: { alignItems: 'center', paddingHorizontal: 18, paddingVertical: 20 },
+  content: { paddingTop: 4, alignItems: 'center' },
+  tabBody: { width: '100%', gap: 12 },
+
+  heroCard: {
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  cardTopGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    right: 24,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
   heroIcon: {
     width: 72,
     height: 72,
-    borderWidth: 1.25,
-    borderColor: '#D6F08A',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DDF68E',
+    borderBottomColor: '#B1D63D',
     borderRadius: 24,
     backgroundColor: '#F4FFD2',
     alignItems: 'center',
@@ -257,23 +453,35 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: 'rgba(216, 255, 62, 0.65)',
   },
-  heroTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 30, textAlign: 'center' },
+  heroTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 26, lineHeight: 30, textAlign: 'center' },
   heroText: { maxWidth: 320, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19, textAlign: 'center', marginTop: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 7, marginTop: 14 },
 
-  section: { borderBottomWidth: 1, borderBottomColor: colors.borderHairline, paddingBottom: 14 },
+  section: {
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    padding: 15,
+  },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 11,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#DDF68E',
+    borderBottomColor: '#B1D63D',
     backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectionNumberText: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 12.5 },
-  sectionTitle: { flex: 1, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 18.5, lineHeight: 22 },
-  sectionBody: { gap: 7, marginTop: 9, paddingLeft: 3 },
+  sectionTitle: { flex: 1, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17.5, lineHeight: 21 },
+  sectionBody: { gap: 7, marginTop: 10, paddingLeft: 2 },
   paragraph: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20 },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   bulletDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: colors.peach, marginTop: 6.5 },
@@ -281,11 +489,30 @@ const styles = StyleSheet.create({
 
   updated: { minHeight: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   updatedText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12.5 },
-  documentIntro: { paddingVertical: 6 },
+  documentIntro: {
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+  },
   documentEyebrow: { ...typography.kicker, color: colors.violetDeep },
-  documentTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 31, marginTop: 3 },
+  documentTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, marginTop: 3 },
   documentLead: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19.5, marginTop: 4 },
-  safetyCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
+  safetyCard: {
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DDF68E',
+    borderBottomColor: '#B1D63D',
+    backgroundColor: '#F6FFD4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    padding: 14,
+  },
   safetyCopy: { flex: 1 },
   safetyTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17.5 },
   safetyText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, marginTop: 2 },

@@ -1,5 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   BackHandler,
@@ -438,78 +440,92 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     .join(', ');
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
 
+      {/* Compact curved Sapphire-Violet Exam Simulation Canopy */}
       <Pressable
         accessible={false}
         onPress={Keyboard.dismiss}
-        style={[styles.topBar, { paddingHorizontal: gutter }]}
+        style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ieși din simulare"
-          disabled={gradingBusy}
-          hitSlop={8}
-          onPress={() => {
-            Keyboard.dismiss();
-            Haptics.selection();
-            if (answeredCount > 0) setConfirmMode('exit');
-            else {
-              leavingAllowedRef.current = true;
-              beginAppTransition();
-              navigation.goBack();
-            }
-          }}
-          style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-        >
-          <MiniGlyph name="close" size={16} color={colors.ink} />
-        </Pressable>
+        <LinearGradient
+          colors={['#227CE2', '#3B42E4', '#4B1EC8', '#2F0F94']}
+          start={{ x: 0.05, y: 0 }}
+          end={{ x: 0.95, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowCyan} />
+        <View pointerEvents="none" style={styles.canopyGlowLime} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
 
-        <View style={[styles.timerPill, lowTime && styles.timerPillLow]}>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.84}
-            maxFontSizeMultiplier={1.12}
-            style={[styles.timerText, lowTime && styles.timerTextLow]}
+        <View style={[styles.topBar, { paddingHorizontal: gutter }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ieși din simulare"
+            disabled={gradingBusy}
+            hitSlop={8}
+            onPress={() => {
+              Keyboard.dismiss();
+              Haptics.selection();
+              if (answeredCount > 0) setConfirmMode('exit');
+              else {
+                leavingAllowedRef.current = true;
+                beginAppTransition();
+                navigation.goBack();
+              }
+            }}
+            style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
           >
-            ⏱ {formatCountdown(secondsLeft)}
-          </Text>
+            <MiniGlyph name="close" size={16} color={colors.violetDeep} />
+          </Pressable>
+
+          <View style={[styles.timerPill, lowTime && styles.timerPillLow]}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.84}
+              maxFontSizeMultiplier={1.12}
+              style={[styles.timerText, lowTime && styles.timerTextLow]}
+            >
+              ⏱ {formatCountdown(secondsLeft)}
+            </Text>
+          </View>
+
+          <View style={styles.progressPill}>
+            <Text maxFontSizeMultiplier={1.12} style={styles.progressPillText}>
+              {answeredCount}/{items.length}
+            </Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Mărime text: ${mathReadingScaleBadge(readingScale)}`}
+            disabled={gradingBusy}
+            hitSlop={6}
+            onPress={cycleScale}
+            style={({ pressed }) => [styles.scalePill, pressed && styles.pressed]}
+          >
+            <Text maxFontSizeMultiplier={1.12} style={styles.scalePillText}>
+              {mathReadingScaleBadge(readingScale)}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Predă lucrarea și calculează nota"
+            disabled={gradingBusy}
+            onPress={() => {
+              Keyboard.dismiss();
+              Haptics.selection();
+              setConfirmMode('submit');
+            }}
+            style={({ pressed }) => [styles.submitPill, pressed && styles.pressed]}
+          >
+            <Text maxFontSizeMultiplier={1.12} style={styles.submitPillText}>Predă</Text>
+          </Pressable>
         </View>
-
-        <View style={styles.progressPill}>
-          <Text maxFontSizeMultiplier={1.12} style={styles.progressPillText}>
-            {answeredCount}/{items.length}
-          </Text>
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Mărime text: ${mathReadingScaleBadge(readingScale)}`}
-          disabled={gradingBusy}
-          hitSlop={6}
-          onPress={cycleScale}
-          style={({ pressed }) => [styles.scalePill, pressed && styles.pressed]}
-        >
-          <Text maxFontSizeMultiplier={1.12} style={styles.scalePillText}>
-            {mathReadingScaleBadge(readingScale)}
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Predă lucrarea și calculează nota"
-          disabled={gradingBusy}
-          onPress={() => {
-            Keyboard.dismiss();
-            Haptics.selection();
-            setConfirmMode('submit');
-          }}
-          style={({ pressed }) => [styles.submitPill, pressed && styles.pressed]}
-        >
-          <Text maxFontSizeMultiplier={1.12} style={styles.submitPillText}>Predă</Text>
-        </Pressable>
       </Pressable>
 
       <View style={styles.navStripWrap}>
@@ -732,6 +748,13 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   style={styles.cameraBtnWrap}
                   contentStyle={styles.cameraBtn}
                 >
+                  <LinearGradient
+                    colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <View pointerEvents="none" style={styles.ctaTopGloss} />
                   <AppIcon name="camera" size={22} />
                   <Text numberOfLines={2} style={styles.cameraBtnText}>
                     Corectează poza (AI)
@@ -927,6 +950,13 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               style={styles.mainNavWrap}
               contentStyle={styles.mainNavBtn}
             >
+              <LinearGradient
+                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.ctaTopGloss} />
               <Text numberOfLines={2} style={styles.mainNavText}>Itemul următor</Text>
               <View style={styles.mainNavArrow}>
                 <MiniGlyph name="next" size={16} color={colors.paper} />
@@ -943,6 +973,13 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               style={styles.mainNavWrap}
               contentStyle={styles.mainNavBtn}
             >
+              <LinearGradient
+                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.ctaTopGloss} />
               <Text numberOfLines={2} style={styles.mainNavText}>Predă lucrarea ★</Text>
               <View style={styles.mainNavArrow}>
                 <MiniGlyph name="check" size={16} color={colors.paper} />
@@ -1146,7 +1183,46 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   flexBody: { flex: 1, minHeight: 0 },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    overflow: 'hidden',
+    paddingBottom: 24,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlowCyan: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    top: -85,
+    left: -45,
+    backgroundColor: 'rgba(67, 214, 230, 0.22)',
+  },
+  canopyGlowLime: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -60,
+    right: -35,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -120,
+    right: -75,
+  },
   topBar: {
     minHeight: 54,
     flexDirection: 'row',
@@ -1155,12 +1231,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#FFFFFF',
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1168,22 +1246,24 @@ const styles = StyleSheet.create({
   timerPill: {
     flex: 1,
     minWidth: 80,
-    minHeight: 34,
+    minHeight: 36,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.paper,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: 'rgba(18, 12, 46, 0.34)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
   },
   timerPillLow: {
-    borderColor: '#F3A6B3',
-    backgroundColor: colors.roseSoft,
+    borderColor: '#FFC5D0',
+    borderBottomWidth: 2.8,
+    borderBottomColor: '#E07C90',
+    backgroundColor: '#FFE8EC',
   },
   timerText: {
     fontFamily: fonts.display,
-    color: colors.ink,
+    color: colors.paper,
     fontSize: 13,
     includeFontPadding: false,
   },
@@ -1192,27 +1272,31 @@ const styles = StyleSheet.create({
   },
   progressPill: {
     minHeight: 34,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     borderRadius: radii.pill,
-    backgroundColor: colors.violetSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(18, 12, 46, 0.28)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   progressPillText: {
     fontFamily: fonts.bodyBold,
-    color: colors.violetDeep,
+    color: colors.paper,
     fontSize: 11.5,
     includeFontPadding: false,
   },
   scalePill: {
-    minWidth: 34,
+    minWidth: 36,
     minHeight: 34,
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.16)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.3,
+    borderBottomWidth: 2.8,
+    borderColor: '#FFFFFF',
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1224,9 +1308,13 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   submitPill: {
-    minHeight: 34,
-    paddingHorizontal: 12,
+    minHeight: 36,
+    paddingHorizontal: 13,
     borderRadius: radii.pill,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#ECFF8A',
+    borderBottomColor: '#8BB509',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1240,29 +1328,35 @@ const styles = StyleSheet.create({
   },
 
   navStripWrap: {
+    marginTop: -18,
     paddingBottom: 8,
+    zIndex: 8,
   },
   navStrip: {
     gap: 7,
     alignItems: 'center',
   },
   navChip: {
-    minHeight: 32,
-    paddingHorizontal: 11,
+    minHeight: 36,
+    paddingHorizontal: 12,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
   },
   navChipActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#3C12A8',
     backgroundColor: colors.violet,
   },
   navChipAnswered: {
     borderColor: '#C5EA63',
+    borderBottomColor: '#98C40E',
     backgroundColor: '#F5FFD6',
   },
   navChipText: {
@@ -1293,10 +1387,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   promptCard: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.13)',
-    backgroundColor: colors.paper,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 17,
     paddingVertical: 15,
     gap: 10,
@@ -1319,8 +1415,10 @@ const styles = StyleSheet.create({
   pointsBadge: {
     borderRadius: radii.pill,
     backgroundColor: colors.limeSoft,
-    borderWidth: 1,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
     borderColor: '#D6F08A',
+    borderBottomColor: '#AED442',
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
@@ -1339,10 +1437,12 @@ const styles = StyleSheet.create({
   choicesStack: { gap: 9 },
   choiceCard: {
     minHeight: 56,
-    borderRadius: 19,
+    borderRadius: 20,
     borderWidth: 1.4,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.paper,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 13,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -1351,6 +1451,7 @@ const styles = StyleSheet.create({
   },
   choiceCardSelected: {
     borderColor: colors.violet,
+    borderBottomColor: '#4715B8',
     backgroundColor: colors.violetSoft,
   },
   choiceBadge: {
@@ -1384,10 +1485,12 @@ const styles = StyleSheet.create({
   shortAnswerBox: { gap: 9 },
   inputWrap: {
     minHeight: 56,
-    borderRadius: 19,
-    borderWidth: 1.4,
-    borderColor: 'rgba(124, 60, 255, 0.2)',
-    backgroundColor: colors.paper,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderBottomWidth: 3.5,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C5B0F4',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1395,6 +1498,7 @@ const styles = StyleSheet.create({
   },
   inputWrapFilled: {
     borderColor: colors.violet,
+    borderBottomColor: '#4715B8',
   },
   shortInput: {
     flex: 1,
@@ -1416,9 +1520,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 40,
     borderRadius: 13,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1433,9 +1539,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   keyboardDock: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(124, 60, 255, 0.15)',
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderTopWidth: 1.4,
+    borderTopColor: '#E5DCFF',
+    backgroundColor: '#FFFFFF',
     paddingTop: 9,
     paddingBottom: 10,
     alignItems: 'center',
@@ -1448,9 +1554,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 38,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.canvas,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FAF7FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1458,6 +1566,10 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 11,
     borderRadius: 12,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#E2D6FF',
+    borderBottomColor: '#C8B5FA',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1471,10 +1583,12 @@ const styles = StyleSheet.create({
   dockPrevBtn: {
     width: 46,
     height: 46,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.16)',
-    backgroundColor: colors.paper,
+    borderRadius: 15,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1483,7 +1597,11 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 14,
+    borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1511,10 +1629,12 @@ const styles = StyleSheet.create({
   },
 
   rubricWorkspace: {
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.13)',
-    backgroundColor: colors.paper,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     padding: 15,
     gap: 11,
   },
@@ -1563,17 +1683,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
   cameraBtnWrap: { flex: 1, minWidth: 0 },
   cameraBtn: {
     minHeight: 52,
-    borderRadius: 17,
-    backgroundColor: colors.lime,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     paddingHorizontal: 14,
     paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
   cameraBtnText: {
     flexShrink: 1,
@@ -1586,9 +1720,11 @@ const styles = StyleSheet.create({
   galleryMiniBtn: {
     width: 52,
     height: 52,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
+    borderRadius: 18,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1607,9 +1743,11 @@ const styles = StyleSheet.create({
   },
 
   aiResultCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.16)',
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
     backgroundColor: '#F8F4FF',
     padding: 12,
     gap: 8,
@@ -1687,9 +1825,11 @@ const styles = StyleSheet.create({
 
   manualRubricBtn: {
     minHeight: 48,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
+    borderRadius: 16,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
     backgroundColor: colors.violetSoft,
     paddingHorizontal: 13,
     paddingVertical: 10,
@@ -1716,9 +1856,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1726,9 +1868,12 @@ const styles = StyleSheet.create({
   stepNavBtnDisabled: { opacity: 0.4 },
   mainNavWrap: { flex: 1, minWidth: 0 },
   mainNavBtn: {
-    minHeight: 52,
-    borderRadius: 18,
-    backgroundColor: colors.lime,
+    minHeight: 54,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     paddingLeft: 18,
     paddingRight: 10,
     paddingVertical: 9,
@@ -1736,6 +1881,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   mainNavText: {
     flex: 1,
@@ -1781,8 +1928,10 @@ const styles = StyleSheet.create({
   },
   sheetAnswerCard: {
     borderRadius: 18,
-    borderWidth: 1,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
     borderColor: '#D6F08A',
+    borderBottomColor: '#AED442',
     backgroundColor: '#F5FFD6',
     padding: 13,
     gap: 4,
@@ -1814,9 +1963,11 @@ const styles = StyleSheet.create({
   checkRow: {
     minHeight: 44,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 9,
     flexDirection: 'row',
@@ -1824,7 +1975,8 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   checkRowActive: {
-    borderColor: colors.limeDeep,
+    borderColor: '#A8D832',
+    borderBottomColor: '#7EA508',
     backgroundColor: '#F4FFD2',
   },
   checkboxBox: {
@@ -1861,7 +2013,11 @@ const styles = StyleSheet.create({
   rubricSaveBtn: {
     marginTop: 10,
     minHeight: 48,
-    borderRadius: 16,
+    borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     backgroundColor: colors.lime,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -1914,9 +2070,11 @@ const styles = StyleSheet.create({
   },
   jumpUnansweredBtn: {
     minHeight: 46,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.2)',
+    borderRadius: radii.pill,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1931,7 +2089,11 @@ const styles = StyleSheet.create({
   },
   confirmPrimaryBtn: {
     minHeight: 52,
-    borderRadius: 18,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1939,6 +2101,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   confirmExitBtn: {
+    borderColor: '#FF8EA0',
+    borderBottomColor: '#B5203E',
     backgroundColor: colors.rose,
   },
   confirmPrimaryText: {

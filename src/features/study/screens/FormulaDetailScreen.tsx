@@ -1,4 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,9 +18,9 @@ import { colors, fonts, radii } from '../../../shared/theme';
 import type { AiPracticeExercisePayload, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
+import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ScreenHeader } from '../../../shared/ui/ScreenHeader';
 import { StepTransitionStage } from '../../../shared/ui/StepTransitionStage';
 import { Text } from '../../../shared/ui/Typography';
 import { NativeMathFormula } from '../../math/components/NativeMathFormula';
@@ -178,49 +180,93 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
 
   const innerMathWidth = Math.max(200, Math.min(contentWidth, frame.width - gutter * 2) - 44);
   const heroMathWidth = Math.max(180, innerMathWidth - 44);
+  const eyebrowText = sequenceIds.length > 1 && currentIndex >= 0
+    ? `FIȘA ${currentIndex + 1} DIN ${sequenceIds.length}`
+    : 'FIȘĂ DE FORMULĂ';
 
   return (
-    <View style={[styles.safe, { paddingTop: insets.top ?? 0 }]}>
+    <View style={styles.safe}>
+      <StatusBar style="light" />
       <ComicBackdrop />
-      <ScreenHeader
-        compact
-        title={categoryMeta.shortLabel}
-        eyebrow={sequenceIds.length > 1 && currentIndex >= 0
-          ? `FIȘA ${currentIndex + 1} DIN ${sequenceIds.length}`
-          : 'FIȘĂ DE FORMULĂ'}
-        onBack={() => navigation.goBack()}
-        rightIcon="bookmark"
-        rightActive={isFavorite}
-        rightLabel={isFavorite ? 'Scoate formula din favorite' : 'Păstrează formula la favorite'}
-        onRight={handleToggleFavorite}
-      />
 
-      <View style={[styles.toolbar, { paddingHorizontal: gutter }]}>
-        <View style={styles.toolbarLeft}>
-          <View style={styles.categoryPill}>
-            <View style={[styles.catDot, { backgroundColor: categoryMeta.accent }]} />
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.categoryPillText}>
-              {formula.examTag ?? categoryMeta.label}
-            </Text>
-          </View>
-          {isFavorite ? (
-            <View style={styles.savedPill}>
-              <Text maxFontSizeMultiplier={1.15} style={styles.savedPillText}>★ Favorită</Text>
+      {/* Full-bleed curved Sapphire-Violet formula canopy */}
+      <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
+        <LinearGradient
+          colors={['#1E8EE2', '#2E4DE8', '#3F1EC6', '#2B1098']}
+          start={{ x: 0.06, y: 0 }}
+          end={{ x: 0.94, y: 1 }}
+          style={styles.fill}
+        />
+        <View pointerEvents="none" style={styles.canopyGlowCyan} />
+        <View pointerEvents="none" style={styles.canopyGlowRight} />
+        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
+        <Text accessible={false} style={styles.canopyGlyphRoot}>√</Text>
+
+        <View style={[styles.canopyInner, { width: contentWidth }]}>
+          <View style={styles.canopyRow}>
+            <IconButton
+              label="Înapoi"
+              onPress={() => navigation.goBack()}
+              size={42}
+              style={styles.canopyActionBtn}
+            >
+              <MiniGlyph name="back" size={18} color={colors.violetDeep} />
+            </IconButton>
+
+            <View style={styles.canopyCopy}>
+              <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.canopyTitle}>
+                {categoryMeta.shortLabel}
+              </Text>
+              <View style={styles.canopyEyebrowRow}>
+                <View style={styles.canopyEyebrowDot} />
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyEyebrow}>
+                  {eyebrowText}
+                </Text>
+              </View>
             </View>
-          ) : null}
-        </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Mărime text formule: ${mathReadingScaleBadge(readingScale)}`}
-          hitSlop={6}
-          onPress={cycleScale}
-          style={({ pressed }) => [styles.scaleButton, pressed && styles.pressed]}
-        >
-          <Text maxFontSizeMultiplier={1.15} style={styles.scaleButtonText}>
-            {mathReadingScaleBadge(readingScale)}
-          </Text>
-        </Pressable>
+            <IconButton
+              label={isFavorite ? 'Scoate formula din favorite' : 'Păstrează formula la favorite'}
+              onPress={handleToggleFavorite}
+              size={42}
+              style={[styles.canopyActionBtn, isFavorite && styles.canopyFavActive]}
+            >
+              <AppIcon name="bookmark" size={22} />
+            </IconButton>
+          </View>
+        </View>
+      </View>
+
+      {/* Straddling 3D formula metadata & zoom bar */}
+      <View style={[styles.toolbarWrap, { paddingHorizontal: gutter }]}>
+        <View style={[styles.toolbar, { maxWidth: contentWidth }]}>
+          <View style={styles.toolbarLeft}>
+            <View style={styles.categoryPill}>
+              <View style={[styles.catDot, { backgroundColor: categoryMeta.accent }]} />
+              <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.categoryPillText}>
+                {formula.examTag ?? categoryMeta.label}
+              </Text>
+            </View>
+            {isFavorite ? (
+              <View style={styles.savedPill}>
+                <Text maxFontSizeMultiplier={1.15} style={styles.savedPillText}>★ Favorită</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Mărime text formule: ${mathReadingScaleBadge(readingScale)}`}
+            hitSlop={6}
+            onPress={cycleScale}
+            style={({ pressed }) => [styles.scaleButton, pressed && styles.pressed]}
+          >
+            <Text maxFontSizeMultiplier={1.15} style={styles.scaleButtonText}>
+              {mathReadingScaleBadge(readingScale)}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView
@@ -237,6 +283,7 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
           animate={stepTransition.animate}
           style={[styles.sheetCard, { maxWidth: contentWidth }]}
         >
+          <View pointerEvents="none" style={styles.cardTopGloss} />
           <View style={styles.heroHeader}>
             <View style={[styles.accentBar, { backgroundColor: categoryMeta.accent }]} />
             <Text style={styles.sheetTitle}>{formula.title}</Text>
@@ -375,7 +422,16 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
           style={styles.practiceCtaWrap}
           contentStyle={styles.practiceCta}
         >
-          <AppIcon name={hasFormulaPractice ? 'practice' : 'hint'} size={21} />
+          <LinearGradient
+            colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+            start={{ x: 0.08, y: 0 }}
+            end={{ x: 0.92, y: 1 }}
+            style={styles.fill}
+          />
+          <View pointerEvents="none" style={styles.ctaTopGloss} />
+          <View style={styles.practiceCtaBadge}>
+            <AppIcon name={hasFormulaPractice ? 'practice' : 'hint'} size={20} />
+          </View>
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -426,13 +482,137 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.canvas,
   },
+  fill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+
+  canopy: {
+    width: '100%',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
+    paddingBottom: 30,
+    position: 'relative',
+    zIndex: 4,
+  },
+  canopyGlowCyan: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    top: -80,
+    left: -50,
+    backgroundColor: 'rgba(67, 214, 230, 0.24)',
+  },
+  canopyGlowRight: {
+    position: 'absolute',
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    top: -42,
+    right: -38,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+  },
+  canopyOrbitArc: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    top: -118,
+    right: -76,
+  },
+  canopyGlyphPi: {
+    position: 'absolute',
+    right: 72,
+    bottom: 10,
+    fontFamily: fonts.display,
+    fontSize: 26,
+    color: 'rgba(255, 255, 255, 0.12)',
+    transform: [{ rotate: '-10deg' }],
+  },
+  canopyGlyphRoot: {
+    position: 'absolute',
+    left: 24,
+    bottom: 8,
+    fontFamily: fonts.display,
+    fontSize: 21,
+    color: 'rgba(216, 255, 62, 0.24)',
+  },
+  canopyInner: {
+    maxWidth: 560,
+    alignSelf: 'center',
+    paddingTop: 6,
+  },
+  canopyRow: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  canopyActionBtn: {
+    borderRadius: 21,
+    borderBottomWidth: 3.5,
+    borderBottomColor: '#C5B8FA',
+    backgroundColor: '#FFFFFF',
+  },
+  canopyFavActive: {
+    backgroundColor: '#FFE57A',
+    borderColor: '#FFF3B8',
+    borderBottomColor: '#D6A118',
+  },
+  canopyCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyTitle: {
+    fontFamily: fonts.display,
+    color: colors.paper,
+    fontSize: 22,
+    lineHeight: 26,
+    letterSpacing: -0.3,
+    textShadowColor: 'rgba(18, 6, 62, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  canopyEyebrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  canopyEyebrowDot: {
+    width: 6.5,
+    height: 6.5,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+  },
+  canopyEyebrow: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(240, 245, 255, 0.92)',
+    fontSize: 10,
+    letterSpacing: 0.9,
+    includeFontPadding: false,
+  },
+
+  toolbarWrap: {
+    marginTop: -20,
+    paddingBottom: 10,
+    zIndex: 8,
+    alignItems: 'center',
+  },
   toolbar: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
-    paddingTop: 2,
-    paddingBottom: 10,
   },
   toolbarLeft: {
     flex: 1,
@@ -446,49 +626,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    minHeight: 32,
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    minHeight: 38,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
   },
   catDot: {
-    width: 7,
-    height: 7,
+    width: 7.5,
+    height: 7.5,
     borderRadius: 4,
     flexShrink: 0,
   },
   categoryPillText: {
     flexShrink: 1,
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
+    fontSize: 11.5,
     color: colors.ink,
-    letterSpacing: 0.3,
+    letterSpacing: 0.25,
   },
   savedPill: {
-    minHeight: 30,
-    paddingHorizontal: 10,
+    minHeight: 36,
+    paddingHorizontal: 11,
     borderRadius: radii.pill,
-    backgroundColor: colors.goldSoft,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
+    borderColor: '#FBE08A',
+    borderBottomColor: '#DDB038',
+    backgroundColor: '#FFF5C4',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   savedPillText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    color: '#9A6200',
+    fontSize: 11.5,
+    color: '#8C5600',
   },
   scaleButton: {
-    minWidth: 44,
-    minHeight: 34,
-    paddingHorizontal: 12,
+    minWidth: 48,
+    minHeight: 38,
+    paddingHorizontal: 13,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.16)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -499,17 +687,30 @@ const styles = StyleSheet.create({
     color: colors.violetDeep,
   },
   scrollContent: {
+    paddingTop: 2,
     paddingBottom: 20,
     alignItems: 'center',
   },
   sheetCard: {
     width: '100%',
     borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.12)',
-    backgroundColor: colors.paper,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     padding: 18,
     gap: 18,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  cardTopGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 24,
+    right: 24,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   heroHeader: {
     flexDirection: 'row',
@@ -531,9 +732,11 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   formulaHeroBox: {
-    borderRadius: 20,
-    borderWidth: 1.25,
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
     borderColor: '#DFD2FA',
+    borderBottomColor: '#C5B0F4',
     backgroundColor: '#F7F2FF',
     paddingHorizontal: 14,
     paddingVertical: 14,
@@ -563,11 +766,13 @@ const styles = StyleSheet.create({
   },
   formulaSvgWrap: {
     width: '100%',
-    borderRadius: 14,
-    backgroundColor: colors.paper,
-    borderWidth: 1,
-    borderColor: '#ECE4FA',
-    paddingVertical: 11,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E8E0FC',
+    borderBottomColor: '#D4C7F7',
+    paddingVertical: 12,
     paddingHorizontal: 10,
     alignItems: 'center',
     overflow: 'hidden',
@@ -588,9 +793,11 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   pitfallBox: {
-    borderRadius: 18,
-    borderWidth: 1,
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
     borderColor: '#FFD6C4',
+    borderBottomColor: '#F2B296',
     backgroundColor: '#FFF5F0',
     padding: 14,
     gap: 6,
@@ -619,10 +826,12 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   aiFormulaCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.18)',
-    backgroundColor: '#F6F1FF',
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C5B0F4',
+    backgroundColor: '#F7F2FF',
     paddingHorizontal: 13,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -630,10 +839,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   aiFormulaIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: colors.paper,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -662,12 +875,14 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   stepBtn: {
-    width: 46,
-    height: 46,
-    borderRadius: 17,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: colors.paper,
+    width: 48,
+    height: 48,
+    borderRadius: 18,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -680,15 +895,38 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   practiceCta: {
-    minHeight: 50,
-    borderRadius: 18,
-    backgroundColor: colors.lime,
+    minHeight: 52,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  practiceCtaBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   practiceCtaText: {
     flex: 1,
@@ -699,9 +937,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   practiceArrow: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
