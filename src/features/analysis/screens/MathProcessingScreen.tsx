@@ -1,5 +1,6 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +10,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { createNativeLoop } from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession } from '../../../shared/services/sessionGuard';
-import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import { borders, colors, fonts } from '../../../shared/theme';
 import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -223,6 +224,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
 
   return (
     <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
+      <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.header}>
         <View style={styles.brandRow}>
@@ -232,9 +234,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel={working ? 'Continuă analiza în fundal și revino acasă' : 'Înapoi acasă'}
-          depth={shadows.sm}
-          radius={15}
-          shadowColor="#09061B"
+          pressedScale={0.95}
           haptic="selection"
           onPress={goHome}
           contentStyle={styles.home}
@@ -384,9 +384,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.3)',
-    backgroundColor: 'rgba(38, 30, 78, 0.88)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: 'rgba(196, 176, 255, 0.34)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.78)',
+    backgroundColor: 'rgba(38, 28, 84, 0.92)',
     borderRadius: 999,
   },
   homeText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
@@ -415,10 +417,12 @@ const styles = StyleSheet.create({
     minHeight: 172,
     padding: 17,
     paddingRight: 72,
-    borderRadius: 24,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
-    backgroundColor: colors.canvas,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#080615',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.34,

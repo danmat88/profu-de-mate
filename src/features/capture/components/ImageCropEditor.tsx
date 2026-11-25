@@ -16,7 +16,7 @@ import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { cropCapturedImage, rotateCapturedImage } from '../services/imagePipeline';
 import { deleteCapturedImageFiles, isManagedTemporaryImage } from '../services/temporaryImages';
-import { colors, fonts, shadows } from '../../../shared/theme';
+import { colors, fonts } from '../../../shared/theme';
 import type { CapturedImage, FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -578,9 +578,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 accessibilityLabel="Rotește fotografia"
                 disabled={busy}
                 dimWhenDisabled={false}
-                depth={shadows.sm}
-                radius={16}
-                shadowColor="#04030A"
+                pressedScale={0.96}
                 haptic="selection"
                 onPress={() => void rotate()}
                 style={styles.toolPillWrap}
@@ -598,9 +596,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 accessibilityLabel="Extinde selecția la toată fotografia"
                 disabled={busy}
                 dimWhenDisabled={false}
-                depth={shadows.sm}
-                radius={16}
-                shadowColor="#04030A"
+                pressedScale={0.96}
                 haptic="selection"
                 onPress={resetCrop}
                 style={styles.toolPillWrap}
@@ -619,17 +615,23 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               accessibilityLabel={isCheck ? 'Verifică rezolvarea încadrată' : 'Rezolvă problema încadrată'}
               disabled={busy || !imageReady}
               dimWhenDisabled={!busy}
-              depth={shadows.md}
-              radius={20}
-              shadowColor="#04030A"
+              pressedScale={0.97}
               haptic="medium"
               onPress={() => void applyCrop()}
               style={styles.applyWrap}
               contentStyle={[styles.applyButton, isLargeText && styles.buttonLargeText, isCheck && styles.applyButtonCheck]}
             >
+              <LinearGradient
+                colors={isCheck
+                  ? ['#FFBC9E', '#FF8D6B', '#F06A48']
+                  : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
               <View pointerEvents="none" style={styles.applyShine} />
               <View style={styles.applyIcon}>
-                {busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={30} />}
+                {busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={28} />}
               </View>
               <Text
                 numberOfLines={1}
@@ -665,14 +667,16 @@ const styles = StyleSheet.create({
   headerSubtitleDotCheck: { backgroundColor: colors.peach },
   headerSubtitle: { flexShrink: 1, fontFamily: fonts.bodyMedium, color: '#C6BEE0', fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
   headerBadgeWrap: { width: 42, height: 42, position: 'relative', flexShrink: 0 },
-  headerBadgeShadow: { position: 'absolute', top: 2, left: 2, right: 2, bottom: -1, borderRadius: 14, backgroundColor: 'rgba(4, 3, 10, 0.35)' },
+  headerBadgeShadow: { display: 'none' },
   headerBadge: {
     width: 42,
     height: 42,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.28)',
-    backgroundColor: 'rgba(38, 30, 78, 0.88)',
+    borderRadius: 15,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: 'rgba(196, 176, 255, 0.34)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.8)',
+    backgroundColor: 'rgba(38, 28, 84, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -768,11 +772,13 @@ const styles = StyleSheet.create({
   },
   toolPillWrap: { flex: 1, minWidth: 0 },
   toolPill: {
-    height: 44,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.28)',
-    backgroundColor: 'rgba(38, 30, 78, 0.88)',
+    height: 46,
+    borderRadius: 18,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: 'rgba(196, 176, 255, 0.32)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.82)',
+    backgroundColor: 'rgba(38, 28, 84, 0.92)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -786,40 +792,43 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   toolPillText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 17 },
   applyWrap: { width: '100%' },
   applyButton: {
     width: '100%',
-    height: 58,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(23, 19, 55, 0.1)',
-    backgroundColor: colors.lime,
+    minHeight: 58,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     paddingHorizontal: 11,
+    paddingVertical: 7,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
     overflow: 'hidden',
-    elevation: 4,
+    position: 'relative',
   },
-  buttonLargeText: { height: 64, borderRadius: 22 },
-  applyButtonCheck: { backgroundColor: colors.peach },
+  buttonLargeText: { minHeight: 64 },
+  applyButtonCheck: { borderColor: '#FFD4C2', borderBottomColor: '#B84426' },
   applyShine: {
     position: 'absolute',
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
   },
   applyIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 13,
-    backgroundColor: colors.paper,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,

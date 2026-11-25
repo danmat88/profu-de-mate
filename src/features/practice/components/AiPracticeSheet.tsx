@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
@@ -319,6 +320,13 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
               onPress={() => void handleGenerate()}
               contentStyle={styles.generateBtn}
             >
+              <LinearGradient
+                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.ctaTopGloss} />
               <MiniGlyph name="spark" size={16} color={colors.ink} />
               <Text numberOfLines={2} style={styles.generateBtnText}>
                 Generează exercițiul acum
@@ -341,6 +349,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 });
 
 const styles = StyleSheet.create({
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -350,6 +359,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 15,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#DDF68E',
+    borderBottomColor: '#AED442',
     backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -372,7 +385,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(124, 60, 255, 0.08)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -402,9 +419,11 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -413,6 +432,7 @@ const styles = StyleSheet.create({
   },
   chipActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#3C12A8',
     backgroundColor: colors.violet,
   },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
@@ -432,11 +452,13 @@ const styles = StyleSheet.create({
   diffPill: {
     flex: 1,
     minWidth: 0,
-    minHeight: 52,
+    minHeight: 54,
     borderRadius: 18,
-    borderWidth: 1.25,
-    borderColor: 'rgba(124, 60, 255, 0.14)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
@@ -445,6 +467,7 @@ const styles = StyleSheet.create({
   },
   diffPillActive: {
     borderColor: colors.violet,
+    borderBottomColor: '#4E19C4',
     backgroundColor: colors.violetSoft,
   },
   diffPillText: {
@@ -534,16 +557,30 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     textAlign: 'center',
   },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+  },
   generateBtn: {
     marginTop: 4,
     minHeight: 54,
     borderRadius: radii.pill,
-    backgroundColor: colors.lime,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 9,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   generateBtnText: {
     flex: 1,

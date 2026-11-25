@@ -1,3 +1,5 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
@@ -15,6 +17,7 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0, paddingBottom: insets.bottom ?? 0 }]}>
+      <StatusBar style="dark" />
       <ComicBackdrop />
       <View accessibilityRole="alert" accessibilityLiveRegion="assertive" style={styles.content}>
         <View style={styles.mascotWrap}>
@@ -29,6 +32,7 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
 
         <View style={styles.cardWrap}>
           <View style={styles.card}>
+            <View pointerEvents="none" style={styles.cardTopGloss} />
             <Text style={styles.eyebrow}>APLICAȚIA A ÎNTÂMPINAT O PROBLEMĂ</Text>
             <Text style={styles.title}>Ceva nu a mers.</Text>
             <Text style={styles.message}>
@@ -44,6 +48,13 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
             onPress={onRetry}
             style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
           >
+            <LinearGradient
+              colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View pointerEvents="none" style={styles.ctaTopGloss} />
             <Text style={styles.buttonText}>Încarcă din nou</Text>
           </Pressable>
         </View>
@@ -85,14 +96,25 @@ const styles = StyleSheet.create({
   mascot: { width: 136, height: 136 },
   cardWrap: { width: '100%', maxWidth: 356, marginTop: 18 },
   card: {
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 22,
     paddingVertical: 20,
     alignItems: 'center',
     overflow: 'hidden',
+    position: 'relative',
+  },
+  cardTopGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 26,
+    right: 26,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
   },
   eyebrow: { ...typography.kicker, color: colors.violetDeep, textAlign: 'center' },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 31, textAlign: 'center', marginTop: 5 },
@@ -101,12 +123,23 @@ const styles = StyleSheet.create({
   button: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(86, 120, 0, 0.16)',
-    backgroundColor: colors.lime,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    position: 'relative',
+  },
+  ctaTopGloss: {
+    position: 'absolute',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.45)',
   },
   buttonPressed: { transform: [{ scale: 0.97 }] },
   buttonText: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5 },

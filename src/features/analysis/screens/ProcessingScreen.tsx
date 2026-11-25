@@ -1,6 +1,7 @@
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +16,7 @@ import {
 } from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
-import { borders, colors, fonts, shadows } from '../../../shared/theme';
+import { borders, colors, fonts } from '../../../shared/theme';
 import type { CapturedImage, CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
@@ -340,6 +341,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
     return (
       <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
+        <StatusBar style="light" />
         <ComicBackdrop dark />
         <Enter delay={0} distance={8} style={styles.top}>
           <Text style={styles.brand}>Profu’ de mate</Text>
@@ -454,6 +456,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
 
   return (
     <View style={[styles.safe, { paddingHorizontal: gutter, paddingTop: insets.top ?? 0 }]}>
+      <StatusBar style="light" />
       <ComicBackdrop dark />
       <View style={styles.sceneContent}>
         <View style={styles.top}>
@@ -464,9 +467,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Continuă analiza în fundal și revino acasă"
-            depth={shadows.sm}
-            radius={15}
-            shadowColor="#09061B"
+            pressedScale={0.95}
             haptic="selection"
             onPress={continueInBackground}
             contentStyle={styles.stopButton}
@@ -564,15 +565,17 @@ const styles = StyleSheet.create({
   brandDotCheck: { backgroundColor: colors.peach },
   brand: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 19 },
   stopButton: {
-    minWidth: 92,
+    minWidth: 94,
     height: 42,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.3)',
-    backgroundColor: 'rgba(38, 30, 78, 0.88)',
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: 'rgba(196, 176, 255, 0.34)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.78)',
+    backgroundColor: 'rgba(38, 28, 84, 0.92)',
     borderRadius: 999,
     paddingHorizontal: 14,
   },
@@ -600,8 +603,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 440,
     borderRadius: 26,
-    borderWidth: 1.25,
-    borderColor: 'rgba(167, 139, 250, 0.34)',
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: 'rgba(190, 168, 255, 0.36)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.86)',
     backgroundColor: '#0C0820',
     overflow: 'hidden',
   },

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
-import { colors, fonts, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, typography } from '../../../shared/theme';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -121,9 +121,7 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
                   key={option.category}
                   accessibilityRole="button"
                   disabled={Boolean(sending)}
-                  depth={shadows.sm}
-                  radius={16}
-                  shadowColor={colors.ink}
+                  pressedScale={0.975}
                   haptic="selection"
                   onPress={() => void submit(option.category)}
                   contentStyle={styles.option}
@@ -137,7 +135,9 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
                     <Text style={styles.optionTitle}>{option.label}</Text>
                     <Text style={styles.optionText}>{option.description}</Text>
                   </View>
-                  <MiniGlyph name="next" size={17} color={colors.violetDeep} />
+                  <View style={styles.optionArrow}>
+                    <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+                  </View>
                 </PressableScale>
               ))}
             </View>
@@ -162,26 +162,23 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 25, lineHeight: 29, marginTop: 2 },
   options: { gap: 9 },
   option: {
-    minHeight: 66,
-    borderRadius: 18,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
-    backgroundColor: colors.paper,
+    minHeight: 68,
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 10,
-    elevation: 2,
-    shadowColor: '#261758',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
   },
   optionNumber: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -189,6 +186,19 @@ const styles = StyleSheet.create({
   optionCopy: { flex: 1 },
   optionTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 18 },
   optionText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 16.5, marginTop: 2 },
+  optionArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E2D6FF',
+    borderBottomColor: '#C8B5FA',
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
   error: { fontFamily: fonts.bodyBold, color: colors.rose, fontSize: 12.5, lineHeight: 17, textAlign: 'center', marginTop: 10 },
   sentState: { minHeight: 310, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6, paddingTop: 8 },
   sentCopy: { alignItems: 'center', marginTop: 10 },

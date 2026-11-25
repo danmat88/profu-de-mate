@@ -1,5 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
@@ -78,6 +79,7 @@ export function ReviewScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.scene}>
+      <StatusBar style="light" />
       <ImageCropEditor
         image={currentImage}
         mode={route.params.mode}

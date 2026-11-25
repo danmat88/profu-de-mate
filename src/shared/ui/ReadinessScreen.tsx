@@ -1,10 +1,10 @@
+import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
 import { Chip } from './Chip';
 import { ComicBackdrop } from './ComicBackdrop';
 import { ComicButton } from './ComicButton';
-import { ComicCard } from './ComicCard';
 import { Enter } from './Enter';
 import { Mascot } from './Mascot';
 import { PlayfulLoader } from './PlayfulLoader';
@@ -25,6 +25,7 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0, paddingBottom: insets.bottom ?? 0 }]}>
+      <StatusBar style="dark" />
       <ComicBackdrop />
       <View style={styles.content}>
         <Enter delay={0} distance={10}>
@@ -40,7 +41,8 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
         </Enter>
 
         <Enter delay={100} distance={14} style={styles.cardWrap}>
-          <ComicCard tone="paper" radius={26} shine contentStyle={styles.card}>
+          <View style={styles.card}>
+            <View pointerEvents="none" style={styles.cardTopGloss} />
             <Chip
               label={busy ? 'PREGĂTIM TOTUL' : 'O MICĂ PAUZĂ'}
               tone={busy ? 'lime' : 'peach'}
@@ -52,7 +54,7 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
                 <PlayfulLoader compact label="Pregătim accesul…" />
               </View>
             ) : null}
-          </ComicCard>
+          </View>
         </Enter>
 
         <Enter delay={150} distance={12} style={styles.actions}>
@@ -101,12 +103,43 @@ const styles = StyleSheet.create({
   brandAccent: { color: colors.violet },
   mascotWrap: { width: 162, height: 152, alignItems: 'center', justifyContent: 'center', marginBottom: 10, position: 'relative' },
   cardWrap: { width: '100%', maxWidth: 356 },
-  card: { alignItems: 'center', paddingHorizontal: 20, paddingVertical: 18 },
+  card: {
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  cardTopGloss: {
+    position: 'absolute',
+    top: 0,
+    left: 26,
+    right: 26,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  },
   title: { fontFamily: fonts.display, fontSize: 23, lineHeight: 28, color: colors.ink, textAlign: 'center', marginTop: 10 },
   message: { fontFamily: fonts.body, fontSize: 13.5, lineHeight: 20, color: colors.inkSoft, textAlign: 'center', marginTop: 8 },
   loaderWrap: { marginTop: 14 },
-  actions: { width: '100%', maxWidth: 330, marginTop: 18, gap: 6 },
-  secondaryWrap: { alignSelf: 'center' },
-  secondary: { minHeight: 46, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  actions: { width: '100%', maxWidth: 330, marginTop: 18, gap: 10 },
+  secondaryWrap: { alignSelf: 'stretch' },
+  secondary: {
+    minHeight: 48,
+    borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   secondaryText: { fontFamily: fonts.bodyBold, fontSize: 13.5, color: colors.violetDeep },
 });

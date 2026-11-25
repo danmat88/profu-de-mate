@@ -74,8 +74,9 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
       ? '✓'
       : String(stepNumber);
 
-  const fill = active ? colors.violet : completed ? colors.mintSoft : colors.paper;
-  const border = active ? colors.violet : completed ? '#AEEBC7' : colors.borderHairline;
+  const fill = active ? colors.violet : completed ? colors.mintSoft : '#FFFFFF';
+  const border = active ? colors.violet : completed ? '#AEEBC7' : '#E5DCFF';
+  const borderBottom = active ? '#3C12A8' : completed ? '#78CFA0' : '#CEC0F8';
   const activeFlex = dense ? 1.85 : 2.35;
 
   return (
@@ -88,6 +89,7 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
           flex: active ? activeFlex : 1,
           backgroundColor: fill,
           borderColor: border,
+          borderBottomColor: borderBottom,
           transform: [{ scaleX }, { scaleY }],
         },
       ]}
@@ -170,9 +172,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   pill: {
-    minHeight: 26,
+    minHeight: 28,
     borderRadius: 999,
-    borderWidth: 1,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,

@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from '../../../shared/services/haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,7 +28,7 @@ import {
   WAVE_INPUT_17,
 } from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
-import { colors, fonts, shadows } from '../../../shared/theme';
+import { colors, fonts } from '../../../shared/theme';
 import type { CaptureSource, RootStackParamList } from '../../../shared/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Capture'>;
@@ -379,6 +380,7 @@ export function CaptureScreen({ navigation, route }: Props) {
 
   return (
     <View style={styles.safe}>
+      <StatusBar style="light" />
       {permission?.granted && isFocused && transitionSettled ? (
         <Animated.View style={[styles.cameraLayer, { opacity: cameraPreviewEntrance }]}>
           <CameraView
@@ -525,9 +527,7 @@ export function CaptureScreen({ navigation, route }: Props) {
                 accessibilityLabel="Alege din galerie"
                 disabled={working}
                 dimWhenDisabled={false}
-                depth={shadows.sm}
-                radius={18}
-                shadowColor="#04030A"
+                pressedScale={0.94}
                 haptic="selection"
                 onPress={() => void pickFromGallery()}
                 contentStyle={styles.sideIcon}
@@ -555,6 +555,14 @@ export function CaptureScreen({ navigation, route }: Props) {
                   style={({ pressed }) => [styles.shutterOuter, isCompact && styles.shutterOuterCompact, pressed && styles.shutterPressed]}
                 >
                   <View style={[styles.shutterInner, isCheck && styles.shutterInnerCheck, isCompact && styles.shutterInnerCompact]}>
+                    <LinearGradient
+                      colors={isCheck
+                        ? ['#FFC0A3', '#FF8D6B', '#EE6846']
+                        : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                      start={{ x: 0.12, y: 0 }}
+                      end={{ x: 0.88, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
                     <View pointerEvents="none" style={styles.shutterShine} />
                     {working
                       ? <PlayfulLoader micro />
@@ -570,9 +578,7 @@ export function CaptureScreen({ navigation, route }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel="Ajutor pentru fotografie"
                 accessibilityState={{ expanded: showHelp }}
-                depth={shadows.sm}
-                radius={18}
-                shadowColor="#04030A"
+                pressedScale={0.94}
                 haptic="selection"
                 onPress={toggleHelp}
                 contentStyle={[styles.sideIcon, showHelp && styles.sideIconActive]}
@@ -609,13 +615,15 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', zIndex: 20, left: 0, right: 0, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modeChipWrap: { maxWidth: 228, position: 'relative' },
   modeChipNarrow: { maxWidth: 202 },
-  modeChipShadow: { position: 'absolute', top: 2, left: 4, right: 4, bottom: -1, borderRadius: 999, backgroundColor: 'rgba(4, 3, 10, 0.35)' },
+  modeChipShadow: { display: 'none' },
   modeChip: {
-    minHeight: 40,
+    minHeight: 42,
     borderRadius: 999,
-    backgroundColor: 'rgba(28, 21, 62, 0.88)',
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.3)',
+    backgroundColor: 'rgba(28, 20, 68, 0.92)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: 'rgba(196, 176, 255, 0.34)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.78)',
     paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
@@ -623,7 +631,7 @@ const styles = StyleSheet.create({
     gap: 8,
     overflow: 'hidden',
   },
-  modeChipCheck: { borderColor: 'rgba(255, 184, 107, 0.42)' },
+  modeChipCheck: { borderColor: 'rgba(255, 184, 107, 0.48)' },
   darkShine: { position: 'absolute', top: 0, left: 14, right: 14, height: 1.5, backgroundColor: 'rgba(255, 255, 255, 0.22)' },
   modeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   modeDotCheck: { backgroundColor: colors.peach },
@@ -665,24 +673,26 @@ const styles = StyleSheet.create({
   cornerBL: { left: 0, bottom: 0, borderLeftWidth: 4.5, borderBottomWidth: 4.5, borderBottomLeftRadius: 26 },
   cornerBR: { right: 0, bottom: 0, borderRightWidth: 4.5, borderBottomWidth: 4.5, borderBottomRightRadius: 26 },
   bottomChrome: { position: 'absolute', zIndex: 20, left: 0, right: 0, alignItems: 'center', gap: 6 },
-  captureGuide: { minHeight: 34, borderRadius: 999, backgroundColor: 'rgba(24,18,56,0.88)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.28)', paddingHorizontal: 15, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  captureGuide: { minHeight: 36, borderRadius: 999, backgroundColor: 'rgba(24,18,58,0.92)', borderWidth: 1.3, borderBottomWidth: 3, borderColor: 'rgba(196,176,255,0.32)', borderBottomColor: 'rgba(7, 4, 24, 0.72)', paddingHorizontal: 15, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   captureGuideDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   captureGuideDotCheck: { backgroundColor: colors.peach },
   captureHint: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, lineHeight: 15, textAlign: 'center' },
   controls: { width: '100%', height: 102, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sideControl: { width: 72, minHeight: 78, alignItems: 'center', justifyContent: 'center', gap: 5 },
   sideIcon: {
-    width: 54,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: 'rgba(34,26,74,0.88)',
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.28)',
+    width: 56,
+    height: 54,
+    borderRadius: 19,
+    backgroundColor: 'rgba(36, 26, 82, 0.92)',
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: 'rgba(196, 176, 255, 0.34)',
+    borderBottomColor: 'rgba(7, 4, 24, 0.82)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  sideIconActive: { backgroundColor: colors.lime, borderColor: 'rgba(23, 19, 55, 0.16)' },
+  sideIconActive: { backgroundColor: colors.lime, borderColor: '#E8FF78', borderBottomColor: '#7EA508' },
   sideLabel: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
   shutterStage: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center' },
   shutterAura: {
@@ -696,47 +706,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,184,107,0.24)',
   },
   shutterOuter: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
+    width: 86,
+    height: 86,
+    borderRadius: 43,
     borderWidth: 3.5,
-    borderColor: 'rgba(255, 255, 255, 0.92)',
-    backgroundColor: 'rgba(23,19,55,0.45)',
+    borderColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: 'rgba(23,19,55,0.52)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#04030A',
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.38,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
   },
-  shutterOuterCompact: { width: 76, height: 76, borderRadius: 38 },
+  shutterOuterCompact: { width: 78, height: 78, borderRadius: 39 },
   shutterInner: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: colors.lime,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    borderColor: '#EEFF94',
+    borderBottomColor: '#7EA508',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  shutterInnerCheck: { backgroundColor: colors.peach },
-  shutterInnerCompact: { width: 60, height: 60, borderRadius: 30 },
+  shutterInnerCheck: { borderColor: '#FFD6C4', borderBottomColor: '#B84426' },
+  shutterInnerCompact: { width: 62, height: 62, borderRadius: 31 },
   shutterLensRing: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2.25,
-    borderColor: 'rgba(23,19,55,0.25)',
+    borderColor: 'rgba(23,19,55,0.26)',
   },
   shutterShine: {
     position: 'absolute',
     top: 4,
     left: 16,
     right: 16,
-    height: 4,
+    height: 5,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.48)',
   },
   shutterPressed: { transform: [{ scale: 0.91 }] },
   permissionPanel: { flex: 1, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#17132E' },
@@ -750,7 +763,7 @@ const styles = StyleSheet.create({
   permissionGalleryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5 },
   errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 22, borderWidth: 1.25, borderColor: colors.borderHairline, backgroundColor: colors.paper, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 12, shadowColor: '#171337', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 24, borderWidth: 1.5, borderBottomWidth: 4, borderColor: '#E5DCFF', borderBottomColor: '#CEC0F8', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 12, shadowColor: '#171337', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
   helpIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
   helpCopy: { flex: 1, minWidth: 0 },
   helpTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18 },

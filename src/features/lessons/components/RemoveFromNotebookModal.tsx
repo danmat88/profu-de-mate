@@ -1,5 +1,6 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
-import { colors, fonts, shadows } from '../../../shared/theme';
+import { colors, fonts, radii } from '../../../shared/theme';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
@@ -81,14 +82,18 @@ export function RemoveFromNotebookModal({
         accessibilityState={{ disabled: removing, busy: removing }}
         disabled={removing}
         dimWhenDisabled={false}
-        depth={shadows.sm + 1}
-        radius={17}
-        shadowColor={colors.ink}
+        pressedScale={0.97}
         haptic="medium"
         onPress={onConfirm}
         style={styles.confirmWrap}
         contentStyle={styles.confirmButton}
       >
+        <LinearGradient
+          colors={['#FF7488', '#FF4D66', '#E02D48']}
+          start={{ x: 0.08, y: 0 }}
+          end={{ x: 0.92, y: 1 }}
+          style={styles.fill}
+        />
         <View pointerEvents="none" style={styles.buttonShine} />
         {removing ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
         <Text style={styles.confirmText}>
@@ -101,9 +106,7 @@ export function RemoveFromNotebookModal({
         accessibilityState={{ disabled: removing }}
         disabled={removing}
         dimWhenDisabled={false}
-        depth={shadows.sm}
-        radius={16}
-        shadowColor={colors.ink}
+        pressedScale={0.97}
         haptic="selection"
         onPress={onCancel}
         style={styles.keepWrap}
@@ -160,19 +163,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
   },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   lessonPreview: {
     width: '100%',
     marginTop: 12,
-    borderRadius: 18,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
-    backgroundColor: colors.paper,
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
     paddingHorizontal: 13,
     paddingVertical: 11,
-    elevation: 1,
   },
   lessonPreviewIcon: {
     width: 36,
@@ -223,37 +228,43 @@ const styles = StyleSheet.create({
   confirmWrap: { width: '100%', marginTop: 16 },
   confirmButton: {
     width: '100%',
-    minHeight: 52,
-    borderRadius: 18,
-    backgroundColor: colors.rose,
+    minHeight: 54,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: '#FF98A6',
+    borderBottomColor: '#A81E34',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     overflow: 'hidden',
-    elevation: 3,
+    position: 'relative',
   },
   buttonShine: {
     position: 'absolute',
-    top: 0,
-    left: 16,
-    right: 16,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    top: 2,
+    left: 22,
+    right: 22,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   confirmText: {
-    fontFamily: fonts.displaySemi,
+    fontFamily: fonts.display,
     color: colors.paper,
     fontSize: 16.5,
   },
-  keepWrap: { width: '100%', marginTop: 8 },
+  keepWrap: { width: '100%', marginTop: 9 },
   keepButton: {
     width: '100%',
-    minHeight: 48,
-    borderRadius: 16,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
-    backgroundColor: colors.paper,
+    minHeight: 50,
+    borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
