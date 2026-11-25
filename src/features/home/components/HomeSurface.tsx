@@ -549,7 +549,7 @@ export const HomeSurface = memo(function HomeSurface({
   const mascotSize = compact ? 68 : isVeryNarrow ? 92 : 102;
   const spotlightSize = compact ? 66 : isVeryNarrow ? 90 : 100;
   // Curved sky dome extends seamlessly behind the StatusBar down to the vertical midpoint of SegmentedToggle.
-  const skyDomeHeight = insets.top + (compact ? 81 : 108) + mascotSize;
+  const skyDomeHeight = insets.top + (compact ? 83 : 110) + mascotSize;
   const cornerColor = isSolve || hasPendingAnalysis ? colors.lime : colors.gold;
   const isCheckTheme = !isSolve && !hasPendingAnalysis;
   const energyPercent = energyRatio !== null
@@ -566,8 +566,8 @@ export const HomeSurface = memo(function HomeSurface({
         <View
           style={[
             styles.page,
-            { width: contentWidth, paddingTop: insets.top + (compact ? 2 : 4) },
             compact && styles.pageCompact,
+            { width: contentWidth, paddingTop: insets.top + (compact ? 2 : 4) },
             embedded && { paddingBottom: bottomClearance },
           ]}
         >
@@ -933,39 +933,38 @@ export const HomeSurface = memo(function HomeSurface({
             </Animated.View>
           </Enter>
 
-          <View style={styles.lowerStack}>
+          <View style={[styles.lowerStack, compact && styles.lowerStackCompact]}>
             {!hasPendingAnalysis ? (
-              <Enter ready={motionReady} delay={205} distance={14} scaleFrom={0.96} style={[styles.bentoRow, compact && styles.bentoRowCompact]}>
+              <Enter ready={motionReady} delay={205} distance={14} scaleFrom={0.96} style={[styles.inputPairRow, compact && styles.inputPairRowCompact]}>
                 <PressableScale
                   accessibilityRole="button"
                   accessibilityLabel="Alege o fotografie din galerie"
                   accessibilityState={{ disabled: galleryBusy, busy: galleryBusy }}
                   disabled={galleryBusy}
                   dimWhenDisabled={false}
-                  pressedScale={0.955}
+                  pressedScale={0.96}
                   haptic="light"
                   onPress={onGallery}
-                  style={styles.bentoWrap}
+                  style={styles.inputPairWrap}
                   contentStyle={[
-                    embedded ? styles.bentoTile : styles.secondaryTile,
+                    styles.secondaryTile,
                     styles.galleryTile,
-                    isVeryNarrow && styles.bentoTileNarrow,
-                    compact && (embedded ? styles.bentoTileCompact : styles.secondaryTileCompact),
+                    compact && styles.secondaryTileCompact,
                   ]}
                 >
-                  <View style={[embedded ? styles.bentoIconBadge : styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.bentoIconBadgeCompact]}>
+                  <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
                     {galleryBusy ? (
                       <PlayfulLoader micro />
                     ) : (
-                      <AppIcon name="gallery" size={embedded ? (compact ? 26 : isVeryNarrow ? 31 : 35) : (compact || isVeryNarrow ? 26 : 32)} />
+                      <AppIcon name="gallery" size={compact || isVeryNarrow ? 26 : 33} />
                     )}
                   </View>
-                  <View style={embedded ? styles.bentoCopy : styles.tileCopy}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[embedded ? styles.bentoTitle : styles.tileTitle, compact && styles.tileTitleCompact]}>
+                  <View style={styles.tileCopy}>
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
                       Galerie
                     </Text>
                     {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={embedded ? styles.bentoNote : styles.tileNote}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
                         {isSolve ? 'Din telefon' : 'Poză pași'}
                       </Text>
                     ) : null}
@@ -978,98 +977,117 @@ export const HomeSurface = memo(function HomeSurface({
                   accessibilityState={{ disabled: galleryBusy }}
                   disabled={galleryBusy}
                   dimWhenDisabled={false}
-                  pressedScale={0.955}
+                  pressedScale={0.96}
                   haptic="light"
                   onPress={onMath}
-                  style={styles.bentoWrap}
+                  style={styles.inputPairWrap}
                   contentStyle={[
-                    embedded ? styles.bentoTile : styles.secondaryTile,
+                    styles.secondaryTile,
                     styles.mathTile,
-                    isVeryNarrow && styles.bentoTileNarrow,
-                    compact && (embedded ? styles.bentoTileCompact : styles.secondaryTileCompact),
+                    compact && styles.secondaryTileCompact,
                   ]}
                 >
-                  <View style={[embedded ? styles.bentoIconBadge : styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.bentoIconBadgeCompact]}>
-                    <AppIcon name="practice" size={embedded ? (compact ? 26 : isVeryNarrow ? 31 : 35) : (compact || isVeryNarrow ? 26 : 32)} />
+                  <View style={[styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                    <AppIcon name="practice" size={compact || isVeryNarrow ? 26 : 33} />
                   </View>
-                  <View style={embedded ? styles.bentoCopy : styles.tileCopy}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[embedded ? styles.bentoTitle : styles.tileTitle, compact && styles.tileTitleCompact]}>
+                  <View style={styles.tileCopy}>
+                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
                       Scrie
                     </Text>
                     {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={embedded ? styles.bentoNote : styles.tileNote}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
                         {isSolve ? 'Fără poză' : 'Soluția ta'}
                       </Text>
                     ) : null}
                   </View>
                 </PressableScale>
+              </Enter>
+            ) : null}
 
-                {embedded && onQuickPractice ? (
-                  <PressableScale
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      wrongCount > 0
-                        ? `Reia cele ${wrongCount} exerciții greșite`
-                        : 'Începe un test fulger de 5 minute'
-                    }
-                    accessibilityState={{ disabled: galleryBusy }}
-                    disabled={galleryBusy}
-                    dimWhenDisabled={false}
-                    pressedScale={0.955}
-                    haptic="medium"
-                    onPress={onQuickPractice}
-                    style={styles.bentoWrap}
-                    contentStyle={[
-                      styles.bentoTile,
-                      wrongCount > 0 ? styles.mistakesBentoTile : styles.quizBentoTile,
-                      isVeryNarrow && styles.bentoTileNarrow,
-                      compact && styles.bentoTileCompact,
+            {!hasPendingAnalysis && embedded && onQuickPractice ? (
+              <Enter ready={motionReady} delay={245} distance={12} scaleFrom={0.97}>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    wrongCount > 0
+                      ? `Reia cele ${wrongCount} exerciții greșite`
+                      : 'Începe un antrenament fulger de 5 minute'
+                  }
+                  accessibilityState={{ disabled: galleryBusy }}
+                  disabled={galleryBusy}
+                  dimWhenDisabled={false}
+                  pressedScale={0.975}
+                  haptic="medium"
+                  onPress={onQuickPractice}
+                  contentStyle={[
+                    styles.practiceBanner,
+                    wrongCount > 0 ? styles.practiceBannerMistakes : styles.practiceBannerQuiz,
+                    compact && styles.practiceBannerCompact,
+                  ]}
+                >
+                  <View style={[styles.practiceSpine, wrongCount > 0 && styles.practiceSpineMistakes]} />
+                  <View
+                    style={[
+                      styles.practiceIconBadge,
+                      wrongCount > 0 ? styles.mistakesIconBadge : styles.quizIconBadge,
+                      compact && styles.practiceIconBadgeCompact,
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.bentoIconBadge,
-                        wrongCount > 0 ? styles.mistakesIconBadge : styles.quizIconBadge,
-                        (compact || isVeryNarrow) && styles.bentoIconBadgeCompact,
-                      ]}
-                    >
-                      <AppIcon name="streak" size={compact ? 26 : isVeryNarrow ? 31 : 35} />
-                      {wrongCount > 0 ? (
-                        <View collapsable={false} style={styles.bentoBadgeMistakes}>
-                          <Text maxFontSizeMultiplier={1.05} style={styles.bentoBadgeMistakesText}>
-                            {wrongCount}
-                          </Text>
-                        </View>
-                      ) : streakDays > 0 ? (
-                        <View collapsable={false} style={styles.bentoBadgeStreak}>
-                          <Text maxFontSizeMultiplier={1.05} style={styles.bentoBadgeStreakText}>
-                            {streakDays}z
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <View style={styles.bentoCopy}>
+                    <AppIcon name="streak" size={compact ? 25 : 31} />
+                  </View>
+                  <View style={styles.practiceCopy}>
+                    <View style={styles.practiceHeaderRow}>
                       <Text
-                        maxFontSizeMultiplier={1.3}
+                        maxFontSizeMultiplier={1.25}
                         numberOfLines={1}
                         adjustsFontSizeToFit
                         minimumFontScale={0.85}
                         style={[
-                          styles.bentoTitle,
+                          styles.practiceTitle,
                           wrongCount > 0 && styles.mistakesTitle,
-                          compact && styles.tileTitleCompact,
+                          compact && styles.practiceTitleCompact,
                         ]}
                       >
-                        {wrongCount > 0 ? 'Repetă' : 'Test'}
+                        {wrongCount > 0 ? 'Repetă greșelile' : 'Antrenament fulger'}
                       </Text>
-                      {!compact ? (
-                        <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.bentoNote}>
-                          {wrongCount > 0 ? 'Greșeli' : '5 minute'}
-                        </Text>
-                      ) : null}
+                      {wrongCount > 0 ? (
+                        <View collapsable={false} style={styles.practiceBadgeMistakes}>
+                          <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeMistakesText}>
+                            {wrongCount}
+                          </Text>
+                        </View>
+                      ) : (
+                        <View collapsable={false} style={styles.practiceBadgeStreak}>
+                          <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeStreakText}>
+                            {streakDays > 0 ? `${streakDays}z` : '5 min'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
-                  </PressableScale>
-                ) : null}
+                    {!compact ? (
+                      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.practiceNote}>
+                        {wrongCount > 0
+                          ? 'Reia rapid exercițiile greșite la practică'
+                          : studyTrackLabel
+                            ? `5 exerciții rapide · ${studyTrackLabel}`
+                            : '5 exerciții rapide pentru ritm zilnic'}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View
+                    style={[
+                      styles.practiceArrow,
+                      wrongCount > 0 && styles.practiceArrowMistakes,
+                      compact && styles.practiceArrowCompact,
+                    ]}
+                  >
+                    <MiniGlyph
+                      name="next"
+                      size={compact ? 15 : 17}
+                      color={wrongCount > 0 ? colors.peachDeep : colors.violetDeep}
+                    />
+                  </View>
+                </PressableScale>
               </Enter>
             ) : null}
 
@@ -1142,7 +1160,6 @@ export const HomeSurface = memo(function HomeSurface({
         pointerEvents="none"
         style={[
           styles.skyDome,
-          isCheckTheme && styles.skyDomeCheck,
           { height: skyDomeHeight },
         ]}
       >
@@ -1177,21 +1194,16 @@ const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 10, paddingTop: 4, paddingBottom: 8 },
   pageCompact: { gap: 6, paddingTop: 2 },
 
-  // Full-bleed curved sky dome canopy
+  // Full-bleed curved sky dome canopy (smooth gradient arch with zero side-less border seam)
   skyDome: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 1,
-    borderBottomLeftRadius: 38,
-    borderBottomRightRadius: 38,
-    borderBottomWidth: 4,
-    borderBottomColor: '#320B8F',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     overflow: 'hidden',
-  },
-  skyDomeCheck: {
-    borderBottomColor: '#7C1143',
   },
   skyGlowRight: {
     position: 'absolute',
@@ -1327,15 +1339,10 @@ const styles = StyleSheet.create({
   tapSparkGold: { fontFamily: fonts.display, fontSize: 15, color: colors.gold },
   tapSparkCyan: { fontFamily: fonts.display, fontSize: 14, color: colors.cyan },
 
-  // Floating 3D mode switcher straddling the curved sky arch
+  // Solid white 3D mode switcher straddling the smooth curved sky arch
   modeSwitchEnter: { zIndex: 4 },
   modeSwitchFloating: {
     borderRadius: radii.pill,
-    elevation: 6,
-    shadowColor: '#3B1499',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
   },
 
   // Sculpted pure-white 3D optical studio card
@@ -1662,106 +1669,25 @@ const styles = StyleSheet.create({
   },
   captureArrowCompact: { width: 29, height: 29, borderRadius: 14.5 },
 
-  // 3-Column Big-Icon Tactile Bento Playground Deck
+  // 2-tier lower deck: paired solve/check input cards + separate full-width practice banner
   lowerStack: { flexShrink: 0, gap: 9, zIndex: 3 },
-  bentoRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
-  bentoRowCompact: { gap: 8 },
-  bentoWrap: { flex: 1, minWidth: 0 },
-  bentoTile: {
-    height: 98,
-    borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    gap: 6,
-    position: 'relative',
-  },
-  bentoTileNarrow: { height: 90, borderRadius: 21, paddingHorizontal: 6, gap: 4 },
-  bentoTileCompact: { height: 64, borderRadius: 18, paddingHorizontal: 6, paddingVertical: 6, gap: 3 },
-  bentoIconBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  bentoIconBadgeCompact: { width: 36, height: 36, borderRadius: 12 },
-  bentoCopy: { alignItems: 'center', width: '100%' },
-  bentoTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15.5, lineHeight: 18.5, textAlign: 'center' },
-  bentoNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11, lineHeight: 13.5, textAlign: 'center' },
-  quizBentoTile: {
-    backgroundColor: '#F3EBFF',
-    borderColor: '#CEB4FF',
-    borderBottomColor: '#AA82FF',
-  },
-  quizIconBadge: { backgroundColor: '#E5D6FF' },
-  mistakesBentoTile: {
-    backgroundColor: '#FFF1EB',
-    borderColor: '#FFC0AB',
-    borderBottomColor: '#EE9579',
-  },
-  mistakesIconBadge: { backgroundColor: '#FFDCD0' },
-  mistakesTitle: { color: colors.peachDeep },
-  bentoBadgeMistakes: {
-    position: 'absolute',
-    top: -5,
-    right: -8,
-    minWidth: 19,
-    height: 18,
-    paddingHorizontal: 5,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: '#FFF1EB',
-    backgroundColor: colors.rose,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bentoBadgeMistakesText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.paper,
-    fontSize: 9.5,
-    lineHeight: 11,
-    includeFontPadding: false,
-  },
-  bentoBadgeStreak: {
-    position: 'absolute',
-    top: -5,
-    right: -10,
-    minWidth: 22,
-    height: 18,
-    paddingHorizontal: 5,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: '#F3EBFF',
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bentoBadgeStreakText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.ink,
-    fontSize: 9.5,
-    lineHeight: 11,
-    includeFontPadding: false,
-  },
+  lowerStackCompact: { gap: 6 },
+  inputPairRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
+  inputPairRowCompact: { gap: 8 },
+  inputPairWrap: { flex: 1, minWidth: 0 },
 
   secondaryTile: {
-    height: 62,
+    height: 60,
     borderRadius: 21,
-    borderWidth: 1.2,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
     gap: 10,
   },
-  secondaryTileCompact: { height: 48, borderRadius: 16, paddingHorizontal: 8, gap: 7 },
+  secondaryTileCompact: { height: 46, borderRadius: 16, borderBottomWidth: 3, paddingHorizontal: 8, gap: 7 },
   galleryTile: {
     backgroundColor: '#EBFBFF',
     borderColor: '#98E6F5',
@@ -1773,6 +1699,61 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5B72F',
   },
   tileIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  tileIconBadgeCompact: { width: 34, height: 34, borderRadius: 11 },
+  galleryIconBadge: { backgroundColor: '#D4F5FD' },
+  mathIconBadge: { backgroundColor: '#FFF0B8' },
+  tileCopy: { flex: 1, minWidth: 0 },
+  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
+  tileTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
+  tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
+
+  // Dedicated full-width practice / mistake-review action banner
+  practiceBanner: {
+    minHeight: 58,
+    borderRadius: 21,
+    borderWidth: 1.4,
+    borderBottomWidth: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 11,
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  practiceBannerCompact: { minHeight: 46, borderRadius: 16, borderBottomWidth: 3, paddingVertical: 6, paddingLeft: 10, paddingRight: 9, gap: 8 },
+  practiceBannerQuiz: {
+    backgroundColor: '#F4EEFF',
+    borderColor: '#D6BEFF',
+    borderBottomColor: '#B18CFF',
+  },
+  practiceBannerMistakes: {
+    backgroundColor: '#FFF2EC',
+    borderColor: '#FFC0AB',
+    borderBottomColor: '#EE9579',
+  },
+  practiceSpine: {
+    position: 'absolute',
+    left: 0,
+    top: 11,
+    bottom: 11,
+    width: 4,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: colors.violet,
+  },
+  practiceSpineMistakes: {
+    backgroundColor: colors.peachDeep,
+  },
+  practiceIconBadge: {
     width: 40,
     height: 40,
     borderRadius: 14,
@@ -1780,12 +1761,59 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  galleryIconBadge: { backgroundColor: '#D4F5FD' },
-  mathIconBadge: { backgroundColor: '#FFF0B8' },
-  tileCopy: { flex: 1, minWidth: 0 },
-  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
-  tileTitleCompact: { fontSize: 14, lineHeight: 17 },
-  tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
+  practiceIconBadgeCompact: { width: 32, height: 32, borderRadius: 11 },
+  quizIconBadge: { backgroundColor: '#E5D6FF' },
+  mistakesIconBadge: { backgroundColor: '#FFDCD0' },
+  practiceCopy: { flex: 1, minWidth: 0 },
+  practiceHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  practiceTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16.5, lineHeight: 19.5, flexShrink: 1 },
+  practiceTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
+  mistakesTitle: { color: colors.peachDeep },
+  practiceNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14.5 },
+  practiceBadgeMistakes: {
+    minWidth: 20,
+    height: 18,
+    paddingHorizontal: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.rose,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceBadgeMistakesText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.paper,
+    fontSize: 10,
+    lineHeight: 12,
+    includeFontPadding: false,
+  },
+  practiceBadgeStreak: {
+    height: 18,
+    paddingHorizontal: 7,
+    borderRadius: radii.pill,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceBadgeStreakText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.ink,
+    fontSize: 10,
+    lineHeight: 12,
+    includeFontPadding: false,
+  },
+  practiceArrow: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E8DCFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  practiceArrowMistakes: {
+    backgroundColor: '#FFE0D4',
+  },
+  practiceArrowCompact: { width: 25, height: 25, borderRadius: 12.5 },
 
   notebookGroup: { gap: 7 },
   notebookShelf: {
