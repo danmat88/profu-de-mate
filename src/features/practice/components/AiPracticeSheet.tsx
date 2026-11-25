@@ -36,6 +36,7 @@ type Navigation = NativeStackNavigationProp<RootStackParamList>;
 type Props = {
   visible: boolean;
   track: StudyTrackId;
+  hasChosenTrack?: boolean;
   initialCategory?: StudyFormulaCategoryParam;
   /** Optional formula focus (e.g. launched directly from FormulaDetailScreen). */
   formulaTitle?: string;
@@ -59,6 +60,7 @@ const GENERATING_STAGES: readonly string[] = [
 export const AiPracticeSheet = memo(function AiPracticeSheet({
   visible,
   track,
+  hasChosenTrack = true,
   initialCategory,
   formulaTitle,
   formulaId,
@@ -74,6 +76,14 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
   const [busy, setBusy] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  const effectiveTrack: StudyTrackId = hasChosenTrack
+    ? track
+    : category === 'matrices' || category === 'analysis'
+      ? 'bac_m1'
+      : category === 'trigonometry' || category === 'combinatorics'
+        ? 'liceu'
+        : 'en';
 
   const busyRef = useRef(false);
   const mountedRef = useRef(true);
@@ -119,7 +129,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     try {
       const exercise = await generateAiPracticeExercise({
-        track,
+        track: effectiveTrack,
         category,
         difficulty,
         ...(formulaTitle ? { formulaTitle } : {}),
@@ -177,7 +187,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 
           <View style={styles.busyMetaPill}>
             <Text numberOfLines={2} style={styles.busyMetaPillText}>
-              {formulaTitle
+              {formulaTitle || !hasChosenTrack
                 ? `${categoryMeta.shortLabel.toUpperCase()} · ${diffMeta.label.toUpperCase()}`
                 : `${trackMeta.shortLabel.toUpperCase()} · ${categoryMeta.shortLabel.toUpperCase()} · ${diffMeta.label.toUpperCase()}`}
             </Text>
@@ -204,7 +214,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
             </View>
             <View style={styles.headerCopy}>
               <Text numberOfLines={1} style={styles.eyebrow}>
-                PROFU’ AI · {trackMeta.shortLabel.toUpperCase()}
+                {hasChosenTrack ? `PROFU’ AI · ${trackMeta.shortLabel.toUpperCase()}` : 'PROFU’ AI · ADAPTAT PE CAPITOL'}
               </Text>
               <Text numberOfLines={2} style={styles.title}>
                 {formulaTitle ? 'Exercițiu AI pe formulă' : 'Generează exercițiu nou'}

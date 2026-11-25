@@ -9,6 +9,14 @@ import {
   getExamSimulationsForExam,
 } from '../../src/features/exams/data/examSimulationsCatalog.ts';
 import {
+  countDraftAnsweredItems,
+  EXAM_DRAFT_MAX_AGE_MS,
+  formatExamCountdown,
+  hasMeaningfulDraftProgress,
+  isDraftForSimulation,
+  sanitizeExamDraft,
+} from '../../src/features/exams/utils/examDraft.ts';
+import {
   buildExamItemDocument,
   buildExamRubricDocument,
   computeExamScore,
@@ -735,12 +743,89 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
   assert.equal(allStats.length, FORMULA_CATEGORIES.length, 'fără nivel ales, statistica pe capitole acoperă toată programa');
 
   const homeSurfaceSource = await readFile(path.resolve('src/features/home/components/HomeSurface.tsx'), 'utf8');
-  assert.match(homeSurfaceSource, /Alege nivelul/);
+  assert.match(homeSurfaceSource, /Alege clasa sau examenul/);
   assert.match(homeSurfaceSource, /studyTrackChosen/);
-  assert.match(studyHubSource, /Alege nivelul/);
-  assert.match(formulasSource, /Alege nivelul/);
-  assert.match(practiceHubSource, /Alege nivelul/);
+  assert.equal(homeSurfaceSource.includes('stageTrackChip'), false, 'camera card nu trebuie încărcat cu eticheta de nivel');
+  assert.match(studyHubSource, /Alege clasa sau examenul/);
+  assert.match(studyHubSource, /Schimbă ▾/);
+  assert.equal(studyHubSource.includes('trackSetupGrid'), false, 'grila încărcată cu 6 butoane a fost înlocuită de bannerul curat');
+  assert.match(formulasSource, /Nivel ▾/);
+  assert.match(practiceHubSource, /Nivel ▾/);
   assert.match(trackSheetSource, /selectedTrack:\s*StudyTrackId \| null/);
+
+  // Settings & AiPracticeSheet stay 100% synced with studyProfile.hasChosenTrack.
+  const settingsSource = await readFile(path.resolve('src/features/account/screens/SettingsScreen.tsx'), 'utf8');
+  assert.match(settingsSource, /studyProfile\.hasChosenTrack \? studyProfile\.track : null/);
+  assert.match(settingsSource, /Alege nivelul de studiu/);
+  assert.match(aiSheetSource, /hasChosenTrack\?: boolean/);
+  assert.match(aiSheetSource, /ADAPTAT PE CAPITOL/);
+
+  // Exam Simulation supports pause/resume, persistent draft auto-save across app restarts,
+  // background AppState pause, flag-for-review, and student vs official answer comparison.
+  assert.match(examSimSource, /Simulare în pauză/);
+  assert.match(examSimSource, /Salvează și ieși pentru mai târziu/);
+  assert.match(examSimSource, /AppState\.addEventListener/);
+  assert.match(examSimSource, /saveExamDraft/);
+  assert.match(examSimSource, /clearExamDraft/);
+  assert.match(examSimSource, /hasSessionProgress/);
+  assert.match(examSimSource, /confirmMode !== null/);
+  assert.match(examSimSource, /De revizuit/);
+  assert.match(examSimSource, /userAnswerLabel/);
+  const examResSource = await readFile(path.resolve('src/features/exams/screens/ExamResultScreen.tsx'), 'utf8');
+  assert.match(examResSource, /RĂSPUNSUL TĂU/);
+  assert.match(examResSource, /inspectEntry/);
+  assert.match(examResSource, /fresh:\s*true/);
+  assert.match(examsHubSource, /useExamDraft/);
+  assert.match(examsHubSource, /Continuă de unde ai rămas/);
+  assert.match(studyHubSource, /useExamDraft/);
+  assert.match(studyHubSource, /Continuă simularea/);
+  const examStorageSource = await readFile(path.resolve('src/features/exams/services/examStorage.ts'), 'utf8');
+  assert.match(examStorageSource, /clearExamDraft\(\)/);
+  assert.match(practiceSource, /AppState\.addEventListener/);
+
+  // Exam simulation draft sanitization, expiry, progress counters, and countdown formatting.
+  const nowMs = Date.parse('2026-11-25T18:00:00.000Z');
+  const firstEn = getExamSimulationsForExam('en')[0];
+  const enItems = getScopeItems(firstEn, 'full');
+  const enChoiceItem = enItems.find((item) => item.kind === 'choice')!;
+  const enShortItem = enItems.find((item) => item.kind === 'short_answer');
+  const enRubricItem = enItems.find((item) => item.kind === 'rubric')!;
+  const validDraft = sanitizeExamDraft({
+    version: 1,
+    variantId: firstEn.id,
+    examId: 'en',
+    scope: 'full',
+    currentIndex: 3,
+    secondsLeft: 5412,
+    elapsedSeconds: 1788,
+    choiceAnswers: { [enChoiceItem.id]: 2 },
+    textAnswers: enShortItem ? { [enShortItem.id]: '12' } : {},
+    checkedRubricSteps: {},
+    rubricScores: { [enRubricItem.id]: 10 },
+    aiGradingResults: {},
+    flaggedIds: { [enItems[2].id]: true },
+    savedAt: '2026-11-25T17:30:00.000Z',
+  }, nowMs);
+  assert.ok(validDraft, 'ciorna validă de simulare trebuie păstrată');
+  assert.equal(isDraftForSimulation(validDraft, firstEn.id, 'full'), true);
+  assert.equal(isDraftForSimulation(validDraft, firstEn.id, 's1'), false);
+  assert.equal(countDraftAnsweredItems(validDraft, enItems), enShortItem ? 3 : 2);
+  assert.equal(hasMeaningfulDraftProgress(validDraft), true);
+  assert.equal(formatExamCountdown(5412), '1:30:12');
+  assert.equal(formatExamCountdown(75), '01:15');
+
+  // Expired, future-dated, and corrupt drafts are discarded safely.
+  const expiredDraft = sanitizeExamDraft({
+    ...validDraft,
+    savedAt: new Date(nowMs - EXAM_DRAFT_MAX_AGE_MS - 60_000).toISOString(),
+  }, nowMs);
+  assert.equal(expiredDraft, null, 'ciornele mai vechi de 14 zile trebuie expirate');
+  const futureDraft = sanitizeExamDraft({
+    ...validDraft,
+    savedAt: new Date(nowMs + 48 * 60 * 60 * 1000).toISOString(),
+  }, nowMs);
+  assert.equal(futureDraft, null, 'ciornele datate în viitor trebuie ignorate');
+  assert.equal(sanitizeExamDraft({ version: 2, variantId: 'x' }, nowMs), null);
 
   // Inline tokenizer handles both $...$ and \(...\), and identifies multi-row matrices/systems.
   const parenAtoms = tokenizeInlineMathText('Calculați \\(\\det(A)\\) pentru \\[A = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}\\].');

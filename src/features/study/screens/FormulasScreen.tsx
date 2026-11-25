@@ -272,11 +272,15 @@ export function FormulasScreen({ navigation, route }: Props) {
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
-              contentStyle={styles.trackPill}
+              contentStyle={[styles.trackPill, !profile.hasChosenTrack && styles.trackPillUnchosen]}
             >
-              <View style={styles.trackPillDot} />
-              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.trackPillText}>
-                {profile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Alege nivelul ▾'}
+              <View style={[styles.trackPillDot, !profile.hasChosenTrack && styles.trackPillDotUnchosen]} />
+              <Text
+                maxFontSizeMultiplier={1.15}
+                numberOfLines={1}
+                style={[styles.trackPillText, !profile.hasChosenTrack && styles.trackPillTextUnchosen]}
+              >
+                {profile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Nivel ▾'}
               </Text>
             </PressableScale>
           </View>
@@ -653,11 +657,22 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: colors.cyanDeep,
   },
+  trackPillUnchosen: {
+    backgroundColor: '#FFF7CF',
+    borderColor: '#F6E076',
+    borderBottomColor: '#C49F12',
+  },
+  trackPillDotUnchosen: {
+    backgroundColor: '#B87B00',
+  },
   trackPillText: {
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
     fontSize: 11.5,
     includeFontPadding: false,
+  },
+  trackPillTextUnchosen: {
+    color: '#6E4600',
   },
 
   controls: { marginTop: -23, zIndex: 8 },

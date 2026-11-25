@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   BackHandler,
   InteractionManager,
   Keyboard,
@@ -32,8 +33,10 @@ import { AiBlockingOverlay } from '../../../shared/ui/AiBlockingOverlay';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
+import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
+import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { StepTransitionStage } from '../../../shared/ui/StepTransitionStage';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
@@ -42,9 +45,15 @@ import { StudyInlineText } from '../../study/components/StudyInlineText';
 import { StudyBlocksView } from '../../study/components/StudyRichContent';
 import { prewarmStudyMath } from '../../study/utils/prewarmStudyMath';
 import { EXAM_SIMULATIONS, getExamSimulationById } from '../data/examSimulationsCatalog';
+import { clearExamDraft, getExamDraft, saveExamDraft } from '../services/examDraftStorage';
 import { friendlyExamGradingError, gradeExamSolutionPhoto } from '../services/examGrading';
 import { recordExamSimulation } from '../services/examStorage';
 import type { AiRubricGradingResult, ExamItemKind, ExamSubjectKey } from '../types';
+import {
+  hasMeaningfulDraftProgress,
+  isDraftForSimulation,
+  type ExamSimulationDraft,
+} from '../utils/examDraft';
 import {
   computeExamScore,
   evaluateAutoExamItem,
@@ -99,7 +108,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
   const { runAfterKeyboardDismiss } = useAfterKeyboardDismiss(keyboardVisible);
   const { access, refresh: refreshAccess } = useCommercial();
-  const { variantId, scope } = route.params;
+  const { variantId, scope, fresh } = route.params;
 
   const variant = useMemo(
     () => getExamSimulationById(variantId) ?? EXAM_SIMULATIONS[0],
@@ -111,28 +120,60 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     [scope, variant],
   );
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [initialDraft] = useState<ExamSimulationDraft | null>(() => {
+    if (fresh) {
+      clearExamDraft();
+      return null;
+    }
+    const existing = getExamDraft();
+    return isDraftForSimulation(existing, variant.id, scope) ? existing : null;
+  });
+
+  const initialElapsedSeconds = initialDraft
+    ? Math.min(totalSeconds, Math.max(initialDraft.elapsedSeconds, totalSeconds - initialDraft.secondsLeft))
+    : 0;
+
+  const [currentIndex, setCurrentIndex] = useState(() => (
+    initialDraft ? Math.min(Math.max(0, items.length - 1), Math.max(0, initialDraft.currentIndex)) : 0
+  ));
   const [stepTransition, setStepTransition] = useState<{ direction: -1 | 0 | 1; animate: boolean }>({
     direction: 0,
     animate: false,
   });
-  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
+  const [secondsLeft, setSecondsLeft] = useState(() => (
+    initialDraft ? Math.min(totalSeconds, Math.max(0, initialDraft.secondsLeft)) : totalSeconds
+  ));
   const [readingScale, setReadingScale] = useState<MathReadingScale>(() => getMathReadingScale());
-  const [choiceAnswers, setChoiceAnswers] = useState<Record<string, number>>({});
-  const [textAnswers, setTextAnswers] = useState<Record<string, string>>({});
-  const [checkedRubricSteps, setCheckedRubricSteps] = useState<Record<string, readonly string[]>>({});
-  const [rubricScores, setRubricScores] = useState<Record<string, number>>({});
-  const [aiGradingResults, setAiGradingResults] = useState<Record<string, AiRubricGradingResult>>({});
+  const [choiceAnswers, setChoiceAnswers] = useState<Record<string, number>>(
+    () => initialDraft?.choiceAnswers ?? {},
+  );
+  const [textAnswers, setTextAnswers] = useState<Record<string, string>>(
+    () => initialDraft?.textAnswers ?? {},
+  );
+  const [checkedRubricSteps, setCheckedRubricSteps] = useState<Record<string, readonly string[]>>(
+    () => initialDraft?.checkedRubricSteps ?? {},
+  );
+  const [rubricScores, setRubricScores] = useState<Record<string, number>>(
+    () => initialDraft?.rubricScores ?? {},
+  );
+  const [aiGradingResults, setAiGradingResults] = useState<Record<string, AiRubricGradingResult>>(
+    () => initialDraft?.aiGradingResults ?? {},
+  );
   const [gradingBusy, setGradingBusy] = useState(false);
   const [gradingTargetLabel, setGradingTargetLabel] = useState('');
   const [gradingError, setGradingError] = useState<string | null>(null);
   const [rubricSheetOpen, setRubricSheetOpen] = useState(false);
   const [rubricSheetEverOpened, setRubricSheetEverOpened] = useState(false);
   const [confirmMode, setConfirmMode] = useState<'submit' | 'exit' | null>(null);
+  const [examPaused, setExamPaused] = useState(false);
+  const [flaggedIds, setFlaggedIds] = useState<Record<string, boolean>>(
+    () => initialDraft?.flaggedIds ?? {},
+  );
 
   const mountedRef = useRef(true);
   const gradingLockRef = useRef(false);
   const leavingAllowedRef = useRef(false);
+  const submittedOrDiscardedRef = useRef(false);
   const startedAtRef = useRef<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const timeExpiredNotifiedRef = useRef(false);
@@ -141,9 +182,109 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const navChipPositionsRef = useRef<Record<number, number>>({});
   const currentItem = items[currentIndex] ?? items[0];
 
+  const latestDraftRef = useRef({
+    currentIndex,
+    choiceAnswers,
+    textAnswers,
+    checkedRubricSteps,
+    rubricScores,
+    aiGradingResults,
+    flaggedIds,
+    examPaused,
+    gradingBusy,
+  });
+
+  useEffect(() => {
+    latestDraftRef.current = {
+      currentIndex,
+      choiceAnswers,
+      textAnswers,
+      checkedRubricSteps,
+      rubricScores,
+      aiGradingResults,
+      flaggedIds,
+      examPaused,
+      gradingBusy,
+    };
+  }, [
+    aiGradingResults,
+    checkedRubricSteps,
+    choiceAnswers,
+    currentIndex,
+    examPaused,
+    flaggedIds,
+    gradingBusy,
+    rubricScores,
+    textAnswers,
+  ]);
+
+  const persistDraftNow = useCallback((force: boolean) => {
+    if (submittedOrDiscardedRef.current) return;
+    const snap = latestDraftRef.current;
+    const effectiveNow = pausedAtRef.current ?? Date.now();
+    const elapsed = startedAtRef.current !== null
+      ? Math.max(0, Math.floor((effectiveNow - startedAtRef.current) / 1000))
+      : initialElapsedSeconds;
+    const remaining = Math.max(0, totalSeconds - elapsed);
+    const draft: ExamSimulationDraft = {
+      version: 1,
+      variantId: variant.id,
+      examId: variant.examId,
+      scope,
+      currentIndex: snap.currentIndex,
+      secondsLeft: remaining,
+      elapsedSeconds: elapsed,
+      choiceAnswers: snap.choiceAnswers,
+      textAnswers: snap.textAnswers,
+      checkedRubricSteps: snap.checkedRubricSteps,
+      rubricScores: snap.rubricScores,
+      aiGradingResults: snap.aiGradingResults,
+      flaggedIds: snap.flaggedIds,
+      savedAt: new Date().toISOString(),
+    };
+    if (!force && !snap.examPaused && !hasMeaningfulDraftProgress(draft)) return;
+    saveExamDraft(draft);
+  }, [initialElapsedSeconds, scope, totalSeconds, variant.examId, variant.id]);
+
   useEffect(() => () => {
     mountedRef.current = false;
-  }, []);
+    persistDraftNow(Boolean(initialDraft));
+  }, [initialDraft, persistDraftNow]);
+
+  // Debounced auto-save whenever answers, flags, rubric scores, or current item change.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      persistDraftNow(examPaused);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [
+    aiGradingResults,
+    checkedRubricSteps,
+    choiceAnswers,
+    currentIndex,
+    examPaused,
+    flaggedIds,
+    persistDraftNow,
+    rubricScores,
+    textAnswers,
+  ]);
+
+  // Automatically freeze timer and persist draft if the app moves to background
+  // (e.g. phone locked, incoming call, switching apps), except while launching camera/gallery.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') {
+        if (pausedAtRef.current === null) {
+          pausedAtRef.current = Date.now();
+        }
+        persistDraftNow(true);
+        if (!gradingLockRef.current && !latestDraftRef.current.gradingBusy && !submittedOrDiscardedRef.current) {
+          setExamPaused(true);
+        }
+      }
+    });
+    return () => sub.remove();
+  }, [persistDraftNow]);
 
   // Reset scroll synchronously right as the newly keyed exam item mounts.
   useLayoutEffect(() => {
@@ -168,36 +309,42 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     return () => task.cancel();
   }, [currentIndex, items]);
 
-  // Pause the exam countdown fairly while Profu AI is grading a photo.
+  // Pause the exam countdown fairly while AI grades a photo, manually paused, or confirming exit/submit.
+  const timerPaused = gradingBusy || examPaused || confirmMode !== null;
   useEffect(() => {
-    if (gradingBusy) {
+    if (timerPaused) {
       if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
     } else if (pausedAtRef.current !== null && startedAtRef.current !== null) {
       startedAtRef.current += Date.now() - pausedAtRef.current;
       pausedAtRef.current = null;
     }
-  }, [gradingBusy]);
+  }, [timerPaused]);
 
   useEffect(() => {
     if (startedAtRef.current === null) {
-      startedAtRef.current = Date.now();
+      startedAtRef.current = Date.now() - initialElapsedSeconds * 1000;
     }
+    let tickCount = 0;
     const interval = setInterval(() => {
       if (startedAtRef.current === null || pausedAtRef.current !== null) return;
       const elapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
       setSecondsLeft(Math.max(0, totalSeconds - elapsed));
+      tickCount += 1;
+      if (tickCount % 10 === 0) {
+        persistDraftNow(false);
+      }
     }, 1000);
     return () => clearInterval(interval);
-  }, [totalSeconds]);
+  }, [initialElapsedSeconds, persistDraftNow, totalSeconds]);
 
   useEffect(() => {
-    if (secondsLeft > 0 || timeExpiredNotifiedRef.current || gradingBusy) return;
+    if (secondsLeft > 0 || timeExpiredNotifiedRef.current || timerPaused) return;
     timeExpiredNotifiedRef.current = true;
     Keyboard.dismiss();
     Haptics.notification(Haptics.NotificationFeedbackType.Warning);
     setRubricSheetOpen(false);
     setConfirmMode('submit');
-  }, [gradingBusy, secondsLeft]);
+  }, [secondsLeft, timerPaused]);
 
   // Auto-scroll smoothly into short-answer input when the soft keyboard opens.
   useEffect(() => {
@@ -231,12 +378,70 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       .filter(({ item }) => !isItemAnswered(item.id, item.kind)),
     [isItemAnswered, items],
   );
+  const flaggedItems = useMemo(
+    () => items
+      .map((item, idx) => ({ item, idx }))
+      .filter(({ item }) => Boolean(flaggedIds[item.id])),
+    [flaggedIds, items],
+  );
   const answeredCount = items.length - unansweredItems.length;
 
-  // Block navigation gestures and hardware Back completely while AI grades a photo.
+  const toggleExamPause = () => {
+    if (gradingBusy || secondsLeft === 0) return;
+    Keyboard.dismiss();
+    Haptics.selection();
+    setRubricSheetOpen(false);
+    setExamPaused((prev) => {
+      const next = !prev;
+      if (next) {
+        if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
+        persistDraftNow(true);
+      }
+      return next;
+    });
+  };
+
+  const saveAndExitSimulation = () => {
+    if (gradingBusy) return;
+    Keyboard.dismiss();
+    Haptics.selection();
+    if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
+    persistDraftNow(true);
+    setConfirmMode(null);
+    leavingAllowedRef.current = true;
+    beginAppTransition();
+    navigation.goBack();
+  };
+
+  const discardAndExitSimulation = () => {
+    if (gradingBusy) return;
+    Keyboard.dismiss();
+    Haptics.selection();
+    submittedOrDiscardedRef.current = true;
+    clearExamDraft();
+    setConfirmMode(null);
+    leavingAllowedRef.current = true;
+    beginAppTransition();
+    navigation.goBack();
+  };
+
+  const toggleCurrentFlag = () => {
+    if (gradingBusy || examPaused) return;
+    Haptics.selection();
+    setFlaggedIds((map) => ({ ...map, [currentItem.id]: !map[currentItem.id] }));
+  };
+
+  const hasSessionProgress = Boolean(initialDraft)
+    || answeredCount > 0
+    || examPaused
+    || flaggedItems.length > 0
+    || currentIndex > 0
+    || secondsLeft < totalSeconds - 3;
+
+  // Block navigation gestures and hardware Back while AI grades or active exam progress/timer exists.
   useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !gradingBusy && answeredCount === 0 });
-  }, [answeredCount, gradingBusy, navigation]);
+    navigation.setOptions({ gestureEnabled: !gradingBusy && !hasSessionProgress });
+  }, [gradingBusy, hasSessionProgress, navigation]);
 
   useEffect(() => {
     if (!gradingBusy) return undefined;
@@ -253,15 +458,25 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   }, [gradingBusy, navigation]);
 
   useEffect(() => {
-    if (gradingBusy || answeredCount === 0 || confirmMode !== null || rubricSheetOpen) return undefined;
+    if (gradingBusy || confirmMode !== null || rubricSheetOpen) return undefined;
+    if (!examPaused && !hasSessionProgress) return undefined;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       Keyboard.dismiss();
       Haptics.selection();
-      setConfirmMode('exit');
+      if (examPaused) {
+        setExamPaused(false);
+      } else {
+        if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
+        if (startedAtRef.current !== null) {
+          const elapsed = Math.floor((pausedAtRef.current - startedAtRef.current) / 1000);
+          setSecondsLeft(Math.max(0, totalSeconds - elapsed));
+        }
+        setConfirmMode('exit');
+      }
       return true;
     });
     return () => sub.remove();
-  }, [answeredCount, confirmMode, gradingBusy, rubricSheetOpen]);
+  }, [confirmMode, examPaused, gradingBusy, hasSessionProgress, rubricSheetOpen, totalSeconds]);
 
   const jumpToIndex = (nextIdx: number) => {
     if (gradingBusy || nextIdx < 0 || nextIdx >= items.length || nextIdx === currentIndex) return;
@@ -383,16 +598,37 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const finishExam = () => {
     if (gradingBusy) return;
     Keyboard.dismiss();
+    submittedOrDiscardedRef.current = true;
+    clearExamDraft();
     setConfirmMode(null);
+    setExamPaused(false);
     const itemAwarded: Record<string, number> = {};
     const summaryItems: ExamResultItemSummary[] = items.map((item) => {
       let pts = 0;
+      let userAnswerLabel: string | undefined;
+      let answerStatus: ExamResultItemSummary['answerStatus'];
       if (item.kind === 'choice') {
-        pts = evaluateAutoExamItem(item, { choiceIndex: choiceAnswers[item.id] }).awardedPoints;
+        const chosenIdx = choiceAnswers[item.id];
+        const evaluation = evaluateAutoExamItem(item, { choiceIndex: chosenIdx });
+        pts = evaluation.awardedPoints;
+        userAnswerLabel = chosenIdx !== undefined && item.choices?.[chosenIdx]
+          ? `${CHOICE_LETTERS[chosenIdx]}) ${item.choices[chosenIdx]}`
+          : 'Fără răspuns';
+        answerStatus = chosenIdx === undefined ? 'skipped' : evaluation.correct ? 'correct' : 'wrong';
       } else if (item.kind === 'short_answer') {
-        pts = evaluateAutoExamItem(item, { text: textAnswers[item.id] }).awardedPoints;
+        const rawText = textAnswers[item.id]?.trim() ?? '';
+        const evaluation = evaluateAutoExamItem(item, { text: rawText });
+        pts = evaluation.awardedPoints;
+        userAnswerLabel = rawText ? rawText : 'Fără răspuns';
+        answerStatus = !rawText ? 'skipped' : evaluation.correct ? 'correct' : 'wrong';
       } else {
         pts = rubricScores[item.id] ?? 0;
+        answerStatus = 'rubric';
+        userAnswerLabel = aiGradingResults[item.id]
+          ? `Corectat AI: ${pts}/${item.maxPoints}p`
+          : rubricScores[item.id] !== undefined
+            ? `Autoevaluare pe barem: ${pts}/${item.maxPoints}p`
+            : 'Nepunctat pe barem';
       }
       itemAwarded[item.id] = pts;
       return {
@@ -402,11 +638,14 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         subject: item.subject,
         awardedPoints: pts,
         maxPoints: item.maxPoints,
+        userAnswerLabel,
+        answerStatus,
       };
     });
 
     const score = computeExamScore(variant, scope, itemAwarded);
-    const elapsedSeconds = Math.max(1, Math.floor((Date.now() - (startedAtRef.current ?? Date.now())) / 1000));
+    const effectiveNow = pausedAtRef.current ?? Date.now();
+    const elapsedSeconds = Math.max(1, Math.floor((effectiveNow - (startedAtRef.current ?? effectiveNow)) / 1000));
 
     recordExamSimulation({
       id: `exam-${Date.now()}`,
@@ -443,10 +682,15 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const currentAiResult = aiGradingResults[currentItem.id];
   const currentCheckedSteps = checkedRubricSteps[currentItem.id] ?? [];
   const currentTextValue = textAnswers[currentItem.id] ?? '';
+  const isCurrentFlagged = Boolean(flaggedIds[currentItem.id]);
   const innerMathWidth = Math.max(220, Math.min(contentWidth, frame.width - gutter * 2) - 32);
   const showShortKeyboardDock = currentItem.kind === 'short_answer' && keyboardVisible;
   const scrollBottomPadding = keyboardVisible ? 18 : 22;
   const unansweredPreview = unansweredItems
+    .slice(0, 4)
+    .map(({ item }) => item.numberLabel)
+    .join(', ');
+  const flaggedPreview = flaggedItems
     .slice(0, 4)
     .map(({ item }) => item.numberLabel)
     .join(', ');
@@ -479,11 +723,19 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             disabled={gradingBusy}
             hitSlop={8}
             onPress={() => {
-              if (answeredCount > 0) {
+              if (hasSessionProgress) {
+                if (pausedAtRef.current === null) {
+                  pausedAtRef.current = Date.now();
+                }
+                if (startedAtRef.current !== null) {
+                  const elapsed = Math.floor((pausedAtRef.current - startedAtRef.current) / 1000);
+                  setSecondsLeft(Math.max(0, totalSeconds - elapsed));
+                }
                 openConfirmModal('exit');
               } else {
                 Keyboard.dismiss();
                 Haptics.selection();
+                submittedOrDiscardedRef.current = true;
                 leavingAllowedRef.current = true;
                 beginAppTransition();
                 navigation.goBack();
@@ -494,17 +746,31 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             <MiniGlyph name="close" size={16} color={colors.violetDeep} />
           </Pressable>
 
-          <View style={[styles.timerPill, lowTime && styles.timerPillLow]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={examPaused ? 'Reia cronometrul simulării' : 'Pune cronometrul simulării pe pauză'}
+            disabled={gradingBusy || secondsLeft === 0}
+            hitSlop={4}
+            onPress={toggleExamPause}
+            style={({ pressed }) => [
+              styles.timerPill,
+              examPaused ? styles.timerPillPaused : lowTime && styles.timerPillLow,
+              pressed && styles.pressed,
+            ]}
+          >
             <Text
               numberOfLines={1}
               adjustsFontSizeToFit
-              minimumFontScale={0.84}
+              minimumFontScale={0.82}
               maxFontSizeMultiplier={1.12}
-              style={[styles.timerText, lowTime && styles.timerTextLow]}
+              style={[
+                styles.timerText,
+                examPaused ? styles.timerTextPaused : lowTime && styles.timerTextLow,
+              ]}
             >
-              ⏱ {formatCountdown(secondsLeft)}
+              {examPaused ? `▶ ${formatCountdown(secondsLeft)}` : `⏱ ${formatCountdown(secondsLeft)} · ⏸`}
             </Text>
-          </View>
+          </Pressable>
 
           <View style={styles.progressPill}>
             <Text maxFontSizeMultiplier={1.12} style={styles.progressPillText}>
@@ -537,6 +803,53 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         </View>
       </Pressable>
 
+      {examPaused ? (
+        <View style={[styles.pauseStageWrap, { paddingHorizontal: gutter }]}>
+          <View style={[styles.pauseCard, { maxWidth: contentWidth }]}>
+            <View style={styles.pauseMascotWrap}>
+              <SpotlightAura size={96} tone="violet" active={!reducedMotion} />
+              <Mascot pose="wave" size={88} active={!reducedMotion} />
+            </View>
+            <View style={styles.pauseBadge}>
+              <Text style={styles.pauseBadgeText}>CRONOMETRU OPRIT · {formatCountdown(secondsLeft)}</Text>
+            </View>
+            <Text style={styles.pauseTitle}>Simulare în pauză</Text>
+            <Text style={styles.pauseText}>
+              Cronometrul este oprit, iar progresul tău ({answeredCount}/{items.length}) este salvat automat — poți reveni oricând din Examene sau Învață.
+            </Text>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Continuă simularea"
+              pressedScale={0.97}
+              haptic="medium"
+              onPress={toggleExamPause}
+              style={styles.pauseResumeWrap}
+              contentStyle={styles.pauseResumeBtn}
+            >
+              <LinearGradient
+                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <Text style={styles.pauseResumeText}>Continuă simularea</Text>
+              <View style={styles.mainNavArrow}>
+                <MiniGlyph name="next" size={16} color={colors.paper} />
+              </View>
+            </PressableScale>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Salvează simularea și ieși pentru mai târziu"
+              onPress={saveAndExitSimulation}
+              style={({ pressed }) => [styles.pauseSaveExitBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.pauseSaveExitText}>Salvează și ieși pentru mai târziu</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+      <>
       <View style={styles.navStripWrap}>
         <ScrollView
           ref={navStripRef}
@@ -548,6 +861,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
           {items.map((item, idx) => {
             const active = idx === currentIndex;
             const answered = isItemAnswered(item.id, item.kind);
+            const flagged = Boolean(flaggedIds[item.id]);
             return (
               <Pressable
                 key={item.id}
@@ -562,13 +876,18 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   styles.navChip,
                   active && styles.navChipActive,
                   !active && answered && styles.navChipAnswered,
+                  !active && flagged && styles.navChipFlagged,
                   pressed && styles.pressed,
                 ]}
               >
                 <Text style={[styles.navChipText, active && styles.navChipTextActive]}>
                   {item.numberLabel}
                 </Text>
-                {answered ? (
+                {flagged ? (
+                  <Text accessible={false} style={[styles.flagChipStar, active && styles.flagChipStarActive]}>
+                    ★
+                  </Text>
+                ) : answered ? (
                   <View style={[styles.answeredDot, active && styles.answeredDotActive]} />
                 ) : null}
               </Pressable>
@@ -606,8 +925,27 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                     {currentItem.numberLabel}
                   </Text>
                 </View>
-                <View style={styles.pointsBadge}>
-                  <Text style={styles.pointsBadgeText}>{currentItem.maxPoints} puncte</Text>
+                <View style={styles.itemMetaRight}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isCurrentFlagged }}
+                    accessibilityLabel={isCurrentFlagged ? 'Scoate marcajul de revizuit' : 'Marchează itemul de revizuit mai târziu'}
+                    disabled={gradingBusy}
+                    hitSlop={6}
+                    onPress={toggleCurrentFlag}
+                    style={({ pressed }) => [
+                      styles.flagPill,
+                      isCurrentFlagged && styles.flagPillActive,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={[styles.flagPillText, isCurrentFlagged && styles.flagPillTextActive]}>
+                      {isCurrentFlagged ? '★ De revizuit' : '☆ Revizuiește'}
+                    </Text>
+                  </Pressable>
+                  <View style={styles.pointsBadge}>
+                    <Text style={styles.pointsBadgeText}>{currentItem.maxPoints}p</Text>
+                  </View>
                 </View>
               </View>
 
@@ -993,6 +1331,8 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         </View>
       ) : null}
       </View>
+      </>
+      )}
 
       {rubricSheetEverOpened ? (
         <ComicBottomSheet
@@ -1102,15 +1442,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             ? secondsLeft === 0
               ? 'Timpul alocat a expirat!'
               : 'Predai lucrarea acum?'
-            : 'Părăsești simularea?'}
+            : 'Salvezi simularea pentru mai târziu?'}
         </Text>
         <Text style={styles.confirmText}>
           {confirmMode === 'submit'
             ? secondsLeft === 0
               ? `Ai completat ${answeredCount} din ${items.length} itemi. Poți preda lucrarea acum pentru nota oficială sau poți finaliza punctarea pe barem.`
               : `Ai completat ${answeredCount} din ${items.length} itemi. Calculăm punctajul și afișăm baremul complet.`
-            : 'Progresul din această sesiune nu va fi păstrat dacă ieși înainte să predai lucrarea.'}
+            : `Ai completat ${answeredCount} din ${items.length} itemi (${formatCountdown(secondsLeft)} rămas). Poți salva acum și relua oricând exact de unde ai rămas.`}
         </Text>
+
+        {confirmMode === 'submit' && flaggedItems.length > 0 ? (
+          <View style={styles.flaggedNotice}>
+            <Text style={styles.flaggedNoticeText}>
+              ★ Marcați de revizuit ({flaggedItems.length}): {flaggedPreview}
+              {flaggedItems.length > 4 ? ` +${flaggedItems.length - 4}` : ''}
+            </Text>
+          </View>
+        ) : null}
 
         {confirmMode === 'submit' && unansweredItems.length > 0 ? (
           <View style={styles.unansweredNotice}>
@@ -1122,6 +1471,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         ) : null}
 
         <View style={styles.confirmActions}>
+          {confirmMode === 'submit' && flaggedItems.length > 0 && secondsLeft > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Mergi la primul item marcat de revizuit: ${flaggedItems[0].item.numberLabel}`}
+              onPress={() => {
+                const targetIdx = flaggedItems[0].idx;
+                setConfirmMode(null);
+                setExamPaused(false);
+                jumpToIndex(targetIdx);
+              }}
+              style={({ pressed }) => [styles.jumpFlaggedBtn, pressed && styles.pressed]}
+            >
+              <Text numberOfLines={2} style={styles.jumpFlaggedText}>
+                ★ Mergi la {flaggedItems[0].item.numberLabel} (de revizuit)
+              </Text>
+            </Pressable>
+          ) : null}
+
           {confirmMode === 'submit' && unansweredItems.length > 0 && secondsLeft > 0 ? (
             <Pressable
               accessibilityRole="button"
@@ -1129,6 +1496,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               onPress={() => {
                 const targetIdx = unansweredItems[0].idx;
                 setConfirmMode(null);
+                setExamPaused(false);
                 jumpToIndex(targetIdx);
               }}
               style={({ pressed }) => [styles.jumpUnansweredBtn, pressed && styles.pressed]}
@@ -1141,28 +1509,32 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
 
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={confirmMode === 'submit' ? 'Confirmă predarea lucrării' : 'Ieși din simulare'}
+            accessibilityLabel={confirmMode === 'submit' ? 'Confirmă predarea lucrării' : 'Salvează simularea și continuă mai târziu'}
             pressedScale={0.97}
             haptic="medium"
             onPress={() => {
               if (confirmMode === 'submit') {
                 finishExam();
               } else {
-                setConfirmMode(null);
-                leavingAllowedRef.current = true;
-                beginAppTransition();
-                navigation.goBack();
+                saveAndExitSimulation();
               }
             }}
-            contentStyle={[
-              styles.confirmPrimaryBtn,
-              confirmMode === 'exit' && styles.confirmExitBtn,
-            ]}
+            contentStyle={styles.confirmPrimaryBtn}
           >
-            <Text numberOfLines={2} style={[styles.confirmPrimaryText, confirmMode === 'exit' && styles.confirmExitText]}>
-              {confirmMode === 'submit' ? 'Da, predă și calculează nota' : 'Da, ieși acum'}
+            <Text numberOfLines={2} style={styles.confirmPrimaryText}>
+              {confirmMode === 'submit' ? 'Da, predă și calculează nota' : 'Salvează și continuă mai târziu'}
             </Text>
           </PressableScale>
+          {confirmMode === 'exit' ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Renunță la simulare și șterge progresul"
+              onPress={discardAndExitSimulation}
+              style={({ pressed }) => [styles.confirmDiscardBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.confirmDiscardText}>Renunță și șterge progresul</Text>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Rămâi în simulare"
@@ -1265,6 +1637,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E07C90',
     backgroundColor: '#FFE8EC',
   },
+  timerPillPaused: {
+    borderColor: '#F6DC74',
+    borderBottomWidth: 2.8,
+    borderBottomColor: '#C59A10',
+    backgroundColor: '#FFF7CE',
+  },
   timerText: {
     fontFamily: fonts.display,
     color: colors.paper,
@@ -1273,6 +1651,9 @@ const styles = StyleSheet.create({
   },
   timerTextLow: {
     color: '#A51D36',
+  },
+  timerTextPaused: {
+    color: '#6E4600',
   },
   progressPill: {
     minHeight: 34,
@@ -1363,6 +1744,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#98C40E',
     backgroundColor: '#F5FFD6',
   },
+  navChipFlagged: {
+    borderColor: '#F2CC55',
+    borderBottomColor: '#CC9A12',
+    backgroundColor: '#FFF8D8',
+  },
   navChipText: {
     fontFamily: fonts.bodyBold,
     color: colors.inkSoft,
@@ -1370,6 +1756,15 @@ const styles = StyleSheet.create({
   },
   navChipTextActive: {
     color: colors.paper,
+  },
+  flagChipStar: {
+    fontFamily: fonts.display,
+    fontSize: 11,
+    color: '#B87A00',
+    includeFontPadding: false,
+  },
+  flagChipStarActive: {
+    color: colors.gold,
   },
   answeredDot: {
     width: 6,
@@ -1379,6 +1774,108 @@ const styles = StyleSheet.create({
   },
   answeredDotActive: {
     backgroundColor: colors.lime,
+  },
+
+  pauseStageWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  pauseCard: {
+    width: '100%',
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderBottomWidth: 5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingVertical: 26,
+    alignItems: 'center',
+    gap: 11,
+  },
+  pauseMascotWrap: {
+    width: 98,
+    height: 98,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  pauseBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    backgroundColor: '#FFF6CC',
+    borderWidth: 1.2,
+    borderColor: '#E8C54F',
+  },
+  pauseBadgeText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10.5,
+    letterSpacing: 0.7,
+    color: '#734A00',
+    includeFontPadding: false,
+  },
+  pauseTitle: {
+    fontFamily: fonts.display,
+    fontSize: 22,
+    lineHeight: 26,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  pauseText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.inkSoft,
+    textAlign: 'center',
+  },
+  pauseResumeWrap: {
+    width: '100%',
+    marginTop: 6,
+  },
+  pauseResumeBtn: {
+    minHeight: 54,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderColor: '#EEFF96',
+    borderBottomWidth: 4.5,
+    borderBottomColor: '#8CB600',
+    backgroundColor: colors.lime,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  pauseResumeText: {
+    fontFamily: fonts.display,
+    fontSize: 16.5,
+    color: colors.ink,
+  },
+  pauseSaveExitBtn: {
+    width: '100%',
+    minHeight: 48,
+    borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
+    borderColor: '#DFD2FA',
+    borderBottomColor: '#C2ADF4',
+    backgroundColor: colors.violetSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  pauseSaveExitText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
+    color: colors.violetDeep,
+    textAlign: 'center',
   },
 
   scrollBody: {
@@ -1406,6 +1903,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+  },
+  itemMetaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 1,
+  },
+  flagPill: {
+    borderRadius: radii.pill,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.5,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FAF8FF',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
+  flagPillActive: {
+    borderColor: '#F2CC55',
+    borderBottomColor: '#CC9A12',
+    backgroundColor: '#FFF7CE',
+  },
+  flagPillText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.inkSoft,
+  },
+  flagPillTextActive: {
+    color: '#734A00',
   },
   subjectBadge: {
     borderRadius: radii.pill,
@@ -2052,6 +2578,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
+  flaggedNotice: {
+    marginTop: 10,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: '#F2CC55',
+    backgroundColor: '#FFF7CE',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  flaggedNoticeText: {
+    fontFamily: fonts.bodyBold,
+    color: '#734A00',
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
   unansweredNotice: {
     marginTop: 10,
     borderRadius: 14,
@@ -2071,6 +2613,25 @@ const styles = StyleSheet.create({
   confirmActions: {
     marginTop: 14,
     gap: 9,
+  },
+  jumpFlaggedBtn: {
+    minHeight: 46,
+    borderRadius: radii.pill,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#F2CC55',
+    borderBottomColor: '#CC9A12',
+    backgroundColor: '#FFF7CE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  jumpFlaggedText: {
+    fontFamily: fonts.bodyBold,
+    color: '#734A00',
+    fontSize: 13,
+    textAlign: 'center',
   },
   jumpUnansweredBtn: {
     minHeight: 46,
@@ -2104,19 +2665,30 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  confirmExitBtn: {
-    borderColor: '#FF8EA0',
-    borderBottomColor: '#B5203E',
-    backgroundColor: colors.rose,
-  },
   confirmPrimaryText: {
     fontFamily: fonts.display,
     color: colors.ink,
     fontSize: 16,
     textAlign: 'center',
   },
-  confirmExitText: {
-    color: colors.paper,
+  confirmDiscardBtn: {
+    minHeight: 44,
+    borderRadius: radii.pill,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#F8B9C7',
+    borderBottomColor: '#E07990',
+    backgroundColor: '#FFF1F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  confirmDiscardText: {
+    fontFamily: fonts.bodyBold,
+    color: '#A51D36',
+    fontSize: 13,
+    textAlign: 'center',
   },
   confirmSecondaryBtn: {
     minHeight: 44,

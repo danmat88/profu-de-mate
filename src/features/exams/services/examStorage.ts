@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react';
 import { recordDailyStudyActivity } from '../../practice/services/practiceStorage';
 import type { ExamGuideId } from '../../study/types';
 import type { ExamSimulationRecord, ExamSimulationScope } from '../types';
+import { clearExamDraft } from './examDraftStorage';
 
 export type ExamHistoryState = {
   records: readonly ExamSimulationRecord[];
@@ -201,5 +202,6 @@ export function clearExamLocalState(): void {
   } catch {
     // Cleanup will be retried on the next deletion request.
   }
+  clearExamDraft();
   emit();
 }

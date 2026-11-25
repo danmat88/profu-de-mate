@@ -22,8 +22,11 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { getExamGuide } from '../../exams/data/examGuidesCatalog';
+import { getExamSimulationById } from '../../exams/data/examSimulationsCatalog';
+import { useExamDraft } from '../../exams/services/examDraftStorage';
 import { getBestGradeForExam, useExamHistory } from '../../exams/services/examStorage';
-import { formatRomanianGrade } from '../../exams/utils/examEngine';
+import { countDraftAnsweredItems, formatExamCountdown } from '../../exams/utils/examDraft';
+import { formatRomanianGrade, getScopeItems, getScopeTitle } from '../../exams/utils/examEngine';
 import { StreakInfoSheet } from '../../practice/components/StreakInfoSheet';
 import { getActiveStreakDays, usePracticeState } from '../../practice/services/practiceStorage';
 import { FormulaCard } from '../components/FormulaCard';
@@ -33,7 +36,6 @@ import { setStudyTrack, toggleFavoriteFormula, useStudyProfile } from '../servic
 import {
   FORMULA_CATEGORIES,
   getStudyTrackMeta,
-  STUDY_TRACKS,
   type FormulaCategoryId,
   type FormulaEntry,
   type StudyTrackId,
@@ -59,12 +61,13 @@ export const StudyHubScreen = memo(function StudyHubScreen({
 }: Props) {
   const navigation = useNavigation<Navigation>();
   const frame = useSafeAreaFrame();
-  const { gutter, contentWidth, isVeryNarrow } = useResponsiveLayout(frame);
+  const { gutter, contentWidth } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const profile = useStudyProfile();
   const practiceState = usePracticeState();
   const examHistory = useExamHistory();
+  const examDraft = useExamDraft();
   const streakDays = getActiveStreakDays(practiceState);
   const wrongCount = practiceState.wrongQuestionIds.length;
 
@@ -81,6 +84,22 @@ export const StudyHubScreen = memo(function StudyHubScreen({
 
   const trackMeta = getStudyTrackMeta(profile.track);
   const examGuide = useMemo(() => getExamGuide(trackMeta.examGuideId), [trackMeta.examGuideId]);
+  const draftBanner = useMemo(() => {
+    if (!examDraft) return null;
+    const draftVariant = getExamSimulationById(examDraft.variantId);
+    if (!draftVariant) return null;
+    const draftGuide = getExamGuide(examDraft.examId);
+    const draftItems = getScopeItems(draftVariant, examDraft.scope);
+    return {
+      variantId: examDraft.variantId,
+      scope: examDraft.scope,
+      guideTitle: draftGuide.shortTitle,
+      scopeTitle: getScopeTitle(examDraft.scope),
+      answered: countDraftAnsweredItems(examDraft, draftItems),
+      total: draftItems.length,
+      remaining: formatExamCountdown(examDraft.secondsLeft),
+    };
+  }, [examDraft]);
   const bestExamGrade = useMemo(
     () => (profile.hasChosenTrack ? getBestGradeForExam(examHistory, trackMeta.examGuideId) : null),
     [examHistory, profile.hasChosenTrack, trackMeta.examGuideId],
@@ -184,6 +203,16 @@ export const StudyHubScreen = memo(function StudyHubScreen({
     navigation.navigate('ExamsHub', { examId: trackMeta.examGuideId });
   }, [navigation, trackMeta.examGuideId]);
 
+  const resumeExamDraft = () => {
+    if (!draftBanner || navLockRef.current) return;
+    navLockRef.current = true;
+    beginAppTransition();
+    navigation.navigate('ExamSimulation', {
+      variantId: draftBanner.variantId,
+      scope: draftBanner.scope,
+    });
+  };
+
   const openPracticeHub = useCallback(() => {
     if (navLockRef.current) return;
     navLockRef.current = true;
@@ -258,6 +287,9 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.headerTitle}>
                 Învață
               </Text>
+            </View>
+
+            <View style={styles.headerActions}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={
@@ -269,83 +301,55 @@ export const StudyHubScreen = memo(function StudyHubScreen({
                 onPress={openStreakSheet}
                 style={({ pressed }) => [styles.headerStreakPill, pressed && styles.pressed]}
               >
-                <AppIcon name="streak" size={13} />
+                <AppIcon name="streak" size={14} />
                 <Text maxFontSizeMultiplier={1.1} style={styles.headerStreakText}>
                   {streakDays > 0 ? `${streakDays}z` : 'Seria'}
                 </Text>
               </Pressable>
-            </View>
 
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={
-                profile.hasChosenTrack
-                  ? `Nivel de studiu: ${trackMeta.label}. Apasă pentru a schimba`
-                  : 'Alege clasa sau examenul'
-              }
-              pressedScale={0.95}
-              haptic="selection"
-              onPress={openTrackPicker}
-              style={styles.trackPillWrap}
-              contentStyle={[styles.trackPill, !profile.hasChosenTrack && styles.trackPillUnchosen]}
-            >
-              <View pointerEvents="none" style={styles.pillTopGloss} />
-              <View style={[styles.trackPillDot, !profile.hasChosenTrack && styles.trackPillDotUnchosen]} />
-              <Text
-                maxFontSizeMultiplier={1.15}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-                style={[
-                  styles.trackPillText,
-                  !profile.hasChosenTrack && styles.trackPillTextUnchosen,
-                  isVeryNarrow && styles.trackPillTextNarrow,
-                ]}
+              <IconButton
+                label="Deschide setările"
+                onPress={openSettings}
+                size={42}
+                style={styles.settingsWrap}
               >
-                {profile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Alege nivelul ▾'}
-              </Text>
-            </PressableScale>
-
-            <IconButton
-              label="Deschide setările"
-              onPress={openSettings}
-              size={42}
-              style={styles.settingsWrap}
-            >
-              <AppIcon name="settings" size={27} />
-            </IconButton>
+                <AppIcon name="settings" size={27} />
+              </IconButton>
+            </View>
           </View>
 
           <View style={styles.heroRow}>
             <View style={styles.heroCopy}>
-              <View style={styles.heroEyebrowPill}>
-                <View style={styles.heroEyebrowDot} />
-                <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.heroEyebrowText}>
-                  {profile.hasChosenTrack ? trackMeta.eyebrow : 'PROFIL DE STUDIU'}
-                </Text>
-              </View>
-              {profile.hasChosenTrack ? (
-                <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.heroTitle}>
-                  {trackMeta.label}
-                </Text>
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Alege clasa sau examenul"
-                  onPress={openTrackPicker}
-                  style={({ pressed }) => pressed && styles.pressed}
-                >
-                  <Text maxFontSizeMultiplier={1.2} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.heroTitle}>
-                    Alege clasa sau examenul ›
+              <View style={styles.heroEyebrowRow}>
+                <View style={styles.heroEyebrowPill}>
+                  <View style={styles.heroEyebrowDot} />
+                  <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.heroEyebrowText}>
+                    {profile.hasChosenTrack ? trackMeta.eyebrow : 'CLASELE V–XII · EN & BAC'}
                   </Text>
-                </Pressable>
-              )}
+                </View>
+                {profile.hasChosenTrack ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Nivel activ: ${trackMeta.label}. Apasă pentru a schimba`}
+                    hitSlop={6}
+                    onPress={openTrackPicker}
+                    style={({ pressed }) => [styles.heroSwitchPill, pressed && styles.pressed]}
+                  >
+                    <Text maxFontSizeMultiplier={1.1} style={styles.heroSwitchText}>
+                      Schimbă ▾
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.heroTitle}>
+                {profile.hasChosenTrack ? trackMeta.label : 'Toată programa'}
+              </Text>
               <View style={styles.heroProgressWrap}>
                 <View style={styles.progressHeader}>
                   <Text maxFontSizeMultiplier={1.15} style={styles.progressLabel}>
                     {profile.hasChosenTrack
                       ? `${exploredCount} / ${trackFormulas.length} fișe`
-                      : `${trackFormulas.length} fișe · clasele V–XII, EN & BAC`}
+                      : `${trackFormulas.length} fișe disponibile`}
                   </Text>
                   <Text maxFontSizeMultiplier={1.15} style={styles.progressFavs}>
                     ★ {trackFavoritesCount} favorite
@@ -379,58 +383,79 @@ export const StudyHubScreen = memo(function StudyHubScreen({
       >
         <View style={[styles.page, { width: contentWidth }]}>
           {!profile.hasChosenTrack ? (
-            <View style={styles.trackSetupCard}>
-              <View style={styles.trackSetupHeader}>
-                <View style={styles.trackSetupEyebrowPill}>
-                  <Text style={styles.trackSetupEyebrow}>PERSONALIZEAZĂ NIVELUL</Text>
-                </View>
-                <Text style={styles.trackSetupTitle}>
-                  În ce clasă ești sau ce examen pregătești?
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Alege clasa sau examenul pentru a personaliza formulele, testele și simulările"
+              pressedScale={0.975}
+              haptic="selection"
+              onPress={openTrackPicker}
+              contentStyle={styles.trackBannerCard}
+            >
+              <LinearGradient
+                pointerEvents="none"
+                colors={['#FFFDF2', '#FFF1BE']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.cardTopGloss} />
+              <View style={styles.trackBannerRail} />
+              <View style={styles.trackBannerIcon}>
+                <AppIcon name="class" size={30} />
+              </View>
+              <View style={styles.trackBannerCopy}>
+                <Text maxFontSizeMultiplier={1.1} style={styles.trackBannerKicker}>
+                  PERSONALIZEAZĂ NIVELUL
                 </Text>
-                <Text style={styles.trackSetupSub}>
-                  Alege o variantă — adaptăm formulele, testele și simulările pentru tine.
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.trackBannerTitle}>
+                  Alege clasa sau examenul
+                </Text>
+                <Text numberOfLines={2} style={styles.trackBannerNote}>
+                  Adaptăm formulele, testele și simulările pentru tine.
                 </Text>
               </View>
+              <View style={styles.trackBannerArrow}>
+                <MiniGlyph name="next" size={16} color="#8A5600" />
+              </View>
+            </PressableScale>
+          ) : null}
 
-              <View style={styles.trackSetupGrid}>
-                {STUDY_TRACKS.map((item) => {
-                  const dotColor = item.accent === 'violet'
-                    ? colors.violet
-                    : item.accent === 'cyan'
-                      ? colors.cyanDeep
-                      : item.accent === 'lime'
-                        ? colors.limeDeep
-                        : item.accent === 'peach'
-                          ? colors.peachDeep
-                          : '#A36A00';
-                  return (
-                    <Pressable
-                      key={item.id}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Alege nivelul ${item.label}`}
-                      onPress={() => {
-                        Haptics.notification(Haptics.NotificationFeedbackType.Success);
-                        handleSelectTrack(item.id);
-                      }}
-                      style={({ pressed }) => [
-                        styles.trackSetupOption,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.trackSetupOptionTop}>
-                        <View style={[styles.trackSetupDot, { backgroundColor: dotColor }]} />
-                        <Text numberOfLines={1} style={styles.trackSetupOptEyebrow}>
-                          {item.eyebrow}
-                        </Text>
-                      </View>
-                      <Text numberOfLines={1} style={styles.trackSetupOptLabel}>
-                        {item.shortLabel}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+          {draftBanner ? (
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={`Continuă simularea în pauză ${draftBanner.guideTitle}, ${draftBanner.answered} din ${draftBanner.total} itemi`}
+              pressedScale={0.975}
+              haptic="medium"
+              onPress={resumeExamDraft}
+              contentStyle={[styles.trackBannerCard, styles.draftBannerCard]}
+            >
+              <LinearGradient
+                pointerEvents="none"
+                colors={['#F8FFDE', '#E7FFA0']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.cardTopGloss} />
+              <View style={[styles.trackBannerRail, { backgroundColor: colors.limeDeep }]} />
+              <View style={[styles.trackBannerIcon, { borderColor: '#BFE452' }]}>
+                <AppIcon name="trophy" size={30} />
               </View>
-            </View>
+              <View style={styles.trackBannerCopy}>
+                <Text maxFontSizeMultiplier={1.1} style={[styles.trackBannerKicker, { color: colors.limeDeep }]}>
+                  ⏸ SIMULARE ÎN PAUZĂ · {draftBanner.guideTitle.toUpperCase()}
+                </Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={[styles.trackBannerTitle, { color: colors.ink }]}>
+                  Continuă simularea
+                </Text>
+                <Text numberOfLines={1} style={styles.trackBannerNote}>
+                  {draftBanner.answered}/{draftBanner.total} itemi · ⏱ {draftBanner.remaining} rămas
+                </Text>
+              </View>
+              <View style={[styles.trackBannerArrow, { borderColor: '#BFE452' }]}>
+                <MiniGlyph name="next" size={16} color={colors.ink} />
+              </View>
+            </PressableScale>
           ) : null}
 
           {/* Pure-white 3D Quick-Start Quest Card matching Home optical studio craft */}
@@ -598,12 +623,14 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               </View>
               <Text numberOfLines={2} style={styles.tileTitle}>EN & BAC</Text>
               <Text numberOfLines={2} style={styles.tileNote}>
-                {bestExamGrade !== null
-                  ? `Record ${examGuide.shortTitle}: ${formatRomanianGrade(bestExamGrade)} · barem`
-                  : 'Simulări cronometrate, barem & ghid'}
+                {draftBanner
+                  ? `⏸ În pauză: ${draftBanner.answered}/${draftBanner.total} itemi · ${draftBanner.remaining}`
+                  : bestExamGrade !== null
+                    ? `Record ${examGuide.shortTitle}: ${formatRomanianGrade(bestExamGrade)} · barem`
+                    : 'Simulări cronometrate, barem & ghid'}
               </Text>
               <View style={styles.tileFooterPillGold}>
-                <Text style={styles.tileLinkTextGold}>Simulări</Text>
+                <Text style={styles.tileLinkTextGold}>{draftBanner ? 'Continuă' : 'Simulări'}</Text>
                 <MiniGlyph name="next" size={13} color={colors.ink} />
               </View>
             </PressableScale>
@@ -828,81 +855,30 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1.5 },
     textShadowRadius: 3,
   },
-  headerStreakPill: {
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    gap: 8,
+    flexShrink: 0,
+  },
+  headerStreakPill: {
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(216, 255, 62, 0.22)',
-    borderWidth: 1,
-    borderColor: 'rgba(216, 255, 62, 0.5)',
+    backgroundColor: 'rgba(216, 255, 62, 0.2)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(216, 255, 62, 0.52)',
   },
   headerStreakText: {
     fontFamily: fonts.bodyBold,
     color: colors.lime,
-    fontSize: 10.5,
-    lineHeight: 13,
-    includeFontPadding: false,
-  },
-  trackPillWrap: {
-    marginLeft: 'auto',
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  trackPill: {
-    minHeight: 40,
-    borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#FFFFFF',
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  pillTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 14,
-    right: 14,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
-  trackPillDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: colors.violet,
-  },
-  trackPillUnchosen: {
-    backgroundColor: '#FFF7CF',
-    borderColor: '#F6E076',
-    borderBottomColor: '#C49F12',
-  },
-  trackPillDotUnchosen: {
-    backgroundColor: '#B87B00',
-  },
-  trackPillText: {
-    flexShrink: 1,
-    fontFamily: fonts.bodyBold,
-    color: colors.violetDeep,
     fontSize: 12,
     lineHeight: 15,
     includeFontPadding: false,
-  },
-  trackPillTextUnchosen: {
-    color: '#6E4600',
-  },
-  trackPillTextNarrow: {
-    fontSize: 11,
   },
   settingsWrap: {
     borderRadius: 21,
@@ -919,7 +895,13 @@ const styles = StyleSheet.create({
   heroCopy: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: 5,
+  },
+  heroEyebrowRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 7,
   },
   heroEyebrowPill: {
     alignSelf: 'flex-start',
@@ -927,11 +909,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5.5,
     paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingVertical: 3.5,
     borderRadius: radii.pill,
     backgroundColor: 'rgba(255, 255, 255, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.24)',
+  },
+  heroSwitchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.34)',
+  },
+  heroSwitchText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.paper,
+    fontSize: 10.5,
+    lineHeight: 13,
+    includeFontPadding: false,
   },
   heroEyebrowDot: {
     width: 6.5,
@@ -1469,88 +1468,86 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  trackSetupCard: {
-    borderRadius: 26,
-    borderWidth: 1.5,
+  trackBannerCard: {
+    borderRadius: 24,
+    borderWidth: 1.4,
     borderBottomWidth: 4.5,
-    borderColor: '#D6F08A',
-    borderBottomColor: '#98C40E',
-    backgroundColor: '#FFFFFF',
-    padding: 15,
-    gap: 12,
-  },
-  trackSetupHeader: {
-    gap: 4,
-  },
-  trackSetupEyebrowPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: radii.pill,
-    backgroundColor: colors.limeSoft,
-  },
-  trackSetupEyebrow: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    letterSpacing: 0.75,
-    color: colors.limeDeep,
-    includeFontPadding: false,
-  },
-  trackSetupTitle: {
-    marginTop: 2,
-    fontFamily: fonts.display,
-    fontSize: 19,
-    lineHeight: 23,
-    color: colors.ink,
-  },
-  trackSetupSub: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12.8,
-    lineHeight: 18,
-    color: colors.inkSoft,
-  },
-  trackSetupGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  trackSetupOption: {
-    width: '48.2%',
-    flexGrow: 1,
-    borderRadius: 17,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FAF8FF',
-    paddingHorizontal: 11,
-    paddingVertical: 10,
-    gap: 3,
-  },
-  trackSetupOptionTop: {
+    borderColor: '#ECCB5B',
+    borderBottomColor: '#D0A51E',
+    backgroundColor: '#FFF9DC',
+    paddingVertical: 13,
+    paddingLeft: 15,
+    paddingRight: 13,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 12,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  trackSetupDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  draftBannerCard: {
+    borderColor: '#C5EA63',
+    borderBottomColor: '#8CB600',
+    backgroundColor: '#F3FFD1',
+  },
+  trackBannerRail: {
+    position: 'absolute',
+    left: 0,
+    top: 14,
+    bottom: 14,
+    width: 4.5,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: '#D49600',
+    zIndex: 2,
+  },
+  trackBannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#F0D576',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
-  trackSetupOptEyebrow: {
+  trackBannerCopy: {
     flex: 1,
+    minWidth: 0,
+    gap: 2,
+    zIndex: 2,
+  },
+  trackBannerKicker: {
     fontFamily: fonts.bodyBold,
     fontSize: 9.5,
-    letterSpacing: 0.55,
-    color: colors.inkMuted,
+    letterSpacing: 0.85,
+    color: '#8A5600',
     includeFontPadding: false,
   },
-  trackSetupOptLabel: {
+  trackBannerTitle: {
     fontFamily: fonts.display,
-    fontSize: 15,
-    lineHeight: 19,
-    color: colors.ink,
+    fontSize: 17.5,
+    lineHeight: 21,
+    color: '#5F3B00',
+  },
+  trackBannerNote: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    lineHeight: 16.5,
+    color: colors.inkSoft,
+  },
+  trackBannerArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.2,
+    borderColor: '#F0D576',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    zIndex: 2,
   },
   pressed: { opacity: 0.78 },
 });

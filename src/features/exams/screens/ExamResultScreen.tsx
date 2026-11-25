@@ -10,7 +10,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useScreenMotionActive } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
-import type { RootStackParamList } from '../../../shared/types';
+import type { ExamResultItemSummary, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
@@ -61,6 +61,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
   } = route.params;
 
   const [inspectItem, setInspectItem] = useState<ExamSimulationItem | null>(null);
+  const [inspectEntry, setInspectEntry] = useState<ExamResultItemSummary | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const guide = useMemo(() => getExamGuide(examId), [examId]);
@@ -85,7 +86,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
   const handleRestart = () => {
     Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
     beginAppTransition();
-    navigation.replace('ExamSimulation', { variantId, scope });
+    navigation.replace('ExamSimulation', { variantId, scope, fresh: true });
   };
 
   return (
@@ -218,6 +219,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
                       if (!fullItem) return;
                       Haptics.selection();
                       setInspectItem(fullItem);
+                      setInspectEntry(entry);
                       setSheetOpen(true);
                     }}
                     style={({ pressed }) => [styles.itemRow, pressed && styles.pressed]}
@@ -318,6 +320,48 @@ export function ExamResultScreen({ navigation, route }: Props) {
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.sheetScrollBody}
           >
+            {inspectEntry?.userAnswerLabel ? (
+              <View
+                style={[
+                  styles.sheetUserCard,
+                  inspectEntry.answerStatus === 'correct'
+                    ? styles.sheetUserCardCorrect
+                    : inspectEntry.answerStatus === 'wrong'
+                      ? styles.sheetUserCardWrong
+                      : inspectEntry.answerStatus === 'skipped'
+                        ? styles.sheetUserCardSkipped
+                        : styles.sheetUserCardRubric,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sheetUserEyebrow,
+                    inspectEntry.answerStatus === 'correct'
+                      ? styles.sheetUserEyebrowCorrect
+                      : inspectEntry.answerStatus === 'wrong'
+                        ? styles.sheetUserEyebrowWrong
+                        : inspectEntry.answerStatus === 'skipped'
+                          ? styles.sheetUserEyebrowSkipped
+                          : styles.sheetUserEyebrowRubric,
+                  ]}
+                >
+                  {inspectEntry.answerStatus === 'correct'
+                    ? `✓ RĂSPUNSUL TĂU · CORECT (${inspectEntry.awardedPoints}/${inspectEntry.maxPoints}p)`
+                    : inspectEntry.answerStatus === 'wrong'
+                      ? `✕ RĂSPUNSUL TĂU · GREȘIT (0/${inspectEntry.maxPoints}p)`
+                      : inspectEntry.answerStatus === 'skipped'
+                        ? `RĂSPUNSUL TĂU · OMIS (0/${inspectEntry.maxPoints}p)`
+                        : `EVALUAREA TA (${inspectEntry.awardedPoints}/${inspectEntry.maxPoints}p)`}
+                </Text>
+                <StudyInlineText
+                  text={inspectEntry.userAnswerLabel}
+                  scale={1.0}
+                  textStyle={styles.sheetAnswerText}
+                  maxMathWidth={Math.max(220, contentWidth - 68)}
+                />
+              </View>
+            ) : null}
+
             <View style={styles.sheetAnswerCard}>
               <Text style={styles.sheetAnswerEyebrow}>RĂSPUNS OFICIAL</Text>
               <StudyInlineText
@@ -758,6 +802,42 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     gap: 14,
   },
+  sheetUserCard: {
+    borderRadius: 18,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
+    padding: 13,
+    gap: 4,
+  },
+  sheetUserCardCorrect: {
+    borderColor: '#C5EA63',
+    borderBottomColor: '#98C40E',
+    backgroundColor: '#F5FFD6',
+  },
+  sheetUserCardWrong: {
+    borderColor: '#F8B9C7',
+    borderBottomColor: '#E07990',
+    backgroundColor: '#FFF1F4',
+  },
+  sheetUserCardSkipped: {
+    borderColor: '#F2CC55',
+    borderBottomColor: '#CC9A12',
+    backgroundColor: '#FFF8D8',
+  },
+  sheetUserCardRubric: {
+    borderColor: '#DCD0F8',
+    borderBottomColor: '#C4B1F4',
+    backgroundColor: '#F6F1FF',
+  },
+  sheetUserEyebrow: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10.5,
+    letterSpacing: 0.8,
+  },
+  sheetUserEyebrowCorrect: { color: colors.limeDeep },
+  sheetUserEyebrowWrong: { color: '#A51D36' },
+  sheetUserEyebrowSkipped: { color: '#734A00' },
+  sheetUserEyebrowRubric: { color: colors.violetDeep },
   sheetAnswerCard: {
     borderRadius: 18,
     borderWidth: 1.4,

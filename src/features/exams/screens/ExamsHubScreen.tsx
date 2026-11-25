@@ -18,6 +18,7 @@ import type {
 } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
+import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -27,11 +28,18 @@ import { Text } from '../../../shared/ui/Typography';
 import { useStudyProfile } from '../../study/services/studyStorage';
 import { getStudyTrackMeta } from '../../study/types';
 import { EXAM_GUIDES, getExamGuide } from '../data/examGuidesCatalog';
-import { getExamSimulationsForExam } from '../data/examSimulationsCatalog';
+import { getExamSimulationById, getExamSimulationsForExam } from '../data/examSimulationsCatalog';
+import { clearExamDraft, useExamDraft } from '../services/examDraftStorage';
 import { getBestGradeForExam, getBestGradeForVariant, useExamHistory } from '../services/examStorage';
+import {
+  countDraftAnsweredItems,
+  formatExamCountdown,
+  isDraftForSimulation,
+} from '../utils/examDraft';
 import {
   formatRomanianGrade,
   getScopeDurationMinutes,
+  getScopeItems,
   getScopeTitle,
 } from '../utils/examEngine';
 
@@ -58,10 +66,13 @@ export function ExamsHubScreen({ navigation, route }: Props) {
   const motionActive = useScreenMotionActive(navigation, reducedMotion);
   const studyProfile = useStudyProfile();
   const history = useExamHistory();
+  const savedDraft = useExamDraft();
 
   const defaultExamId = route.params?.examId ?? getStudyTrackMeta(studyProfile.track).examGuideId;
   const [examId, setExamId] = useState<ExamGuideRouteId>(defaultExamId);
   const [selectedVariantByExam, setSelectedVariantByExam] = useState<Partial<Record<ExamGuideRouteId, string>>>({});
+  const [pendingStart, setPendingStart] = useState<{ variantId: string; scope: ExamSimulationScopeParam } | null>(null);
+  const [discardSheetOpen, setDiscardSheetOpen] = useState(false);
   const navLockRef = useRef(false);
 
   useFocusEffect(useCallback(() => {
@@ -84,15 +95,71 @@ export function ExamsHubScreen({ navigation, route }: Props) {
     [examId, history.records],
   );
 
-  const launchSimulation = useCallback((scope: ExamSimulationScopeParam) => {
+  const draftSummary = useMemo(() => {
+    if (!savedDraft) return null;
+    const draftVariant = getExamSimulationById(savedDraft.variantId);
+    if (!draftVariant) return null;
+    const draftGuide = getExamGuide(savedDraft.examId);
+    const examVariants = getExamSimulationsForExam(savedDraft.examId);
+    const variantIdx = examVariants.findIndex((item) => item.id === draftVariant.id);
+    const draftItems = getScopeItems(draftVariant, savedDraft.scope);
+    const answered = countDraftAnsweredItems(savedDraft, draftItems);
+    return {
+      draft: savedDraft,
+      guideShortTitle: draftGuide.shortTitle,
+      variantLabel: variantIdx >= 0 ? `Varianta ${variantIdx + 1}` : draftVariant.title,
+      scopeTitle: getScopeTitle(savedDraft.scope),
+      answered,
+      total: draftItems.length,
+      remainingLabel: formatExamCountdown(savedDraft.secondsLeft),
+    };
+  }, [savedDraft]);
+
+  const activeFullDraftMatches = Boolean(
+    activeVariant && isDraftForSimulation(savedDraft, activeVariant.id, 'full'),
+  );
+
+  const resumeSavedDraft = () => {
+    if (!savedDraft || navLockRef.current) return;
+    navLockRef.current = true;
+    setPendingStart(null);
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    beginAppTransition();
+    navigation.navigate('ExamSimulation', {
+      variantId: savedDraft.variantId,
+      scope: savedDraft.scope,
+    });
+  };
+
+  const launchSimulation = (scope: ExamSimulationScopeParam) => {
     if (!activeVariant || navLockRef.current) return;
+    if (savedDraft && !isDraftForSimulation(savedDraft, activeVariant.id, scope)) {
+      Haptics.selection();
+      setPendingStart({ variantId: activeVariant.id, scope });
+      return;
+    }
     navLockRef.current = true;
     beginAppTransition();
     navigation.navigate('ExamSimulation', {
       variantId: activeVariant.id,
       scope,
     });
-  }, [activeVariant, navigation]);
+  };
+
+  const confirmStartFreshSimulation = () => {
+    if (!pendingStart || navLockRef.current) return;
+    const target = pendingStart;
+    setPendingStart(null);
+    clearExamDraft();
+    navLockRef.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    beginAppTransition();
+    navigation.navigate('ExamSimulation', {
+      variantId: target.variantId,
+      scope: target.scope,
+      fresh: true,
+    });
+  };
 
   const openGuide = useCallback(() => {
     if (navLockRef.current) return;
@@ -219,6 +286,65 @@ export function ExamsHubScreen({ navigation, route }: Props) {
         ]}
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
+          {draftSummary ? (
+            <View style={styles.resumeCard}>
+              <LinearGradient
+                pointerEvents="none"
+                colors={['#FFFDF2', '#FFF0B8']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.fill}
+              />
+              <View pointerEvents="none" style={styles.studioTopGloss} />
+              <View style={styles.resumeRail} />
+              <View style={styles.resumeTopRow}>
+                <View style={styles.resumeBadge}>
+                  <Text style={styles.resumeBadgeText}>
+                    ⏸ SIMULARE ÎN PAUZĂ · {draftSummary.guideShortTitle.toUpperCase()}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Șterge simularea salvată"
+                  hitSlop={8}
+                  onPress={() => {
+                    Haptics.selection();
+                    setDiscardSheetOpen(true);
+                  }}
+                  style={({ pressed }) => [styles.resumeDiscardBtn, pressed && styles.pressed]}
+                >
+                  <Text style={styles.resumeDiscardText}>Șterge</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.resumeTitle}>
+                {draftSummary.variantLabel} · {draftSummary.scopeTitle}
+              </Text>
+              <Text style={styles.resumeMeta}>
+                {draftSummary.answered}/{draftSummary.total} itemi completați · ⏱ {draftSummary.remainingLabel} rămas
+              </Text>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`Continuă simularea salvată ${draftSummary.guideShortTitle} ${draftSummary.variantLabel}`}
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={resumeSavedDraft}
+                contentStyle={styles.resumeCta}
+              >
+                <LinearGradient
+                  colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <View pointerEvents="none" style={styles.ctaTopGloss} />
+                <Text style={styles.resumeCtaText}>Continuă de unde ai rămas</Text>
+                <View style={styles.heroCtaArrow}>
+                  <MiniGlyph name="next" size={16} color={colors.paper} />
+                </View>
+              </PressableScale>
+            </View>
+          ) : null}
+
           {/* Pure-white 3D Simulation Launch Studio Card */}
           <View style={styles.simStudioCard}>
             <View pointerEvents="none" style={styles.studioTopGloss} />
@@ -304,9 +430,11 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                 <AppIcon name="trophy" size={24} />
               </View>
               <Text numberOfLines={2} style={styles.heroCtaText}>
-                {variants.length > 1
-                  ? `Începe Varianta ${activeVariantIndex + 1} completă`
-                  : 'Începe simularea completă'}
+                {activeFullDraftMatches && draftSummary
+                  ? `Continuă Varianta ${activeVariantIndex + 1} (${draftSummary.answered}/${draftSummary.total})`
+                  : variants.length > 1
+                    ? `Începe Varianta ${activeVariantIndex + 1} completă`
+                    : 'Începe simularea completă'}
               </Text>
               <View style={styles.heroCtaArrow}>
                 <MiniGlyph name="next" size={16} color={colors.paper} />
@@ -353,6 +481,9 @@ export function ExamsHubScreen({ navigation, route }: Props) {
               {guide.subjects.map((subject) => {
                 const mins = activeVariant ? getScopeDurationMinutes(activeVariant, subject.id) : subject.recommendedMinutes;
                 const isRubric = subject.id === 's3' || (examId !== 'en' && subject.id === 's2');
+                const subjectPaused = Boolean(
+                  activeVariant && isDraftForSimulation(savedDraft, activeVariant.id, subject.id),
+                );
                 return (
                   <Pressable
                     key={subject.id}
@@ -371,7 +502,11 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                           <Text style={styles.subjectPtsText}>{subject.points}p</Text>
                         </View>
                         <Text style={styles.subjectTimeText}>⏱ ~{mins} min</Text>
-                        {isRubric ? (
+                        {subjectPaused ? (
+                          <View style={styles.pausedSubjectTag}>
+                            <Text style={styles.pausedSubjectTagText}>⏸ În pauză</Text>
+                          </View>
+                        ) : isRubric ? (
                           <View style={styles.aiPhotoTag}>
                             <Text style={styles.aiPhotoTagText}>📷 Foto pe barem AI</Text>
                           </View>
@@ -427,6 +562,82 @@ export function ExamsHubScreen({ navigation, route }: Props) {
           ) : null}
         </View>
       </ScrollView>
+
+      <ComicBottomSheet
+        visible={pendingStart !== null}
+        onClose={() => setPendingStart(null)}
+        maxHeight="58%"
+      >
+        <Text style={styles.sheetTitle}>Ai o simulare în pauză</Text>
+        <Text style={styles.sheetBody}>
+          {draftSummary
+            ? `Ai progres salvat la ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi, ${draftSummary.remainingLabel} rămas). Vrei să o continui sau să începi simularea nouă?`
+            : 'Ai deja o simulare salvată. Vrei să o continui sau să începi una nouă?'}
+        </Text>
+        <View style={styles.sheetActions}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Continuă simularea salvată"
+            pressedScale={0.97}
+            haptic="medium"
+            onPress={resumeSavedDraft}
+            contentStyle={styles.sheetPrimaryBtn}
+          >
+            <Text style={styles.sheetPrimaryText}>Continuă simularea salvată</Text>
+          </PressableScale>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Începe simularea nouă și înlocuiește ciorna"
+            onPress={confirmStartFreshSimulation}
+            style={({ pressed }) => [styles.sheetDangerBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.sheetDangerText}>Începe simularea nouă (șterge pauza)</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Anulează"
+            onPress={() => setPendingStart(null)}
+            style={({ pressed }) => [styles.sheetCancelBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.sheetCancelText}>Anulează</Text>
+          </Pressable>
+        </View>
+      </ComicBottomSheet>
+
+      <ComicBottomSheet
+        visible={discardSheetOpen}
+        onClose={() => setDiscardSheetOpen(false)}
+        maxHeight="48%"
+      >
+        <Text style={styles.sheetTitle}>Ștergi simularea salvată?</Text>
+        <Text style={styles.sheetBody}>
+          {draftSummary
+            ? `Progresul salvat pentru ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi) va fi șters definitiv.`
+            : 'Progresul simulării în pauză va fi șters.'}
+        </Text>
+        <View style={styles.sheetActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Șterge definitiv simularea salvată"
+            onPress={() => {
+              Haptics.selection();
+              clearExamDraft();
+              setDiscardSheetOpen(false);
+            }}
+            style={({ pressed }) => [styles.sheetDangerBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.sheetDangerText}>Da, șterge ciorna salvată</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Păstrează simularea salvată"
+            onPress={() => setDiscardSheetOpen(false)}
+            style={({ pressed }) => [styles.sheetCancelBtn, pressed && styles.pressed]}
+          >
+            <Text style={styles.sheetCancelText}>Păstrează</Text>
+          </Pressable>
+        </View>
+      </ComicBottomSheet>
     </View>
   );
 }
@@ -1008,6 +1219,189 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 12,
+  },
+  resumeCard: {
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderBottomWidth: 5,
+    borderColor: '#ECCB5B',
+    borderBottomColor: '#D0A51E',
+    backgroundColor: '#FFF9DC',
+    paddingVertical: 15,
+    paddingLeft: 18,
+    paddingRight: 15,
+    gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  resumeRail: {
+    position: 'absolute',
+    left: 0,
+    top: 16,
+    bottom: 16,
+    width: 4.5,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    backgroundColor: '#D49600',
+    zIndex: 2,
+  },
+  resumeTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    zIndex: 2,
+  },
+  resumeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: '#FFF2B2',
+    borderWidth: 1,
+    borderColor: '#E5BF3A',
+    flexShrink: 1,
+  },
+  resumeBadgeText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10,
+    letterSpacing: 0.7,
+    color: '#6E4600',
+    includeFontPadding: false,
+  },
+  resumeDiscardBtn: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    borderWidth: 1,
+    borderColor: '#E8D08A',
+  },
+  resumeDiscardText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: '#8C5800',
+    includeFontPadding: false,
+  },
+  resumeTitle: {
+    fontFamily: fonts.display,
+    fontSize: 18.5,
+    lineHeight: 22.5,
+    color: '#5A3600',
+    zIndex: 2,
+  },
+  resumeMeta: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: colors.inkSoft,
+    zIndex: 2,
+  },
+  resumeCta: {
+    marginTop: 4,
+    minHeight: 50,
+    borderRadius: radii.pill,
+    borderWidth: 1.4,
+    borderColor: '#EEFF96',
+    borderBottomWidth: 4,
+    borderBottomColor: '#8CB600',
+    backgroundColor: colors.lime,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 18,
+    paddingRight: 10,
+    paddingVertical: 8,
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 2,
+  },
+  resumeCtaText: {
+    flex: 1,
+    fontFamily: fonts.display,
+    fontSize: 15.5,
+    color: colors.ink,
+  },
+  pausedSubjectTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: '#FFF3BF',
+    borderWidth: 1,
+    borderColor: '#E5BE3A',
+  },
+  pausedSubjectTagText: {
+    fontFamily: fonts.bodyBold,
+    color: '#6E4600',
+    fontSize: 10,
+    includeFontPadding: false,
+  },
+  sheetTitle: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 21,
+    textAlign: 'center',
+  },
+  sheetBody: {
+    marginTop: 6,
+    fontFamily: fonts.body,
+    color: colors.inkSoft,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  sheetActions: {
+    marginTop: 14,
+    gap: 9,
+  },
+  sheetPrimaryBtn: {
+    minHeight: 50,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  sheetPrimaryText: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 15.5,
+    textAlign: 'center',
+  },
+  sheetDangerBtn: {
+    minHeight: 46,
+    borderRadius: radii.pill,
+    borderWidth: 1.2,
+    borderBottomWidth: 2.8,
+    borderColor: '#F8B9C7',
+    borderBottomColor: '#E07990',
+    backgroundColor: '#FFF1F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  sheetDangerText: {
+    fontFamily: fonts.bodyBold,
+    color: '#A51D36',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  sheetCancelBtn: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  sheetCancelText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 13.5,
   },
   pressed: { opacity: 0.82 },
 });

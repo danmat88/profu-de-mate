@@ -186,11 +186,15 @@ export function PracticeHubScreen({ navigation }: Props) {
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
-              contentStyle={styles.trackPill}
+              contentStyle={[styles.trackPill, !studyProfile.hasChosenTrack && styles.trackPillUnchosen]}
             >
-              <View style={styles.trackPillDot} />
-              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.trackPillText}>
-                {studyProfile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Alege nivelul ▾'}
+              <View style={[styles.trackPillDot, !studyProfile.hasChosenTrack && styles.trackPillDotUnchosen]} />
+              <Text
+                maxFontSizeMultiplier={1.15}
+                numberOfLines={1}
+                style={[styles.trackPillText, !studyProfile.hasChosenTrack && styles.trackPillTextUnchosen]}
+              >
+                {studyProfile.hasChosenTrack ? `${trackMeta.shortLabel} ▾` : 'Nivel ▾'}
               </Text>
             </PressableScale>
           </View>
@@ -443,6 +447,7 @@ export function PracticeHubScreen({ navigation }: Props) {
         <AiPracticeSheet
           visible={aiSheetOpen}
           track={studyProfile.track}
+          hasChosenTrack={studyProfile.hasChosenTrack}
           onGenerated={handleAiGenerated}
           onClose={() => setAiSheetOpen(false)}
         />
@@ -593,11 +598,22 @@ const styles = StyleSheet.create({
     borderRadius: 3.5,
     backgroundColor: colors.violet,
   },
+  trackPillUnchosen: {
+    backgroundColor: '#FFF7CF',
+    borderColor: '#F6E076',
+    borderBottomColor: '#C49F12',
+  },
+  trackPillDotUnchosen: {
+    backgroundColor: '#B87B00',
+  },
   trackPillText: {
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
     fontSize: 11.5,
     includeFontPadding: false,
+  },
+  trackPillTextUnchosen: {
+    color: '#6E4600',
   },
 
   canopyHeroRow: {

@@ -646,6 +646,7 @@ export const HomeSurface = memo(function HomeSurface({
   const savedCountLabel = savedLessonsCount > 0
     ? `${savedLessonsCount} ${savedLessonsCount === 1 ? 'lecție' : 'lecții'}`
     : null;
+  const showTrackSetupBanner = !studyTrackChosen && wrongCount === 0 && !hasPendingAnalysis && Boolean(onChooseStudyTrack || onStudy);
 
   const hardwareEntranceLayer = !ambientReady && !reducedMotion;
 
@@ -911,42 +912,6 @@ export const HomeSurface = memo(function HomeSurface({
                           : 'MOD VERIFICARE'}
                     </Text>
                   </View>
-
-                  {!studyTrackChosen && (onChooseStudyTrack || onStudy) ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Alege clasa sau examenul pentru a personaliza aplicația"
-                      hitSlop={6}
-                      onPress={onChooseStudyTrack ?? onStudy}
-                      style={({ pressed }) => [
-                        styles.stageTrackChip,
-                        styles.stageTrackChipUnchosen,
-                        pressed && styles.stageTrackChipPressed,
-                      ]}
-                    >
-                      <View style={[styles.stageTrackDot, styles.stageTrackDotUnchosen]} />
-                      <Text
-                        maxFontSizeMultiplier={1.1}
-                        numberOfLines={1}
-                        style={[styles.stageTrackText, styles.stageTrackTextUnchosen]}
-                      >
-                        Alege nivelul ▾
-                      </Text>
-                    </Pressable>
-                  ) : studyTrackLabel && onStudy ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Nivel activ: ${studyTrackLabel}. Deschide secțiunea Învață`}
-                      hitSlop={6}
-                      onPress={onStudy}
-                      style={({ pressed }) => [styles.stageTrackChip, pressed && styles.stageTrackChipPressed]}
-                    >
-                      <View style={styles.stageTrackDot} />
-                      <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.stageTrackText}>
-                        {studyTrackLabel} ↗
-                      </Text>
-                    </Pressable>
-                  ) : null}
                 </View>
 
                 <View style={[styles.stageContent, compact && styles.stageContentCompact]}>
@@ -1304,7 +1269,7 @@ export const HomeSurface = memo(function HomeSurface({
               </Enter>
             )}
 
-            {embedded && onQuickPractice ? (
+            {embedded && (onQuickPractice || showTrackSetupBanner) ? (
               <Enter
                 ready={motionReady}
                 delay={470}
@@ -1317,39 +1282,62 @@ export const HomeSurface = memo(function HomeSurface({
                 <PressableScale
                   accessibilityRole="button"
                   accessibilityLabel={
-                    wrongCount > 0
-                      ? `Reia cele ${wrongCount} exerciții greșite`
-                      : 'Începe un antrenament fulger de 5 minute'
+                    showTrackSetupBanner
+                      ? 'Alege clasa sau examenul pentru a personaliza aplicația'
+                      : wrongCount > 0
+                        ? `Reia cele ${wrongCount} exerciții greșite`
+                        : 'Începe un antrenament fulger de 5 minute'
                   }
                   accessibilityState={{ disabled: galleryBusy }}
                   disabled={galleryBusy}
                   dimWhenDisabled={false}
                   pressedScale={0.975}
                   haptic="medium"
-                  onPress={onQuickPractice}
+                  onPress={showTrackSetupBanner ? (onChooseStudyTrack ?? onStudy) : onQuickPractice}
                   contentStyle={[
                     styles.practiceBanner,
-                    wrongCount > 0 ? styles.practiceBannerMistakes : styles.practiceBannerQuiz,
+                    showTrackSetupBanner
+                      ? styles.practiceBannerSetup
+                      : wrongCount > 0
+                        ? styles.practiceBannerMistakes
+                        : styles.practiceBannerQuiz,
                     compact && styles.practiceBannerCompact,
                   ]}
                 >
                   <LinearGradient
                     pointerEvents="none"
-                    colors={wrongCount > 0 ? ['#FFF9F6', '#FFE7DD'] : ['#FCF9FF', '#EFE3FF']}
+                    colors={
+                      showTrackSetupBanner
+                        ? ['#FFFDF0', '#FFF0B5']
+                        : wrongCount > 0
+                          ? ['#FFF9F6', '#FFE7DD']
+                          : ['#FCF9FF', '#EFE3FF']
+                    }
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.fill}
                   />
                   <View pointerEvents="none" style={styles.cardTopGloss} />
-                  <View style={[styles.practiceSpine, wrongCount > 0 && styles.practiceSpineMistakes]} />
+                  <View
+                    style={[
+                      styles.practiceSpine,
+                      showTrackSetupBanner
+                        ? styles.practiceSpineSetup
+                        : wrongCount > 0 && styles.practiceSpineMistakes,
+                    ]}
+                  />
                   <View
                     style={[
                       styles.practiceIconBadge,
-                      wrongCount > 0 ? styles.mistakesIconBadge : styles.quizIconBadge,
+                      showTrackSetupBanner
+                        ? styles.setupIconBadge
+                        : wrongCount > 0
+                          ? styles.mistakesIconBadge
+                          : styles.quizIconBadge,
                       compact && styles.practiceIconBadgeCompact,
                     ]}
                   >
-                    <AppIcon name="streak" size={compact ? 25 : 32} />
+                    <AppIcon name={showTrackSetupBanner ? 'class' : 'streak'} size={compact ? 25 : 32} />
                   </View>
                   <View style={styles.practiceCopy}>
                     <View style={styles.practiceHeaderRow}>
@@ -1360,13 +1348,25 @@ export const HomeSurface = memo(function HomeSurface({
                         minimumFontScale={0.85}
                         style={[
                           styles.practiceTitle,
-                          wrongCount > 0 && styles.mistakesTitle,
+                          showTrackSetupBanner
+                            ? styles.setupTitle
+                            : wrongCount > 0 && styles.mistakesTitle,
                           compact && styles.practiceTitleCompact,
                         ]}
                       >
-                        {wrongCount > 0 ? 'Repetă greșelile' : 'Antrenament fulger'}
+                        {showTrackSetupBanner
+                          ? 'Alege clasa sau examenul'
+                          : wrongCount > 0
+                            ? 'Repetă greșelile'
+                            : 'Antrenament fulger'}
                       </Text>
-                      {wrongCount > 0 ? (
+                      {showTrackSetupBanner ? (
+                        <View collapsable={false} style={styles.practiceBadgeSetup}>
+                          <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeSetupText}>
+                            Start
+                          </Text>
+                        </View>
+                      ) : wrongCount > 0 ? (
                         <View collapsable={false} style={styles.practiceBadgeMistakes}>
                           <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeMistakesText}>
                             {wrongCount}
@@ -1382,25 +1382,29 @@ export const HomeSurface = memo(function HomeSurface({
                     </View>
                     {!compact ? (
                       <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.practiceNote}>
-                        {wrongCount > 0
-                          ? 'Reia rapid exercițiile greșite la practică'
-                          : studyTrackLabel
-                            ? `5 exerciții rapide · ${studyTrackLabel}`
-                            : '5 exerciții rapide pentru ritm zilnic'}
+                        {showTrackSetupBanner
+                          ? 'Personalizează formulele, testele și simulările'
+                          : wrongCount > 0
+                            ? 'Reia rapid exercițiile greșite la practică'
+                            : studyTrackLabel
+                              ? `5 exerciții rapide · ${studyTrackLabel}`
+                              : '5 exerciții rapide pentru ritm zilnic'}
                       </Text>
                     ) : null}
                   </View>
                   <View
                     style={[
                       styles.practiceArrow,
-                      wrongCount > 0 && styles.practiceArrowMistakes,
+                      showTrackSetupBanner
+                        ? styles.practiceArrowSetup
+                        : wrongCount > 0 && styles.practiceArrowMistakes,
                       compact && styles.practiceArrowCompact,
                     ]}
                   >
                     <MiniGlyph
                       name="next"
                       size={compact ? 15 : 17}
-                      color={wrongCount > 0 ? colors.peachDeep : colors.violetDeep}
+                      color={showTrackSetupBanner ? '#8A5600' : wrongCount > 0 ? colors.peachDeep : colors.violetDeep}
                     />
                   </View>
                 </PressableScale>
@@ -1872,47 +1876,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 15,
   },
-  stageTrackChip: {
-    minHeight: 26,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderBottomWidth: 2,
-    borderColor: '#DCD0F8',
-    borderBottomColor: '#CBB6FA',
-    backgroundColor: '#F4EEFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    flexShrink: 1,
-  },
-  stageTrackDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.violet,
-  },
-  stageTrackChipPressed: { opacity: 0.78 },
-  stageTrackChipUnchosen: {
-    borderColor: '#E5CE5C',
-    borderBottomColor: '#C4A11B',
-    backgroundColor: '#FFF9D9',
-  },
-  stageTrackDotUnchosen: {
-    backgroundColor: '#B87B00',
-  },
-  stageTrackText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10.5,
-    letterSpacing: 0.35,
-    color: colors.violetDeep,
-    includeFontPadding: false,
-  },
-  stageTrackTextUnchosen: {
-    color: '#734A00',
-  },
 
   // Horizontal optical viewfinder pod + crisp editorial lockup
   stageContent: {
@@ -2241,6 +2204,11 @@ const styles = StyleSheet.create({
     borderColor: '#D6BEFF',
     borderBottomColor: '#B18CFF',
   },
+  practiceBannerSetup: {
+    backgroundColor: '#FFF9DC',
+    borderColor: '#ECCB5B',
+    borderBottomColor: '#D0A51E',
+  },
   practiceBannerMistakes: {
     backgroundColor: '#FFF2EC',
     borderColor: '#FFC0AB',
@@ -2256,6 +2224,9 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
     backgroundColor: colors.violet,
     zIndex: 2,
+  },
+  practiceSpineSetup: {
+    backgroundColor: '#D49600',
   },
   practiceSpineMistakes: {
     backgroundColor: colors.peachDeep,
@@ -2273,13 +2244,32 @@ const styles = StyleSheet.create({
   },
   practiceIconBadgeCompact: { width: 32, height: 32, borderRadius: 11 },
   quizIconBadge: { borderColor: '#DFD0FF' },
+  setupIconBadge: { borderColor: '#F0D576' },
   mistakesIconBadge: { borderColor: '#FFD3C4' },
   practiceCopy: { flex: 1, minWidth: 0, zIndex: 2 },
   practiceHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   practiceTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16.5, lineHeight: 19.5, flexShrink: 1 },
   practiceTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
+  setupTitle: { color: '#5F3B00' },
   mistakesTitle: { color: colors.peachDeep },
   practiceNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14.5 },
+  practiceBadgeSetup: {
+    height: 18,
+    paddingHorizontal: 8,
+    borderRadius: radii.pill,
+    backgroundColor: '#FFD84D',
+    borderWidth: 1,
+    borderColor: '#D6A614',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  practiceBadgeSetupText: {
+    fontFamily: fonts.bodyBold,
+    color: '#5F3B00',
+    fontSize: 10,
+    lineHeight: 12,
+    includeFontPadding: false,
+  },
   practiceBadgeMistakes: {
     minWidth: 20,
     height: 18,
@@ -2322,6 +2312,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
     zIndex: 2,
+  },
+  practiceArrowSetup: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#F0D576',
   },
   practiceArrowMistakes: {
     backgroundColor: '#FFFFFF',

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
+  AppState,
   BackHandler,
   InteractionManager,
   Keyboard,
@@ -185,6 +186,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
   const [similarBusy, setSimilarBusy] = useState(false);
   const [similarError, setSimilarError] = useState<string | null>(null);
   const [explainAiBusy, setExplainAiBusy] = useState(false);
+  const [appBackgrounded, setAppBackgrounded] = useState(false);
 
   const aiBusy = similarBusy || explainAiBusy;
 
@@ -275,15 +277,23 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
     return () => task.cancel();
   }, [currentIndex, questions]);
 
-  // Pause session clock cleanly while an AI request is running.
   useEffect(() => {
-    if (aiBusy) {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      setAppBackgrounded(nextState !== 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Pause session clock cleanly while an AI request is running or app is backgrounded.
+  const clockPaused = aiBusy || appBackgrounded;
+  useEffect(() => {
+    if (clockPaused) {
       if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
     } else if (pausedAtRef.current !== null && startedAtRef.current !== null) {
       startedAtRef.current += Date.now() - pausedAtRef.current;
       pausedAtRef.current = null;
     }
-  }, [aiBusy]);
+  }, [clockPaused]);
 
   useEffect(() => {
     if (!currentQuestion) return undefined;

@@ -496,6 +496,7 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
         <AiPracticeSheet
           visible={aiSheetOpen}
           track={profile.track}
+          hasChosenTrack={profile.hasChosenTrack}
           initialCategory={formula.category}
           formulaTitle={formula.title}
           formulaId={formula.id}

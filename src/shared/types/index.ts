@@ -173,6 +173,8 @@ export type ExamResultItemSummary = {
   subject: 's1' | 's2' | 's3';
   awardedPoints: number;
   maxPoints: number;
+  userAnswerLabel?: string;
+  answerStatus?: 'correct' | 'wrong' | 'skipped' | 'rubric';
 };
 
 export type PracticeDifficultyParam = 'easy' | 'medium' | 'exam';
@@ -220,7 +222,7 @@ export type RootStackParamList = {
   FormulaDetail: { formulaId: string; formulaIds?: readonly string[] };
   ExamGuide: { examId?: ExamGuideRouteId } | undefined;
   ExamsHub: { examId?: ExamGuideRouteId } | undefined;
-  ExamSimulation: { variantId: string; scope: ExamSimulationScopeParam };
+  ExamSimulation: { variantId: string; scope: ExamSimulationScopeParam; fresh?: boolean };
   ExamResult: {
     variantId: string;
     examId: ExamGuideRouteId;

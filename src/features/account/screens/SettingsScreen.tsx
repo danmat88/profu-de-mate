@@ -508,7 +508,11 @@ export function SettingsScreen({ navigation }: Props) {
             <View style={styles.porcelainGroup}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Nivelul de studiu: ${trackMeta.label}. Apasă pentru schimbare`}
+                accessibilityLabel={
+                  studyProfile.hasChosenTrack
+                    ? `Nivelul de studiu: ${trackMeta.label}. Apasă pentru schimbare`
+                    : 'Niciun nivel ales încă. Apasă pentru a alege clasa sau examenul'
+                }
                 disabled={accountBusy}
                 onPress={() => {
                   if (isInteractionLocked()) return;
@@ -518,12 +522,32 @@ export function SettingsScreen({ navigation }: Props) {
                 }}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
-                <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="class" size={30} /></View>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{trackMeta.label}</Text>
-                  <Text style={styles.rowText}>{trackMeta.description}</Text>
+                <View
+                  style={[
+                    styles.rowIcon,
+                    { backgroundColor: studyProfile.hasChosenTrack ? colors.violetSoft : colors.goldSoft },
+                  ]}
+                >
+                  <AppIcon name="class" size={30} />
                 </View>
-                <MiniGlyph name="next" size={17} color={colors.violetDeep} />
+                <View style={styles.rowCopy}>
+                  <View style={styles.rowTitleRow}>
+                    <Text style={styles.rowTitle}>
+                      {studyProfile.hasChosenTrack ? trackMeta.label : 'Alege nivelul de studiu'}
+                    </Text>
+                    {!studyProfile.hasChosenTrack ? (
+                      <View style={styles.trackUnchosenBadge}>
+                        <Text style={styles.trackUnchosenBadgeText}>NEALES</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.rowText}>
+                    {studyProfile.hasChosenTrack
+                      ? trackMeta.description
+                      : 'Niciun nivel ales încă. Personalizează formulele, testele și simulările.'}
+                  </Text>
+                </View>
+                <MiniGlyph name="next" size={17} color={studyProfile.hasChosenTrack ? colors.violetDeep : '#8A5600'} />
               </Pressable>
             </View>
           </View>
@@ -754,10 +778,11 @@ export function SettingsScreen({ navigation }: Props) {
       {trackSheetEverOpened ? (
         <StudyTrackSheet
           visible={trackSheetVisible}
-          selectedTrack={studyProfile.track}
+          selectedTrack={studyProfile.hasChosenTrack ? studyProfile.track : null}
           onSelect={(nextTrack) => {
             setStudyTrack(nextTrack);
             setTrackSheetVisible(false);
+            showStatusNotice(`Nivel activ: ${getStudyTrackMeta(nextTrack).shortLabel}`, 'connected');
           }}
           onClose={() => setTrackSheetVisible(false)}
         />
@@ -1024,7 +1049,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowCopy: { flex: 1, minWidth: 0 },
-  rowTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 19 },
+  rowTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
+  rowTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 19, flexShrink: 1 },
+  trackUnchosenBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: '#FFF3BF',
+    borderWidth: 1,
+    borderColor: '#E5BE3A',
+  },
+  trackUnchosenBadgeText: {
+    fontFamily: fonts.bodyBold,
+    color: '#734A00',
+    fontSize: 9.5,
+    letterSpacing: 0.6,
+    includeFontPadding: false,
+  },
   rowText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18, marginTop: 2 },
 
   deleteIcon: { backgroundColor: colors.rose },
