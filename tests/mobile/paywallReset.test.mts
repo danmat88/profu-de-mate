@@ -203,6 +203,6 @@ test('an open quota screen offers Continue after the server restores free or Pre
 test('only a fresh server context unlocks Continue; route data and expired context cannot grant it', () => {
   const available = { ...exhausted, canAnalyze: true, remaining: 5, resetAt: new Date(midnight + 86_400_000).toISOString() };
   for (const result of [render(null, true, 'quota', available), render({ ...available, resetAt: exhausted.resetAt }, false), render(available, false, 'settings')]) {
-    assert.equal(result.text.includes('Ai probleme disponibile.'), false);
+    assert.equal(result.text.includes('Ai acțiuni AI disponibile.'), false);
   }
 });

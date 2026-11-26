@@ -617,7 +617,7 @@ export const HomeSurface = memo(function HomeSurface({
     ?? (hasPendingAnalysis
       ? (isWrittenPending ? 'Exercițiul scris și progresul sunt păstrate.' : 'Fotografia și progresul sunt păstrate.')
       : quotaExhausted
-        ? 'Revin la 00:00. Între timp vezi Caietul.'
+        ? 'Revin la 00:00. Offline merge mereu.'
         : isSolve
           ? 'Fă o poză sau scrie problema, pas cu pas.'
           : 'Arată-mi rezolvarea ta, pas cu pas.');
@@ -627,7 +627,7 @@ export const HomeSurface = memo(function HomeSurface({
     ?? (hasPendingAnalysis
       ? 'Progresul tău este păstrat.'
       : quotaExhausted
-        ? 'Revin la 00:00. Vezi Caietul.'
+        ? 'Revin la 00:00. Offline e liber.'
         : isSolve
           ? 'Fă o poză sau scrie formula.'
           : 'Arată-mi rezolvarea ta.');
@@ -1214,7 +1214,7 @@ export const HomeSurface = memo(function HomeSurface({
                     </Text>
                     {!compact ? (
                       <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                        {isSolve ? 'Din telefon' : 'Poză pași'}
+                        {isSolve ? 'Din telefon' : 'Poză cu pașii'}
                       </Text>
                     ) : null}
                   </View>
@@ -1283,9 +1283,9 @@ export const HomeSurface = memo(function HomeSurface({
                   accessibilityRole="button"
                   accessibilityLabel={
                     showTrackSetupBanner
-                      ? 'Alege clasa sau examenul pentru a personaliza aplicația'
+                      ? 'Alege nivelul de studiu pentru a personaliza aplicația'
                       : wrongCount > 0
-                        ? `Reia cele ${wrongCount} exerciții greșite`
+                        ? (wrongCount === 1 ? 'Reia exercițiul greșit' : `Reia cele ${wrongCount} exerciții greșite`)
                         : 'Începe un antrenament fulger de 5 minute'
                   }
                   accessibilityState={{ disabled: galleryBusy }}
@@ -1337,7 +1337,7 @@ export const HomeSurface = memo(function HomeSurface({
                       compact && styles.practiceIconBadgeCompact,
                     ]}
                   >
-                    <AppIcon name={showTrackSetupBanner ? 'class' : 'streak'} size={compact ? 25 : 32} />
+                    <AppIcon name={showTrackSetupBanner ? 'class' : wrongCount > 0 ? 'retake' : 'streak'} size={compact ? 25 : 32} />
                   </View>
                   <View style={styles.practiceCopy}>
                     <View style={styles.practiceHeaderRow}>
@@ -1375,7 +1375,7 @@ export const HomeSurface = memo(function HomeSurface({
                       ) : (
                         <View collapsable={false} style={styles.practiceBadgeStreak}>
                           <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeStreakText}>
-                            {streakDays > 0 ? `${streakDays}z` : '5 min'}
+                            {streakDays > 0 ? `${streakDays} ${streakDays === 1 ? 'zi' : 'zile'}` : '5 min'}
                           </Text>
                         </View>
                       )}

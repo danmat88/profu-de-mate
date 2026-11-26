@@ -1,7 +1,8 @@
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InteractionManager, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
@@ -40,7 +41,10 @@ import {
 import { prewarmStudyMath } from '../../study/utils/prewarmStudyMath';
 import { getFormulaById } from '../../study/utils/studyDocumentBuilder';
 import { EXAM_GUIDES, getExamGuide } from '../data/examGuidesCatalog';
-import { getExamSimulationsForExam } from '../data/examSimulationsCatalog';
+import { getExamSimulationById, getExamSimulationsForExam } from '../data/examSimulationsCatalog';
+import { clearExamDraft, useExamDraft } from '../services/examDraftStorage';
+import { countDraftAnsweredItems, formatExamCountdown, isDraftForSimulation } from '../utils/examDraft';
+import { getScopeItems } from '../utils/examEngine';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ExamGuide'>;
 type SubjectId = 's1' | 's2' | 's3';
@@ -66,6 +70,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
   const reducedMotion = useReducedMotion();
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const profile = useStudyProfile();
+  const savedDraft = useExamDraft();
   const defaultExamId = route.params?.examId ?? getStudyTrackMeta(profile.track).examGuideId;
 
   const [examId, setExamId] = useState<ExamGuideId>(defaultExamId);
@@ -77,7 +82,67 @@ export function ExamGuideScreen({ navigation, route }: Props) {
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [modelSheetVisible, setModelSheetVisible] = useState(false);
   const [modelSheetEverOpened, setModelSheetEverOpened] = useState(false);
+  const [pendingSimId, setPendingSimId] = useState<string | null>(null);
   const [readingScale, setReadingScale] = useState<MathReadingScale>(() => getMathReadingScale());
+  const navLockRef = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    navLockRef.current = false;
+  }, []));
+
+  const primarySim = useMemo(() => getExamSimulationsForExam(examId)[0], [examId]);
+  const primaryDraftMatches = Boolean(
+    primarySim && isDraftForSimulation(savedDraft, primarySim.id, 'full'),
+  );
+  const draftSummary = useMemo(() => {
+    if (!savedDraft) return null;
+    const draftVariant = getExamSimulationById(savedDraft.variantId);
+    if (!draftVariant) return null;
+    const draftGuide = getExamGuide(savedDraft.examId);
+    const examVariants = getExamSimulationsForExam(savedDraft.examId);
+    const variantIdx = examVariants.findIndex((item) => item.id === draftVariant.id);
+    const draftItems = getScopeItems(draftVariant, savedDraft.scope);
+    const answered = countDraftAnsweredItems(savedDraft, draftItems);
+    return {
+      guideShortTitle: draftGuide.shortTitle,
+      variantLabel: variantIdx >= 0 ? `Varianta ${variantIdx + 1}` : draftVariant.title,
+      answered,
+      total: draftItems.length,
+      remainingLabel: formatExamCountdown(savedDraft.secondsLeft),
+    };
+  }, [savedDraft]);
+
+  const handleLaunchSimulation = useCallback(() => {
+    if (!primarySim || navLockRef.current) return;
+    if (savedDraft && !isDraftForSimulation(savedDraft, primarySim.id, 'full')) {
+      Haptics.selection();
+      setPendingSimId(primarySim.id);
+      return;
+    }
+    navLockRef.current = true;
+    beginAppTransition();
+    navigation.navigate('ExamSimulation', { variantId: primarySim.id, scope: 'full' });
+  }, [navigation, primarySim, savedDraft]);
+
+  const handleResumeSavedDraft = useCallback(() => {
+    if (!savedDraft || navLockRef.current) return;
+    setPendingSimId(null);
+    navLockRef.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    beginAppTransition();
+    navigation.navigate('ExamSimulation', { variantId: savedDraft.variantId, scope: savedDraft.scope });
+  }, [navigation, savedDraft]);
+
+  const handleConfirmFreshSimulation = useCallback(() => {
+    if (!pendingSimId || navLockRef.current) return;
+    const targetId = pendingSimId;
+    setPendingSimId(null);
+    clearExamDraft();
+    navLockRef.current = true;
+    Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+    beginAppTransition();
+    navigation.navigate('ExamSimulation', { variantId: targetId, scope: 'full', fresh: true });
+  }, [navigation, pendingSimId]);
 
   const guide = useMemo(() => getExamGuide(examId), [examId]);
   const subject = useMemo(
@@ -234,8 +299,8 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             <View style={styles.heroBadgeLime}>
               <Text style={styles.heroBadgeLimeText}>★ {guide.totalPoints} puncte</Text>
             </View>
-            <Text numberOfLines={1} style={styles.canopyExamTitle}>
-              {guide.title}
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.canopyExamTitle}>
+              {guide.shortTitle}
             </Text>
           </View>
         </View>
@@ -324,15 +389,10 @@ export function ExamGuideScreen({ navigation, route }: Props) {
 
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`Începe simularea completă pentru ${guide.title}`}
+            accessibilityLabel={primaryDraftMatches ? `Continuă simularea pentru ${guide.title}` : `Începe simularea completă pentru ${guide.title}`}
             pressedScale={0.97}
             haptic="medium"
-            onPress={() => {
-              const sim = getExamSimulationsForExam(examId)[0];
-              if (!sim) return;
-              beginAppTransition();
-              navigation.navigate('ExamSimulation', { variantId: sim.id, scope: 'full' });
-            }}
+            onPress={handleLaunchSimulation}
             contentStyle={styles.heroSimCta}
           >
             <LinearGradient
@@ -346,7 +406,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
               <AppIcon name="trophy" size={22} />
             </View>
             <Text numberOfLines={2} style={styles.heroSimCtaText}>
-              Simulare completă · {guide.shortTitle}
+              {primaryDraftMatches ? `Continuă simularea · ${guide.shortTitle}` : `Simulare completă · ${guide.shortTitle}`}
             </Text>
             <View style={styles.heroSimCtaArrow}>
               <MiniGlyph name="next" size={15} color={colors.paper} />
@@ -596,7 +656,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             </View>
 
             <View style={styles.sheetSectionCard}>
-              <Text style={styles.cardEyebrow}>BAREM OFICIAL DE PUNCTARE</Text>
+              <Text style={styles.cardEyebrow}>BAREM MODEL DE PUNCTARE</Text>
               <View style={styles.sheetRubricList}>
                 {subject.rubricBreakdown.map((item, idx) => (
                   <View key={`sr-${idx}`} style={styles.sheetRubricRow}>
@@ -617,6 +677,49 @@ export function ExamGuideScreen({ navigation, route }: Props) {
           </ScrollView>
         </ComicBottomSheet>
       ) : null}
+
+      <ComicBottomSheet
+        visible={pendingSimId !== null}
+        onClose={() => setPendingSimId(null)}
+        maxHeight="70%"
+      >
+        <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+          <Text style={styles.draftSheetTitle}>Ai o simulare în pauză</Text>
+          <Text style={styles.draftSheetBody}>
+            {draftSummary
+              ? `Ai progres salvat la ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi, ${draftSummary.remainingLabel} timp rămas). Vrei să o continui sau să începi simularea nouă?`
+              : 'Ai deja o simulare salvată. Vrei să o continui sau să începi una nouă?'}
+          </Text>
+          <View style={styles.draftSheetActions}>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Continuă simularea salvată"
+              pressedScale={0.97}
+              haptic="medium"
+              onPress={handleResumeSavedDraft}
+              contentStyle={styles.draftSheetPrimaryBtn}
+            >
+              <Text style={styles.draftSheetPrimaryText}>Continuă simularea salvată</Text>
+            </PressableScale>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Începe simularea nouă și înlocuiește progresul salvat"
+              onPress={handleConfirmFreshSimulation}
+              style={({ pressed }) => [styles.draftSheetDangerBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.draftSheetDangerText}>Începe simularea nouă (înlocuiește progresul)</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Anulează"
+              onPress={() => setPendingSimId(null)}
+              style={({ pressed }) => [styles.draftSheetCancelBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.draftSheetCancelText}>Anulează</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </ComicBottomSheet>
     </View>
   );
 }
@@ -1438,6 +1541,70 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 12,
     color: colors.limeDeep,
+  },
+  draftSheetTitle: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    lineHeight: 24,
+    color: colors.ink,
+  },
+  draftSheetBody: {
+    marginTop: 8,
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13.5,
+    lineHeight: 19.5,
+    color: colors.inkSoft,
+  },
+  draftSheetActions: {
+    marginTop: 14,
+    gap: 9,
+  },
+  draftSheetPrimaryBtn: {
+    minHeight: 50,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderBottomWidth: 4,
+    borderColor: '#E8FF78',
+    borderBottomColor: '#7EA508',
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  draftSheetPrimaryText: {
+    fontFamily: fonts.display,
+    fontSize: 15.5,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  draftSheetDangerBtn: {
+    minHeight: 46,
+    borderRadius: radii.pill,
+    borderWidth: 1.3,
+    borderBottomWidth: 3.2,
+    borderColor: '#FFC5D0',
+    borderBottomColor: '#E58A9D',
+    backgroundColor: colors.roseSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  draftSheetDangerText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
+    color: colors.berryDeep,
+    textAlign: 'center',
+  },
+  draftSheetCancelBtn: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  draftSheetCancelText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
+    color: colors.violetDeep,
   },
   pressed: { opacity: 0.78 },
 });

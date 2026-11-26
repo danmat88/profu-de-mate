@@ -320,7 +320,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                 {draftSummary.variantLabel} · {draftSummary.scopeTitle}
               </Text>
               <Text style={styles.resumeMeta}>
-                {draftSummary.answered}/{draftSummary.total} itemi completați · ⏱ {draftSummary.remainingLabel} rămas
+                {draftSummary.answered}/{draftSummary.total} itemi completați · ⏱ {draftSummary.remainingLabel} timp rămas
               </Text>
               <PressableScale
                 accessibilityRole="button"
@@ -353,7 +353,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
               <View style={styles.studioKickerPill}>
                 <Text accessible={false} style={styles.studioKickerSpark}>✦</Text>
                 <Text maxFontSizeMultiplier={1.15} style={styles.studioKickerText}>
-                  SIMULARE OFICIALĂ · 1–10
+                  SIMULARE TIP EXAMEN · 1–10
                 </Text>
               </View>
               <Text style={styles.studioOfficeText}>
@@ -385,6 +385,8 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                     >
                       <Text
                         numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.82}
                         maxFontSizeMultiplier={1.15}
                         style={[styles.variantPillTitle, selected && styles.variantPillTitleActive]}
                       >
@@ -408,7 +410,9 @@ export function ExamsHubScreen({ navigation, route }: Props) {
             ) : null}
 
             <Text style={styles.studioSubtitle}>
-              Cronometru real, barem oficial pas cu pas, corectare foto AI la Subiectul II/III și notă finală.
+              {examId === 'en'
+                ? 'Cronometru real, barem model pas cu pas, corectare foto AI la Subiectul III și notă estimată.'
+                : 'Cronometru real, barem model pas cu pas, corectare foto AI la Subiectele II și III și notă estimată.'}
             </Text>
 
             <PressableScale
@@ -508,11 +512,11 @@ export function ExamsHubScreen({ navigation, route }: Props) {
                           </View>
                         ) : isRubric ? (
                           <View style={styles.aiPhotoTag}>
-                            <Text style={styles.aiPhotoTagText}>📷 Foto pe barem AI</Text>
+                            <Text style={styles.aiPhotoTagText}>📷 Corectare foto AI</Text>
                           </View>
                         ) : (
                           <View style={styles.autoTag}>
-                            <Text style={styles.autoTagText}>⚡ Scor instant</Text>
+                            <Text style={styles.autoTagText}>⚡ Corectare automată</Text>
                           </View>
                         )}
                       </View>
@@ -587,77 +591,81 @@ export function ExamsHubScreen({ navigation, route }: Props) {
       <ComicBottomSheet
         visible={pendingStart !== null}
         onClose={() => setPendingStart(null)}
-        maxHeight="58%"
+        maxHeight="72%"
       >
-        <Text style={styles.sheetTitle}>Ai o simulare în pauză</Text>
-        <Text style={styles.sheetBody}>
-          {draftSummary
-            ? `Ai progres salvat la ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi, ${draftSummary.remainingLabel} rămas). Vrei să o continui sau să începi simularea nouă?`
-            : 'Ai deja o simulare salvată. Vrei să o continui sau să începi una nouă?'}
-        </Text>
-        <View style={styles.sheetActions}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Continuă simularea salvată"
-            pressedScale={0.97}
-            haptic="medium"
-            onPress={resumeSavedDraft}
-            contentStyle={styles.sheetPrimaryBtn}
-          >
-            <Text style={styles.sheetPrimaryText}>Continuă simularea salvată</Text>
-          </PressableScale>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Începe simularea nouă și înlocuiește ciorna"
-            onPress={confirmStartFreshSimulation}
-            style={({ pressed }) => [styles.sheetDangerBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.sheetDangerText}>Începe simularea nouă (șterge pauza)</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Anulează"
-            onPress={() => setPendingStart(null)}
-            style={({ pressed }) => [styles.sheetCancelBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.sheetCancelText}>Anulează</Text>
-          </Pressable>
-        </View>
+        <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+          <Text style={styles.sheetTitle}>Ai o simulare în pauză</Text>
+          <Text style={styles.sheetBody}>
+            {draftSummary
+              ? `Ai progres salvat la ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi, ${draftSummary.remainingLabel} timp rămas). Vrei să o continui sau să începi simularea nouă?`
+              : 'Ai deja o simulare salvată. Vrei să o continui sau să începi una nouă?'}
+          </Text>
+          <View style={styles.sheetActions}>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Continuă simularea salvată"
+              pressedScale={0.97}
+              haptic="medium"
+              onPress={resumeSavedDraft}
+              contentStyle={styles.sheetPrimaryBtn}
+            >
+              <Text style={styles.sheetPrimaryText}>Continuă simularea salvată</Text>
+            </PressableScale>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Începe simularea nouă și înlocuiește progresul salvat"
+              onPress={confirmStartFreshSimulation}
+              style={({ pressed }) => [styles.sheetDangerBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.sheetDangerText}>Începe simularea nouă (înlocuiește progresul)</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Anulează"
+              onPress={() => setPendingStart(null)}
+              style={({ pressed }) => [styles.sheetCancelBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.sheetCancelText}>Anulează</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </ComicBottomSheet>
 
       <ComicBottomSheet
         visible={discardSheetOpen}
         onClose={() => setDiscardSheetOpen(false)}
-        maxHeight="48%"
+        maxHeight="62%"
       >
-        <Text style={styles.sheetTitle}>Ștergi simularea salvată?</Text>
-        <Text style={styles.sheetBody}>
-          {draftSummary
-            ? `Progresul salvat pentru ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi) va fi șters definitiv.`
-            : 'Progresul simulării în pauză va fi șters.'}
-        </Text>
-        <View style={styles.sheetActions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Șterge definitiv simularea salvată"
-            onPress={() => {
-              Haptics.selection();
-              clearExamDraft();
-              setDiscardSheetOpen(false);
-            }}
-            style={({ pressed }) => [styles.sheetDangerBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.sheetDangerText}>Da, șterge ciorna salvată</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Păstrează simularea salvată"
-            onPress={() => setDiscardSheetOpen(false)}
-            style={({ pressed }) => [styles.sheetCancelBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.sheetCancelText}>Păstrează</Text>
-          </Pressable>
-        </View>
+        <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+          <Text style={styles.sheetTitle}>Ștergi simularea salvată?</Text>
+          <Text style={styles.sheetBody}>
+            {draftSummary
+              ? `Progresul salvat pentru ${draftSummary.guideShortTitle} · ${draftSummary.variantLabel} (${draftSummary.answered}/${draftSummary.total} itemi) va fi șters definitiv.`
+              : 'Progresul simulării în pauză va fi șters.'}
+          </Text>
+          <View style={styles.sheetActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Șterge definitiv simularea salvată"
+              onPress={() => {
+                Haptics.selection();
+                clearExamDraft();
+                setDiscardSheetOpen(false);
+              }}
+              style={({ pressed }) => [styles.sheetDangerBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.sheetDangerText}>Da, șterge progresul salvat</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Păstrează simularea salvată"
+              onPress={() => setDiscardSheetOpen(false)}
+              style={({ pressed }) => [styles.sheetCancelBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.sheetCancelText}>Păstrează</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </ComicBottomSheet>
     </View>
   );

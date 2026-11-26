@@ -78,6 +78,7 @@ export function CaptureScreen({ navigation, route }: Props) {
   const capturing = useRef(false);
   const galleryPickerLocked = useRef(false);
   const previewPaused = useRef(false);
+  const focusedRef = useRef(true);
   const isCheck = route.params.mode === 'check';
   const scanTravel = Math.max(52, (finderHeight - 56) / 2);
   const topSpace = Math.max(stableInsets.top, 0);
@@ -100,10 +101,12 @@ export function CaptureScreen({ navigation, route }: Props) {
     setCameraFailed(false);
     setPreviewSettled(false);
     setIsFocused(true);
+    focusedRef.current = true;
     cameraPreviewEntrance.setValue(0);
     scanOpacity.setValue(0);
     scan.setValue(0);
     return () => {
+      focusedRef.current = false;
       setIsFocused(false);
       setCameraReady(false);
       setPreviewSettled(false);
@@ -247,6 +250,11 @@ export function CaptureScreen({ navigation, route }: Props) {
       setCaptureError(null);
       Haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false, shutterSound: true });
+      if (!focusedRef.current) {
+        capturing.current = false;
+        setWorking(false);
+        return;
+      }
       try {
         await cameraRef.current.pausePreview();
         previewPaused.current = true;
@@ -277,7 +285,7 @@ export function CaptureScreen({ navigation, route }: Props) {
         quality: 1,
         exif: false,
       });
-      if (result.canceled) return;
+      if (!focusedRef.current || result.canceled) return;
       const asset = result.assets?.[0];
       if (!asset?.uri || asset.width <= 0 || asset.height <= 0) {
         setCaptureError('Fotografia aleasă nu poate fi citită. Alege altă imagine.');
@@ -285,8 +293,10 @@ export function CaptureScreen({ navigation, route }: Props) {
       }
       acceptImage(asset, 'gallery');
     } catch {
-      setCaptureError('Galeria nu a putut fi deschisă. Încearcă din nou.');
-      Haptics.notification(Haptics.NotificationFeedbackType.Error);
+      if (focusedRef.current) {
+        setCaptureError('Galeria nu a putut fi deschisă. Încearcă din nou.');
+        Haptics.notification(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       galleryPickerLocked.current = false;
       if (!capturing.current) setWorking(false);
@@ -299,14 +309,20 @@ export function CaptureScreen({ navigation, route }: Props) {
   }, [helpPop, reducedMotion]);
 
   useEffect(() => {
-    if (!isFocused || !showHelp) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { closeHelp(); return true; });
+    if (!isFocused) return;
+    if (!showHelp && !working) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (working) return true;
+      closeHelp();
+      return true;
+    });
     return () => subscription.remove();
-  }, [closeHelp, isFocused, showHelp]);
+  }, [closeHelp, isFocused, showHelp, working]);
 
   const toggleHelp = () => {
     Haptics.selection();
     if (showHelp) { closeHelp(); return; }
+    setCaptureError(null);
     setShowHelp(true);
     if (reducedMotion) {
       helpPop.setValue(1);
@@ -395,7 +411,7 @@ export function CaptureScreen({ navigation, route }: Props) {
             onMountError={(event) => {
               setCameraReady(false);
               setCameraFailed(true);
-              setCaptureError('Camera nu a putut porni. Apasă declanșatorul ca să încerci din nou.');
+              setCaptureError('Camera nu a putut porni. Apasă butonul de mai jos ca să încerci din nou.');
               recordDiagnosticError('camera_mount', event);
             }}
           />
@@ -430,17 +446,19 @@ export function CaptureScreen({ navigation, route }: Props) {
             <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modeChipText}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PROBLEMA'}</Text>
           </View>
         </View>
-        <IconButton
-          label={flash ? 'Oprește blițul' : 'Pornește blițul'}
-          disabled={working}
-          dimWhenDisabled={false}
-          active={flash}
-          dark={!flash}
-          onPress={() => { Haptics.selection(); setFlash((value) => !value); }}
-          size={46}
-        >
-          <AppIcon name="flash" size={30} />
-        </IconButton>
+        {permission?.granted ? (
+          <IconButton
+            label={flash ? 'Oprește blițul' : 'Pornește blițul'}
+            disabled={working}
+            dimWhenDisabled={false}
+            active={flash}
+            dark={!flash}
+            onPress={() => { Haptics.selection(); setFlash((value) => !value); }}
+            size={46}
+          >
+            <AppIcon name="flash" size={30} />
+          </IconButton>
+        ) : <View style={{ width: 46, height: 46 }} />}
       </View>
 
       {permission?.granted ? (
@@ -592,10 +610,22 @@ export function CaptureScreen({ navigation, route }: Props) {
         </View>
       ) : null}
 
-      {captureError ? <View accessibilityRole="alert" style={[styles.errorBanner, { bottom: bottomSpace + (isCompact ? 151 : 169), left: gutter, right: gutter }]}><Text style={styles.errorText}>{captureError}</Text></View> : null}
+      {captureError ? (
+        <View
+          accessibilityRole="alert"
+          style={[
+            styles.errorBanner,
+            permission?.granted
+              ? { bottom: bottomSpace + (isCompact ? 174 : 192), left: gutter, right: gutter }
+              : { top: topSpace + 72, left: gutter, right: gutter },
+          ]}
+        >
+          <Text style={styles.errorText}>{captureError}</Text>
+        </View>
+      ) : null}
 
       {showHelp ? (
-        <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 147 : 165) }, helpBubbleStyle]}>
+        <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 172 : 190) }, helpBubbleStyle]}>
           <View style={styles.helpIcon}><AppIcon name="hint" size={35} /></View>
           <View style={styles.helpCopy}><Text style={styles.helpTitle}>Pentru o fotografie clară</Text><Text style={styles.helpText}>Ține telefonul paralel cu foaia, evită umbrele și include tot exercițiul.</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="Închide ajutorul" hitSlop={9} onPress={toggleHelp} style={styles.helpClose}><CloseGlyph /></Pressable>

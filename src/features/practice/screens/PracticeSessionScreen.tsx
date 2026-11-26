@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -140,7 +141,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
   const transitionSettled = useTransitionSettled(navigation, reducedMotion);
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
   const { runAfterKeyboardDismiss, cancelPending: cancelPendingKeyboardAction } = useAfterKeyboardDismiss(keyboardVisible);
-  const { access, refresh: refreshAccess } = useCommercial();
+  const { access, refresh: refreshAccess, applyServerAccess } = useCommercial();
   const practiceState = usePracticeState();
   const { mode, category, formulaId, questionId, aiExercise } = route.params;
   const isTargetedMistake = mode === 'mistakes' && Boolean(questionId);
@@ -204,6 +205,10 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
   useEffect(() => () => {
     mountedRef.current = false;
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    leavingAllowedRef.current = false;
+  }, []));
 
   // Reset scroll synchronously right as the newly keyed question mounts.
   useLayoutEffect(() => {
@@ -575,7 +580,6 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
       if (!mountedRef.current) return;
       aiLockRef.current = false;
       setExplainAiBusy(false);
-      leavingAllowedRef.current = true;
       beginAppTransition();
       navigation.navigate('MathProcessing', {
         mode: 'solve',
@@ -633,8 +637,15 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
       setSimilarBusy(false);
       const gate = commercialGateFromError(error);
       if (gate) {
+        if (gate.access) applyServerAccess(gate.access);
+        if (gate.reason === 'burst_limited') {
+          setSimilarError(gate.message);
+          Haptics.notification(Haptics.NotificationFeedbackType.Warning);
+          return;
+        }
+        const gateAccess = gate.access ?? access;
         beginAppTransition();
-        navigation.navigate('Paywall', { source: 'quota', ...(access ? { access } : {}) });
+        navigation.navigate('Paywall', { source: 'quota', ...(gateAccess ? { access: gateAccess } : {}) });
         return;
       }
       setSimilarError(friendlyAiPracticeError(error));
@@ -1349,7 +1360,10 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
         <Text style={styles.confirmTitle}>Închizi testul acum?</Text>
         <Text style={styles.confirmText}>
           Ai răspuns deja la {answers.length} din {questions.length}{' '}
-          {questions.length === 1 ? 'întrebare' : 'întrebări'}. Întrebările greșite au fost deja salvate în Caiet, dar rezultatul final al sesiunii nu va fi înregistrat.
+          {questions.length === 1 ? 'întrebare' : 'întrebări'}.{' '}
+          {mode === 'ai'
+            ? 'Rezultatul final al sesiunii nu va fi înregistrat.'
+            : 'Întrebările greșite din bancă au fost deja salvate în Caiet, dar rezultatul final al sesiunii nu va fi înregistrat.'}
         </Text>
         <View style={styles.confirmActions}>
           <PressableScale

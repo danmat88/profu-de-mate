@@ -21,6 +21,7 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { getExamGuide } from '../../exams/data/examGuidesCatalog';
 import { getExamSimulationById } from '../../exams/data/examSimulationsCatalog';
 import { useExamDraft } from '../../exams/services/examDraftStorage';
@@ -324,7 +325,7 @@ export const StudyHubScreen = memo(function StudyHubScreen({
                 <View style={styles.heroEyebrowPill}>
                   <View style={styles.heroEyebrowDot} />
                   <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.heroEyebrowText}>
-                    {profile.hasChosenTrack ? trackMeta.eyebrow : 'CLASELE V–XII · EN & BAC'}
+                    {profile.hasChosenTrack ? trackMeta.eyebrow : 'EN & BAC · RECAPITULARE V–XII'}
                   </Text>
                 </View>
                 {profile.hasChosenTrack ? (
@@ -626,7 +627,7 @@ export const StudyHubScreen = memo(function StudyHubScreen({
                 {draftBanner
                   ? `⏸ În pauză: ${draftBanner.answered}/${draftBanner.total} itemi · ${draftBanner.remaining}`
                   : bestExamGrade !== null
-                    ? `Record ${examGuide.shortTitle}: ${formatRomanianGrade(bestExamGrade)} · barem`
+                    ? `Record ${examGuide.shortTitle}: ${formatRomanianGrade(bestExamGrade)}`
                     : 'Simulări cronometrate, barem & ghid'}
               </Text>
               <View style={styles.tileFooterPillGold}>
@@ -666,7 +667,7 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               <View style={styles.sectionHeaderCopy}>
                 <Text style={styles.sectionKicker}>ESENȚIALE PENTRU TINE</Text>
                 <Text style={styles.sectionTitle}>
-                  {profile.hasChosenTrack ? `Formule cheie · ${trackMeta.shortLabel}` : 'Formule cheie · V–XII, EN & BAC'}
+                  {profile.hasChosenTrack ? `Formule cheie · ${trackMeta.shortLabel}` : 'Formule cheie · EN, BAC & baze'}
                 </Text>
               </View>
               <Pressable
@@ -698,14 +699,14 @@ export const StudyHubScreen = memo(function StudyHubScreen({
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={`Vezi toate cele ${trackFormulas.length} formule pentru ${trackMeta.label}`}
+              accessibilityLabel={`Vezi toate cele ${formatRoCount(trackFormulas.length, 'formulă', 'formule')}${profile.hasChosenTrack ? ` pentru ${trackMeta.label}` : ''}`}
               pressedScale={0.975}
               haptic="selection"
               onPress={() => openFormulas()}
               contentStyle={styles.allFormulasCta}
             >
               <Text style={styles.allFormulasCtaText}>
-                Deschide toate cele {trackFormulas.length} fișe de formule
+                Deschide toate cele {formatRoCount(trackFormulas.length, 'fișă', 'fișe')} de formule
               </Text>
               <MiniGlyph name="next" size={16} color={colors.violetDeep} />
             </PressableScale>

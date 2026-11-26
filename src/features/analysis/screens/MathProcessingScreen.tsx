@@ -149,14 +149,19 @@ export function MathProcessingScreen({ route, navigation }: Props) {
   };
 
   useFocusEffect(useCallback(() => {
-    if (returningFromPaywall.current) { returningFromPaywall.current = false; setAttempt((value) => value + 1); }
+    if (returningFromPaywall.current) {
+      returningFromPaywall.current = false;
+      if (commercialAccess?.canAnalyze) {
+        setAttempt((value) => value + 1);
+      }
+    }
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (feedback) return false;
       hardwareBackRef.current();
       return true;
     });
     return () => subscription.remove();
-  }, [feedback]));
+  }, [commercialAccess?.canAnalyze, feedback]));
 
   useEffect(() => {
     let mounted = true;
@@ -186,12 +191,16 @@ export function MathProcessingScreen({ route, navigation }: Props) {
         } else if (result.status !== 'ready') {
           clearPendingAnalysis(requestId);
           setState({ kind: 'rejected', result });
-        } else setState({ kind: 'error', message: 'Rezultatul nu a putut fi deschis. Încearcă din nou.' });
+        } else {
+          clearPendingAnalysis(requestId);
+          setState({ kind: 'error', message: 'Rezultatul nu a putut fi deschis. Încearcă din nou.' });
+        }
       })
       .catch((error) => {
         if (!active()) return;
         recordDiagnosticError('analysis_request', error);
         const gate = commercialGateFromError(error);
+        if (gate) clearPendingAnalysis(requestId);
         setState(gate ? { kind: 'commercial', message: gate.message, access: gate.access }
           : { kind: 'error', message: friendlyWrittenMathError(error), canEdit: String(error?.code).endsWith('/invalid-argument') });
       });
@@ -213,11 +222,15 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       : isCheck ? 'Verific rezolvarea ta.' : 'Pregătesc explicația.'
     : state.kind === 'rejected'
       ? 'Mai avem ceva de clarificat.'
-      : state.kind === 'commercial' ? 'Accesul tău' : 'Nu am terminat analiza.';
+      : state.kind === 'commercial' ? 'Ai ajuns la limita de azi.' : 'Nu am terminat analiza.';
   const message = working
     ? preparingLesson
       ? 'Așez pașii și formulele frumos în pagină.'
-      : slow ? 'Încă lucrez. Unele probleme au nevoie de mai mult timp.' : 'Problema ta, explicată pas cu pas. Poate dura puțin.'
+      : slow
+        ? 'Încă lucrez. Unele probleme au nevoie de mai mult timp.'
+        : isCheck
+          ? 'Verificăm fiecare pas al rezolvării tale. Poate dura puțin.'
+          : 'Problema ta, explicată pas cu pas. Poate dura puțin.'
     : state.kind === 'rejected' ? contentToAccessibleText(state.result.summary) : state.message;
 
   const mascotPose = working
@@ -338,13 +351,21 @@ export function MathProcessingScreen({ route, navigation }: Props) {
       <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         {working ? <AnalysisActivity preparing={preparingLesson} check={isCheck} active={focused && sceneReady} /> : null}
         {state.kind === 'error' ? (
-          <ComicButton
-            compact
-            title={state.canEdit ? 'Editează problema' : 'Încearcă din nou'}
-            icon="practice"
-            tone="lime"
-            onPress={state.canEdit ? edit : () => setAttempt((value) => value + 1)}
-          />
+          <>
+            <ComicButton
+              compact
+              title={state.canEdit ? 'Editează problema' : 'Încearcă din nou'}
+              icon={state.canEdit ? 'practice' : undefined}
+              trailingIcon={state.canEdit ? undefined : 'retry'}
+              tone="lime"
+              onPress={state.canEdit ? edit : () => setAttempt((value) => value + 1)}
+            />
+            {!state.canEdit && origin === 'editor' ? (
+              <Pressable accessibilityRole="button" onPress={edit} style={styles.report}>
+                <Text style={styles.reportText}>Înapoi la editor</Text>
+              </Pressable>
+            ) : null}
+          </>
         ) : null}
         {state.kind === 'commercial' ? (
           <ComicButton

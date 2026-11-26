@@ -143,7 +143,7 @@ export const StreakInfoSheet = memo(function StreakInfoSheet({
             </Text>
           </View>
           <View style={styles.statTile}>
-            <Text style={styles.statEyebrow}>EXERCIȚII LUCRATE</Text>
+            <Text style={styles.statEyebrow}>EXERCIȚII LA PRACTICĂ</Text>
             <Text style={styles.statValue}>{practiceState.totalAnswered}</Text>
           </View>
         </View>
@@ -151,7 +151,7 @@ export const StreakInfoSheet = memo(function StreakInfoSheet({
         <View style={styles.whyCard}>
           <Text style={styles.whyTitle}>De ce contează 5 minute pe zi?</Text>
           <Text style={styles.whyText}>
-            Orice problemă rezolvată cu camera, scrisă de mână, test rapid sau simulare îți prelungește seria. Exersarea scurtă și constantă fixează formulele mult mai ușor decât pregătirea pe ultima sută înainte de teză sau examen.
+            Orice problemă rezolvată (din poză sau din editor), test fulger ori simulare îți prelungește seria. Exersarea scurtă și constantă fixează formulele mult mai ușor decât pregătirea pe ultima sută înainte de teză sau examen.
           </Text>
         </View>
       </ScrollView>

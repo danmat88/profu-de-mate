@@ -92,13 +92,13 @@ export const StudyTrackSheet = memo(function StudyTrackSheet({
         <View style={[styles.trackRail, { backgroundColor: active ? colors.lime : tone.dot }]} />
         <View style={styles.trackBody}>
           <View style={styles.trackTop}>
-            <View style={[styles.eyebrowBadge, { backgroundColor: active ? 'rgba(255,255,255,0.16)' : tone.tint }]}>
-              <Text style={[styles.trackEyebrow, { color: active ? colors.lime : tone.dot }]}>
+            <View style={[styles.eyebrowBadge, { backgroundColor: active ? 'rgba(255,255,255,0.16)' : tone.tint, flexShrink: 1 }]}>
+              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.trackEyebrow, { color: active ? colors.lime : tone.dot }]}>
                 {track.eyebrow}
               </Text>
             </View>
             <View style={styles.trackTopRight}>
-              <Text style={[styles.trackCountMeta, active && styles.trackCountMetaActive]}>
+              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.trackCountMeta, active && styles.trackCountMetaActive]}>
                 {counts.formulas} fișe · {counts.questions} ex.
               </Text>
               {active ? (
@@ -127,7 +127,7 @@ export const StudyTrackSheet = memo(function StudyTrackSheet({
         </View>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>NIVELUL TĂU DE STUDIU</Text>
-          <Text style={styles.title}>Alege clasa sau examenul</Text>
+          <Text style={styles.title}>Alege nivelul sau examenul</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -156,7 +156,7 @@ export const StudyTrackSheet = memo(function StudyTrackSheet({
           {EXAM_TRACKS.map(renderTrackRow)}
         </View>
 
-        <Text style={[styles.groupHeading, styles.groupHeadingSpaced]}>CLASE GENERALE</Text>
+        <Text style={[styles.groupHeading, styles.groupHeadingSpaced]}>LICEU &amp; RECAPITULARE BAZE</Text>
         <View style={styles.groupList}>
           {CLASS_TRACKS.map(renderTrackRow)}
         </View>

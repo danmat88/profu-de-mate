@@ -123,7 +123,7 @@ export async function initializePurchases(userId: string, session = captureSessi
   if (!apiKey) return false;
   // Premium belongs to an account that can be recovered across devices. Guest
   // allowance IDs must never become RevenueCat customer aliases.
-  if (!/^g_[a-f0-9]{64}$/.test(userId)) throw new Error('Contul comercial pentru Google Play nu este valid.');
+  if (!/^g_[a-f0-9]{64}$/.test(userId)) throw new Error('Contul tău Google pentru Google Play nu este valid.');
   return withSdk(async () => {
     assertSessionActive(session);
     if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
@@ -160,9 +160,9 @@ async function requirePurchases(session: ActiveSession): Promise<void> {
   assertSessionActive(session);
   await withDeadline(initializeVerifiedFirebaseServices(), 12_000, 'Verificarea contului durează prea mult. Încearcă din nou.');
   assertSessionActive(session);
-  if (!publicApiKey()) throw new Error('Abonamentele nu sunt configurate în acest build.');
+  if (!publicApiKey()) throw new Error('Abonamentele nu sunt disponibile momentan.');
   if (!purchasesSdkConfigured || !configuredUserId || configuredSessionKey !== session.sessionKey) {
-    throw new Error('Contul comercial nu este încă verificat. Redeschide ecranul de abonamente.');
+    throw new Error('Contul tău Google nu este încă verificat. Redeschide ecranul de abonamente.');
   }
 }
 
@@ -303,6 +303,12 @@ export function isPurchaseCancellation(error: unknown): boolean {
 
 export function purchaseErrorCopy(error: unknown): string | null {
   const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+  const message = error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
+    ? (error as { message: string }).message
+    : '';
+  if (code === 'purchases/timeout' || code === 'purchases/operation-in-progress') {
+    return message || 'Google Play nu a răspuns la timp. Încearcă din nou peste câteva momente.';
+  }
   switch (code) {
     case PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR:
       return 'Plata este în așteptare în Google Play. Nu cumpăra din nou; abonamentul se activează după confirmarea plății.';
@@ -317,12 +323,12 @@ export function purchaseErrorCopy(error: unknown): string | null {
       return 'Google Play nu permite această achiziție pentru contul sau dispozitivul folosit.';
     case PURCHASES_ERROR_CODE.PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR:
     case PURCHASES_ERROR_CODE.CONFIGURATION_ERROR:
-      return 'Abonamentele nu sunt disponibile în acest build sau pentru acest cont Google Play.';
+      return 'Abonamentele nu sunt disponibile momentan pentru acest cont Google Play.';
     case PURCHASES_ERROR_CODE.OPERATION_ALREADY_IN_PROGRESS_ERROR:
       return 'Google Play finalizează deja o acțiune. Așteaptă câteva secunde.';
     case PURCHASES_ERROR_CODE.RECEIPT_ALREADY_IN_USE_ERROR:
     case PURCHASES_ERROR_CODE.RECEIPT_IN_USE_BY_OTHER_SUBSCRIBER_ERROR:
-      return 'Abonamentul este legat de alt cont Profu’. Conectează același cont Google folosit la cumpărare și restaurează achiziția.';
+      return 'Abonamentul este legat de alt cont Profu’. Conectează același cont Google folosit la cumpărare și folosește „Restaurează achizițiile”.';
     default:
       return null;
   }

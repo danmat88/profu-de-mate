@@ -24,7 +24,7 @@ export function friendlyAnalysisError(error: unknown): string {
     return 'Ai ajuns la limita de analize pentru moment. Încearcă din nou mai târziu.';
   }
   if (code.includes('unauthenticated')) {
-    return 'Sesiunea securizată nu a pornit. Închide aplicația, apoi deschide-o din nou.';
+    return 'Sesiunea aplicației nu a pornit. Închide aplicația, apoi deschide-o din nou.';
   }
   if (code.includes('permission-denied') || code.includes('unauthorized') || code.includes('failed-precondition')) {
     return 'Nu am putut verifica această instalare. Repornește aplicația și încearcă din nou.';
@@ -36,7 +36,7 @@ export function friendlyAnalysisError(error: unknown): string {
     return 'Fotografia este încă analizată. Așteaptă câteva secunde și încearcă din nou.';
   }
   if (code.includes('deadline-exceeded') || message.includes('timed out') || message.includes('timeout')) {
-    return 'Analiza a durat prea mult. Fotografia a rămas numai pe telefon; încearcă din nou.';
+    return 'Analiza a durat prea mult. Încearcă din nou peste câteva momente.';
   }
   if (
     code.includes('unavailable')
@@ -44,7 +44,7 @@ export function friendlyAnalysisError(error: unknown): string {
     || message.includes('network request failed')
     || message.includes('failed to fetch')
   ) {
-    return 'Nu te pot auzi fără internet. Verifică legătura și încearcă din nou. Fotografia rămâne pe telefon.';
+    return 'Nu există conexiune la internet. Verifică rețeaua și încearcă din nou.';
   }
   if (code.includes('internal') || code.includes('unknown')) {
     return 'A apărut o problemă temporară. Încearcă din nou peste câteva momente.';
@@ -52,5 +52,5 @@ export function friendlyAnalysisError(error: unknown): string {
   if (message.includes('file') || message.includes('no such')) {
     return 'Fotografia nu mai poate fi citită de pe telefon. Fă altă fotografie sau alege din nou imaginea.';
   }
-  return 'Nu am putut analiza fotografia. Ea nu a fost salvată în Caiet. Încearcă din nou.';
+  return 'Nu am putut analiza fotografia. Încearcă din nou.';
 }

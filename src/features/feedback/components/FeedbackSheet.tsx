@@ -27,7 +27,7 @@ const options: { category: FeedbackCategory; label: string; description: string 
   { category: 'other', label: 'Altă problemă', description: 'Ai observat altceva în neregulă cu răspunsul.' },
 ];
 
-const badgeColors = [colors.cyanSoft, colors.peachSoft, colors.limeSoft, colors.violetSoft] as const;
+const badgeColors = [colors.cyanSoft, colors.peachSoft, colors.roseSoft, colors.violetSoft] as const;
 
 export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) {
   const [sending, setSending] = useState<FeedbackCategory | null>(null);

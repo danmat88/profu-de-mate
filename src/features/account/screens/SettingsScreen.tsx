@@ -31,6 +31,7 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { isCurrentUserGoogle } from '../../access/services/commercial';
@@ -258,8 +259,8 @@ export function SettingsScreen({ navigation }: Props) {
     : 'Șterge profilul temporar, Caietul, progresul de studiu, simulările și raportările. Aplicația va porni apoi cu un spațiu temporar nou.';
   const deletionConfirmTitle = deleteModalHadGoogle ? 'Ștergi contul și datele?' : 'Ștergi datele temporare?';
   const deletionConfirmText = deleteModalHadGoogle
-    ? 'Contul Profu’ de mate, Caietul, lecțiile, progresul de studiu, istoricul simulărilor și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește problemele disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
-    : 'Profilul temporar, Caietul, lecțiile, progresul de studiu, istoricul simulărilor și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește problemele disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
+    ? 'Contul Profu’ de mate, Caietul, lecțiile, progresul de studiu, istoricul simulărilor și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou, ca să poți continua fără conectare. Ștergerea nu reînnoiește acțiunile AI disponibile. Păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate. Abonamentul se oprește separat în Google Play.'
+    : 'Profilul temporar, Caietul, lecțiile, progresul de studiu, istoricul simulărilor și raportările vor fi șterse definitiv. Aplicația va crea apoi un spațiu temporar nou. Ștergerea nu reînnoiește acțiunile AI disponibile; păstrăm doar contoarele tehnice minime necesare prevenirii abuzului, conform Politicii de confidențialitate.';
   const diagnosticsLocked = useRef(false);
   const connectLocked = useRef(false);
   const deletionLocked = useRef(false);
@@ -280,8 +281,8 @@ export function SettingsScreen({ navigation }: Props) {
   const accountText = !access
     ? accessLoading ? 'Poți folosi setările cât timp limita de azi se actualizează în fundal.' : 'Limita de azi nu este disponibilă momentan. Verifică internetul pentru actualizare.'
     : access.identity === 'google'
-      ? `Ai ${access.remaining} din ${access.limit} acțiuni AI disponibile astăzi. Contul Google păstrează Caietul și abonamentul pe toate telefoanele.`
-      : `Ai ${access.remaining} din ${access.limit} acțiuni AI gratuite astăzi. Conectează-te cu Google pentru sincronizarea Caietului și pentru Pro sau Max.`;
+      ? `Ai ${access.remaining} din ${formatRoCount(access.limit, 'acțiune AI disponibilă', 'acțiuni AI disponibile')} astăzi. Contul Google păstrează Caietul și abonamentul pe toate telefoanele.`
+      : `Ai ${access.remaining} din ${formatRoCount(access.limit, 'acțiune AI gratuită', 'acțiuni AI gratuite')} astăzi. Conectează-te cu Google pentru sincronizarea Caietului și pentru Pro sau Max.`;
 
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: !accountBusy });
@@ -499,8 +500,10 @@ export function SettingsScreen({ navigation }: Props) {
                     </Text>
                     <Text style={styles.rowText}>
                       {access?.premium.active
-                        ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
-                        : '50 sau 150 acțiuni AI pe zi · Max include raționament extins.'}
+                        ? access.premium.tier === 'max'
+                          ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
+                          : 'Vezi limita de azi, treci la Profu’ Max sau administrează în Google Play.'
+                        : '50 sau 150 de acțiuni AI pe zi · Max include raționament extins.'}
                     </Text>
                   </View>
                   <MiniGlyph name="next" size={17} color={colors.violetDeep} />
@@ -547,7 +550,7 @@ export function SettingsScreen({ navigation }: Props) {
                     </Text>
                     {!studyProfile.hasChosenTrack ? (
                       <View style={styles.trackUnchosenBadge}>
-                        <Text style={styles.trackUnchosenBadgeText}>NEALES</Text>
+                        <Text style={styles.trackUnchosenBadgeText}>ALEGE</Text>
                       </View>
                     ) : null}
                   </View>
@@ -584,9 +587,8 @@ export function SettingsScreen({ navigation }: Props) {
                 <View style={[styles.rowIcon, { backgroundColor: colors.limeSoft }]}><AppIcon name="privacy" size={30} /></View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle}>Fotografiile nu intră în Caiet</Text>
-                  <Text style={styles.rowText}>Sunt micșorate pe telefon și trimise securizat, fără să ajungă în Firebase Storage. Detaliile sunt explicate la „Legal și siguranță”.</Text>
+                  <Text style={styles.rowText}>Sunt micșorate pe telefon și trimise securizat, fără să fie păstrate pe server. Detaliile sunt explicate la „Legal și siguranță”.</Text>
                 </View>
-                <MiniGlyph name="check" size={17} color={colors.violetDeep} />
               </View>
             </View>
           </View>
@@ -598,7 +600,7 @@ export function SettingsScreen({ navigation }: Props) {
                 <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={30} /></View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle}>Cât timp păstrăm datele</Text>
-                  <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergere pot rămâne numai markerii anti-abuz minimizați, pentru perioadele explicate la „Legal și siguranță”.</Text>
+                  <Text style={styles.rowText}>Lecțiile nesalvate se șterg după 7 zile, iar contoarele zilnice după cel mult 35 de zile. După ștergere pot rămâne numai contoarele tehnice minime anti-abuz, pentru perioadele explicate la „Legal și siguranță”.</Text>
                 </View>
               </View>
 
@@ -628,7 +630,9 @@ export function SettingsScreen({ navigation }: Props) {
                 onPress={() => {
                   if (isInteractionLocked()) return;
                   Haptics.selection();
-                  void Linking.openURL(`mailto:${legalDocument.supportEmail}?subject=${encodeURIComponent('Suport Profu’ de mate')}`).catch(() => undefined);
+                  void Linking.openURL(`mailto:${legalDocument.supportEmail}?subject=${encodeURIComponent('Suport Profu’ de mate')}`).catch(() => {
+                    showStatusNotice(`Scrie-ne la ${legalDocument.supportEmail}`, 'disconnected');
+                  });
                 }}
                 style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
               >
@@ -701,7 +705,7 @@ export function SettingsScreen({ navigation }: Props) {
           bounces={false}
           showsVerticalScrollIndicator={false}
           style={styles.confirmScroll}
-          contentContainerStyle={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}
+          contentContainerStyle={styles.confirmSheetContent}
         >
           <View style={styles.sheetMascotStage}>
             <SpotlightAura size={96} tone="rose" active={confirmDelete} />
@@ -741,7 +745,12 @@ export function SettingsScreen({ navigation }: Props) {
           }
         }}
       >
-        <View style={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 10 }]}>
+        <ScrollView
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          style={styles.confirmScroll}
+          contentContainerStyle={styles.confirmSheetContent}
+        >
           <View style={styles.sheetMascotStage}>
             <SpotlightAura size={96} tone="cyan" active={confirmLogout} />
             <Mascot pose="wave" size={86} active={confirmLogout} />
@@ -764,7 +773,7 @@ export function SettingsScreen({ navigation }: Props) {
           <Pressable accessibilityRole="button" disabled={logoutSheetBusy} onPress={() => setConfirmLogout(false)} style={styles.cancel}>
             <Text style={styles.cancelText}>Rămân conectat</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </ComicSheetModal>
 
       <ComicSheetModal
@@ -777,7 +786,7 @@ export function SettingsScreen({ navigation }: Props) {
           bounces={false}
           showsVerticalScrollIndicator={false}
           style={styles.confirmScroll}
-          contentContainerStyle={[styles.confirmSheetContent, { paddingBottom: Math.max(insets.bottom, 14) + 12 }]}
+          contentContainerStyle={styles.confirmSheetContent}
         >
           <View style={styles.sheetMascotStage}>
             <SpotlightAura size={96} tone="lime" active={deleteComplete} />

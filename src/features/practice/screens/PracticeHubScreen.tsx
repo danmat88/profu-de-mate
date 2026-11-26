@@ -25,6 +25,7 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { StudyTrackSheet } from '../../study/components/StudyTrackSheet';
 import { setStudyTrack, useStudyProfile } from '../../study/services/studyStorage';
 import { getStudyTrackMeta, type StudyTrackId } from '../../study/types';
@@ -377,7 +378,7 @@ export function PracticeHubScreen({ navigation }: Props) {
               </View>
               <Text style={styles.aiTitle}>Generează un exercițiu nou</Text>
               <Text style={styles.aiNote}>
-                Alegi capitolul și dificultatea (Ușor · Mediu · Examen) și primești un item original cu rezolvare.
+                Alegi capitolul și dificultatea (Ușor · Mediu · Examen) și primești un exercițiu original cu rezolvare.
               </Text>
             </View>
             <View style={styles.aiArrow}>
@@ -418,8 +419,10 @@ export function PracticeHubScreen({ navigation }: Props) {
                       <View style={styles.chapterFooter}>
                         <Text style={styles.chapterMeta}>
                           {stat.wrong > 0
-                            ? `${stat.wrong} de repetat · ${stat.total} exerciții`
-                            : `${stat.total} ${stat.total === 1 ? 'exercițiu' : 'exerciții'} disponibile`}
+                            ? `${stat.wrong} de repetat · ${formatRoCount(stat.total, 'exercițiu', 'exerciții')}`
+                            : stat.total === 1
+                              ? '1 exercițiu disponibil'
+                              : `${formatRoCount(stat.total, 'exercițiu', 'exerciții')} disponibile`}
                         </Text>
                         <View style={styles.chapterStartPill}>
                           <Text style={styles.chapterStartText}>Exersează →</Text>

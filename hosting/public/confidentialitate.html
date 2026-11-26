@@ -69,7 +69,7 @@
           <li>datele locale pentru reluarea unei analize, inclusiv formula trimisă: expiră după 30 de minute și sunt curățate la următoarea verificare;</li>
           <li>lecțiile nesalvate și cache-ul unei cereri: expirare după 7 zile;</li>
           <li>contoarele zilnice și rezervările de siguranță: expirare după 35 de zile;</li>
-          <li>după ștergerea datelor sau a contului, codurile HMAC opace ale contului și dispozitivului, hashurile unidirecționale folosite exclusiv pentru deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi; nu conțin e-mailul, UID-ul Firebase sau identificatorul brut al dispozitivului;</li>
+          <li>după ștergerea datelor sau a contului, contorul zilnic al acțiunilor AI folosite în ziua curentă rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată; identificatorul tehnic anonimizat (HMAC) al instalării poate fi păstrat minimizat până la 400 de zile exclusiv pentru prevenirea abuzului la reinstalare, fără e-mail, UID-ul Firebase sau identificatorul brut al dispozitivului;</li>
           <li>evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există;</li>
           <li>metadatele standard din bucket-ul implicit Cloud Logging: în mod normal 30 de zile;</li>
           <li>lecțiile din Caiet: cât timp sunt folosite, dar maximum aproximativ 13 luni fără activitate;</li>

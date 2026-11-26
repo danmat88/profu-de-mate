@@ -1243,9 +1243,9 @@ export function NotebookScreen({
             </View>
             <Chip label="ZERO GREȘELI RĂMASE" tone="lime" />
             <View style={styles.emptyCopyWrap}>
-              <Text style={styles.fullStateTitle}>Lista De repetat e curată!</Text>
+              <Text style={styles.fullStateTitle}>Lista „De repetat” e curată!</Text>
               <Text style={styles.fullStateText}>
-                Orice întrebare greșită în Teste & Practică se salvează automat aici și dispare imediat ce o rezolvi corect.
+                Orice întrebare greșită în Teste &amp; Practică AI se salvează automat aici și dispare imediat ce o rezolvi corect.
               </Text>
             </View>
             <View style={styles.emptyActions}>
@@ -1274,7 +1274,7 @@ export function NotebookScreen({
                   onPress={startMistakesPractice}
                 />
                 <Text style={styles.mistakesHeaderSub}>
-                  Sau atinge orice card de mai jos ca să lucrezi doar acel exercițiu
+                  Sau atinge orice exercițiu de mai jos ca să îl lucrezi separat
                 </Text>
               </View>
             ) : (
@@ -1599,7 +1599,7 @@ export function NotebookScreen({
         <RemoveFromNotebookModal
           visible={removeVisible && Boolean(pendingRemoval)}
           lessonTitle={pendingRemovalTitle}
-          description="Lecția va dispărea din lista ta. Fotografia nu este păstrată în Caiet."
+          description="Lecția va fi eliminată din Caietul tău."
           removing={removing}
           error={removeError}
           onConfirm={() => void confirmRemoval()}

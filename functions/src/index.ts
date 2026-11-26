@@ -767,7 +767,7 @@ export const deleteMyData = onCall({
   try {
     await beginAccountDeletion(db, userId);
     let revenueCatDeletionPending = false;
-    if (revenueCatSecrets) {
+    if (revenueCatSecrets && principal.identity === 'google') {
       await requestRevenueCatDeletionReview(db, principal.principalId, userId);
       revenueCatDeletionPending = true;
       logger.warn('RevenueCat deletion requires review');

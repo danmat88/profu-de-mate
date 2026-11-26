@@ -153,7 +153,7 @@ async function writePendingMerges(values: readonly PendingMerge[]): Promise<void
     else await storage.deleteItemAsync(PENDING_MERGES_KEY);
     await storage.deleteItemAsync(LEGACY_PENDING_MERGE_KEY);
   } catch {
-    throw new Error('Conectarea sigură cu Google are nevoie de un development build nou.');
+    throw new Error('Conectarea sigură cu Google nu este disponibilă temporar pe acest dispozitiv. Încearcă să repornești aplicația.');
   }
 }
 
@@ -241,7 +241,7 @@ async function completePendingMerges(user: User): Promise<void> {
 async function configureGoogle(): Promise<void> {
   if (googleConfigured) return;
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim();
-  if (!webClientId) throw new Error('Google Sign-In nu este configurat în acest build.');
+  if (!webClientId) throw new Error('Conectarea cu Google nu este disponibilă momentan.');
   const { GoogleOneTapSignIn } = await googleSigninModule();
   GoogleOneTapSignIn.configure({
     webClientId,

@@ -21,7 +21,11 @@ function pad2(value: number): string {
 }
 
 function pluralizeRo(count: number, singular: string, plural: string): string {
-  return count === 1 ? `1 ${singular}` : `${count} ${plural}`;
+  if (count === 1) return `1 ${singular}`;
+  const rem100 = count % 100;
+  return count >= 20 && (rem100 === 0 || rem100 >= 20)
+    ? `${count} de ${plural}`
+    : `${count} ${plural}`;
 }
 
 /**

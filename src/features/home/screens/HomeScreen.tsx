@@ -183,13 +183,17 @@ export function HomeScreen(props?: HomeScreenProps) {
 
   useEffect(() => {
     if (!captureActionRef) return undefined;
+    if (!access) {
+      captureActionRef.current = null;
+      return undefined;
+    }
     captureActionRef.current = openCapture;
     return () => {
       if (captureActionRef.current === openCapture) {
         captureActionRef.current = null;
       }
     };
-  }, [captureActionRef, openCapture]);
+  }, [access, captureActionRef, openCapture]);
 
   const openMath = useCallback(() => {
     if (navigationLocked.current || galleryLocked.current) return;
@@ -273,8 +277,9 @@ export function HomeScreen(props?: HomeScreenProps) {
   if (!access) {
     return <ReadinessScreen
       busy={commercialStatus === 'resolving'}
-      title={commercialStatus === 'resolving' ? 'Actualizăm accesul' : 'Accesul nu este confirmat'}
-      message="Home se deschide după confirmarea contului și a limitei de azi. Caietul poate fi citit separat, inclusiv offline."
+      manageStatusBar={!embedded}
+      title={commercialStatus === 'resolving' ? 'Actualizăm accesul' : 'Nu putem verifica accesul'}
+      message="Ecranul principal se deschide după confirmarea contului și a limitei de azi. Caietul poate fi citit separat, inclusiv offline."
       onRetry={() => void refreshCommercialAccess()}
       onNotebook={openNotebook}
     />;

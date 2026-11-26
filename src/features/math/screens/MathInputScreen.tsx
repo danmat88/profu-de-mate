@@ -285,7 +285,7 @@ export function MathInputScreen({ navigation, route }: Props) {
     if (problemError || solutionError) {
       const targetField: Field = problemError ? 'problem' : 'solution';
       if (targetField !== field) setField(targetField);
-      setError(problemError ? `Problema: ${problemError}` : `Rezolvarea ta: ${solutionError}`);
+      setError(problemError ? (isCheck ? `Problema: ${problemError}` : problemError) : `Rezolvarea ta: ${solutionError}`);
       setErrorSignal((value) => value + 1);
       Haptics.notification(Haptics.NotificationFeedbackType.Warning);
       return;
@@ -350,7 +350,7 @@ export function MathInputScreen({ navigation, route }: Props) {
     : isCheck
       ? 'Verificăm fiecare pas și îți arătăm rezultatul.'
       : instantResult && instantResult.kind !== 'warning'
-        ? 'Rezultatul instant e sus gratis · apasă pentru pașii AI.'
+        ? 'Rezultatul instant e deja gata · apasă pentru pașii compleți.'
         : 'Primești explicația completă, pas cu pas.';
 
   return (
@@ -388,11 +388,13 @@ export function MathInputScreen({ navigation, route }: Props) {
 
           <View style={styles.headerCopy}>
             <View style={styles.headerMetaRow}>
-              <View accessibilityLabel={saveLabel} style={[styles.saveDot, saveState === 'error' && styles.saveDotError]} />
+              <View accessible accessibilityLabel={saveLabel} style={[styles.saveDot, saveState === 'error' && styles.saveDotError]} />
               <Text style={styles.eyebrow}>{isCheck ? 'MOD VERIFICARE' : 'MOD REZOLVARE'}</Text>
             </View>
             <Text numberOfLines={1} style={[styles.title, (isNarrow || compact) && styles.titleNarrow]}>
-              Scrie <Text style={styles.titleAccent}>problema</Text>
+              {isCheck && field === 'solution'
+                ? <>Rezolvarea <Text style={styles.titleAccent}>ta</Text></>
+                : <>Scrie <Text style={styles.titleAccent}>problema</Text></>}
             </Text>
           </View>
 
@@ -409,7 +411,7 @@ export function MathInputScreen({ navigation, route }: Props) {
           >
             <View style={[styles.modeSwitchDot, isCheck && styles.modeSwitchDotCheck]} />
             <Text numberOfLines={1} style={styles.modeSwitchText}>
-              {isCheck ? 'Verifică ⇄' : 'Rezolvă ⇄'}
+              {isCheck ? '⇄ Rezolvă' : '⇄ Verifică'}
             </Text>
           </Pressable>
         </View>

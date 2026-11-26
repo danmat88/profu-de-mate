@@ -311,7 +311,7 @@ export function SummaryScreen({ navigation, route }: Props) {
       lesson,
       lessonId: route.params.lessonId,
       isFavorite: saved,
-      source: 'notebook',
+      source: saved ? 'notebook' : 'flow',
     });
   };
 
@@ -585,7 +585,7 @@ export function SummaryScreen({ navigation, route }: Props) {
             >
               <AppIcon name="bookmark" size={22} />
               <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.85} style={styles.secondaryText}>
-                {saved ? 'Salvat în Caiet' : 'Salvează în Caiet'}
+                {saved ? 'Salvată în Caiet' : 'Salvează în Caiet'}
               </Text>
               <View style={[styles.saveBadge, saved && styles.saveBadgeActive]}>
                 <MiniGlyph name={saved ? 'check' : 'next'} size={13} color={saved ? colors.ink : colors.violetDeep} />
@@ -617,14 +617,14 @@ export function SummaryScreen({ navigation, route }: Props) {
             }}
             contentStyle={[styles.reportButton, isLargeText && styles.secondaryActionLargeText]}
           >
-            <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
+            <MiniGlyph name="flag" size={16} color={colors.inkSoft} />
           </PressableScale>
         </View>
 
         <ComicButton
           compact
           title={isCheck ? 'Verifică altă rezolvare' : 'Rezolvă altă problemă'}
-          icon={isCheck ? 'verify' : 'practice'}
+          icon={isCheck ? 'verify' : 'camera'}
           tone="violet"
           onPress={() => {
             beginAppTransition();

@@ -420,11 +420,12 @@ export async function readCommercialAccess(
 }
 
 function quotaError(access: CommercialAccess): HttpsError {
+  const limitLabel = access.limit >= 20 ? `${access.limit} de` : `${access.limit}`;
   return new HttpsError(
     'resource-exhausted',
     access.tier === 'premium'
-      ? 'Ai ajuns la limita de siguranță pentru astăzi. Problemele disponibile revin la miezul nopții.'
-      : `Ai folosit cele ${access.limit} probleme gratuite de astăzi. Revin la miezul nopții.`,
+      ? 'Ai ajuns la limita zilnică de astăzi. Acțiunile AI revin la miezul nopții.'
+      : `Ai folosit cele ${limitLabel} acțiuni AI gratuite de astăzi. Revin la miezul nopții.`,
     { commercialReason: access.reason, access },
   );
 }
@@ -493,7 +494,7 @@ export async function reserveAnalysisQuota(
     if (inCurrentBurstWindow && burstRequests >= BURST_LIMIT) {
       throw new HttpsError(
         'resource-exhausted',
-        'Ai trimis prea multe fotografii prea repede. Așteaptă un minut și încearcă din nou.',
+        'Ai trimis prea multe cereri prea repede. Așteaptă un minut și încearcă din nou.',
         { commercialReason: 'burst_limited' },
       );
     }

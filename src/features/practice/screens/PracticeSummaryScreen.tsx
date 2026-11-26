@@ -51,8 +51,15 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
 
   const percent = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
   const celebrate = percent >= 60;
-  const missedCount = totalCount - correctCount;
+  const savedMissedCount = answers.filter(
+    (item) => !item.correct && Boolean(getPracticeQuestionById(item.questionId)),
+  ).length;
   const streakDays = getActiveStreakDays(practiceState);
+  const repeatSessionLabel = mode === 'category'
+    ? 'Încă un test pe capitol'
+    : mode === 'formula'
+      ? 'Exersează din nou formula'
+      : 'Încă un test fulger';
 
   const headline = percent === 100
     ? 'Scor perfect!'
@@ -180,10 +187,10 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
         ]}
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
-          {missedCount > 0 ? (
+          {savedMissedCount > 0 ? (
             <View style={styles.mistakesNotePill}>
               <Text style={styles.mistakesNoteText}>
-                {missedCount} {missedCount === 1 ? 'întrebare a intrat' : 'întrebări au intrat'} în Caiet → De repetat
+                {savedMissedCount} {savedMissedCount === 1 ? 'întrebare a intrat' : 'întrebări au intrat'} în Caiet → De repetat
               </Text>
             </View>
           ) : null}
@@ -249,7 +256,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
           </View>
 
           <View style={styles.actionsStack}>
-            {missedCount > 0 && practiceState.wrongQuestionIds.length > 0 ? (
+            {savedMissedCount > 0 && practiceState.wrongQuestionIds.length > 0 ? (
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel="Repetă acum întrebările greșite"
@@ -265,7 +272,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="Începe încă un test fulger"
+              accessibilityLabel={repeatSessionLabel}
               pressedScale={0.97}
               haptic="medium"
               onPress={startAnotherSession}
@@ -281,7 +288,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
               <View style={styles.primaryCtaBadge}>
                 <AppIcon name="practice" size={22} />
               </View>
-              <Text style={styles.primaryBtnText}>Încă un test rapid</Text>
+              <Text style={styles.primaryBtnText}>{repeatSessionLabel}</Text>
               <View style={styles.primaryArrow}>
                 <MiniGlyph name="next" size={16} color={colors.paper} />
               </View>
@@ -298,7 +305,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
               style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
             >
               <Text style={styles.backLinkText}>
-                {mode === 'mistakes' ? 'Înapoi la De repetat' : mode === 'formula' ? 'Înapoi la formulă' : 'Înapoi'}
+                {mode === 'mistakes' ? 'Înapoi la Caiet' : mode === 'formula' ? 'Înapoi la formulă' : 'Înapoi'}
               </Text>
             </Pressable>
           </View>

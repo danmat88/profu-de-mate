@@ -77,7 +77,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
         ? 'Rezultat foarte bun!'
         : grade >= 5
           ? 'Ai trecut pragul — poți și mai sus!'
-          : 'Bună simulare — vezi baremul pe pași!'
+          : 'Simulare încheiată — vezi baremul pe pași!'
     : percent >= 80
       ? 'Subiect stăpânit excelent!'
       : percent >= 50
@@ -287,7 +287,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Înapoi la Examene"
+              accessibilityLabel="Înapoi"
               onPress={() => {
                 Haptics.selection();
                 beginAppTransition();
@@ -295,7 +295,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
               }}
               style={({ pressed }) => [styles.backLink, pressed && styles.pressed]}
             >
-              <Text style={styles.backLinkText}>Înapoi la Examene EN & BAC</Text>
+              <Text style={styles.backLinkText}>Înapoi</Text>
             </Pressable>
           </View>
         </View>
@@ -310,7 +310,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
         >
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHeaderCopy}>
-              <Text style={styles.sectionKicker}>{inspectItem.numberLabel} · BAREM OFICIAL ({inspectItem.maxPoints}p)</Text>
+              <Text style={styles.sectionKicker}>{inspectItem.numberLabel} · BAREM MODEL ({inspectItem.maxPoints}p)</Text>
               <Text numberOfLines={2} style={styles.sheetTitle}>{inspectItem.title}</Text>
             </View>
             <Pressable
@@ -373,7 +373,7 @@ export function ExamResultScreen({ navigation, route }: Props) {
             ) : null}
 
             <View style={styles.sheetAnswerCard}>
-              <Text style={styles.sheetAnswerEyebrow}>RĂSPUNS OFICIAL</Text>
+              <Text style={styles.sheetAnswerEyebrow}>RĂSPUNS MODEL</Text>
               <StudyInlineText
                 text={inspectItem.answerDisplay}
                 scale={1.04}

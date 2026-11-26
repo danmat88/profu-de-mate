@@ -297,7 +297,7 @@ function AppRoot() {
     return <ReadinessScreen
       busy={openingNotebook || retrying}
       title={resourceFailure ? 'Aplicația nu este încă pregătită' : 'Nu putem verifica accesul'}
-      message={resourceFailure ? 'Unele resurse nu s-au putut încărca. Verifică legătura și reîncearcă.' : 'Verifică conexiunea și reîncearcă. Vom deschide Home după confirmarea contului și a limitei de azi.'}
+      message={resourceFailure ? 'Unele resurse ale aplicației nu s-au putut încărca. Încearcă din nou.' : 'Verifică conexiunea și reîncearcă. Vom deschide ecranul principal după confirmarea contului și a limitei de azi.'}
       onRetry={retryStartup}
       onNotebook={currentStartupSession() ? () => void openNotebookOffline() : undefined}
     />;

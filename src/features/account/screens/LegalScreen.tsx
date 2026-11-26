@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { legalDocument } from '../../../shared/config/legal';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -154,9 +154,9 @@ export function LegalScreen({ navigation }: Props) {
               <Section number="01" title="Ce se întâmplă cu poza">
                 <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
                 <Bullet>Este trimisă securizat prin serviciul aplicației către OpenAI API (fără numele, e-mailul sau contul tău), pentru o singură analiză sau pentru corectarea pe barem a unei rezolvări de simulare.</Bullet>
-                <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
+                <Bullet>Nu este stocată în cloud și nu apare în Caiet.</Bullet>
                 <Bullet>Dacă scrii problema, trimitem formula și, la verificare, rezolvarea introdusă de tine către același serviciu. Ciorna rămâne pe telefon până alegi să pornești analiza.</Bullet>
-                <Bullet>Cererile sunt trimise fără stocare de conversație, iar datele trimise prin OpenAI API nu sunt folosite implicit pentru antrenarea modelelor; furnizorul poate păstra temporar loguri limitate doar pentru siguranță și prevenirea abuzului.</Bullet>
+                <Bullet>Cererile sunt trimise fără stocare de conversație, iar datele trimise prin OpenAI API nu sunt folosite implicit pentru antrenarea modelelor; furnizorul poate păstra temporar jurnale tehnice limitate doar pentru siguranță și prevenirea abuzului.</Bullet>
               </Section>
 
               <Section number="02" title="Tu controlezi Caietul și studiul">
@@ -206,26 +206,35 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="04" title="Cât timp le păstrăm">
-                <Bullet>Fotografia nu este stocată de aplicație în Cloud Storage sau Caiet.</Bullet>
+                <Bullet>Fotografia nu este stocată de aplicație în cloud sau în Caiet.</Bullet>
                 <Bullet>Ciornele editorului rămân pe telefon, separat pentru rezolvare și verificare. Expiră după 7 zile fără editare și sunt eliminate la următoarea deschidere a editorului; sunt șterse și la deconectare, schimbarea contului sau ștergerea datelor. Datele locale pentru reluarea unei analize expiră după 30 de minute și sunt curățate la următoarea verificare.</Bullet>
-                <Bullet>Progresul de studiu și rezultatele simulărilor sincronizate rămân cât timp contul există și sunt eliminate definitiv când alegi ștergerea datelor din Setări. Ciorna locală a unei simulări puse pe pauză expiră automat după 14 zile și se șterge la predare, deconectare sau ștergerea datelor.</Bullet>
+                <Bullet>Progresul de studiu și rezultatele simulărilor sincronizate rămân cât timp contul există și sunt eliminate definitiv când alegi ștergerea datelor din Setări. Progresul local al unei simulări puse pe pauză expiră automat după 14 zile și se șterge la predare, deconectare sau ștergerea datelor.</Bullet>
                 <Bullet>Lecția nesalvată și rezultatul tehnic temporar: expirare după 7 zile.</Bullet>
                 <Bullet>Contoarele zilnice și rezervările anti-abuz: expirare după 35 de zile.</Bullet>
-                <Bullet>După ștergerea datelor sau a contului, codurile HMAC opace ale contului și dispozitivului, hashurile unidirecționale de deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>
+                <Bullet>După ștergerea datelor sau a contului, contorul zilnic al acțiunilor AI folosite în ziua curentă rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată. Identificatorul tehnic anonimizat (HMAC) al instalării poate fi păstrat minimizat până la 400 de zile exclusiv pentru prevenirea abuzului la reinstalare, fără e-mail, nume sau identificatorul contului Google.</Bullet>
                 <Bullet>Nu folosim identificatorul de dispozitiv pentru publicitate și nu îl partajăm cu terți.</Bullet>
                 <Bullet>Evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există.</Bullet>
-                <Bullet>Metadatele standard din Cloud Logging: în mod normal 30 de zile.</Bullet>
+                <Bullet>Metadatele standard din jurnalele de infrastructură: în mod normal 30 de zile.</Bullet>
                 <Bullet>Lecțiile salvate: până le ștergi sau după aproximativ 13 luni fără folosirea Caietului.</Bullet>
                 <Paragraph>Termenele indică expirarea programată. Curățarea rulează zilnic: eliminarea fizică are loc de regulă în următoarele 24 de ore după expirare; incidentele tehnice pot întârzia execuția.</Paragraph>
-                <Bullet>Pentru a opri răspunsurile întârziate să refacă date șterse, păstrăm un marker tehnic cu UID-ul timp de 35 de zile după finalizarea ștergerii. O ștergere incompletă păstrează blocajul până la finalizare.</Bullet>
+                <Bullet>Pentru a opri răspunsurile întârziate să refacă date șterse, păstrăm un blocaj tehnic anonimizat timp de 35 de zile după finalizarea ștergerii. O ștergere incompletă păstrează blocajul până la finalizare.</Bullet>
                 <Bullet>Un transfer de lecții și progres început la conectarea cu Google păstrează identificatorii tehnici necesari reluării până la finalizare sau rezolvarea incidentului.</Bullet>
                 <Bullet>Rapoartele tale și răspunsul generat raportat: 180 de zile sau până ștergi toate datele din aplicație, dacă alegi ștergerea mai devreme.</Bullet>
               </Section>
 
               <Section number="05" title="Drepturile tale GDPR">
-                <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile, progresul de studiu, simulările și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Cererea pentru profilul tehnic RevenueCat necesită verificarea echipei de suport; identificatorii necesari urmăririi cererii rămân până la soluționare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime și logurile strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
-                <Paragraph>Conform GDPR, ai dreptul de acces, rectificare, ștergere, restricționare, portabilitate, opoziție și retragere a consimțământului, precum și dreptul de a depune o plângere la ANSPDCP (www.dataprotection.ro).</Paragraph>
-                {legalDocument.contactEmail ? <Paragraph>Pentru întrebări sau exercitarea drepturilor: {legalDocument.contactEmail}</Paragraph> : null}
+                <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile, progresul de studiu, simulările și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Pentru conturile Google, ștergerea înregistrează și cererea de eliminare a profilului tehnic RevenueCat, care necesită verificarea echipei de suport până la soluționare, dar nu oprește automat abonamentul din Google Play. Numai contoarele anti-abuz minimizate, totalurile anonime și jurnalele tehnice strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
+                <Paragraph>
+                  Conform GDPR, ai dreptul de acces, rectificare, ștergere, restricționare, portabilitate, opoziție și retragere a consimțământului, precum și dreptul de a depune o plângere la ANSPDCP (
+                  <Text accessibilityRole="link" onPress={() => void Linking.openURL('https://www.dataprotection.ro').catch(() => undefined)} style={styles.inlineLink}>www.dataprotection.ro</Text>
+                  ).
+                </Paragraph>
+                {legalDocument.contactEmail ? (
+                  <Paragraph>
+                    Pentru întrebări sau exercitarea drepturilor:{' '}
+                    <Text accessibilityRole="link" onPress={() => void Linking.openURL(`mailto:${legalDocument.contactEmail}`).catch(() => undefined)} style={styles.inlineLink}>{legalDocument.contactEmail}</Text>
+                  </Paragraph>
+                ) : null}
               </Section>
 
               <Section number="06" title="Vârsta, acordul parental și date sensibile">
@@ -255,7 +264,7 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="03" title="Disponibilitate și limite">
-                <Paragraph>Formulele, ghidurile și testele curatate merg și offline. Funcțiile AI (analiză foto/scrisă, exerciții AI și corectare foto pe barem) au nevoie de internet și pot avea limite zilnice, perioade de mentenanță sau întreruperi ale furnizorilor. Putem opri accesul automat când detectăm abuz sau risc de securitate.</Paragraph>
+                <Paragraph>Formulele, ghidurile și testele pregătite merg și offline. Funcțiile AI (analiză foto/scrisă, exerciții AI și corectare foto pe barem) au nevoie de internet și pot avea limite zilnice, perioade de mentenanță sau întreruperi ale furnizorilor. Putem opri accesul automat când detectăm abuz sau risc de securitate.</Paragraph>
               </Section>
 
               <Section number="04" title="Abonamentul și rambursările">
@@ -271,7 +280,15 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="06" title="Legea aplicabilă, suport și ANPC">
-                <Paragraph>Acești termeni sunt guvernați de legea română. Pentru suport tehnic scrie la {legalDocument.supportEmail}, iar pentru plăți la {legalDocument.billingEmail}. Consumatorii din România pot apela și la ANPC / Soluționarea Alternativă a Litigiilor (anpc.ro).</Paragraph>
+                <Paragraph>
+                  Acești termeni sunt guvernați de legea română. Pentru suport tehnic scrie la{' '}
+                  <Text accessibilityRole="link" onPress={() => void Linking.openURL(`mailto:${legalDocument.supportEmail}`).catch(() => undefined)} style={styles.inlineLink}>{legalDocument.supportEmail}</Text>
+                  , iar pentru plăți la{' '}
+                  <Text accessibilityRole="link" onPress={() => void Linking.openURL(`mailto:${legalDocument.billingEmail}`).catch(() => undefined)} style={styles.inlineLink}>{legalDocument.billingEmail}</Text>
+                  . Consumatorii din România pot apela și la ANPC / Soluționarea Alternativă a Litigiilor (
+                  <Text accessibilityRole="link" onPress={() => void Linking.openURL('https://anpc.ro').catch(() => undefined)} style={styles.inlineLink}>anpc.ro</Text>
+                  ).
+                </Paragraph>
               </Section>
 
               <View style={styles.safetyCard}>
@@ -493,6 +510,7 @@ const styles = StyleSheet.create({
   sectionTitle: { flex: 1, fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17.5, lineHeight: 21 },
   sectionBody: { gap: 7, marginTop: 10, paddingLeft: 2 },
   paragraph: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20 },
+  inlineLink: { fontFamily: fonts.bodyBold, color: colors.violetDeep, textDecorationLine: 'underline' },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
   bulletDot: { width: 7, height: 7, borderRadius: 999, backgroundColor: colors.peach, marginTop: 6.5 },
   bulletText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20 },

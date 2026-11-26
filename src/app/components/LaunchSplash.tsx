@@ -129,7 +129,7 @@ const SplashProgressHeader = memo(function SplashProgressHeader({
             ready && styles.stageDotReady,
           ]}
         />
-        <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.stageLabel}>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.84} style={styles.stageLabel}>
           {stageLabel}
         </Text>
       </View>
@@ -241,7 +241,7 @@ export function LaunchSplash({
     : startupReady
       ? 'Așez tabla de lucru…'
       : visualsReady
-        ? 'Verific contul și caietul…'
+        ? 'Verific contul și Caietul…'
         : 'Pregătesc culorile și formulele…';
 
   // Hide native splash once the warm canvas and owl artwork are painted, then play unhurried entrance.

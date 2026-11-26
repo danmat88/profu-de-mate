@@ -58,8 +58,8 @@ test('Pro and Max subscription screens never pitch free-included traits as paid 
   const legal = readFileSync(join(sourceRoot, 'features', 'account', 'screens', 'LegalScreen.tsx'), 'utf8');
   const processing = readFileSync(join(sourceRoot, 'features', 'analysis', 'screens', 'ProcessingScreen.tsx'), 'utf8');
 
+  assert.doesNotMatch(paywall, /reclam/i, 'Subscription screen must never mention ads since the entire app is ad-free');
   const benefitsBlock = paywall.slice(paywall.indexOf('const tierBenefits'), paywall.indexOf('return ('));
-  assert.doesNotMatch(benefitsBlock, /reclam/i, 'Ad-free is true for free users too and must not appear as a paid perk');
   assert.doesNotMatch(benefitsBlock, /Caiet sincronizat/i, 'Cloud-synced Caiet is free with Google and must not appear as a paid perk');
 
   for (const [label, source] of [

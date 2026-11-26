@@ -721,7 +721,7 @@ test('AI study actions lock all concurrent user interaction and soft-keyboard sc
   assert.match(practiceHubSource, /<StreakInfoSheet/);
   const trackSheetSource = await readFile(path.resolve('src/features/study/components/StudyTrackSheet.tsx'), 'utf8');
   assert.match(trackSheetSource, /EXAMENE NAȚIONALE/);
-  assert.match(trackSheetSource, /CLASE GENERALE/);
+  assert.match(trackSheetSource, /LICEU &amp; RECAPITULARE BAZE/);
 
   for (const rel of [
     'src/features/exams/services/examStorage.ts',

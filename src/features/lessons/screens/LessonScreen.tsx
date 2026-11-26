@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Image, Modal, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Animated, BackHandler, Easing, Image, Modal, Pressable, Share, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -620,6 +620,15 @@ export function LessonScreen({ navigation, route }: Props) {
     else navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   }, [isFromNotebook, lockPaging, navigation, step]);
 
+  useEffect(() => {
+    if (!screenFocused || alternate || problemOpen || roadmapOpen || feedbackOpen || removeConfirmOpen) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      back();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [alternate, back, feedbackOpen, problemOpen, removeConfirmOpen, roadmapOpen, screenFocused]);
+
   const swipePrev = useCallback(() => {
     if (step > 0) back();
   }, [back, step]);
@@ -934,7 +943,7 @@ export function LessonScreen({ navigation, route }: Props) {
                         </View>
                       ) : (
                         <Text style={styles.cardCueText}>
-                          {lesson.steps.length > 1 ? '← Glisează →' : 'Explicație'}
+                          {lesson.steps.length > 1 ? (step === 0 ? 'Glisează →' : '← Glisează →') : 'Explicație'}
                         </Text>
                       )}
                     </View>
@@ -1005,7 +1014,7 @@ export function LessonScreen({ navigation, route }: Props) {
             onPress={openFeedback}
             contentStyle={styles.reportAction}
           >
-            <MiniGlyph name="wrong" size={16} color={colors.inkSoft} />
+            <MiniGlyph name="flag" size={16} color={colors.inkSoft} />
           </PressableScale>
         </View>
 

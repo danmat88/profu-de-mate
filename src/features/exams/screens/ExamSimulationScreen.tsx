@@ -82,8 +82,8 @@ const SUBJECT_BADGE_TEXT: Record<ExamSubjectKey, string> = {
 };
 
 const GRADING_AI_STAGES: readonly string[] = [
-  'Citirea rezolvării scrise de mână din fotografie...',
-  'Verificăm fiecare etapă din baremul oficial...',
+  'Citim rezolvarea scrisă de mână din fotografie...',
+  'Verificăm fiecare etapă din baremul model...',
   'Calculăm punctajul final și recomandările...',
 ];
 
@@ -107,7 +107,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const reducedMotion = useReducedMotion();
   const { keyboardInset, keyboardVisible } = useKeyboardHeight();
   const { runAfterKeyboardDismiss } = useAfterKeyboardDismiss(keyboardVisible);
-  const { access, refresh: refreshAccess } = useCommercial();
+  const { access, refresh: refreshAccess, applyServerAccess } = useCommercial();
   const { variantId, scope, fresh } = route.params;
 
   const variant = useMemo(
@@ -173,6 +173,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
 
   const mountedRef = useRef(true);
   const gradingLockRef = useRef(false);
+  const confirmModeRef = useRef<'submit' | 'exit' | null>(null);
   const leavingAllowedRef = useRef(false);
   const submittedOrDiscardedRef = useRef(false);
   const pauseCountRef = useRef<number>(initialDraft?.pauseCount ?? 0);
@@ -272,6 +273,23 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
     textAnswers,
   ]);
 
+  useEffect(() => {
+    confirmModeRef.current = confirmMode;
+  }, [confirmMode]);
+
+  const resumeTimerIfUnlocked = useCallback(() => {
+    if (
+      pausedAtRef.current !== null
+      && startedAtRef.current !== null
+      && !latestDraftRef.current.examPaused
+      && !latestDraftRef.current.gradingBusy
+      && confirmModeRef.current === null
+    ) {
+      startedAtRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+  }, []);
+
   // Automatically freeze timer and persist draft if the app moves to background
   // (e.g. phone locked, incoming call, switching apps), except while launching camera/gallery.
   useEffect(() => {
@@ -289,10 +307,12 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
           setExamPaused(true);
         }
         persistDraftNow(true);
+      } else {
+        resumeTimerIfUnlocked();
       }
     });
     return () => sub.remove();
-  }, [persistDraftNow]);
+  }, [persistDraftNow, resumeTimerIfUnlocked]);
 
   // Reset scroll synchronously right as the newly keyed exam item mounts.
   useLayoutEffect(() => {
@@ -377,7 +397,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
   const isItemAnswered = useCallback((itemId: string, kind: ExamItemKind): boolean => {
     if (kind === 'choice') return choiceAnswers[itemId] !== undefined;
     if (kind === 'short_answer') return Boolean(textAnswers[itemId]?.trim());
-    return rubricScores[itemId] !== undefined || aiGradingResults[itemId] !== undefined;
+    return rubricScores[itemId] !== undefined || aiGradingResults[itemId]?.status === 'graded';
   }, [aiGradingResults, choiceAnswers, rubricScores, textAnswers]);
 
   const unansweredItems = useMemo(
@@ -536,6 +556,12 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       .reduce((sum, c) => sum + c.points, 0);
     setCheckedRubricSteps((map) => ({ ...map, [currentItem.id]: nextIds }));
     setRubricScores((map) => ({ ...map, [currentItem.id]: nextPoints }));
+    setAiGradingResults((map) => {
+      if (!(currentItem.id in map)) return map;
+      const next = { ...map };
+      delete next[currentItem.id];
+      return next;
+    });
   };
 
   const launchPhotoGrading = async (source: 'camera' | 'gallery') => {
@@ -556,6 +582,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
           gradingLockRef.current = false;
+          resumeTimerIfUnlocked();
           if (mountedRef.current) {
             setGradingError('Permisiunea pentru cameră este necesară ca să fotografiezi rezolvarea.');
           }
@@ -576,6 +603,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       if (!mountedRef.current) return;
       if (picked.canceled || !picked.assets?.[0]?.uri) {
         gradingLockRef.current = false;
+        resumeTimerIfUnlocked();
         return;
       }
 
@@ -604,8 +632,15 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       setGradingBusy(false);
       const gate = commercialGateFromError(error);
       if (gate) {
+        if (gate.access) applyServerAccess(gate.access);
+        if (gate.reason === 'burst_limited') {
+          setGradingError(gate.message);
+          Haptics.notification(Haptics.NotificationFeedbackType.Warning);
+          return;
+        }
+        const gateAccess = gate.access ?? access;
         beginAppTransition();
-        navigation.navigate('Paywall', { source: 'quota', ...(access ? { access } : {}) });
+        navigation.navigate('Paywall', { source: 'quota', ...(gateAccess ? { access: gateAccess } : {}) });
         return;
       }
       setGradingError(friendlyExamGradingError(error));
@@ -642,10 +677,10 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       } else {
         pts = rubricScores[item.id] ?? 0;
         answerStatus = 'rubric';
-        userAnswerLabel = aiGradingResults[item.id]
-          ? `Corectat AI: ${pts}/${item.maxPoints}p`
+        userAnswerLabel = aiGradingResults[item.id]?.status === 'graded'
+          ? 'Corectat cu Profu’ AI'
           : rubricScores[item.id] !== undefined
-            ? `Autoevaluare pe barem: ${pts}/${item.maxPoints}p`
+            ? 'Autoevaluare pe barem'
             : 'Nepunctat pe barem';
       }
       itemAwarded[item.id] = pts;
@@ -1103,7 +1138,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               </View>
 
               <Text style={styles.rubricNote}>
-                Rezolvă problema pe hârtie ca la examen, apoi fotografiază pagina pentru corectare pe barem cu Profu’ AI sau notează-te offline după baremul oficial.
+                Rezolvă problema pe hârtie ca la examen, apoi fotografiază pagina pentru corectare pe barem cu Profu’ AI sau notează-te offline după baremul model.
               </Text>
 
               <View style={styles.photoActionsRow}>
@@ -1172,15 +1207,17 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                       </View>
                     </View>
                   ))}
-                  <View style={styles.aiTipPill}>
-                    <Text style={styles.aiTipText}>💡 {currentAiResult.improvementTip}</Text>
-                  </View>
+                  {currentAiResult.improvementTip?.trim() ? (
+                    <View style={styles.aiTipPill}>
+                      <Text style={styles.aiTipText}>💡 {currentAiResult.improvementTip.trim()}</Text>
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Deschide baremul oficial și notează-te offline"
+                accessibilityLabel="Deschide baremul model și notează-te offline"
                 disabled={gradingBusy}
                 onPress={() => {
                   Keyboard.dismiss();
@@ -1192,7 +1229,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               >
                 <AppIcon name="explain" size={20} />
                 <Text numberOfLines={2} style={styles.manualRubricText}>
-                  Vezi baremul oficial & notează-te offline
+                  Vezi baremul model & notează-te offline
                 </Text>
                 <MiniGlyph name="next" size={14} color={colors.violetDeep} />
               </Pressable>
@@ -1367,7 +1404,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
         >
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHeaderCopy}>
-              <Text style={styles.cardKicker}>{currentItem.numberLabel} · BAREM OFICIAL</Text>
+              <Text style={styles.cardKicker}>{currentItem.numberLabel} · BAREM MODEL</Text>
               <Text numberOfLines={2} style={styles.sheetTitle}>{currentItem.title}</Text>
             </View>
             <Pressable
@@ -1386,7 +1423,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             contentContainerStyle={styles.sheetScrollBody}
           >
             <View style={styles.sheetAnswerCard}>
-              <Text style={styles.sheetAnswerEyebrow}>RĂSPUNS OFICIAL · {currentItem.maxPoints} PUNCTE</Text>
+              <Text style={styles.sheetAnswerEyebrow}>RĂSPUNS MODEL · {currentItem.maxPoints} PUNCTE</Text>
               <StudyInlineText
                 text={currentItem.answerDisplay}
                 scale={readingScale * 1.02}
@@ -1445,7 +1482,10 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             accessibilityLabel={`Salvează punctajul de ${currentRubricScore ?? 0} din ${currentItem.maxPoints} puncte`}
             pressedScale={0.97}
             haptic="selection"
-            onPress={() => setRubricSheetOpen(false)}
+            onPress={() => {
+              setRubricScores((map) => (currentItem.id in map ? map : { ...map, [currentItem.id]: 0 }));
+              setRubricSheetOpen(false);
+            }}
             contentStyle={styles.rubricSaveBtn}
           >
             <Text numberOfLines={2} style={styles.rubricSaveBtnText}>
@@ -1459,120 +1499,128 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       <ComicBottomSheet
         visible={confirmMode !== null}
         onClose={() => setConfirmMode(null)}
-        maxHeight="62%"
+        maxHeight="76%"
       >
-        <Text style={styles.confirmTitle}>
-          {confirmMode === 'submit'
-            ? secondsLeft === 0
-              ? 'Timpul alocat a expirat!'
-              : 'Predai lucrarea acum?'
-            : 'Salvezi simularea pentru mai târziu?'}
-        </Text>
-        <Text style={styles.confirmText}>
-          {confirmMode === 'submit'
-            ? secondsLeft === 0
-              ? `Ai completat ${answeredCount} din ${items.length} itemi. Poți preda lucrarea acum pentru nota oficială sau poți finaliza punctarea pe barem.`
-              : `Ai completat ${answeredCount} din ${items.length} itemi. Calculăm punctajul și afișăm baremul complet.`
-            : `Ai completat ${answeredCount} din ${items.length} itemi (${formatCountdown(secondsLeft)} rămas). Poți salva acum și relua oricând exact de unde ai rămas.`}
-        </Text>
+        <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+          <Text style={styles.confirmTitle}>
+            {confirmMode === 'submit'
+              ? secondsLeft === 0
+                ? 'Timpul alocat a expirat!'
+                : 'Predai lucrarea acum?'
+              : 'Salvezi simularea pentru mai târziu?'}
+          </Text>
+          <Text style={styles.confirmText}>
+            {confirmMode === 'submit'
+              ? secondsLeft === 0
+                ? `Ai completat ${answeredCount} din ${items.length} itemi. Poți preda lucrarea acum pentru ${scope === 'full' ? 'nota estimată' : 'punctajul estimat'} sau poți finaliza punctarea pe barem.`
+                : `Ai completat ${answeredCount} din ${items.length} itemi. Calculăm punctajul și afișăm baremul complet.`
+              : `Ai completat ${answeredCount} din ${items.length} itemi (${formatCountdown(secondsLeft)} timp rămas). Poți salva acum și relua oricând exact de unde ai rămas.`}
+          </Text>
 
-        {confirmMode === 'submit' && flaggedItems.length > 0 ? (
-          <View style={styles.flaggedNotice}>
-            <Text style={styles.flaggedNoticeText}>
-              ★ Marcați de revizuit ({flaggedItems.length}): {flaggedPreview}
-              {flaggedItems.length > 4 ? ` +${flaggedItems.length - 4}` : ''}
-            </Text>
-          </View>
-        ) : null}
+          {confirmMode === 'submit' && flaggedItems.length > 0 ? (
+            <View style={styles.flaggedNotice}>
+              <Text style={styles.flaggedNoticeText}>
+                ★ Marcați de revizuit ({flaggedItems.length}): {flaggedPreview}
+                {flaggedItems.length > 4 ? ` +${flaggedItems.length - 4}` : ''}
+              </Text>
+            </View>
+          ) : null}
 
-        {confirmMode === 'submit' && unansweredItems.length > 0 ? (
-          <View style={styles.unansweredNotice}>
-            <Text style={styles.unansweredNoticeText}>
-              Necompletați ({unansweredItems.length}): {unansweredPreview}
-              {unansweredItems.length > 4 ? ` +${unansweredItems.length - 4}` : ''}
-            </Text>
-          </View>
-        ) : null}
+          {confirmMode === 'submit' && unansweredItems.length > 0 ? (
+            <View style={styles.unansweredNotice}>
+              <Text style={styles.unansweredNoticeText}>
+                Necompletați ({unansweredItems.length}): {unansweredPreview}
+                {unansweredItems.length > 4 ? ` +${unansweredItems.length - 4}` : ''}
+              </Text>
+            </View>
+          ) : null}
 
-        <View style={styles.confirmActions}>
-          {confirmMode === 'submit' && flaggedItems.length > 0 && secondsLeft > 0 ? (
+          <View style={styles.confirmActions}>
+            {confirmMode === 'submit' && flaggedItems.length > 0 && secondsLeft > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Mergi la primul item marcat de revizuit: ${flaggedItems[0].item.numberLabel}`}
+                onPress={() => {
+                  const targetIdx = flaggedItems[0].idx;
+                  setConfirmMode(null);
+                  setExamPaused(false);
+                  jumpToIndex(targetIdx);
+                }}
+                style={({ pressed }) => [styles.jumpFlaggedBtn, pressed && styles.pressed]}
+              >
+                <Text numberOfLines={2} style={styles.jumpFlaggedText}>
+                  ★ Mergi la {flaggedItems[0].item.numberLabel} (de revizuit)
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {confirmMode === 'submit' && unansweredItems.length > 0 && secondsLeft > 0 ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Mergi la primul item necompletat: ${unansweredItems[0].item.numberLabel}`}
+                onPress={() => {
+                  const targetIdx = unansweredItems[0].idx;
+                  setConfirmMode(null);
+                  setExamPaused(false);
+                  jumpToIndex(targetIdx);
+                }}
+                style={({ pressed }) => [styles.jumpUnansweredBtn, pressed && styles.pressed]}
+              >
+                <Text numberOfLines={2} style={styles.jumpUnansweredText}>
+                  Mergi la {unansweredItems[0].item.numberLabel} (necompletat)
+                </Text>
+              </Pressable>
+            ) : null}
+
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={confirmMode === 'submit' ? 'Confirmă predarea lucrării' : 'Salvează simularea și continuă mai târziu'}
+              pressedScale={0.97}
+              haptic="medium"
+              onPress={() => {
+                if (confirmMode === 'submit') {
+                  finishExam();
+                } else {
+                  saveAndExitSimulation();
+                }
+              }}
+              contentStyle={styles.confirmPrimaryBtn}
+            >
+              <Text numberOfLines={2} style={styles.confirmPrimaryText}>
+                {confirmMode === 'submit'
+                  ? scope === 'full'
+                    ? 'Da, predă și calculează nota'
+                    : 'Da, predă și calculează punctajul'
+                  : 'Salvează și continuă mai târziu'}
+              </Text>
+            </PressableScale>
+            {confirmMode === 'exit' ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Renunță la simulare și șterge progresul"
+                onPress={discardAndExitSimulation}
+                style={({ pressed }) => [styles.confirmDiscardBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.confirmDiscardText}>Renunță și șterge progresul</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Mergi la primul item marcat de revizuit: ${flaggedItems[0].item.numberLabel}`}
-              onPress={() => {
-                const targetIdx = flaggedItems[0].idx;
-                setConfirmMode(null);
-                setExamPaused(false);
-                jumpToIndex(targetIdx);
-              }}
-              style={({ pressed }) => [styles.jumpFlaggedBtn, pressed && styles.pressed]}
+              accessibilityLabel={confirmMode === 'submit' && secondsLeft === 0 ? 'Verifică baremul înainte de predare' : 'Rămâi în simulare'}
+              onPress={() => setConfirmMode(null)}
+              style={({ pressed }) => [styles.confirmSecondaryBtn, pressed && styles.pressed]}
             >
-              <Text numberOfLines={2} style={styles.jumpFlaggedText}>
-                ★ Mergi la {flaggedItems[0].item.numberLabel} (de revizuit)
+              <Text style={styles.confirmSecondaryText}>
+                {confirmMode === 'submit' && secondsLeft === 0 ? 'Verifică baremul înainte de predare' : 'Rămâi la simulare'}
               </Text>
             </Pressable>
-          ) : null}
-
-          {confirmMode === 'submit' && unansweredItems.length > 0 && secondsLeft > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Mergi la primul item necompletat: ${unansweredItems[0].item.numberLabel}`}
-              onPress={() => {
-                const targetIdx = unansweredItems[0].idx;
-                setConfirmMode(null);
-                setExamPaused(false);
-                jumpToIndex(targetIdx);
-              }}
-              style={({ pressed }) => [styles.jumpUnansweredBtn, pressed && styles.pressed]}
-            >
-              <Text numberOfLines={2} style={styles.jumpUnansweredText}>
-                Mergi la {unansweredItems[0].item.numberLabel} (necompletat)
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={confirmMode === 'submit' ? 'Confirmă predarea lucrării' : 'Salvează simularea și continuă mai târziu'}
-            pressedScale={0.97}
-            haptic="medium"
-            onPress={() => {
-              if (confirmMode === 'submit') {
-                finishExam();
-              } else {
-                saveAndExitSimulation();
-              }
-            }}
-            contentStyle={styles.confirmPrimaryBtn}
-          >
-            <Text numberOfLines={2} style={styles.confirmPrimaryText}>
-              {confirmMode === 'submit' ? 'Da, predă și calculează nota' : 'Salvează și continuă mai târziu'}
-            </Text>
-          </PressableScale>
-          {confirmMode === 'exit' ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Renunță la simulare și șterge progresul"
-              onPress={discardAndExitSimulation}
-              style={({ pressed }) => [styles.confirmDiscardBtn, pressed && styles.pressed]}
-            >
-              <Text style={styles.confirmDiscardText}>Renunță și șterge progresul</Text>
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Rămâi în simulare"
-            onPress={() => setConfirmMode(null)}
-            style={({ pressed }) => [styles.confirmSecondaryBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.confirmSecondaryText}>Rămâi la simulare</Text>
-          </Pressable>
-        </View>
+          </View>
+        </ScrollView>
       </ComicBottomSheet>
 
       <AiBlockingOverlay
         visible={gradingBusy}
-        eyebrow={`BAREM OFICIAL · ${gradingTargetLabel || currentItem.numberLabel}`}
+        eyebrow={`BAREM MODEL · ${gradingTargetLabel || currentItem.numberLabel}`}
         title="Profu’ AI corectează rezolvarea"
         stages={GRADING_AI_STAGES}
         subtitle="Cronometrul simulării este pus pe pauză până terminăm corectarea."

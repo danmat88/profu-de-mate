@@ -111,84 +111,85 @@ export const AgeConsentSheet = memo(function AgeConsentSheet({
       </Text>
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator
         contentContainerStyle={styles.scrollContent}
       >
-        <View style={styles.optionsList}>
+        <View accessibilityRole="radiogroup" accessibilityLabel="Confirmare de vârstă" style={styles.optionsList}>
           {AGE_OPTIONS.map((option) => {
             const active = selectedGroup === option.id;
             return (
-              <Pressable
-                key={option.id}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: active }}
-                onPress={() => handleSelectOption(option.id)}
-                style={({ pressed }) => [
-                  styles.optionCard,
-                  active && styles.optionCardActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={[styles.optionRail, { backgroundColor: active ? colors.lime : option.accentDot }]} />
-                <View style={styles.optionBody}>
-                  <View style={styles.optionTop}>
-                    <View
-                      style={[
-                        styles.badge,
-                        { backgroundColor: active ? 'rgba(255, 255, 255, 0.16)' : option.accentTint },
-                      ]}
-                    >
-                      <Text
+              <View key={option.id} style={styles.optionBlock}>
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  onPress={() => handleSelectOption(option.id)}
+                  style={({ pressed }) => [
+                    styles.optionCard,
+                    active && styles.optionCardActive,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={[styles.optionRail, { backgroundColor: active ? colors.lime : option.accentDot }]} />
+                  <View style={styles.optionBody}>
+                    <View style={styles.optionTop}>
+                      <View
                         style={[
-                          styles.badgeText,
-                          { color: active ? colors.lime : option.accentDot },
+                          styles.badge,
+                          { backgroundColor: active ? 'rgba(255, 255, 255, 0.16)' : option.accentTint },
                         ]}
                       >
-                        {option.badge}
-                      </Text>
-                    </View>
-                    {active ? (
-                      <View style={styles.activeCheck}>
-                        <MiniGlyph name="check" size={13} color={colors.ink} />
+                        <Text
+                          style={[
+                            styles.badgeText,
+                            { color: active ? colors.lime : option.accentDot },
+                          ]}
+                        >
+                          {option.badge}
+                        </Text>
                       </View>
-                    ) : (
-                      <View style={styles.inactiveDot} />
-                    )}
+                      {active ? (
+                        <View style={styles.activeCheck}>
+                          <MiniGlyph name="check" size={13} color={colors.ink} />
+                        </View>
+                      ) : (
+                        <View style={styles.inactiveDot} />
+                      )}
+                    </View>
+                    <Text style={[styles.optionTitle, active && styles.optionTitleActive]}>
+                      {option.title}
+                    </Text>
+                    <Text style={[styles.optionDesc, active && styles.optionDescActive]}>
+                      {option.description}
+                    </Text>
                   </View>
-                  <Text style={[styles.optionTitle, active && styles.optionTitleActive]}>
-                    {option.title}
-                  </Text>
-                  <Text style={[styles.optionDesc, active && styles.optionDescActive]}>
-                    {option.description}
-                  </Text>
-                </View>
-              </Pressable>
+                </Pressable>
+
+                {option.id === '13_15_parental' && active ? (
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: parentalConfirmed }}
+                    onPress={() => {
+                      Haptics.selection();
+                      setParentalConfirmed((current) => !current);
+                    }}
+                    style={({ pressed }) => [
+                      styles.parentalBox,
+                      parentalConfirmed && styles.parentalBoxChecked,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={[styles.checkbox, parentalConfirmed && styles.checkboxChecked]}>
+                      {parentalConfirmed ? <MiniGlyph name="check" size={14} color={colors.ink} /> : null}
+                    </View>
+                    <Text style={styles.parentalText}>
+                      Confirm că am acordul părintelui sau tutorelui legal pentru a folosi Profu’ de mate, inclusiv analiza AI a problemelor de matematică.
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
             );
           })}
         </View>
-
-        {selectedGroup === '13_15_parental' ? (
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: parentalConfirmed }}
-            onPress={() => {
-              Haptics.selection();
-              setParentalConfirmed((current) => !current);
-            }}
-            style={({ pressed }) => [
-              styles.parentalBox,
-              parentalConfirmed && styles.parentalBoxChecked,
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={[styles.checkbox, parentalConfirmed && styles.checkboxChecked]}>
-              {parentalConfirmed ? <MiniGlyph name="check" size={14} color={colors.ink} /> : null}
-            </View>
-            <Text style={styles.parentalText}>
-              Confirm că am acordul părintelui sau tutorelui legal pentru a folosi Profu’ de mate, inclusiv analiza AI a problemelor de matematică.
-            </Text>
-          </Pressable>
-        ) : null}
 
         <View style={styles.safetyCard}>
           <Text style={styles.safetyTitle}>Folosire în siguranță</Text>
@@ -276,6 +277,9 @@ const styles = StyleSheet.create({
   },
   optionsList: {
     gap: 9,
+  },
+  optionBlock: {
+    gap: 8,
   },
   optionCard: {
     borderRadius: 22,

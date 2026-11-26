@@ -14,7 +14,7 @@ type Props = {
   title: string;
   subtitle?: string;
   icon?: AppIconName;
-  trailingIcon?: 'next' | 'check' | 'close' | false;
+  trailingIcon?: 'next' | 'check' | 'close' | 'retry' | false;
   tone?: Tone;
   compact?: boolean;
   disabled?: boolean;

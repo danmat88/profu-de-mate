@@ -2,7 +2,7 @@ import { StyleSheet, View, ViewStyle } from 'react-native';
 import { Text } from './Typography';
 import { colors, fonts } from '../theme';
 
-type Glyph = 'back' | 'next' | 'close' | 'check' | 'wrong' | 'spark' | 'dot';
+type Glyph = 'back' | 'next' | 'close' | 'check' | 'wrong' | 'spark' | 'dot' | 'flag' | 'retry';
 
 const glyphs: Record<Glyph, string> = {
   back: '←',
@@ -12,6 +12,8 @@ const glyphs: Record<Glyph, string> = {
   wrong: '×',
   spark: '✦',
   dot: '•',
+  flag: '⚑',
+  retry: '↻',
 };
 
 export function MiniGlyph({ name, size = 24, color = colors.ink, style }: { name: Glyph; size?: number; color?: string; style?: ViewStyle }) {

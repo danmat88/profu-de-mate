@@ -32,7 +32,9 @@ function friendlyPurchaseError(error: unknown): string {
     ? (error as { message: string }).message
     : '';
   if (message.includes('configurat')
-    || message.includes('disponibilă')
+    || message.includes('disponibil')
+    || message.includes('întârzie')
+    || message.includes('finalizează deja')
     || message.includes('a înregistrat plata')
     || message.includes('Plata a fost înregistrată')) return message;
   return 'Nu am putut finaliza acțiunea. Verifică internetul și încearcă din nou.';

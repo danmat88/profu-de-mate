@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
@@ -21,8 +21,10 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { useCommercial } from '../../access/context/CommercialContext';
 import { commercialGateFromError } from '../../access/services/commercial';
+import { FORMULAS_CATALOG } from '../../study/data/formulasCatalog';
 import {
   FORMULA_CATEGORIES,
   getFormulaCategoryMeta,
@@ -69,13 +71,27 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 }: Props) {
   const navigation = useNavigation<Navigation>();
   const reducedMotion = useReducedMotion();
-  const { access, refresh: refreshAccess } = useCommercial();
+  const { access, refresh: refreshAccess, applyServerAccess } = useCommercial();
   const trackMeta = getStudyTrackMeta(track);
+  const availableCategories = useMemo(() => {
+    if (!hasChosenTrack) return FORMULA_CATEGORIES;
+    const present = new Set(
+      FORMULAS_CATALOG.filter((item) => item.tracks.includes(track)).map((item) => item.category),
+    );
+    const filtered = FORMULA_CATEGORIES.filter((cat) => present.has(cat.id));
+    return filtered.length > 0 ? filtered : FORMULA_CATEGORIES;
+  }, [hasChosenTrack, track]);
   const [category, setCategory] = useState<StudyFormulaCategoryParam>(initialCategory ?? 'algebra');
   const [difficulty, setDifficulty] = useState<PracticeDifficultyParam>('medium');
   const [busy, setBusy] = useState(false);
   const [stageIndex, setStageIndex] = useState(0);
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!formulaTitle && !availableCategories.some((cat) => cat.id === category)) {
+      setCategory(availableCategories[0].id);
+    }
+  }, [availableCategories, category, formulaTitle]);
 
   const effectiveTrack: StudyTrackId = hasChosenTrack
     ? track
@@ -149,9 +165,16 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
       setBusy(false);
       const gate = commercialGateFromError(error);
       if (gate) {
+        if (gate.access) applyServerAccess(gate.access);
+        if (gate.reason === 'burst_limited') {
+          setErrorText(gate.message);
+          Haptics.notification(Haptics.NotificationFeedbackType.Warning);
+          return;
+        }
+        const gateAccess = gate.access ?? access;
         onClose();
         beginAppTransition();
-        navigation.navigate('Paywall', { source: 'quota', ...(access ? { access } : {}) });
+        navigation.navigate('Paywall', { source: 'quota', ...(gateAccess ? { access: gateAccess } : {}) });
         return;
       }
       setErrorText(friendlyAiPracticeError(error));
@@ -161,6 +184,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 
   const categoryMeta = getFormulaCategoryMeta(category);
   const diffMeta = DIFFICULTIES.find((item) => item.id === difficulty) ?? DIFFICULTIES[1];
+  const quotaExhausted = Boolean(access && !access.canAnalyze);
 
   return (
     <ComicBottomSheet
@@ -237,8 +261,8 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 
           <Text style={styles.subtitle}>
             {formulaTitle
-              ? `Profu’ AI compune un exercițiu original care aplică direct „${formulaTitle}”, cu 4 variante, indiciu și rezolvare pas cu pas.`
-              : 'Profu’ AI compune pe loc un exercițiu original cu 4 variante, indiciu și rezolvare pas cu pas. Folosește 1 problemă din cota zilnică.'}
+              ? `Profu’ AI compune un exercițiu original care aplică direct „${formulaTitle}”, cu 4 variante, indiciu și rezolvare pas cu pas. Folosește 1 acțiune AI din limita zilnică.`
+              : 'Profu’ AI compune pe loc un exercițiu original cu 4 variante, indiciu și rezolvare pas cu pas. Folosește 1 acțiune AI din limita zilnică.'}
           </Text>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
@@ -246,7 +270,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
               <>
                 <Text style={styles.sectionLabel}>1. Alege capitolul</Text>
                 <View style={styles.chipsWrap}>
-                  {FORMULA_CATEGORIES.map((item) => {
+                  {availableCategories.map((item) => {
                     const active = item.id === category;
                     return (
                       <Pressable
@@ -324,7 +348,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel="Generează exercițiul cu Profu AI"
+              accessibilityLabel={quotaExhausted ? 'Vezi planurile Profu Pro și Max' : 'Generează exercițiul cu Profu AI'}
               pressedScale={0.97}
               haptic="medium"
               onPress={() => void handleGenerate()}
@@ -339,7 +363,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
               <View pointerEvents="none" style={styles.ctaTopGloss} />
               <MiniGlyph name="spark" size={16} color={colors.ink} />
               <Text numberOfLines={2} style={styles.generateBtnText}>
-                Generează exercițiul acum
+                {quotaExhausted ? 'Vezi Profu’ Pro & Max' : 'Generează exercițiul acum'}
               </Text>
               <View style={styles.generateArrow}>
                 <MiniGlyph name="next" size={15} color={colors.paper} />
@@ -348,7 +372,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
 
             {access ? (
               <Text style={styles.quotaNote}>
-                Disponibil azi: {access.remaining} din {access.limit} {access.limit === 1 ? 'problemă AI' : 'probleme AI'}
+                Rămase azi: {access.remaining} din {formatRoCount(access.limit, 'acțiune AI', 'acțiuni AI')}
               </Text>
             ) : null}
           </ScrollView>

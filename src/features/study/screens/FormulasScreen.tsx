@@ -31,6 +31,7 @@ import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text, TextInput } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { FormulaCard } from '../components/FormulaCard';
 import { StudyTrackSheet } from '../components/StudyTrackSheet';
 import { FORMULAS_CATALOG } from '../data/formulasCatalog';
@@ -102,6 +103,29 @@ export function FormulasScreen({ navigation, route }: Props) {
   }, []));
 
   const favoriteSet = useMemo(() => new Set(profile.favoriteFormulaIds), [profile.favoriteFormulaIds]);
+
+  const trackScopedFormulas = useMemo(
+    () => (trackOnly && profile.hasChosenTrack
+      ? FORMULAS_CATALOG.filter((item) => item.tracks.includes(profile.track))
+      : FORMULAS_CATALOG),
+    [profile.hasChosenTrack, profile.track, trackOnly],
+  );
+
+  const availableCategories = useMemo(() => {
+    const present = new Set(trackScopedFormulas.map((item) => item.category));
+    return FORMULA_CATEGORIES.filter((cat) => present.has(cat.id));
+  }, [trackScopedFormulas]);
+
+  const scopedFavoriteCount = useMemo(
+    () => trackScopedFormulas.filter((item) => favoriteSet.has(item.id)).length,
+    [favoriteSet, trackScopedFormulas],
+  );
+
+  useEffect(() => {
+    if (selectedCategory !== 'all' && !availableCategories.some((cat) => cat.id === selectedCategory)) {
+      setSelectedCategory('all');
+    }
+  }, [availableCategories, selectedCategory]);
 
   const filteredFormulas = useMemo(
     () => filterFormulas(FORMULAS_CATALOG, {
@@ -216,9 +240,10 @@ export function FormulasScreen({ navigation, route }: Props) {
   const keyExtractor = useCallback((item: FormulaEntry) => item.id, []);
   const mountSearchInput = transitionSettled || searchActivated;
   const searchPlaceholder = isNarrow ? 'Caută o formulă' : 'Caută formule: Pitagora, delta, logaritmi...';
+  const sheetCountLabel = formatRoCount(filteredFormulas.length, 'fișă', 'fișe').toUpperCase();
   const eyebrowText = trackOnly && profile.hasChosenTrack
-    ? `${trackMeta.shortLabel.toUpperCase()} · ${filteredFormulas.length} FIȘE`
-    : `TOATĂ PROGRAMA · ${filteredFormulas.length} FIȘE`;
+    ? `${trackMeta.shortLabel.toUpperCase()} · ${sheetCountLabel}`
+    : `TOATĂ PROGRAMA · ${sheetCountLabel}`;
   const listBottomPadding = keyboardVisible ? 18 : Math.max(insets.bottom, 16) + 22;
 
   return (
@@ -400,7 +425,7 @@ export function FormulasScreen({ navigation, route }: Props) {
                   minimumFontScale={0.84}
                   style={[styles.scopeChipText, favoritesOnly && styles.favChipTextActive]}
                 >
-                  ★ Favorite ({profile.favoriteFormulaIds.length})
+                  ★ Favorite ({scopedFavoriteCount})
                 </Text>
               </Pressable>
             </View>
@@ -434,7 +459,7 @@ export function FormulasScreen({ navigation, route }: Props) {
               </Text>
             </Pressable>
 
-            {FORMULA_CATEGORIES.map((category) => {
+            {availableCategories.map((category) => {
               const active = selectedCategory === category.id;
               return (
                 <Pressable
@@ -477,14 +502,16 @@ export function FormulasScreen({ navigation, route }: Props) {
             >
               <Mascot pose="thinking" size={108} active={motionActive} />
               <Text style={styles.emptyTitle}>
-                {favoritesOnly && profile.favoriteFormulaIds.length === 0
-                  ? 'Nicio formulă favorită încă'
+                {favoritesOnly && !queryText.trim()
+                  ? 'Nicio formulă favorită aici'
                   : 'Nu am găsit această formulă'}
               </Text>
               <Text style={styles.emptyText}>
-                {favoritesOnly && profile.favoriteFormulaIds.length === 0
-                  ? 'Apasă pe steluța ☆ din dreptul formulelor importante ca să le ai la îndemână înainte de test.'
-                  : 'Încearcă un alt cuvânt cheie sau afișează toate formulele din programă.'}
+                {favoritesOnly && !queryText.trim()
+                  ? profile.favoriteFormulaIds.length === 0
+                    ? 'Apasă pe steluța ☆ din dreptul formulelor importante ca să le ai la îndemână înainte de test.'
+                    : 'Nu ai favorite pentru filtrul curent. Afișează toată programa ca să vezi toate formulele salvate.'
+                  : 'Încearcă un alt cuvânt-cheie sau afișează toate formulele din programă.'}
               </Text>
               <Pressable
                 accessibilityRole="button"

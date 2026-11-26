@@ -18,6 +18,7 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { GoogleAccountButton } from '../../account/components/GoogleAccountButton';
 import { packagesForTier, type PremiumOffer } from '../services/purchases';
 import { QuotaResetTimer } from './QuotaResetTimer';
@@ -107,11 +108,11 @@ function PeriodCard({
           <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.periodTitle}>
             {annual ? 'Anual' : 'Lunar'}
           </Text>
-          {annual ? (
-            <View collapsable={false} style={styles.saveBadge}>
-              <Text maxFontSizeMultiplier={1.1} style={styles.saveBadgeText}>ECONOMISEȘTI</Text>
-            </View>
-          ) : null}
+          <View collapsable={false} style={[styles.saveBadge, !annual && styles.saveBadgeGhost]}>
+            <Text maxFontSizeMultiplier={1.1} style={[styles.saveBadgeText, !annual && styles.saveBadgeTextGhost]}>
+              {annual ? 'ECONOMISEȘTI' : 'FLEXIBIL'}
+            </Text>
+          </View>
         </View>
         <View style={[styles.radio, selected && (viewingMax ? styles.radioSelectedMax : styles.radioSelected)]}>
           {selected ? <MiniGlyph name="check" size={12} color={colors.ink} /> : null}
@@ -173,6 +174,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
   const proLimit = access?.allowances.premiumDaily ?? 50;
   const maxLimit = access?.allowances.maxDaily ?? 150;
   const viewingMax = selectedTier === 'max';
+  const showMaxTheme = maxActive || (!proActive && viewingMax);
   const selectedTierLabel = viewingMax ? 'Max' : 'Pro';
   const tierOffer = packagesForTier(offer, selectedTier);
   const hasTierOffer = Boolean(tierOffer.annual || tierOffer.monthly);
@@ -186,21 +188,25 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
   const busyLabel = busy === 'google'
     ? 'Conectez contul Google…'
     : busy === 'purchase'
-      ? 'Confirmăm în Google Play…'
+      ? 'Confirm în Google Play…'
       : busy === 'restore'
         ? 'Caut abonamentul tău…'
         : 'Deschid Google Play…';
 
   const proMultiplier = Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)));
+  const maxOverPro = Math.max(2, Math.round(maxLimit / Math.max(1, proLimit)));
   const maxMultiplier = Math.max(3, Math.round(maxLimit / Math.max(1, freeLimit)));
+  const proCountLabel = formatRoCount(proLimit, 'acțiune AI', 'acțiuni AI');
+  const maxCountLabel = formatRoCount(maxLimit, 'acțiune AI', 'acțiuni AI');
+  const successCountLabel = formatRoCount(successLimit, 'acțiune AI', 'acțiuni AI');
 
   const tierBenefits: readonly TierBenefit[] = viewingMax
     ? [
       {
         badge: `${maxMultiplier}×`,
         tone: 'gold',
-        title: `${maxLimit} acțiuni AI în fiecare zi`,
-        detail: `De 3× mai mult decât Pro — ritm intens pentru EN & BAC.`,
+        title: `${maxCountLabel} zilnic`,
+        detail: `De ${maxOverPro}× mai mult decât Pro — ritm intens pentru EN & BAC.`,
       },
       {
         badge: '✦',
@@ -211,7 +217,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       {
         badge: 'AI',
         tone: 'violet',
-        title: 'Toate funcțiile AI incluse',
+        title: 'Pentru toate funcțiile AI',
         detail: 'Poză, editor, verificare teme, exerciții AI și barem EN/BAC · reset la 00:00.',
       },
     ]
@@ -219,13 +225,13 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       {
         badge: `${proMultiplier}×`,
         tone: 'lime',
-        title: `${proLimit} acțiuni AI în fiecare zi`,
+        title: `${proCountLabel} zilnic`,
         detail: `Față de ${freeLimit}/zi gratuit · reîncărcare automată la 00:00.`,
       },
       {
         badge: 'AI',
         tone: 'violet',
-        title: 'Toate funcțiile AI incluse',
+        title: 'Pentru toate funcțiile AI',
         detail: 'Poză pas cu pas, editor, verificare teme, exerciții AI și barem EN/BAC.',
       },
     ];
@@ -237,7 +243,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       : busyPrices
         ? 'Actualizez prețurile din Google Play…'
         : !googleLinked
-          ? 'Conectează contul Google pentru prețurile din Google Play.'
+          ? 'Conectează contul Google ca să vezi prețurile din Google Play.'
           : offer && !hasTierOffer
             ? `Planul Profu’ ${selectedTierLabel} nu este publicat încă în Google Play.`
             : null;
@@ -253,7 +259,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       {/* Sleek compact Royal-Violet / Midnight-Max canopy */}
       <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
         <LinearGradient
-          colors={viewingMax || maxActive ? ['#5D1EEB', '#3B11AD', '#22096E'] : ['#8A3DFF', '#5F1EE8', '#3B10AD']}
+          colors={showMaxTheme ? ['#5D1EEB', '#3B11AD', '#22096E'] : ['#8A3DFF', '#5F1EE8', '#3B10AD']}
           start={{ x: 0.06, y: 0 }}
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
@@ -265,8 +271,8 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         <View style={[styles.header, { paddingHorizontal: gutter }]}>
           <View style={styles.brandRow}>
             <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.brand}>Profu’ de mate</Text>
-            <View style={[styles.brandBadge, (viewingMax || maxActive) && styles.brandBadgeMax]}>
-              <Text maxFontSizeMultiplier={1.1} style={[styles.brandBadgeText, (viewingMax || maxActive) && styles.brandBadgeTextMax]}>
+            <View style={[styles.brandBadge, showMaxTheme && styles.brandBadgeMax]}>
+              <Text maxFontSizeMultiplier={1.1} style={[styles.brandBadgeText, showMaxTheme && styles.brandBadgeTextMax]}>
                 {maxActive ? 'MAX ACTIV' : proActive ? 'PRO ACTIV' : viewingMax ? 'PROFU’ MAX' : 'PROFU’ PRO'}
               </Text>
             </View>
@@ -298,17 +304,17 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             </Text>
             <Text maxFontSizeMultiplier={1.2} style={styles.heroNote}>
               {success
-                ? `Ai până la ${successLimit} de acțiuni AI pe zi.`
+                ? `Ai până la ${successCountLabel} pe zi.`
                 : premium && access
-                  ? `Până la ${access.limit} de acțiuni AI pe zi, explicate pas cu pas.`
+                  ? `Până la ${formatRoCount(access.limit, 'acțiune AI', 'acțiuni AI')} pe zi, explicate pas cu pas.`
                   : viewingMax
-                    ? `${maxLimit} acțiuni AI / zi + raționament matematic extins.`
-                    : `${proLimit} acțiuni AI / zi — de ${proMultiplier}× mai mult decât gratuit.`}
+                    ? `${maxCountLabel} pe zi și raționament matematic extins.`
+                    : `${proCountLabel} pe zi — de ${proMultiplier}× mai mult decât gratuit.`}
             </Text>
           </View>
           <View pointerEvents="none" style={styles.art}>
-            <SpotlightAura size={74} tone="onViolet" active={active} />
-            <Mascot pose={success || premium || viewingMax ? 'cheer' : 'wave'} size={70} active={active} />
+            <SpotlightAura size={68} tone="onViolet" active={active} />
+            <Mascot pose={success || premium || showMaxTheme ? 'cheer' : 'wave'} size={64} active={active} />
           </View>
         </View>
       </View>
@@ -350,13 +356,13 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             </View>
           ) : null}
 
-          {!success && !premium && quotaExhausted && access?.resetAt ? (
+          {!success && !premium && access?.resetAt ? (
             <QuotaResetTimer
               resetAt={access.resetAt}
               remaining={access.remaining}
               limit={access.limit}
               premium={false}
-              variant="hero"
+              variant="compact"
               active={active}
             />
           ) : null}
@@ -364,7 +370,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
           {props.canContinue && !success ? (
             <View style={styles.continueRow}>
               <View style={styles.continueCopy}>
-                <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
+                <Text style={styles.continueTitle}>Ai acțiuni AI disponibile.</Text>
                 <Text style={styles.bodySmall}>Poți reveni la problema ta.</Text>
               </View>
               <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onClose} style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}>
@@ -390,17 +396,17 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                 ]}
               >
                 <View style={styles.tierTabTop}>
-                  <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.tierTabName, selectedTier === 'pro' && styles.tierTabNameActive]}>
+                  <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tierTabName, selectedTier === 'pro' && styles.tierTabNameActive]}>
                     Profu’ Pro
                   </Text>
                   <View style={[styles.tierTag, selectedTier === 'pro' && styles.tierTagPro]}>
-                    <Text maxFontSizeMultiplier={1.1} style={[styles.tierTagText, selectedTier === 'pro' && styles.tierTagTextActive]}>
+                    <Text maxFontSizeMultiplier={1.05} style={[styles.tierTagText, selectedTier === 'pro' && styles.tierTagTextActive]}>
                       POPULAR
                     </Text>
                   </View>
                 </View>
                 <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.tierTabMeta, selectedTier === 'pro' && styles.tierTabMetaActive]}>
-                  {proLimit} acțiuni AI / zi
+                  {proLimit} / zi · standard
                 </Text>
               </Pressable>
 
@@ -419,11 +425,11 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                 ]}
               >
                 <View style={styles.tierTabTop}>
-                  <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.tierTabName, selectedTier === 'max' && styles.tierTabNameActive]}>
+                  <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tierTabName, selectedTier === 'max' && styles.tierTabNameActive]}>
                     Profu’ Max
                   </Text>
                   <View style={[styles.tierTag, selectedTier === 'max' && styles.tierTagMax]}>
-                    <Text maxFontSizeMultiplier={1.1} style={[styles.tierTagText, selectedTier === 'max' && styles.tierTagTextActive]}>
+                    <Text maxFontSizeMultiplier={1.05} style={[styles.tierTagText, selectedTier === 'max' && styles.tierTagTextActive]}>
                       EXTINS
                     </Text>
                   </View>
@@ -441,7 +447,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                 <Chip label="TRECI LA PROFU’ MAX" tone="lime" outlined={false} />
                 <Text style={styles.upgradeQuotaTag}>{maxLimit} / zi</Text>
               </View>
-              <Text style={styles.upgradeTitle}>Vrei 3× mai mult + raționament extins?</Text>
+              <Text style={styles.upgradeTitle}>Vrei de {maxOverPro}× mai mult + raționament extins?</Text>
               <Text style={styles.bodySmall}>
                 Google Play înlocuiește automat Pro și creditează zilele rămase către Max.
               </Text>
@@ -550,7 +556,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
 
           {!maxActive && !success ? (
             <Text style={styles.legalCompact}>
-              Reînnoire automată prin Google Play · Anulezi oricând. Gratuit rămâne fără reclame ({freeLimit}/zi, Caiet și tot conținutul offline).
+              Reînnoire automată prin Google Play · Anulezi oricând din cont.
             </Text>
           ) : null}
         </View>
@@ -561,7 +567,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
           <ComicButton title="Înapoi la matematică" icon="scan" onPress={props.onClose} compact />
         ) : maxActive ? (
           <ComicButton title={busy === 'manage' ? 'Deschid Google Play…' : 'Administrează abonamentul'} icon="settings" disabled={Boolean(busy)} onPress={props.onManage} compact />
-        ) : proActive && (!configured || !selectedPackage) ? (
+        ) : proActive && (!configured || (!selectedPackage && !props.offerLoading)) ? (
           <ComicButton title={busy === 'manage' ? 'Deschid Google Play…' : 'Administrează abonamentul'} icon="settings" disabled={Boolean(busy)} onPress={props.onManage} compact />
         ) : identity === 'anonymous' ? (
           <GoogleAccountButton busy={busy === 'google'} disabled={Boolean(busy) && busy !== 'google'} note="Un cont pentru Caiet și abonament" onPress={props.onConnect} />
@@ -569,14 +575,16 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
           <ComicButton
             title={
               busy === 'purchase'
-                ? 'Confirmă în Google Play…'
+                ? 'Confirm în Google Play…'
                 : canBuy && selectedPackage
                   ? `Alege ${selectedTierLabel} · ${selectedPackage.product.priceString}`
                   : !configured
                     ? 'Abonamente indisponibile'
-                    : waitingForAccess
-                      ? 'Actualizarea contului continuă…'
-                      : `Alege ${selectedTierLabel}`
+                    : props.offerLoading
+                      ? 'Încarc prețurile…'
+                      : waitingForAccess
+                        ? 'Actualizarea contului continuă…'
+                        : `Alege ${selectedTierLabel}`
             }
             icon="trophy"
             tone={!configured ? 'paper' : 'lime'}
@@ -744,10 +752,10 @@ const styles = StyleSheet.create({
     color: 'rgba(244, 238, 255, 0.92)',
     marginTop: 3,
   },
-  art: { width: 76, height: 76, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  art: { width: 70, height: 70, justifyContent: 'center', alignItems: 'center', position: 'relative' },
 
-  content: { paddingTop: 10, paddingBottom: 10 },
-  bodyStack: { gap: 10 },
+  content: { paddingTop: 8, paddingBottom: 8 },
+  bodyStack: { gap: 8 },
 
   // Unified segmented Pro / Max switcher
   tierTrack: {
@@ -980,12 +988,18 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.gold,
   },
+  saveBadgeGhost: {
+    backgroundColor: colors.violetSoft,
+  },
   saveBadgeText: {
     ...typography.kicker,
     fontSize: 8,
     lineHeight: 10.5,
     color: colors.ink,
     includeFontPadding: false,
+  },
+  saveBadgeTextGhost: {
+    color: colors.violetDeep,
   },
   radio: {
     width: 20,

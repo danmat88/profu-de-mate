@@ -7,6 +7,7 @@ import { cosinePulseRange, createNativeLoop, SILKY_EASE_OUT, WAVE_INPUT_17 } fro
 import { colors, fonts, radii, shadows, typography } from '../../../shared/theme';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
+import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { useQuotaResetCountdown } from '../hooks/useQuotaResetCountdown';
 
 export type QuotaResetTimerVariant = 'hero' | 'compact' | 'embedded';
@@ -150,7 +151,7 @@ export function HomeResetPillNote({
   const snapshot = useQuotaResetCountdown(resetAt, active);
   const text = snapshot
     ? snapshot.expired
-      ? 'REÎNCARC…'
+      ? 'SE REÎNCARCĂ'
       : `↻ ${snapshot.compactClock}`
     : fallbackNote;
 
@@ -239,12 +240,18 @@ export function QuotaResetTimer({
 
   const progressPercent = `${Math.round(snapshot.dayProgress * 100)}%` as `${number}%`;
   const paidPlanLabel = planName ?? 'Pro';
-  const rechargeSummary = snapshot.expired
-    ? 'Se actualizează cota ta…'
-    : `Revin ${limit} acțiuni ${premium ? paidPlanLabel : 'gratuite'} la 00:00`;
+  const actionsCountText = formatRoCount(limit, 'acțiune AI', 'acțiuni AI');
+  const compactSummary = snapshot.expired
+    ? 'Se reîncarcă acțiunile AI…'
+    : premium
+      ? `Revin ${limit} ${paidPlanLabel} la 00:00`
+      : `Revin ${limit} gratuite la 00:00`;
+  const heroSummary = snapshot.expired
+    ? 'Se reîncarcă acțiunile AI…'
+    : `Revin ${actionsCountText} ${premium ? `(${paidPlanLabel})` : 'gratuite'} la 00:00`;
   const accessibleLabel = snapshot.expired
     ? 'Acțiunile AI se reîncarcă acum.'
-    : `Acțiunile AI se reîncarcă în ${snapshot.accessibleDuration}. Revin ${limit} acțiuni ${premium ? paidPlanLabel : 'gratuite'} la miezul nopții.`;
+    : `Acțiunile AI se reîncarcă în ${snapshot.accessibleDuration}. Revin ${actionsCountText} ${premium ? `din planul ${paidPlanLabel}` : 'gratuite'} la miezul nopții.`;
 
   if (isHero) {
     return (
@@ -269,7 +276,7 @@ export function QuotaResetTimer({
             <View style={styles.heroBonusPill}>
               <ComicClockIcon size={14} color={colors.paper} accent="#32246C" />
               <Text maxFontSizeMultiplier={1.2} style={styles.heroBonusText}>
-                +{limit} {limit === 1 ? 'problemă' : 'probleme'}
+                +{formatRoCount(limit, 'acțiune AI', 'acțiuni AI')}
               </Text>
             </View>
           </View>
@@ -277,7 +284,7 @@ export function QuotaResetTimer({
           {snapshot.expired ? (
             <View style={styles.heroRefreshingRow}>
               <PlayfulLoader micro inverse />
-              <Text style={styles.heroRefreshingText}>E miezul nopții! Actualizez problemele…</Text>
+              <Text style={styles.heroRefreshingText}>E miezul nopții! Reîncarc acțiunile AI…</Text>
             </View>
           ) : (
             <View style={styles.heroClockRow}>
@@ -324,7 +331,7 @@ export function QuotaResetTimer({
           <Text maxFontSizeMultiplier={1.25} style={styles.heroFootnote}>
             {snapshot.expired
               ? 'Verificăm noua zi pe server — apare automat.'
-              : `${rechargeSummary} (ora României).`}
+              : `${heroSummary} (ora României).`}
           </Text>
         </View>
       </View>
@@ -365,8 +372,8 @@ export function QuotaResetTimer({
               REÎNCĂRCARE ZILNICĂ
             </Text>
           </View>
-          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.84} style={styles.compactNote}>
-            {rechargeSummary}
+          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.compactNote}>
+            {compactSummary}
           </Text>
         </View>
 

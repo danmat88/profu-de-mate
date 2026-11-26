@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
 import { Chip } from './Chip';
@@ -18,16 +18,29 @@ type Props = {
   message: string;
   onRetry?: () => void;
   onNotebook?: () => void;
+  /** Set `false` when embedded inside a parent host that manages the StatusBar. */
+  manageStatusBar?: boolean;
 };
 
 /** An explicit preparation/error boundary matching LaunchSplash studio craft. */
-export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: Props) {
+export function ReadinessScreen({
+  busy,
+  title,
+  message,
+  onRetry,
+  onNotebook,
+  manageStatusBar = true,
+}: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.safe, { paddingTop: insets.top ?? 0, paddingBottom: insets.bottom ?? 0 }]}>
-      <StatusBar style="dark" />
+      {manageStatusBar ? <StatusBar style="dark" /> : null}
       <ComicBackdrop />
-      <View style={styles.content}>
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
         <Enter delay={0} distance={10}>
           <View style={styles.brandWrap}>
             <View pointerEvents="none" style={styles.brandHighlight} />
@@ -51,7 +64,7 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
             <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text>
             {busy ? (
               <View style={styles.loaderWrap}>
-                <PlayfulLoader compact label="Pregătim accesul…" />
+                <PlayfulLoader compact label="Verificăm accesul…" />
               </View>
             ) : null}
           </View>
@@ -61,7 +74,7 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
           {onRetry ? (
             <ComicButton
               title="Reîncearcă"
-              icon="scan"
+              trailingIcon="retry"
               tone="lime"
               compact
               disabled={busy}
@@ -72,7 +85,6 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel="Citește Caietul offline"
-              disabled={busy}
               haptic="selection"
               onPress={onNotebook}
               style={styles.secondaryWrap}
@@ -82,14 +94,14 @@ export function ReadinessScreen({ busy, title, message, onRetry, onNotebook }: P
             </PressableScale>
           ) : null}
         </Enter>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22 },
+  content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 22 },
   brandWrap: { position: 'relative', alignItems: 'center', marginBottom: 12 },
   brandHighlight: {
     position: 'absolute',

@@ -55,7 +55,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
   assert.ok(textMounts > 0);
   assert.match(ready, /data-typeface="BalsamiqSans_700Bold">Profu’/);
   assert.match(ready, /data-typeface="FiraSans_500Medium">Matematica, pas cu pas\./);
-  assert.match(ready, /data-typeface="FiraSans_600SemiBold">Verific contul și caietul…/);
+  assert.match(ready, /data-typeface="FiraSans_600SemiBold">Verific contul și Caietul…/);
 });
 
 test('all icon artwork and UI/document fonts must finish before visual preparation succeeds', async () => {

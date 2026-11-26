@@ -304,7 +304,7 @@ test('a rejected login cannot expose the previous customer and can be retried sa
   await h.purchases.initializePurchases(h.id('a'));
   h.switchTo('b');
   await assert.rejects(h.purchases.initializePurchases(h.id('b')), /offline/);
-  await assert.rejects(h.purchases.purchasePremium({}), /Contul comercial/);
+  await assert.rejects(h.purchases.purchasePremium({}), /Contul tău Google/);
   assert.equal(h.calls.some((call) => call.name === 'purchase'), false);
   await h.purchases.initializePurchases(h.id('b'));
   await h.purchases.purchasePremium({});
@@ -352,7 +352,7 @@ test('a rejected logout leaves billing detached and does not poison the next log
   await h.purchases.initializePurchases(h.id('a'));
   h.switchTo('b');
   await assert.rejects(h.purchases.resetPurchasesForSignedOutUser(), /offline/);
-  await assert.rejects(h.purchases.restorePremium(), /Contul comercial/);
+  await assert.rejects(h.purchases.restorePremium(), /Contul tău Google/);
   assert.equal(h.calls.some((call) => call.name === 'restore'), false);
   await h.purchases.initializePurchases(h.id('b'));
   await h.purchases.restorePremium();

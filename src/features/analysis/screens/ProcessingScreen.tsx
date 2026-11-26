@@ -321,6 +321,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
         // Preserve the request id after transport failures so retry first
         // looks up the server result instead of charging for a second request.
         const commercial = commercialGateFromError(error);
+        if (commercial) clearPendingAnalysis(route.params.requestId);
         setScreenState(commercial
           ? { kind: 'commercial', message: commercial.message, reason: commercial.reason, access: commercial.access }
           : { kind: 'error', message: friendlyAnalysisError(error) });
@@ -338,7 +339,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
     const commercialBlocked = screenState.kind === 'commercial';
     const title = rejected
       ? screenState.result.status === 'not_math' ? 'În fotografie nu apare matematică.' : 'Fotografia nu este suficient de clară.'
-      : commercialBlocked ? 'Ai ajuns la capătul problemelor disponibile.' : 'Ceva nu a mers.';
+      : commercialBlocked ? 'Ai ajuns la limita de azi.' : 'Analiza nu a reușit.';
     const message = rejected ? contentToAccessibleText(screenState.result.summary) : screenState.message;
 
     return (
@@ -384,7 +385,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             >
               <View accessibilityRole="alert" accessibilityLiveRegion="assertive">
                 <Chip
-                  label={rejected ? 'HAI SĂ MAI ÎNCERCĂM' : commercialBlocked ? 'ACCESUL TĂU' : 'A APĂRUT O PROBLEMĂ'}
+                  label={rejected ? 'HAI SĂ MAI ÎNCERCĂM' : commercialBlocked ? 'ACCESUL TĂU' : 'A APĂRUT O EROARE'}
                   tone={rejected ? 'peach' : commercialBlocked ? 'gold' : 'roseSoft'}
                   outlined
                 />
@@ -415,7 +416,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             <ComicButton
               compact
               title="Vezi opțiunile"
-              subtitle="Gratuit, Profu’ Pro sau Profu’ Max."
+              subtitle="Descoperă Profu’ Pro sau Profu’ Max."
               icon="trophy"
               tone="lime"
               onPress={() => {
@@ -429,15 +430,10 @@ export function ProcessingScreen({ navigation, route }: Props) {
             <ComicButton
               compact
               title="Încearcă din nou"
-              icon="scan"
+              trailingIcon="retry"
               tone="lime"
               onPress={() => setRequestKey((value) => value + 1)}
             />
-          ) : null}
-          {rejected ? (
-            <Pressable accessibilityRole="button" onPress={() => setFeedbackVisible(true)} style={styles.backLink}>
-              <Text style={styles.backLinkText}>Raportează răspunsul</Text>
-            </Pressable>
           ) : null}
           {!commercialBlocked ? (
             <ComicButton
@@ -447,6 +443,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
               tone={rejected ? 'lime' : 'violet'}
               onPress={retakePhoto}
             />
+          ) : null}
+          {rejected ? (
+            <Pressable accessibilityRole="button" onPress={() => setFeedbackVisible(true)} style={styles.backLink}>
+              <Text style={styles.backLinkText}>Raportează răspunsul</Text>
+            </Pressable>
           ) : null}
           <Pressable accessibilityRole="button" onPress={returnToPhotoOrHome} style={styles.backLink}>
             <Text style={styles.backLinkText}>{canReturnToPhoto ? 'Înapoi la fotografia aleasă' : 'Înapoi acasă'}</Text>

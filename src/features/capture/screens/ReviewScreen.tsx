@@ -2,7 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { BackHandler, StyleSheet, View } from 'react-native';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { ImageCropEditor } from '../components/ImageCropEditor';
 import { commercialGateFromError, preflightAnalysisAccess } from '../../access/services/commercial';
@@ -19,13 +19,34 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Review'>;
 export function ReviewScreen({ navigation, route }: Props) {
   const [currentImage, setCurrentImage] = useState(route.params.image);
   const [accessError, setAccessError] = useState<string | null>(null);
+  const [preflighting, setPreflighting] = useState(false);
   const continueLocked = useRef(false);
+  const focusedRef = useRef(true);
 
   useFocusEffect(useCallback(() => {
+    focusedRef.current = true;
     continueLocked.current = false;
+    setPreflighting(false);
+    return () => {
+      focusedRef.current = false;
+    };
   }, []));
 
-  useEffect(() => navigation.addListener('beforeRemove', () => {
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !preflighting });
+  }, [navigation, preflighting]);
+
+  useEffect(() => {
+    if (!preflighting) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, [preflighting]);
+
+  useEffect(() => navigation.addListener('beforeRemove', (event) => {
+    if (continueLocked.current && event.data.action.type !== 'RESET') {
+      event.preventDefault();
+      return;
+    }
     const pending = getPreparedPendingAnalysis();
     if (
       pending?.schemaVersion === 2
@@ -40,6 +61,7 @@ export function ReviewScreen({ navigation, route }: Props) {
     if (continueLocked.current) return;
 
     continueLocked.current = true;
+    setPreflighting(true);
     setAccessError(null);
     const requestId = createAnalysisRequestId();
 
@@ -47,6 +69,11 @@ export function ReviewScreen({ navigation, route }: Props) {
       const session = captureSession();
       await preflightAnalysisAccess(requestId);
       assertSessionActive(session);
+      if (!focusedRef.current) {
+        continueLocked.current = false;
+        setPreflighting(false);
+        return false;
+      }
       setCurrentImage((previous) => {
         if (previous.uri !== route.params.image.uri && previous.uri !== editedImage.uri) {
           deleteCapturedImageFiles([previous.uri]);
@@ -54,6 +81,7 @@ export function ReviewScreen({ navigation, route }: Props) {
         return editedImage;
       });
       savePendingAnalysis(route.params.mode, editedImage, requestId, session.userId);
+      setPreflighting(false);
       beginAppTransition();
       navigation.navigate('Processing', {
         mode: route.params.mode,
@@ -64,8 +92,14 @@ export function ReviewScreen({ navigation, route }: Props) {
       });
       return true;
     } catch (error) {
+      if (!focusedRef.current) {
+        continueLocked.current = false;
+        setPreflighting(false);
+        return false;
+      }
       const gate = commercialGateFromError(error);
       if (gate) {
+        setPreflighting(false);
         beginAppTransition();
         navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
       } else {
@@ -73,6 +107,7 @@ export function ReviewScreen({ navigation, route }: Props) {
         setAccessError('Nu am putut porni analiza. Verifică internetul și încearcă din nou.');
       }
       continueLocked.current = false;
+      setPreflighting(false);
       return false;
     }
   }, [navigation, route.params.image.uri, route.params.mode]);
