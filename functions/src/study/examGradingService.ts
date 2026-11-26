@@ -1,5 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
+import type OpenAI from 'openai';
 import { HttpsError } from 'firebase-functions/v2/https';
+import { createOpenAiClient, resolveOpenAiRuntimeConfig } from '../infrastructure/openAiClient.js';
 import {
   examGradingResultJsonSchema,
   examGradingResultSchema,
@@ -49,32 +50,45 @@ export async function gradeExamSolutionWithAi(params: {
   request: GradeExamSolutionRequest;
   beforeGenerate: () => Promise<void>;
   onRejected?: (event: { stage: 'empty' | 'json' | 'schema'; issues: { code: string; path: string }[] }) => void;
-  client?: GoogleGenAI;
+  client?: OpenAI;
+  model?: string;
 }): Promise<ExamGradingResult> {
-  const client = params.client ?? new GoogleGenAI({ apiKey: params.apiKey });
+  const runtime = resolveOpenAiRuntimeConfig();
+  const model = params.model ?? runtime.model;
+  const client = params.client ?? createOpenAiClient(params.apiKey, runtime);
   const promptText = buildExamGradingPrompt(params.request);
 
   await params.beforeGenerate();
 
-  const interaction = await client.interactions.create({
-    model: 'gemini-3.7-flash',
+  const response = await client.responses.create({
+    model,
     store: false,
     input: [
-      { type: 'text', text: promptText },
-      { type: 'image', data: params.request.imageBase64, mime_type: params.request.mimeType },
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: promptText },
+          {
+            type: 'input_image',
+            image_url: `data:${params.request.mimeType};base64,${params.request.imageBase64}`,
+            detail: 'high',
+          },
+        ],
+      },
     ],
-    response_format: {
-      type: 'text',
-      mime_type: 'application/json',
-      schema: examGradingResultJsonSchema,
-    },
-    generation_config: {
-      thinking_level: 'low',
-      max_output_tokens: 3200,
+    reasoning: { effort: 'low' },
+    max_output_tokens: 3200,
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'exam_grading_result',
+        strict: true,
+        schema: examGradingResultJsonSchema as unknown as Record<string, unknown>,
+      },
     },
   }, { timeout: 75_000, maxRetries: 0 });
 
-  const rawText = interaction.output_text?.trim();
+  const rawText = response.output_text?.trim();
   if (!rawText) {
     params.onRejected?.({ stage: 'empty', issues: [] });
     throw new HttpsError('unavailable', 'Nu am primit evaluarea baremului. Încearcă din nou.');

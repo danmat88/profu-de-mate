@@ -1,4 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
+import type OpenAI from 'openai';
+import { createOpenAiClient, resolveOpenAiRuntimeConfig } from '../infrastructure/openAiClient.js';
 import { mathAnalysisJsonSchema } from './analysisSchema.js';
 import type { ProviderGenerationContext, ProviderGenerationRequest } from './providerPipeline.js';
 
@@ -7,24 +8,59 @@ export interface MathProvider {
   generate(request: ProviderGenerationRequest, context: ProviderGenerationContext): Promise<string | undefined>;
 }
 
-// The existing development adapter is isolated here. Eligibility for the 13+
-// audience remains an owner/provider decision before any public launch.
-export function createMathProvider(apiKey: string, client = new GoogleGenAI({ apiKey })): MathProvider {
+export function createMathProvider(
+  apiKey: string,
+  client?: OpenAI,
+  model?: string,
+): MathProvider {
+  const runtime = resolveOpenAiRuntimeConfig();
+  const resolvedModel = model ?? runtime.model;
+  const resolvedClient = client ?? createOpenAiClient(apiKey, runtime);
+
   return {
-    model: 'gemini-3.7-flash',
+    model: resolvedModel,
     async generate(request, context) {
-      const interaction = await client.interactions.create({
-        model: 'gemini-3.7-flash',
+      const content = request.kind === 'repair'
+        ? [
+          { type: 'input_text' as const, text: request.prompt },
+          { type: 'input_text' as const, text: `OBIECT JSON DE CORECTAT:\n${request.source}` },
+        ]
+        : request.kind === 'math'
+          ? [
+            { type: 'input_text' as const, text: request.prompt },
+            {
+              type: 'input_text' as const,
+              text: `DATE MATEMATICE DIN EDITOR (JSON):\n${JSON.stringify({
+                problemLatex: request.problemLatex,
+                ...(request.solutionLatex === undefined ? {} : { solutionLatex: request.solutionLatex }),
+              })}`,
+            },
+          ]
+          : [
+            { type: 'input_text' as const, text: request.prompt },
+            {
+              type: 'input_image' as const,
+              image_url: `data:${request.mimeType};base64,${request.imageBase64}`,
+              detail: 'high' as const,
+            },
+          ];
+
+      const response = await resolvedClient.responses.create({
+        model: resolvedModel,
         store: false,
-        input: request.kind === 'repair'
-          ? [{ type: 'text', text: request.prompt }, { type: 'text', text: `OBIECT JSON DE CORECTAT:\n${request.source}` }]
-          : request.kind === 'math'
-            ? [{ type: 'text', text: request.prompt }, { type: 'text', text: `DATE MATEMATICE DIN EDITOR (JSON):\n${JSON.stringify({ problemLatex: request.problemLatex, ...(request.solutionLatex === undefined ? {} : { solutionLatex: request.solutionLatex }) })}` }]
-          : [{ type: 'text', text: request.prompt }, { type: 'image', data: request.imageBase64, mime_type: request.mimeType }],
-        response_format: { type: 'text', mime_type: 'application/json', schema: mathAnalysisJsonSchema },
-        generation_config: { thinking_level: 'low', max_output_tokens: context.maxOutputTokens },
+        input: [{ role: 'user', content }],
+        reasoning: { effort: 'low' },
+        max_output_tokens: context.maxOutputTokens,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'math_analysis',
+            strict: true,
+            schema: mathAnalysisJsonSchema as unknown as Record<string, unknown>,
+          },
+        },
       }, { timeout: context.timeoutMs, signal: context.signal, maxRetries: 0 });
-      return interaction.output_text;
+      return response.output_text;
     },
   };
 }

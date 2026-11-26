@@ -260,9 +260,10 @@ const contentBlockJsonSchema = {
   required: ['type', 'text', 'latex', 'spoken', 'visual'],
 } as const;
 
-// Keep the provider schema intentionally structural. The Interactions API can
-// reject a deeply nested schema when every repeated content array also carries
-// bounds. The strict Zod contract below remains the semantic security boundary.
+// Keep the provider schema strictly compatible with OpenAI Structured Outputs
+// (every object declares additionalProperties: false and lists all properties
+// in required, without unsupported array/numeric bound keywords). The strict
+// Zod contract above remains the semantic security boundary.
 const richContentJsonSchema = () => ({
   type: 'array',
   items: contentBlockJsonSchema,
@@ -278,13 +279,13 @@ export const mathAnalysisJsonSchema = {
     headline: { type: 'string', description: 'Mesaj principal calm și util, fără formule.' },
     summary: { ...richContentJsonSchema(), description: `Rezumat pedagogic scurt, numai text și math, în cel mult ${analysisContentLimits.summary} blocuri.` },
     finalAnswer: { ...richContentJsonSchema(), description: `Răspunsul exact, numai text și math, în cel mult ${analysisContentLimits.finalAnswer} blocuri.` },
-    steps: { type: 'array', maxItems: 9, items: { type: 'object', additionalProperties: false, properties: {
+    steps: { type: 'array', description: 'Între 2 și 9 pași pedagogici clari pentru status="ready"; listă goală altfel.', items: { type: 'object', additionalProperties: false, properties: {
       kicker: { type: 'string' }, title: { type: 'string' },
       explanation: { ...richContentJsonSchema(), description: `Explicație în ordine, în cel mult ${analysisContentLimits.explanation} de blocuri; poate include cel mult un visual relevant.` },
       note: { ...richContentJsonSchema(), description: `Observație scurtă, numai text și math, în cel mult ${analysisContentLimits.note} blocuri.` },
       alternative: { ...richContentJsonSchema(), description: `Explicație alternativă, în cel mult ${analysisContentLimits.alternative} blocuri; poate include cel mult un visual relevant.` },
     }, required: ['kicker', 'title', 'explanation', 'note', 'alternative'] } },
-    takeaways: { type: 'array', maxItems: 3, items: { type: 'object', additionalProperties: false, properties: { content: richContentJsonSchema() }, required: ['content'] } },
+    takeaways: { type: 'array', description: 'Cel mult 3 idei cheie de reținut; listă goală când status nu este "ready".', items: { type: 'object', additionalProperties: false, properties: { content: richContentJsonSchema() }, required: ['content'] } },
   },
   required: ['status', 'mode', 'title', 'problem', 'topic', 'verdict', 'headline', 'summary', 'finalAnswer', 'steps', 'takeaways'],
 } as const;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { GoogleGenAI } from '@google/genai';
+import type OpenAI from 'openai';
 import { buildPracticePrompt } from './practicePrompt.js';
 import {
   aiPracticeExerciseSchema,
@@ -98,7 +98,7 @@ test('aiPracticeExerciseSchema rejects duplicate choices and renders valid MathJ
   assert.match(prompt, /4 variante distincte/);
 });
 
-test('normalizeRawPracticeExercise cleans realistic Gemini quirks, sanitizes Romanian LaTeX, and repairs invalid first attempts', async () => {
+test('normalizeRawPracticeExercise cleans realistic AI quirks, sanitizes Romanian LaTeX, and repairs invalid first attempts', async () => {
   const dirtyRaw = {
     title: '  "Calcul cu tangentă și pătrat"  ',
     prompt: [
@@ -151,9 +151,13 @@ test('normalizeRawPracticeExercise cleans realistic Gemini quirks, sanitizes Rom
   // Test automatic 1-time repair retry when attempt 1 returns duplicate choices
   let calls = 0;
   const mockClient = {
-    interactions: {
-      create: async () => {
+    responses: {
+      create: async (request: any, options: any) => {
         calls += 1;
+        assert.equal(request.store, false);
+        assert.equal(request.text.format.type, 'json_schema');
+        assert.equal(request.text.format.strict, true);
+        assert.equal(options.maxRetries, 0);
         if (calls === 1) {
           return {
             output_text: JSON.stringify({
@@ -178,7 +182,7 @@ test('normalizeRawPracticeExercise cleans realistic Gemini quirks, sanitizes Rom
         };
       },
     },
-  } as unknown as GoogleGenAI;
+  } as unknown as OpenAI;
 
   const repaired = await generateRenderedPracticeExercise({
     apiKey: 'test-key',

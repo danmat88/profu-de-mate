@@ -58,7 +58,7 @@ import { gradeExamSolutionWithAi } from './study/examGradingService.js';
 if (getApps().length === 0) initializeApp();
 
 const db = getFirestore();
-const geminiApiKey = defineSecret('GEMINI_API_KEY');
+const openAiApiKey = defineSecret('OPENAI_API_KEY');
 const commercialIdentityHmacKey = defineSecret('COMMERCIAL_IDENTITY_HMAC_KEY');
 // Firebase loads this non-secret flag from the Functions environment both
 // during discovery and at runtime. Until RevenueCat is configured for real,
@@ -162,7 +162,7 @@ export const analyzeMathImage = onCall({
   maxInstances: 3,
   concurrency: 10,
   enforceAppCheck: ENFORCE_APP_CHECK,
-  secrets: [geminiApiKey, commercialIdentityHmacKey],
+  secrets: [openAiApiKey, commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Trebuie să pornești aplicația din nou.');
@@ -192,7 +192,7 @@ export const analyzeMathImage = onCall({
       Date.now(),
       installationPrincipal,
     );
-    const provider = createMathProvider(geminiApiKey.value());
+    const provider = createMathProvider(openAiApiKey.value());
     let result: RenderedMathAnalysis;
 
     try {
@@ -299,7 +299,7 @@ export const generatePracticeExercise = onCall({
   maxInstances: 3,
   concurrency: 10,
   enforceAppCheck: ENFORCE_APP_CHECK,
-  secrets: [geminiApiKey, commercialIdentityHmacKey],
+  secrets: [openAiApiKey, commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Trebuie să pornești aplicația din nou.');
@@ -335,7 +335,7 @@ export const generatePracticeExercise = onCall({
     let exercise;
     try {
       exercise = await generateRenderedPracticeExercise({
-        apiKey: geminiApiKey.value(),
+        apiKey: openAiApiKey.value(),
         request: input,
         beforeGenerate: async () => {
           await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
@@ -382,7 +382,7 @@ export const gradeExamSolution = onCall({
   maxInstances: 3,
   concurrency: 10,
   enforceAppCheck: ENFORCE_APP_CHECK,
-  secrets: [geminiApiKey, commercialIdentityHmacKey],
+  secrets: [openAiApiKey, commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Trebuie să pornești aplicația din nou.');
@@ -418,7 +418,7 @@ export const gradeExamSolution = onCall({
     let grading;
     try {
       grading = await gradeExamSolutionWithAi({
-        apiKey: geminiApiKey.value(),
+        apiKey: openAiApiKey.value(),
         request: input,
         beforeGenerate: async () => {
           await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);

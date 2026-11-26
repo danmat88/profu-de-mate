@@ -1,6 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
+import type OpenAI from 'openai';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { renderLatex, type RenderedMath } from '../analysis/mathRenderer.js';
+import { createOpenAiClient, resolveOpenAiRuntimeConfig } from '../infrastructure/openAiClient.js';
 import { buildPracticePrompt, buildPracticeRepairPrompt } from './practicePrompt.js';
 import {
   aiPracticeExerciseJsonSchema,
@@ -172,33 +173,37 @@ export async function generateRenderedPracticeExercise(params: {
   request: GeneratePracticeRequest;
   beforeGenerate: () => Promise<void>;
   onRejected?: (event: PracticeRejectionEvent) => void;
-  client?: GoogleGenAI;
+  client?: OpenAI;
+  model?: string;
 }): Promise<RenderedAiPracticeExercise> {
-  const client = params.client ?? new GoogleGenAI({ apiKey: params.apiKey });
+  const runtime = resolveOpenAiRuntimeConfig();
+  const model = params.model ?? runtime.model;
+  const client = params.client ?? createOpenAiClient(params.apiKey, runtime);
   const promptText = buildPracticePrompt(params.request);
 
-  let nextInput: Array<{ type: 'text'; text: string }> = [{ type: 'text', text: promptText }];
+  let nextContent: Array<{ type: 'input_text'; text: string }> = [{ type: 'input_text', text: promptText }];
   let lastStage: 'empty' | 'json' | 'schema' = 'empty';
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     await params.beforeGenerate();
 
-    const interaction = await client.interactions.create({
-      model: 'gemini-3.7-flash',
+    const response = await client.responses.create({
+      model,
       store: false,
-      input: nextInput,
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: aiPracticeExerciseJsonSchema,
-      },
-      generation_config: {
-        thinking_level: 'low',
-        max_output_tokens: PRACTICE_MAX_OUTPUT_TOKENS,
+      input: [{ role: 'user', content: nextContent }],
+      reasoning: { effort: 'low' },
+      max_output_tokens: PRACTICE_MAX_OUTPUT_TOKENS,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'practice_exercise',
+          strict: true,
+          schema: aiPracticeExerciseJsonSchema as unknown as Record<string, unknown>,
+        },
       },
     }, { timeout: PRACTICE_CALL_TIMEOUT_MS, maxRetries: 0 });
 
-    const rawText = interaction.output_text?.trim();
+    const rawText = response.output_text?.trim();
     if (!rawText) {
       lastStage = 'empty';
       params.onRejected?.({ attempt, stage: 'empty', issues: [] });
@@ -220,9 +225,9 @@ export async function generateRenderedPracticeExercise(params: {
     lastStage = result.stage;
     params.onRejected?.({ attempt, stage: result.stage, issues: result.issues });
     if (attempt < 2) {
-      nextInput = [
-        { type: 'text', text: buildPracticeRepairPrompt(result.issues, result.stage) },
-        { type: 'text', text: `OBIECT JSON DE CORECTAT:\n${rawText.slice(0, 24_000)}` },
+      nextContent = [
+        { type: 'input_text', text: buildPracticeRepairPrompt(result.issues, result.stage) },
+        { type: 'input_text', text: `OBIECT JSON DE CORECTAT:\n${rawText.slice(0, 24_000)}` },
       ];
     }
   }

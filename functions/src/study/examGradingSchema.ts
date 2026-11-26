@@ -58,9 +58,7 @@ export const examGradingResultJsonSchema = {
     },
     awardedPoints: {
       type: 'integer',
-      minimum: 0,
-      maximum: 30,
-      description: 'Punctajul total acordat (întreg), suma punctelor din criteriaScores.',
+      description: 'Punctajul total acordat (întreg între 0 și 30), suma punctelor din criteriaScores.',
     },
     verdict: {
       type: 'string',
@@ -79,8 +77,8 @@ export const examGradingResultJsonSchema = {
         additionalProperties: false,
         properties: {
           step: { type: 'string', description: 'Etapa din barem.' },
-          awardedPoints: { type: 'integer', minimum: 0, maximum: 30, description: 'Punctaj acordat pe etapă.' },
-          maxPoints: { type: 'integer', minimum: 1, maximum: 30, description: 'Punctaj maxim al etapei.' },
+          awardedPoints: { type: 'integer', description: 'Punctaj întreg acordat pe etapă (între 0 și maxPoints).' },
+          maxPoints: { type: 'integer', description: 'Punctaj întreg maxim al etapei (între 1 și 30).' },
           comment: { type: 'string', description: 'Explicație scurtă în română pentru punctajul acordat.' },
         },
         required: ['step', 'awardedPoints', 'maxPoints', 'comment'],
@@ -113,7 +111,7 @@ function coerceBoundedInt(value: unknown, min: number, max: number, fallback: nu
 }
 
 /**
- * Normalizes minor Gemini output variances (e.g. fractional points like 2.5,
+ * Normalizes minor AI output variances (e.g. fractional points like 2.5,
  * slightly overlong comments, or missing fallback text) before Zod validation.
  */
 export function normalizeRawExamGrading(

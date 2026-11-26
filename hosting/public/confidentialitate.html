@@ -46,9 +46,9 @@
         </ul>
 
         <h2>3. Cum folosim fotografia sau formula</h2>
-        <p>Imaginea este orientată, decupată și comprimată pe telefon, apoi este transmisă printr-o funcție Firebase securizată către Gemini Developer API pentru analiza matematică sau corectarea pe barem solicitată. Aplicația nu scrie fotografia în Firebase Storage și nu o include în Caiet.</p>
+        <p>Imaginea este orientată, decupată și comprimată pe telefon, apoi este transmisă printr-o funcție Firebase securizată către OpenAI API pentru analiza matematică sau corectarea pe barem solicitată, fără a include numele, e-mailul sau identificatorul contului tău. Aplicația nu scrie fotografia în Firebase Storage și nu o include în Caiet.</p>
         <p>Dacă folosești editorul matematic sau generatorul AI de exerciții, formula problemei, rezolvarea introdusă ori capitolul selectat sunt trimise prin aceeași infrastructură securizată numai când pornești acțiunea. Ciornele editorului și ciorna unei simulări puse pe pauză se păstrează pe telefon; enunțul și explicația generate urmează retenția lecțiilor de mai jos.</p>
-        <p>Într-un proiect Gemini cu facturare activă, Google declară că prompturile și răspunsurile nu sunt folosite pentru îmbunătățirea produselor sale, dar poate păstra loguri limitate pentru detectarea încălcărilor și a abuzului, conform termenilor serviciului aplicabili la momentul folosirii.</p>
+        <p>Cererile către OpenAI API sunt trimise fără stocare de conversație (<code>store: false</code>). Conform termenilor OpenAI API pentru dezvoltatori, datele transmise prin API nu sunt folosite implicit pentru antrenarea modelelor, însă furnizorul poate păstra temporar loguri tehnice limitate pentru detectarea încălcărilor și a abuzului, conform termenilor serviciului aplicabili la momentul folosirii.</p>
 
         <h2>4. Scopurile prelucrării</h2>
         <ul>
@@ -61,7 +61,7 @@
         </ul>
 
         <h2>5. Furnizori</h2>
-        <p>Folosim Google Firebase pentru autentificare, Cloud Functions, Firestore, App Check și, opțional, Crashlytics; Google Sign-In dacă alegi conectarea; Google Play pentru plăți și verificarea integrității; RevenueCat pentru validarea și starea abonamentului; Gemini Developer API pentru analiza matematică. Nu folosim rețele publicitare și nu vindem date.</p>
+        <p>Folosim Google Firebase pentru autentificare, Cloud Functions, Firestore, App Check și, opțional, Crashlytics; Google Sign-In dacă alegi conectarea; Google Play pentru plăți și verificarea integrității; RevenueCat pentru validarea și starea abonamentului; OpenAI API pentru analiza matematică, generarea de exerciții și corectarea orientativă pe barem. Nu folosim rețele publicitare și nu vindem date.</p>
 
         <h2>6. Retenție</h2>
         <ul>

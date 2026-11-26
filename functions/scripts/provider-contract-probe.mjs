@@ -1,21 +1,20 @@
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
-import { GoogleGenAI } from '@google/genai';
-import { mathAnalysisJsonSchema } from '../lib/analysis/analysisSchema.js';
+import { createMathProvider } from '../lib/analysis/aiProvider.js';
 import { runProviderPipeline } from '../lib/analysis/providerPipeline.js';
 
 const imagePath = process.argv[2] ? resolve(process.argv[2]) : '';
 const mode = process.argv[3] === 'check' ? 'check' : 'solve';
-const apiKey = process.env.PROFU_GEMINI_DIAGNOSTIC_KEY;
+const apiKey = process.env.PROFU_OPENAI_DIAGNOSTIC_KEY;
 
 if (!imagePath || !apiKey) {
-  throw new Error('Set PROFU_GEMINI_DIAGNOSTIC_KEY and pass an image path.');
+  throw new Error('Set PROFU_OPENAI_DIAGNOSTIC_KEY and pass an image path.');
 }
 
 const extension = extname(imagePath).toLowerCase();
 const mimeType = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
 const imageBase64 = (await readFile(imagePath)).toString('base64');
-const client = new GoogleGenAI({ apiKey });
+const provider = createMathProvider(apiKey);
 const results = [];
 
 function safeProviderError(error) {
@@ -38,33 +37,15 @@ try {
     mode,
     imageBase64,
     mimeType,
-    generate: async (request) => {
+    generate: async (request, context) => {
       callCount += 1;
-    const interaction = await client.interactions.create({
-      model: 'gemini-3.7-flash',
-      store: false,
-      input: request.kind === 'repair'
-        ? [
-          { type: 'text', text: request.prompt },
-          { type: 'text', text: `OBIECT JSON DE CORECTAT:\n${request.source}` },
-        ]
-        : [
-          { type: 'text', text: request.prompt },
-          { type: 'image', data: request.imageBase64, mime_type: request.mimeType },
-        ],
-      response_format: {
-        type: 'text',
-        mime_type: 'application/json',
-        schema: mathAnalysisJsonSchema,
-      },
-      generation_config: { thinking_level: 'low' },
-    });
-      return interaction.output_text;
+      return provider.generate(request, context);
     },
     onRejected: (event) => results.push({ ...event, ok: false }),
   });
   results.push({
     call: callCount,
+    model: provider.model,
     stage: 'complete',
     ok: true,
     status: rendered.status,
@@ -75,8 +56,8 @@ try {
     durationMs: Date.now() - startedAt,
   });
 } catch (error) {
-  results.push({ call: callCount, stage: 'failed', ok: false, error: safeProviderError(error), durationMs: Date.now() - startedAt });
+  results.push({ call: callCount, model: provider.model, stage: 'failed', ok: false, error: safeProviderError(error), durationMs: Date.now() - startedAt });
 }
 
-process.stdout.write(`${JSON.stringify({ imageBytes: Buffer.byteLength(imageBase64, 'base64'), mode, results }, null, 2)}\n`);
+process.stdout.write(`${JSON.stringify({ imageBytes: Buffer.byteLength(imageBase64, 'base64'), mode, model: provider.model, results }, null, 2)}\n`);
 if (!results.some((result) => result.ok)) process.exitCode = 1;

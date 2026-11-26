@@ -94,8 +94,8 @@ const contentBlockJsonSchema = {
   required: ['type', 'text', 'latex', 'spoken'],
 } as const;
 
-// Keep repeated content arrays purely structural for the Gemini Interactions API;
-// strict bounds and invariants are enforced by Zod after normalization.
+// Keep the provider schema strictly compatible with OpenAI Structured Outputs;
+// strict array/string bounds and invariants are enforced by Zod after normalization.
 export const aiPracticeExerciseJsonSchema = {
   type: 'object',
   additionalProperties: false,
@@ -116,8 +116,7 @@ export const aiPracticeExerciseJsonSchema = {
     },
     correctIndex: {
       type: 'integer',
-      minimum: 0,
-      maximum: 3,
+      enum: [0, 1, 2, 3],
       description: 'Indexul (0, 1, 2 sau 3) al singurei variante corecte din choices.',
     },
     hint: {
@@ -135,7 +134,7 @@ export const aiPracticeExerciseJsonSchema = {
 
 export function sanitizePracticeLatex(raw: string): string {
   let latex = raw.trim();
-  // Unwrap accidental math delimiters if Gemini included them inside a math block.
+  // Unwrap accidental math delimiters if the model included them inside a math block.
   for (let i = 0; i < 2; i += 1) {
     if (latex.startsWith('$$') && latex.endsWith('$$') && latex.length > 4) {
       latex = latex.slice(2, -2).trim();
@@ -262,7 +261,7 @@ function normalizeCorrectIndex(raw: unknown): unknown {
 }
 
 /**
- * Cleans common Gemini structured-output quirks (e.g., populated `spoken` on
+ * Cleans common AI structured-output quirks (e.g., populated `spoken` on
  * `text` blocks, `$...$` wrapped LaTeX, `A) ` choice prefixes, stringified
  * `correctIndex`, or over-fragmented text blocks) before strict Zod validation.
  */

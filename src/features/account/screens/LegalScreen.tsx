@@ -153,10 +153,10 @@ export function LegalScreen({ navigation }: Props) {
 
               <Section number="01" title="Ce se întâmplă cu poza">
                 <Bullet>O comprimi și o încadrezi direct pe telefon.</Bullet>
-                <Bullet>Este trimisă securizat prin serviciul aplicației către Gemini, pentru o singură analiză sau pentru corectarea pe barem a unei rezolvări de simulare.</Bullet>
+                <Bullet>Este trimisă securizat prin serviciul aplicației către OpenAI API (fără numele, e-mailul sau contul tău), pentru o singură analiză sau pentru corectarea pe barem a unei rezolvări de simulare.</Bullet>
                 <Bullet>Nu este pusă în Firebase Storage și nu apare în Caiet.</Bullet>
                 <Bullet>Dacă scrii problema, trimitem formula și, la verificare, rezolvarea introdusă de tine către același serviciu. Ciorna rămâne pe telefon până alegi să pornești analiza.</Bullet>
-                <Bullet>Google poate păstra temporar cererea și răspunsul numai pentru siguranță și prevenirea abuzului, conform termenilor serviciului plătit.</Bullet>
+                <Bullet>Cererile sunt trimise fără stocare de conversație, iar datele trimise prin OpenAI API nu sunt folosite implicit pentru antrenarea modelelor; furnizorul poate păstra temporar loguri limitate doar pentru siguranță și prevenirea abuzului.</Bullet>
               </Section>
 
               <Section number="02" title="Tu controlezi Caietul și studiul">
@@ -198,7 +198,7 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="03" title="Cine procesează datele">
-                <Paragraph>Folosim Google Firebase pentru autentificare, funcții și baza de date; Google Sign-In dacă îl alegi; Google Play pentru plăți și verificarea integrității; RevenueCat pentru starea abonamentului; Firebase Crashlytics doar dacă îl activezi; și Gemini Developer API pentru analiza matematică. Nu folosim rețele publicitare și nu vindem date.</Paragraph>
+                <Paragraph>Folosim Google Firebase pentru autentificare, funcții și baza de date; Google Sign-In dacă îl alegi; Google Play pentru plăți și verificarea integrității; RevenueCat pentru starea abonamentului; Firebase Crashlytics doar dacă îl activezi; și OpenAI API pentru analiza matematică, generarea de exerciții și corectarea orientativă pe barem. Nu folosim rețele publicitare și nu vindem date.</Paragraph>
               </Section>
 
               <Section number="04" title="Cât timp le păstrăm">

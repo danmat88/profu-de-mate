@@ -85,10 +85,14 @@ const mathDomainCorpus = [
   ['Inducție matematică', '\\sum_{k=1}^{n}k=\\frac{n(n+1)}{2}\\Longrightarrow\\sum_{k=1}^{n+1}k=\\frac{(n+1)(n+2)}{2}'],
 ] as const;
 
-test('keeps the provider schema free of unsupported union branches', () => {
+test('keeps the provider schema free of unsupported union branches and strict-mode bounds', () => {
   const serialized = JSON.stringify(mathAnalysisJsonSchema);
   assert.equal(serialized.includes('"anyOf"'), false);
-  assert.equal((serialized.match(/"maxItems"/g) ?? []).length, 2, 'Doar colecțiile de nivel superior au limite în schema furnizorului.');
+  assert.equal(
+    (serialized.match(/"maxItems"/g) ?? []).length,
+    0,
+    'OpenAI Structured Outputs (strict: true) nu acceptă maxItems; limitele rămân impuse de Zod.',
+  );
 });
 
 test('normalizes serialized provider visuals before strict validation', () => {

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type OpenAI from 'openai';
 import {
   examGradingResultSchema,
   normalizeExamGradingResult,
   normalizeRawExamGrading,
   parseGradeExamSolutionRequest,
 } from './examGradingSchema.js';
-import { buildExamGradingPrompt } from './examGradingService.js';
+import { buildExamGradingPrompt, gradeExamSolutionWithAi } from './examGradingService.js';
 
 const validToken = 'b'.repeat(64);
 const validRequestId = 'analysis-abcd1234-efgh5678';
@@ -89,7 +90,7 @@ test('normalizeExamGradingResult clamps points strictly to rubric maximums and z
   assert.equal(unclear.awardedPoints, 0);
   assert.equal(unclear.verdict, 'needs_work');
 
-  // Dirty Gemini grading payload with fractional points and missing fields normalizes cleanly
+  // Dirty AI grading payload with fractional points and missing fields normalizes cleanly
   const dirtyGrading = normalizeRawExamGrading({
     status: 'graded',
     awardedPoints: 3.6,
@@ -112,4 +113,62 @@ test('normalizeExamGradingResult clamps points strictly to rubric maximums and z
   assert.equal(parsedDirty.criteriaScores[1].awardedPoints, 2);
   assert.ok(parsedDirty.criteriaScores[0].comment.length > 0);
   assert.ok(parsedDirty.improvementTip.length >= 4);
+});
+
+test('gradeExamSolutionWithAi sends high-detail image via OpenAI Responses API with store=false and strict schema', async () => {
+  const captured: { request: any; options: any }[] = [];
+  const mockClient = {
+    responses: {
+      create: async (request: unknown, options: unknown) => {
+        captured.push({ request, options });
+        return {
+          output_text: JSON.stringify({
+            status: 'graded',
+            awardedPoints: 5,
+            verdict: 'complete',
+            summary: 'Rezolvare corectă și complet justificată.',
+            criteriaScores: [
+              { step: 'a) Verificare', awardedPoints: 2, maxPoints: 2, comment: 'Corect.' },
+              { step: 'b) Ecuație', awardedPoints: 3, maxPoints: 3, comment: 'Soluție completă.' },
+            ],
+            improvementTip: 'Continuă să scrii clar fiecare etapă.',
+          }),
+        };
+      },
+    },
+  } as unknown as OpenAI;
+
+  const result = await gradeExamSolutionWithAi({
+    apiKey: 'test-key',
+    model: 'gpt-6-luna',
+    client: mockClient,
+    beforeGenerate: async () => undefined,
+    request: {
+      examId: 'en',
+      itemTitle: 'S.III · 1',
+      maxPoints: 5,
+      problemText: 'Ana cumpără 3 caiete și 2 pixuri și plătește 31 lei.',
+      rubricCriteria: [
+        { step: 'a) Verificare', points: 2 },
+        { step: 'b) Ecuație', points: 3 },
+      ],
+      imageBase64: sampleBase64,
+      mimeType: 'image/jpeg',
+      requestId: validRequestId,
+      installationToken: validToken,
+    },
+  });
+
+  assert.equal(result.status, 'graded');
+  assert.equal(result.awardedPoints, 5);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].request.model, 'gpt-6-luna');
+  assert.equal(captured[0].request.store, false);
+  assert.equal(captured[0].request.text.format.type, 'json_schema');
+  assert.equal(captured[0].request.text.format.strict, true);
+  assert.equal(captured[0].options.maxRetries, 0);
+  const imagePart = captured[0].request.input[0].content[1];
+  assert.equal(imagePart.type, 'input_image');
+  assert.equal(imagePart.detail, 'high');
+  assert.equal(imagePart.image_url, `data:image/jpeg;base64,${sampleBase64}`);
 });
