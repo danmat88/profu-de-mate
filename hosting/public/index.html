@@ -3,242 +3,617 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Profu’ de mate — aplicația de matematică pentru clasele V–XII, Evaluarea Națională și Bacalaureat: rezolvări pas cu pas, calculator instant, 58 de fișe offline, teste și 12 simulări cronometrate.">
-  <meta name="theme-color" content="#4A1ED9">
+  <meta name="description" content="Profu’ de mate — aplicația de matematică pentru clasele V–XII, Evaluarea Națională și Bacalaureat: rezolvări pas cu pas din poză, calculator instant offline, 58 de fișe și 12 simulări cronometrate.">
+  <meta name="theme-color" content="#3716B0">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://profudemate.app/">
-  <meta property="og:title" content="Profu’ de mate — Matematică pas cu pas pentru V–XII, EN &amp; BAC">
-  <meta property="og:description" content="Fă o poză problemei, scrie formula sau pregătește-te offline cu 58 de fișe, teste interactive și 12 simulări complete EN &amp; BAC cu barem oficial.">
+  <meta property="og:title" content="Profu’ de mate — Matematica devine clară, pas cu pas">
+  <meta property="og:description" content="Fă o poză problemei, scrie formula cu calculator instant sau pregătește-te offline pentru Evaluarea Națională și BAC cu 58 de fișe și 12 simulări complete.">
   <meta property="og:image" content="https://profudemate.app/assets/owl-wave.png">
   <link rel="canonical" href="https://profudemate.app/">
   <link rel="icon" type="image/png" href="/assets/favicon.png">
-  <title>Profu’ de mate — Matematică pas cu pas pentru V–XII, EN &amp; BAC</title>
+  <title>Profu’ de mate — Matematica devine clară, pas cu pas (V–XII, EN &amp; BAC)</title>
   <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
 </head>
 <body>
-  <section class="canopy" aria-label="Prezentare Profu’ de mate">
-    <div class="canopy-glow-a" aria-hidden="true"></div>
-    <div class="canopy-glow-b" aria-hidden="true"></div>
-    <span class="canopy-glyph canopy-glyph-sum" aria-hidden="true">∑</span>
-    <span class="canopy-glyph canopy-glyph-pi" aria-hidden="true">π</span>
+  <div class="topbar-wrap">
+    <div class="topbar">
+      <a class="brand" href="/">
+        <img class="brand-icon" src="/assets/favicon.png" width="40" height="40" alt="">
+        <span>Profu’ de mate</span>
+      </a>
+      <nav aria-label="Navigare principală">
+        <a href="#functii">Funcții</a>
+        <a href="#programa">Programa V–XII</a>
+        <a href="#cum-functioneaza">Cum funcționează</a>
+        <a href="#siguranta">Siguranță</a>
+        <a href="#intrebari">Întrebări</a>
+      </nav>
+      <a class="nav-cta" href="#descarca">Google Play →</a>
+    </div>
+  </div>
 
-    <div class="shell">
-      <div class="canopy-nav">
-        <a class="brand" href="/">
-          <img class="brand-icon" src="/assets/favicon.png" width="44" height="44" alt="">
-          <span>Profu’ de mate</span>
-        </a>
-        <nav aria-label="Navigare principală">
-          <a href="#functii">Funcții</a>
-          <a href="#examene">EN &amp; BAC</a>
-          <a href="#siguranta">Siguranță</a>
-          <a href="#contact">Contact</a>
-          <a href="/confidentialitate">Confidențialitate</a>
-        </nav>
+  <section class="hero-stage" aria-label="Prezentare Profu’ de mate">
+    <div class="hero-dots" aria-hidden="true"></div>
+    <span class="hero-glyph hero-glyph-a" aria-hidden="true">∑</span>
+    <span class="hero-glyph hero-glyph-b" aria-hidden="true">π</span>
+    <span class="hero-glyph hero-glyph-c" aria-hidden="true">∆</span>
+
+    <div class="shell hero-layout">
+      <div>
+        <span class="eyebrow-pill">
+          <span class="live-dot" aria-hidden="true"></span>
+          România · Clasele V–XII, EN &amp; BAC
+        </span>
+        <h1 class="hero-title">
+          Matematica devine clară, <span class="text-lime">pas cu pas.</span>
+        </h1>
+        <p class="hero-lead">
+          Fă o poză problemei din caiet, scrie formula cu calculator instant offline sau antrenează-te pentru Evaluarea Națională și Bacalaureat cu fișe, teste și simulări cronometrate.
+        </p>
+        <div class="hero-actions">
+          <a class="button" href="#descarca">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.6 2.3a1.5 1.5 0 0 0-.6 1.2v17a1.5 1.5 0 0 0 2.3 1.3l14.7-8.5a1.5 1.5 0 0 0 0-2.6L5.3 2.2a1.5 1.5 0 0 0-1.7.1Z"/></svg>
+            În curând pe Google Play
+          </a>
+          <a class="button-secondary" href="#functii">
+            Explorează funcțiile ↓
+          </a>
+        </div>
+        <div class="hero-mini-proof">
+          <span class="proof-item"><span class="proof-check" aria-hidden="true">✓</span> 58 fișe offline</span>
+          <span class="proof-item"><span class="proof-check" aria-hidden="true">✓</span> 12 simulări 100p</span>
+          <span class="proof-item"><span class="proof-check" aria-hidden="true">✓</span> Fără reclame</span>
+          <span class="proof-item"><span class="proof-check" aria-hidden="true">✓</span> 13+ · Android</span>
+        </div>
       </div>
 
-      <div class="hero-grid">
-        <div>
-          <span class="eyebrow-pill">
-            <span class="eyebrow-dot" aria-hidden="true"></span>
-            Clasele V–XII · Evaluarea Națională &amp; BAC
-          </span>
-          <h1 class="hero-title">
-            Matematica pe înțelesul tău, <span class="hero-title-accent">pas cu pas.</span>
-          </h1>
-          <p class="hero-lead">
-            Fotografiază o problemă, scrie formula cu tastatura matematică sau exersează offline cu fișe de formule, teste adaptive și simulări cronometrate EN &amp; BAC.
-          </p>
-          <div class="hero-actions">
-            <a class="button" href="mailto:support@profudemate.app?subject=Acces%20testare%20Google%20Play%20%E2%80%94%20Profu%E2%80%99%20de%20mate">
-              În curând pe Google Play · Cere acces la testare
-            </a>
-            <a class="button-secondary" href="#functii">
-              Descoperă funcțiile ↓
-            </a>
+      <div class="phone-column">
+        <div class="phone-stage">
+          <div class="phone-glow" aria-hidden="true"></div>
+
+          <div class="float-badge float-badge-top" aria-hidden="true">
+            <img src="/assets/icon-trophy.png" width="22" height="22" alt="">
+            <span>Corectare foto AI pe barem</span>
           </div>
-          <div class="hero-trust-row">
-            <span class="trust-chip">Android · 13+</span>
-            <span class="trust-chip">Fără reclame</span>
-            <span class="trust-chip">Formule și teste offline</span>
-            <span class="trust-chip">Ștergere cont din Setări</span>
+
+          <div class="float-badge float-badge-bottom" aria-hidden="true">
+            <img src="/assets/icon-streak.png" width="22" height="22" alt="">
+            <span>Calculator instant offline</span>
+          </div>
+
+          <div class="phone-device" aria-label="Previzualizare interactivă Profu’ de mate">
+            <div class="phone-screen">
+              <div class="phone-top">
+                <div class="phone-statusbar">
+                  <span>10:15</span>
+                  <span class="phone-camera-dot" aria-hidden="true"></span>
+                  <span>5G · 100%</span>
+                </div>
+                <div class="phone-appbar">
+                  <span class="phone-app-brand">
+                    <img src="/assets/favicon.png" width="26" height="26" alt="">
+                    Profu’ de mate
+                  </span>
+                  <span class="phone-pill" data-phone-pill>MOD FOTO</span>
+                </div>
+              </div>
+
+              <div class="phone-body">
+                <!-- Screen 1: Photo Step-by-Step -->
+                <div class="screen-panel is-active" data-phone-panel="foto">
+                  <div class="mock-card">
+                    <div class="mock-kicker">
+                      <span>PROBLEMA SCANATĂ</span>
+                      <span>ALGEBRĂ</span>
+                    </div>
+                    <div class="mock-math">2x² − 5x + 2 = 0</div>
+                  </div>
+                  <div class="mock-card">
+                    <div class="mock-kicker"><span>REZOLVARE PAS CU PAS</span></div>
+                    <div class="mock-step-row">
+                      <span class="mock-step-num">1</span>
+                      <p class="mock-text">Calculăm discriminantul:<br><strong>Δ = (−5)² − 4 · 2 · 2 = 25 − 16 = 9</strong></p>
+                    </div>
+                    <div class="mock-step-row">
+                      <span class="mock-step-num">2</span>
+                      <p class="mock-text">Aplicăm formula rădăcinilor:<br>
+                        <strong>x₁,₂ = <span class="math-frac"><span>5 ± 3</span><span>4</span></span></strong> → <strong>x₁ = <span class="math-frac"><span>1</span><span>2</span></span></strong>, <strong>x₂ = 2</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <div class="mock-card mock-card-lime">
+                    <div class="mock-kicker mock-kicker-lime"><span>✓ RĂSPUNS FINAL</span></div>
+                    <div class="mock-math mock-math-sm">S = { <span class="math-frac"><span>1</span><span>2</span></span> , 2 }</div>
+                  </div>
+                  <div class="mock-mascot-strip">
+                    <img src="/assets/owl-cheer.png" width="42" height="42" alt="">
+                    <div>
+                      <strong>Ai salvat lecția în Caiet!</strong>
+                      <span>Poți vedea și metoda prin factorizare.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Screen 2: Instant Offline Calculator -->
+                <div class="screen-panel" data-phone-panel="calc">
+                  <div class="mock-card">
+                    <div class="mock-kicker">
+                      <span>SCRIE PROBLEMA</span>
+                      <span>TASTATURĂ MATE</span>
+                    </div>
+                    <div class="mock-math">√144 + 3² · 2</div>
+                  </div>
+                  <div class="mock-card mock-card-lime">
+                    <div class="mock-kicker mock-kicker-lime">
+                      <span>⚡ CALCULATOR INSTANT</span>
+                      <span>OFFLINE · 0 AI</span>
+                    </div>
+                    <div class="mock-math">= 30</div>
+                    <p class="mock-text">Rezultat imediat pe telefon. Apasă „Explică pas cu pas” doar când vrei demonstrația completă.</p>
+                  </div>
+                  <div class="mock-kbd" aria-hidden="true">
+                    <span class="mock-key mock-key-accent">a/b</span>
+                    <span class="mock-key mock-key-accent">x²</span>
+                    <span class="mock-key mock-key-accent">√</span>
+                    <span class="mock-key mock-key-accent">π</span>
+                    <span class="mock-key mock-key-lime">=</span>
+                    <span class="mock-key">7</span>
+                    <span class="mock-key">8</span>
+                    <span class="mock-key">9</span>
+                    <span class="mock-key">÷</span>
+                    <span class="mock-key">×</span>
+                  </div>
+                  <div class="mock-mascot-strip">
+                    <img src="/assets/owl-point.png" width="42" height="42" alt="">
+                    <div>
+                      <strong>Zero risipă din cota zilnică</strong>
+                      <span>Calculele directe sunt gratuite și instant.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Screen 3: Offline Formula Sheets -->
+                <div class="screen-panel" data-phone-panel="formule">
+                  <div class="mock-card mock-card-cyan">
+                    <div class="mock-kicker">
+                      <span>FIȘĂ OFFLINE · GEOMETRIE</span>
+                      <span>★ FAVORITĂ</span>
+                    </div>
+                    <div class="mock-math mock-math-sm">a² + b² = c²</div>
+                    <p class="mock-text"><strong>Teorema lui Pitagora</strong> — triunghi dreptunghic cu ipotenuza c.</p>
+                  </div>
+                  <div class="mock-card">
+                    <div class="mock-kicker"><span>CÂND O FOLOSEȘTI</span></div>
+                    <p class="mock-text">Când cunoști două laturi ale unui triunghi dreptunghic și vrei să afli a treia latură sau diagonala unui dreptunghi.</p>
+                  </div>
+                  <div class="mock-card mock-card-gold">
+                    <div class="mock-kicker mock-kicker-gold"><span>⚠ ATENȚIE LA CAPCANĂ</span></div>
+                    <p class="mock-text">Ipotenuza c este întotdeauna latura opusă unghiului de 90° — cea mai mare latură!</p>
+                  </div>
+                  <div class="mock-mascot-strip">
+                    <img src="/assets/owl-wave.png" width="42" height="42" alt="">
+                    <div>
+                      <strong>58 de fișe disponibile offline</strong>
+                      <span>Inclusiv matrice, derivate și integrale.</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Screen 4: Timed EN / BAC Simulation -->
+                <div class="screen-panel" data-phone-panel="simulare">
+                  <div class="mock-exam-strip" aria-hidden="true">
+                    <span class="mock-chip mock-chip-done">I.1 ✓</span>
+                    <span class="mock-chip mock-chip-done">I.2 ✓</span>
+                    <span class="mock-chip mock-chip-active">I.3</span>
+                    <span class="mock-chip mock-chip-flag">I.4 ★</span>
+                    <span class="mock-chip">I.5</span>
+                  </div>
+                  <div class="mock-card">
+                    <div class="mock-kicker">
+                      <span>SUBIECTUL I · 5p</span>
+                      <span>⏱ 01:42:18 · ⏸</span>
+                    </div>
+                    <p class="mock-text">Rezultatul calculului <strong>24 : 6 + 3 · 4</strong> este egal cu:</p>
+                  </div>
+                  <div class="mock-choices" aria-hidden="true">
+                    <span class="mock-choice"><span class="mock-choice-letter">A</span> 12</span>
+                    <span class="mock-choice mock-choice-selected"><span class="mock-choice-letter">B</span> 16</span>
+                    <span class="mock-choice"><span class="mock-choice-letter">C</span> 20</span>
+                    <span class="mock-choice"><span class="mock-choice-letter">D</span> 28</span>
+                  </div>
+                  <div class="mock-card mock-card-lime">
+                    <div class="mock-kicker mock-kicker-lime"><span>✓ CONDIȚII REALE DE EXAMEN</span></div>
+                    <p class="mock-text">Pauză salvată automat pe telefon + corectare foto AI pe barem la Subiectul II și III.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="hero-mascot-stage">
-          <div class="mascot-aura" aria-hidden="true"></div>
-          <img
-            class="hero-mascot"
-            src="/assets/owl-wave.png"
-            width="440"
-            height="440"
-            alt="Mascota Profu’ de mate salutând"
-          >
-          <div class="mascot-bubble">
-            „Hai să rezolvăm problema clar, fără pași săriți!”
-          </div>
+        <div class="phone-tabs" role="tablist" aria-label="Alege ecranul din aplicație">
+          <button type="button" class="phone-tab" role="tab" aria-selected="true" data-phone-tab="foto" data-phone-badge="MOD FOTO">Poză pas cu pas</button>
+          <button type="button" class="phone-tab" role="tab" aria-selected="false" data-phone-tab="calc" data-phone-badge="CALCULATOR">Calculator</button>
+          <button type="button" class="phone-tab" role="tab" aria-selected="false" data-phone-tab="formule" data-phone-badge="58 FIȘE">Formule</button>
+          <button type="button" class="phone-tab" role="tab" aria-selected="false" data-phone-tab="simulare" data-phone-badge="EN & BAC">Simulări</button>
         </div>
       </div>
     </div>
   </section>
 
   <div class="shell">
-    <section class="stats-strip" aria-label="Cifre cheie">
+    <section class="stats-strip reveal" aria-label="Cifre cheie">
       <div class="stat-card">
         <span class="stat-value">58</span>
-        <span class="stat-label">fișe de formule offline pentru clasele V–XII, EN &amp; BAC</span>
+        <span class="stat-label">fișe de formule offline cu exemple rezolvate și capcane</span>
       </div>
       <div class="stat-card">
         <span class="stat-value">12</span>
-        <span class="stat-label">simulări complete de 100p (EN, BAC M1, M2, M3) cu barem</span>
+        <span class="stat-label">simulări complete de 100p (EN, BAC M1, M2 și M3)</span>
       </div>
       <div class="stat-card">
         <span class="stat-value">100%</span>
-        <span class="stat-label">formule matematice vectorizate clar: fracții, matrice, integrale</span>
+        <span class="stat-label">matematică vectorizată clar: fracții, matrice, integrale</span>
       </div>
       <div class="stat-card">
         <span class="stat-value">0</span>
-        <span class="stat-label">reclame și nicio fotografie salvată în cloud sau în Caiet</span>
+        <span class="stat-label">reclame, fără poze salvate în cloud și control total</span>
       </div>
     </section>
 
     <main>
-      <section id="functii" class="section section-first">
+      <!-- Bento Grid Features -->
+      <section id="functii" class="section section-first reveal">
         <div class="section-head">
-          <p class="eyebrow">Tot ce ai nevoie într-un singur loc</p>
-          <h2 class="section-title">Construit special pentru programa din România.</h2>
+          <p class="eyebrow">Tot studiul într-un singur loc</p>
+          <h2 class="section-title">Făcut special pentru matematica din România.</h2>
           <p class="section-lead">
-            De la teme rapide de acasă până la pregătirea completă pentru Evaluarea Națională și Bacalaureat, fără să sari între aplicații diferite.
+            De la teme rapide de seară până la simulări cronometrate de 100 de puncte, totul arată și se simte nativ, rapid și curat.
           </p>
         </div>
 
-        <div class="features-grid">
-          <article class="feature-card">
-            <div class="feature-icon">
-              <img src="/assets/icon-camera.png" width="36" height="36" alt="">
+        <div class="bento-grid">
+          <article class="bento-card bento-span-7 bento-violet">
+            <div class="bento-head">
+              <div class="bento-icon">
+                <img src="/assets/icon-camera.png" width="34" height="34" alt="">
+              </div>
+              <span class="bento-tag">Poză sau Galerie · Rezolvă &amp; Verifică</span>
             </div>
-            <h3>Rezolvă sau verifică din poză</h3>
+            <h3>Faci o poză și înțelegi fiecare pas — sau îți verifici propria rezolvare</h3>
             <p>
-              Faci o poză din caiet sau alegi din galerie. Primești explicația pas cu pas în română, metoda alternativă sau verificarea exactă a rezolvării tale.
+              Nu primești doar rezultatul final. Profu’ îți explică pe limba ta fiecare transformare, îți arată metoda alternativă și, în modul Verificare, îți spune exact la ce rând s-a strecurat greșeala.
             </p>
+            <div class="bento-demo">
+              <span class="demo-pill">✓ Pas cu pas în română</span>
+              <span class="demo-pill">✓ Metodă alternativă</span>
+              <span class="demo-pill demo-pill-lime">✓ Rezumat salvat în Caiet</span>
+            </div>
           </article>
 
-          <article class="feature-card">
-            <div class="feature-icon feature-icon-cyan">
-              <img src="/assets/icon-explain.png" width="36" height="36" alt="">
+          <article class="bento-card bento-span-5 bento-cyan">
+            <div class="bento-head">
+              <div class="bento-icon">
+                <img src="/assets/icon-explain.png" width="34" height="34" alt="">
+              </div>
+              <span class="bento-tag">Offline · 0 consum AI</span>
             </div>
-            <h3>Scrie problema + calculator instant</h3>
+            <h3>Scrie problema + Calculator instant</h3>
             <p>
-              Tastatură matematică dedicată pentru fracții, puteri, radicali și ecuații. Calculele directe se evaluează instant, complet offline, fără să consumi din cota AI.
+              Tastatură matematică dedicată pentru fracții, puteri, radicali și ecuații. Calculele directe îți dau rezultatul pe loc, fără internet.
             </p>
+            <div class="bento-demo">
+              <span class="demo-formula">4 + 3² · √16</span>
+              <span class="demo-pill demo-pill-lime">= 40 instant</span>
+            </div>
           </article>
 
-          <article class="feature-card">
-            <div class="feature-icon feature-icon-gold">
-              <img src="/assets/icon-notebook.png" width="36" height="36" alt="">
+          <article class="bento-card bento-span-5 bento-gold">
+            <div class="bento-head">
+              <div class="bento-icon">
+                <img src="/assets/icon-notebook.png" width="34" height="34" alt="">
+              </div>
+              <span class="bento-tag">6 capitole complete</span>
             </div>
             <h3>58 de fișe și formule offline</h3>
             <p>
-              Algebră, geometrie, trigonometrie, matrice, analiză și combinatorică — fiecare fișă are formula clară, „când o folosești”, exemplu rezolvat și capcane frecvente.
+              Algebră, geometrie, trigonometrie, matrice, analiză și combinatorică. Cu „când o folosești”, exemplu rezolvat pas cu pas, capcane frecvente și salvare la favorite ★.
+            </p>
+            <div class="bento-demo">
+              <span class="demo-formula">∫ xⁿ dx = <span class="math-frac"><span>xⁿ⁺¹</span><span>n+1</span></span> + C</span>
+              <span class="demo-pill demo-pill-gold">★ Offline</span>
+            </div>
+          </article>
+
+          <article class="bento-card bento-span-7 bento-lime">
+            <div class="bento-head">
+              <div class="bento-icon">
+                <img src="/assets/icon-trophy.png" width="34" height="34" alt="">
+              </div>
+              <span class="bento-tag">EN VIII · BAC M1, M2, M3</span>
+            </div>
+            <h3>12 Simulări cronometrate de 100p + corectare foto AI pe barem</h3>
+            <p>
+              Structură oficială completă (120 / 180 min), marcare itemi „De revizuit”, pauză salvată automat pe telefon, comparație „Răspunsul tău vs. Răspuns oficial” și badge <strong>Condiții reale de examen</strong>.
+            </p>
+            <div class="score-bars">
+              <div class="score-bar-box"><strong>10p</strong><span>Din oficiu</span></div>
+              <div class="score-bar-box"><strong>30p</strong><span>Subiectul I</span></div>
+              <div class="score-bar-box"><strong>30p</strong><span>Subiectul II</span></div>
+              <div class="score-bar-box"><strong>30p</strong><span>Subiectul III</span></div>
+            </div>
+          </article>
+
+          <article class="bento-card bento-span-6">
+            <div class="bento-head">
+              <div class="bento-icon">
+                <img src="/assets/icon-practice.png" width="34" height="34" alt="">
+              </div>
+              <span class="bento-tag">Practică &amp; Profu’ AI</span>
+            </div>
+            <h3>Teste rapide, coada „De repetat” și exerciții originale AI</h3>
+            <p>
+              Exersezi grilă și răspuns scurt pe capitole. Ce greșești intră automat în coada „De repetat” ca să reiei țintit, iar cu Profu’ AI poți genera oricând exerciții noi pe dificultatea dorită (Ușor · Mediu · Examen).
             </p>
           </article>
 
-          <article class="feature-card">
-            <div class="feature-icon feature-icon-lime">
-              <img src="/assets/icon-practice.png" width="36" height="36" alt="">
+          <article class="bento-card bento-span-6 bento-peach">
+            <div class="bento-head">
+              <div class="bento-icon">
+                <img src="/assets/icon-streak.png" width="34" height="34" alt="">
+              </div>
+              <span class="bento-tag">Ritm zilnic &amp; Sync</span>
             </div>
-            <h3>Teste rapide &amp; practică adaptivă</h3>
+            <h3>Serie zilnică și Caiet sincronizat pe contul tău</h3>
             <p>
-              Exerciții grilă și răspuns scurt pe capitole, coadă automată „De repetat” pentru greșeli, serie zilnică de ritm și generator de exerciții originale cu Profu’ AI.
-            </p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon feature-icon-peach">
-              <img src="/assets/icon-trophy.png" width="36" height="36" alt="">
-            </div>
-            <h3>Simulări EN &amp; BAC reale</h3>
-            <p>
-              12 variante complete de 100 de puncte, cronometru real (120/180 min), pauză cu salvare automată, etichetă „Condiții reale de examen” și corectare foto AI pe barem.
-            </p>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-icon">
-              <img src="/assets/icon-privacy.png" width="36" height="36" alt="">
-            </div>
-            <h3>Caietul tău, mereu sincronizat</h3>
-            <p>
-              Salvează lecțiile importante și formulele favorite. Poți începe fără cont Google sau poți sincroniza progresul și simulările între dispozitive.
+              Orice test, simulare sau problemă rezolvată îți menține ritmul săptămânal. Începi fără cont sau te conectezi cu Google ca să păstrezi lecțiile, formulele favorite și simulările pe orice telefon.
             </p>
           </article>
         </div>
       </section>
 
-      <section id="examene" class="section">
-        <div class="exam-panel">
-          <div>
-            <p class="eyebrow">Pregătire structurată EN &amp; BAC</p>
-            <h2 class="section-title">Exact structura oficială: 10p oficiu + S.I + S.II + S.III.</h2>
-            <p class="section-lead">
-              Alegi clasa sau examenul (V–VII, Evaluarea Națională VIII, Liceu IX–XI, BAC M1, M2 sau M3) și întreaga aplicație se adaptează imediat.
-            </p>
+      <!-- Interactive Curriculum Explorer -->
+      <section id="programa" class="section reveal">
+        <div class="section-head">
+          <p class="eyebrow">Personalizat instant</p>
+          <h2 class="section-title">Alegi clasa sau examenul — totul se adaptează pe loc.</h2>
+          <p class="section-lead">
+            Selectează un nivel mai jos ca să vezi ce primești exact în aplicație.
+          </p>
+        </div>
+
+        <div class="track-explorer">
+          <div class="track-pills" role="tablist" aria-label="Alege clasa sau examenul">
+            <button type="button" class="track-btn" role="tab" aria-selected="false" data-track-btn="gimnaziu">Clasele V–VII</button>
+            <button type="button" class="track-btn" role="tab" aria-selected="true" data-track-btn="en">EN · Clasa VIII</button>
+            <button type="button" class="track-btn" role="tab" aria-selected="false" data-track-btn="liceu">Liceu IX–XI</button>
+            <button type="button" class="track-btn" role="tab" aria-selected="false" data-track-btn="bac_m1">BAC · M1</button>
+            <button type="button" class="track-btn" role="tab" aria-selected="false" data-track-btn="bac_m2">BAC · M2</button>
+            <button type="button" class="track-btn" role="tab" aria-selected="false" data-track-btn="bac_m3">BAC · M3</button>
           </div>
-          <ul class="exam-list">
-            <li><strong>Scor instant la S.I / S.II:</strong> vezi comparația clară dintre răspunsul tău și cel oficial, cu rezolvare model pas cu pas.</li>
-            <li><strong>Corectare foto AI pe barem:</strong> rezolvi Subiectul II/III pe hârtie ca la examen, faci poză paginii și primești punctajul pe fiecare etapă din barem.</li>
-            <li><strong>Pauză inteligentă și reluare:</strong> dacă trebuie să te oprești, progresul și cronometrul se salvează automat pe telefon; dacă o duci cap-coadă, primești badge-ul <em>Condiții reale de examen</em>.</li>
-          </ul>
+
+          <div class="track-stage">
+            <div>
+              <div class="track-panel" data-track-panel="gimnaziu">
+                <span class="track-panel-eyebrow">GIMNAZIU · CLASELE V–VII</span>
+                <h3>Bazele solide de algebră și geometrie</h3>
+                <p>Ideal pentru teme zilnice, teze și pregătire timpurie fără presiune: fracții, proporții, puteri, ecuații liniare și figuri geometrice.</p>
+                <ul class="track-highlights">
+                  <li>Fișe clare pentru fracții, procente și puteri</li>
+                  <li>Triunghiuri, Pitagora, Thales și arii</li>
+                  <li>Calculator instant offline pentru verificarea temelor</li>
+                  <li>Teste fulger de 5 întrebări pentru ritm zilnic</li>
+                </ul>
+              </div>
+
+              <div class="track-panel is-active" data-track-panel="en">
+                <span class="track-panel-eyebrow">EVALUAREA NAȚIONALĂ · CLASA VIII</span>
+                <h3>Pregătire completă pentru nota mare la EN</h3>
+                <p>Toate formulele esențiale de gimnaziu, ghidul structurii de examen (120 min) și 3 variante complete de simulare cu barem oficial.</p>
+                <ul class="track-highlights">
+                  <li>3 simulări cronometrate (120 min · 100 puncte)</li>
+                  <li>Subiectul I &amp; II cu scor instant + comparație răspuns</li>
+                  <li>Corectare foto AI pe barem la Subiectul III</li>
+                  <li>Formule prescurtate, ecuații, funcții și geometrie în spațiu</li>
+                </ul>
+              </div>
+
+              <div class="track-panel" data-track-panel="liceu">
+                <span class="track-panel-eyebrow">LICEU · CLASELE IX–XI</span>
+                <h3>Trecerea curată la funcții, trigonometrie și analiză</h3>
+                <p>Puntea completă de la gimnaziu la BAC: progresii, logaritmi, trigonometrie, vectori, matrice și primele limite și derivate.</p>
+                <ul class="track-highlights">
+                  <li>Logaritmi, exponențiale și ecuații de gradul II</li>
+                  <li>Trigonometrie, cercul trigonometric și formule cheie</li>
+                  <li>Matrice, determinanți și sisteme liniare</li>
+                  <li>Limite, derivate și teste adaptate pe capitole</li>
+                </ul>
+              </div>
+
+              <div class="track-panel" data-track-panel="bac_m1">
+                <span class="track-panel-eyebrow">BACALAUREAT · MATE-INFO (M1)</span>
+                <h3>Nivel avansat: algebră, matrice și analiză matematică</h3>
+                <p>Toate cele 58 de fișe (inclusiv integrale, legi de compoziție, polinoame și derivate) plus 3 variante complete BAC M1 de 180 de minute.</p>
+                <ul class="track-highlights">
+                  <li>3 simulări BAC M1 (180 min · S.I, S.II, S.III)</li>
+                  <li>Corectare foto AI pe barem pentru redactarea pe foaie</li>
+                  <li>Matrice, determinanți, legi de compoziție și polinoame</li>
+                  <li>Limite, asimptote, monotonie și integrale definite</li>
+                </ul>
+              </div>
+
+              <div class="track-panel" data-track-panel="bac_m2">
+                <span class="track-panel-eyebrow">BACALAUREAT · ȘTIINȚE ALE NATURII (M2)</span>
+                <h3>Structura exactă M2, fără teorie inutilă</h3>
+                <p>Fișe și exerciții calibrate pe programa Științe ale Naturii, cu 3 simulări complete de 180 de minute și barem pas cu pas.</p>
+                <ul class="track-highlights">
+                  <li>3 simulări BAC M2 (180 min · 100 puncte)</li>
+                  <li>Algebră de liceu, combinatorică și probabilități</li>
+                  <li>Matrice, legi de compoziție și analiză M2</li>
+                  <li>Antrenament țintit pe un singur subiect (S.I, S.II sau S.III)</li>
+                </ul>
+              </div>
+
+              <div class="track-panel" data-track-panel="bac_m3">
+                <span class="track-panel-eyebrow">BACALAUREAT · TEHNOLOGIC (M3)</span>
+                <h3>Clar, direct și orientat pe punctajul oficial</h3>
+                <p>Explicații pe înțelesul tuturor și 3 simulări complete BAC Tehnologic care te ajută să recuperezi rapid și sigur punctele esențiale.</p>
+                <ul class="track-highlights">
+                  <li>3 simulări BAC Tehnologic (180 min · barem oficial)</li>
+                  <li>Progresii, funcții, vectori și geometrie analitică</li>
+                  <li>Matrice 2×2 / 3×3, derivate și integrale de bază</li>
+                  <li>Coada automată „De repetat” pentru fixarea greșelilor</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="track-owl-card">
+              <img src="/assets/owl-point.png" width="170" height="170" alt="Mascota Profu’ de mate indicând programa">
+              <span class="track-owl-caption">Poți schimba oricând nivelul din 2 atingeri!</span>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section id="siguranta" class="section">
+      <!-- 3-Step Flow -->
+      <section id="cum-functioneaza" class="section reveal">
+        <div class="section-head section-head-center">
+          <p class="eyebrow">Simplu din prima secundă</p>
+          <h2 class="section-title">De la blocaj la „Aha!” în 3 pași.</h2>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <span class="step-badge">01</span>
+            <h3>Fotografiezi sau scrii problema</h3>
+            <p>Încadrezi exercițiul din caiet sau îl introduci cu tastatura matematică. Pentru calcule directe primești răspunsul instant, offline.</p>
+          </div>
+          <div class="step-card">
+            <span class="step-badge">02</span>
+            <h3>Urmărești pașii clari în română</h3>
+            <p>Fiecare pas este explicat logic, cu formule vectorizate curate, metodă alternativă și salvare automată în Caietul tău.</p>
+          </div>
+          <div class="step-card">
+            <span class="step-badge">03</span>
+            <h3>Exersezi și simulezi examenul</h3>
+            <p>Reiei greșelile din „De repetat”, verifici fișele de formule offline și îți testezi nivelul real pe simulările EN &amp; BAC de 100 de puncte.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Parents & Safety -->
+      <section id="siguranta" class="section reveal">
         <div class="safety-panel">
           <div class="section-head">
             <p class="eyebrow">Pentru elevi și părinți</p>
-            <h2 class="section-title">Date puține. Zero reclame. Control total.</h2>
+            <h2 class="section-title">Construit responsabil. Zero reclame. Control real.</h2>
             <p class="section-lead">
-              Profu’ de mate este construit responsabil pentru elevii de 13+ ani, cu transparență completă despre cum funcționează AI-ul și datele tale.
+              Știm cât de mult contează siguranța într-o aplicație educațională. Transparența este în centrul Profu’ de mate.
             </p>
           </div>
 
           <div class="safety-grid">
             <div class="safety-item">
+              <h3>Zero reclame</h3>
+              <p>Fără bannere, fără reclame video care întrerup studiul și fără rețele de tracking publicitar.</p>
+            </div>
+            <div class="safety-item">
               <h3>Pozele nu intră în cloud</h3>
-              <p>Fotografia problemei este procesată doar pentru explicația cerută și nu este stocată în Firebase Storage sau în Caiet.</p>
+              <p>Fotografiile sunt procesate strict pentru explicația cerută și nu se păstrează în Firebase Storage sau Caiet.</p>
             </div>
             <div class="safety-item">
-              <h3>AI-ul explică, nu decide</h3>
-              <p>Aplicația este un instrument educațional care încurajează înțelegerea pașilor, cu raportare rapidă dacă observi vreodată o greșeală.</p>
+              <h3>AI responsabil (13+)</h3>
+              <p>Încurajează înțelegerea pașilor, nu înlocuiește profesorul și are buton de raportare în fiecare lecție.</p>
             </div>
             <div class="safety-item">
-              <h3>Ștergere cu o atingere</h3>
-              <p>Oricând vrei, poți șterge definitiv contul, lecțiile, progresul și simulările direct din Setări sau printr-o cerere pe e-mail.</p>
+              <h3>Ștergere în 10 secunde</h3>
+              <p>Poți începe fără cont Google și poți șterge definitiv toate datele direct din Setări sau pe e-mail.</p>
             </div>
           </div>
 
           <div class="doc-links-row" aria-label="Documente legale">
             <a class="doc-pill" href="/confidentialitate">Politica de confidențialitate →</a>
             <a class="doc-pill" href="/termeni">Termeni de utilizare →</a>
-            <a class="doc-pill" href="/stergere-date">Cum ștergi datele și contul →</a>
+            <a class="doc-pill" href="/stergere-date">Ștergerea datelor și a contului →</a>
           </div>
         </div>
       </section>
 
-      <section id="contact" class="section">
-        <div class="section-head">
-          <p class="eyebrow">Contact oficial</p>
-          <h2 class="section-title">Ai o întrebare sau vrei să testezi aplicația?</h2>
-          <p class="section-lead">
-            Scrie-ne direct la adresa potrivită — răspundem personal fiecărui mesaj.
-          </p>
+      <!-- Interactive FAQ -->
+      <section id="intrebari" class="section reveal">
+        <div class="section-head section-head-center">
+          <p class="eyebrow">Întrebări frecvente</p>
+          <h2 class="section-title">Răspunsuri rapide și sincere.</h2>
         </div>
 
-        <div class="contact-grid">
+        <div class="faq-list">
+          <details class="faq-item" open>
+            <summary>Funcționează Profu’ de mate și fără internet?</summary>
+            <div class="faq-answer">
+              <p>Da! Toate cele 58 de fișe de formule, ghidurile EN &amp; BAC, testele curatate, calculatorul instant din „Scrie problema”, simulările offline (S.I/S.II și auto-notarea pe barem) și lecțiile salvate în Caiet merg și fără internet. Ai nevoie de conexiune doar pentru analiza AI (poză/scris), generarea de exerciții AI noi și corectarea foto AI pe barem.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Este aplicația gratuită sau necesită abonament?</summary>
+            <div class="faq-answer">
+              <p>Biblioteca de 58 de fișe offline, testele curatate, calculatorul instant, ghidurile și simulările offline sunt disponibile gratuit, plus ai probleme de bun-venit și o cotă zilnică gratuită pentru funcțiile AI. Abonamentul opțional Premium (gestionat exclusiv prin Google Play) mărește limita zilnică AI pentru elevii care rezolvă intens înainte de examene.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Cum funcționează corectarea foto AI pe barem la simulări?</summary>
+            <div class="faq-answer">
+              <p>La Subiectul II și III (unde scrii demonstrația pe foaie ca la examen), rezolvi pe caiet și faci o poză paginii. Cronometrul se oprește automat cât timp Profu’ AI evaluează pașii după baremul oficial, îți acordă punctajul pe fiecare criteriu și îți oferă un sfat concret de îmbunătățire.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Ce se întâmplă dacă pun pauză în timpul unei simulări de 2–3 ore?</summary>
+            <div class="faq-answer">
+              <p>Progresul, răspunsurile, itemii marcați „De revizuit” și secunda exactă din cronometru se salvează automat pe telefon (până la 14 zile), chiar dacă ieși din aplicație. La final, simulările duse cap-coadă fără pauze primesc eticheta <strong>Condiții reale de examen</strong>, iar cele cu pauze afișează transparent numărul de pauze.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary>Cum pot șterge contul și datele mele?</summary>
+            <div class="faq-answer">
+              <p>Direct din aplicație: <strong>Setări → Datele tale → Șterge contul și datele</strong>. Dacă ai dezinstalat deja aplicația, poți trimite o cerere de pe adresa contului Google către <a href="mailto:privacy@profudemate.app">privacy@profudemate.app</a> (vezi toți pașii pe pagina <a href="/stergere-date">Ștergere date</a>).</p>
+            </div>
+          </details>
+        </div>
+      </section>
+
+      <!-- Final CTA & Contact -->
+      <section id="descarca" class="section reveal">
+        <div class="cta-banner">
+          <div>
+            <p class="eyebrow">Lansare Android · Google Play</p>
+            <h2>Gata să înțelegi matematica pe bune?</h2>
+            <p>
+              Profu’ de mate se pregătește de lansarea oficială în Google Play. Dacă vrei să fii printre primii testeri (elev, părinte sau profesor), scrie-ne și îți trimitem invitația de acces imediat ce deschidem testul închis.
+            </p>
+            <div class="hero-actions">
+              <a class="button" href="mailto:support@profudemate.app?subject=Vreau%20acces%20la%20testarea%20Profu%E2%80%99%20de%20mate">
+                Înscrie-te la testarea Google Play →
+              </a>
+              <a class="button-secondary" href="/confidentialitate">
+                Vezi politica de confidențialitate
+              </a>
+            </div>
+          </div>
+          <div class="cta-banner-owl">
+            <img src="/assets/owl-cheer.png" width="210" height="210" alt="Mascota Profu’ de mate bucurându-se">
+          </div>
+        </div>
+
+        <div id="contact" class="contact-grid">
           <div class="contact-card">
-            <span class="contact-label">Suport &amp; feedback</span>
+            <span class="contact-label">Suport &amp; testare Play</span>
             <a class="contact-link" href="mailto:support@profudemate.app">support@profudemate.app</a>
-            <p class="contact-note">Întrebări despre aplicație, sugestii, erori sau înscriere în testarea Google Play.</p>
+            <p class="contact-note">Întrebări despre aplicație, sugestii, raportări și înscrieri în programul de testare.</p>
           </div>
           <div class="contact-card">
             <span class="contact-label">Confidențialitate &amp; date</span>
@@ -248,7 +623,7 @@
           <div class="contact-card">
             <span class="contact-label">Abonamente &amp; plăți</span>
             <a class="contact-link" href="mailto:billing@profudemate.app">billing@profudemate.app</a>
-            <p class="contact-note">Suport pentru abonamentul Premium și restaurarea achizițiilor Google Play.</p>
+            <p class="contact-note">Ajutor pentru abonamentul Premium și restaurarea achizițiilor Google Play.</p>
           </div>
         </div>
       </section>
