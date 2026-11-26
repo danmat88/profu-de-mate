@@ -160,7 +160,7 @@ export function LegalScreen({ navigation }: Props) {
               </Section>
 
               <Section number="02" title="Tu controlezi Caietul și studiul">
-                <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile salvate în Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate. Progresul de studiu (nivelul ales, formule favorite, exerciții stăpânite și lista „De repetat”) se sincronizează pentru contul tău, iar istoricul simulărilor rămâne local pe telefon; toate se șterg complet din Setări.</Paragraph>
+                <Paragraph>Lecțiile nesalvate expiră automat după 7 zile. Lecțiile salvate în Caiet rămân cât timp îl folosești, dar sunt șterse după aproximativ 13 luni fără activitate. Progresul de studiu (nivelul ales, formule favorite, exerciții stăpânite, lista „De repetat”, seria zilnică și simulările finalizate) se sincronizează pentru contul tău, iar ciorna unei simulări puse pe pauză rămâne exclusiv local pe telefon (până la 14 zile); toate se șterg complet din Setări.</Paragraph>
               </Section>
 
               <Section number="03" title="Inteligența artificială explică, nu decide">
@@ -186,7 +186,7 @@ export function LegalScreen({ navigation }: Props) {
                 <Bullet>Un identificator Firebase pentru spațiul aplicației; dacă alegi Google, adresa de e-mail, numele și identificatorul contului furnizate de Google. Pentru cota zilnică gratuită și prevenirea abuzului, aplicația derivă local un hash SHA-256 din identificatorul de dispozitiv specific aplicației Android (fără a transmite valoarea brută), iar backendul transformă atât acest hash, cât și identificatorul Google în coduri HMAC opace.</Bullet>
                 <Bullet>Fotografia sau formula aleasă de tine, rezolvarea introdusă pentru verificare, cererea de exerciții AI ori corectarea foto pe barem la simulări.</Bullet>
                 <Bullet>Soluția, verdictul, materia și starea de salvare a lecției.</Bullet>
-                <Bullet>Progresul de studiu (profilul ales, formule favorite, exerciții stăpânite, lista „De repetat” și seria zilnică) sincronizat pentru contul activ; istoricul simulărilor de examen rămâne salvat exclusiv local pe telefon.</Bullet>
+                <Bullet>Progresul de studiu (profilul ales, formule favorite, exerciții stăpânite, lista „De repetat”, seria zilnică și rezultatele simulărilor finalizate) sincronizat pentru contul activ; ciorna unei simulări aflate în pauză rămâne salvată exclusiv local pe telefon.</Bullet>
                 <Bullet>Categoria unui raport trimis de tine și, doar dacă activezi opțiunea, date tehnice de blocare.</Bullet>
                 <Bullet>Starea abonamentului și produsul cumpărat, fără numărul cardului sau datele de plată.</Bullet>
                 <Bullet>Semnale Play Integrity (App Check), când sunt disponibile, folosite exclusiv pentru securitatea aplicației și prevenirea cererilor neautorizate.</Bullet>
@@ -204,7 +204,7 @@ export function LegalScreen({ navigation }: Props) {
               <Section number="04" title="Cât timp le păstrăm">
                 <Bullet>Fotografia nu este stocată de aplicație în Cloud Storage sau Caiet.</Bullet>
                 <Bullet>Ciornele editorului rămân pe telefon, separat pentru rezolvare și verificare. Expiră după 7 zile fără editare și sunt eliminate la următoarea deschidere a editorului; sunt șterse și la deconectare, schimbarea contului sau ștergerea datelor. Datele locale pentru reluarea unei analize expiră după 30 de minute și sunt curățate la următoarea verificare.</Bullet>
-                <Bullet>Progresul de studiu sincronizat și istoricul local al simulărilor rămân cât timp contul există și sunt eliminate definitiv când alegi ștergerea datelor din Setări.</Bullet>
+                <Bullet>Progresul de studiu și rezultatele simulărilor sincronizate rămân cât timp contul există și sunt eliminate definitiv când alegi ștergerea datelor din Setări. Ciorna locală a unei simulări puse pe pauză expiră automat după 14 zile și se șterge la predare, deconectare sau ștergerea datelor.</Bullet>
                 <Bullet>Lecția nesalvată și rezultatul tehnic temporar: expirare după 7 zile.</Bullet>
                 <Bullet>Contoarele zilnice și rezervările anti-abuz: expirare după 35 de zile.</Bullet>
                 <Bullet>După ștergerea datelor sau a contului, codurile HMAC opace ale contului și dispozitivului, hashurile unidirecționale de deduplicare și numărul problemelor folosite în ziua curentă pot rămâne numai până la miezul nopții (următoarea resetare zilnică), apoi intră în curățarea automată și nu mai sunt folosite pentru noua zi.</Bullet>

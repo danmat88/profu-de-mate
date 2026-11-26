@@ -3,30 +3,269 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Documentele oficiale pentru aplicația Profu’ de mate.">
-  <title>Profu’ de mate — Legal și siguranță</title>
+  <meta name="description" content="Profu’ de mate — aplicația de matematică pentru clasele V–XII, Evaluarea Națională și Bacalaureat: rezolvări pas cu pas, calculator instant, 58 de fișe offline, teste și 12 simulări cronometrate.">
+  <meta name="theme-color" content="#4A1ED9">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://profudemate.app/">
+  <meta property="og:title" content="Profu’ de mate — Matematică pas cu pas pentru V–XII, EN &amp; BAC">
+  <meta property="og:description" content="Fă o poză problemei, scrie formula sau pregătește-te offline cu 58 de fișe, teste interactive și 12 simulări complete EN &amp; BAC cu barem oficial.">
+  <meta property="og:image" content="https://profudemate.app/assets/owl-wave.png">
+  <link rel="canonical" href="https://profudemate.app/">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <title>Profu’ de mate — Matematică pas cu pas pentru V–XII, EN &amp; BAC</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <section class="canopy" aria-label="Prezentare Profu’ de mate">
+    <div class="canopy-glow-a" aria-hidden="true"></div>
+    <div class="canopy-glow-b" aria-hidden="true"></div>
+    <span class="canopy-glyph canopy-glyph-sum" aria-hidden="true">∑</span>
+    <span class="canopy-glyph canopy-glyph-pi" aria-hidden="true">π</span>
+
+    <div class="shell">
+      <div class="canopy-nav">
+        <a class="brand" href="/">
+          <img class="brand-icon" src="/assets/favicon.png" width="44" height="44" alt="">
+          <span>Profu’ de mate</span>
+        </a>
+        <nav aria-label="Navigare principală">
+          <a href="#functii">Funcții</a>
+          <a href="#examene">EN &amp; BAC</a>
+          <a href="#siguranta">Siguranță</a>
+          <a href="#contact">Contact</a>
+          <a href="/confidentialitate">Confidențialitate</a>
+        </nav>
+      </div>
+
+      <div class="hero-grid">
+        <div>
+          <span class="eyebrow-pill">
+            <span class="eyebrow-dot" aria-hidden="true"></span>
+            Clasele V–XII · Evaluarea Națională &amp; BAC
+          </span>
+          <h1 class="hero-title">
+            Matematica pe înțelesul tău, <span class="hero-title-accent">pas cu pas.</span>
+          </h1>
+          <p class="hero-lead">
+            Fotografiază o problemă, scrie formula cu tastatura matematică sau exersează offline cu fișe de formule, teste adaptive și simulări cronometrate EN &amp; BAC.
+          </p>
+          <div class="hero-actions">
+            <a class="button" href="mailto:support@profudemate.app?subject=Acces%20testare%20Google%20Play%20%E2%80%94%20Profu%E2%80%99%20de%20mate">
+              În curând pe Google Play · Cere acces la testare
+            </a>
+            <a class="button-secondary" href="#functii">
+              Descoperă funcțiile ↓
+            </a>
+          </div>
+          <div class="hero-trust-row">
+            <span class="trust-chip">Android · 13+</span>
+            <span class="trust-chip">Fără reclame</span>
+            <span class="trust-chip">Formule și teste offline</span>
+            <span class="trust-chip">Ștergere cont din Setări</span>
+          </div>
+        </div>
+
+        <div class="hero-mascot-stage">
+          <div class="mascot-aura" aria-hidden="true"></div>
+          <img
+            class="hero-mascot"
+            src="/assets/owl-wave.png"
+            width="440"
+            height="440"
+            alt="Mascota Profu’ de mate salutând"
+          >
+          <div class="mascot-bubble">
+            „Hai să rezolvăm problema clar, fără pași săriți!”
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div class="shell">
-    <header>
-      <a class="brand" href="/"><span class="mark" aria-hidden="true">P’</span><span>Profu’ de mate</span></a>
-      <nav aria-label="Documente"><a href="/confidentialitate">Confidențialitate</a><a href="/termeni">Termeni</a><a href="/stergere-date">Ștergere date</a></nav>
-    </header>
+    <section class="stats-strip" aria-label="Cifre cheie">
+      <div class="stat-card">
+        <span class="stat-value">58</span>
+        <span class="stat-label">fișe de formule offline pentru clasele V–XII, EN &amp; BAC</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">12</span>
+        <span class="stat-label">simulări complete de 100p (EN, BAC M1, M2, M3) cu barem</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">100%</span>
+        <span class="stat-label">formule matematice vectorizate clar: fracții, matrice, integrale</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">0</span>
+        <span class="stat-label">reclame și nicio fotografie salvată în cloud sau în Caiet</span>
+      </div>
+    </section>
+
     <main>
-      <section class="hero">
-        <p class="eyebrow">Clar, pe limba ta</p>
-        <h1>Matematica ta. Date puține. Control real.</h1>
-        <p class="lead">Aici găsești, fără text ascuns, ce date folosește aplicația, cum funcționează analiza AI și cum poți șterge contul aplicației.</p>
-        <div class="chips"><span class="chip">13+</span><span class="chip">Fără reclame</span><span class="chip">Ștergere în aplicație</span></div>
+      <section id="functii" class="section section-first">
+        <div class="section-head">
+          <p class="eyebrow">Tot ce ai nevoie într-un singur loc</p>
+          <h2 class="section-title">Construit special pentru programa din România.</h2>
+          <p class="section-lead">
+            De la teme rapide de acasă până la pregătirea completă pentru Evaluarea Națională și Bacalaureat, fără să sari între aplicații diferite.
+          </p>
+        </div>
+
+        <div class="features-grid">
+          <article class="feature-card">
+            <div class="feature-icon">
+              <img src="/assets/icon-camera.png" width="36" height="36" alt="">
+            </div>
+            <h3>Rezolvă sau verifică din poză</h3>
+            <p>
+              Faci o poză din caiet sau alegi din galerie. Primești explicația pas cu pas în română, metoda alternativă sau verificarea exactă a rezolvării tale.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon feature-icon-cyan">
+              <img src="/assets/icon-explain.png" width="36" height="36" alt="">
+            </div>
+            <h3>Scrie problema + calculator instant</h3>
+            <p>
+              Tastatură matematică dedicată pentru fracții, puteri, radicali și ecuații. Calculele directe se evaluează instant, complet offline, fără să consumi din cota AI.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon feature-icon-gold">
+              <img src="/assets/icon-notebook.png" width="36" height="36" alt="">
+            </div>
+            <h3>58 de fișe și formule offline</h3>
+            <p>
+              Algebră, geometrie, trigonometrie, matrice, analiză și combinatorică — fiecare fișă are formula clară, „când o folosești”, exemplu rezolvat și capcane frecvente.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon feature-icon-lime">
+              <img src="/assets/icon-practice.png" width="36" height="36" alt="">
+            </div>
+            <h3>Teste rapide &amp; practică adaptivă</h3>
+            <p>
+              Exerciții grilă și răspuns scurt pe capitole, coadă automată „De repetat” pentru greșeli, serie zilnică de ritm și generator de exerciții originale cu Profu’ AI.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon feature-icon-peach">
+              <img src="/assets/icon-trophy.png" width="36" height="36" alt="">
+            </div>
+            <h3>Simulări EN &amp; BAC reale</h3>
+            <p>
+              12 variante complete de 100 de puncte, cronometru real (120/180 min), pauză cu salvare automată, etichetă „Condiții reale de examen” și corectare foto AI pe barem.
+            </p>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon">
+              <img src="/assets/icon-privacy.png" width="36" height="36" alt="">
+            </div>
+            <h3>Caietul tău, mereu sincronizat</h3>
+            <p>
+              Salvează lecțiile importante și formulele favorite. Poți începe fără cont Google sau poți sincroniza progresul și simulările între dispozitive.
+            </p>
+          </article>
+        </div>
       </section>
-      <section class="grid" aria-label="Documente disponibile">
-        <article class="card"><h2>Confidențialitate</h2><p>Ce trimitem, de ce, către cine și cât timp păstrăm.</p><a class="button" href="/confidentialitate">Citește politica</a></article>
-        <article class="card"><h2>Termeni</h2><p>Regulile simple pentru folosirea educațională și în siguranță.</p><a class="button" href="/termeni">Citește termenii</a></article>
-        <article class="card"><h2>Ștergere date</h2><p>Pașii exacți pentru a șterge Caietul și contul tehnic.</p><a class="button" href="/stergere-date">Vezi pașii</a></article>
+
+      <section id="examene" class="section">
+        <div class="exam-panel">
+          <div>
+            <p class="eyebrow">Pregătire structurată EN &amp; BAC</p>
+            <h2 class="section-title">Exact structura oficială: 10p oficiu + S.I + S.II + S.III.</h2>
+            <p class="section-lead">
+              Alegi clasa sau examenul (V–VII, Evaluarea Națională VIII, Liceu IX–XI, BAC M1, M2 sau M3) și întreaga aplicație se adaptează imediat.
+            </p>
+          </div>
+          <ul class="exam-list">
+            <li><strong>Scor instant la S.I / S.II:</strong> vezi comparația clară dintre răspunsul tău și cel oficial, cu rezolvare model pas cu pas.</li>
+            <li><strong>Corectare foto AI pe barem:</strong> rezolvi Subiectul II/III pe hârtie ca la examen, faci poză paginii și primești punctajul pe fiecare etapă din barem.</li>
+            <li><strong>Pauză inteligentă și reluare:</strong> dacă trebuie să te oprești, progresul și cronometrul se salvează automat pe telefon; dacă o duci cap-coadă, primești badge-ul <em>Condiții reale de examen</em>.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="siguranta" class="section">
+        <div class="safety-panel">
+          <div class="section-head">
+            <p class="eyebrow">Pentru elevi și părinți</p>
+            <h2 class="section-title">Date puține. Zero reclame. Control total.</h2>
+            <p class="section-lead">
+              Profu’ de mate este construit responsabil pentru elevii de 13+ ani, cu transparență completă despre cum funcționează AI-ul și datele tale.
+            </p>
+          </div>
+
+          <div class="safety-grid">
+            <div class="safety-item">
+              <h3>Pozele nu intră în cloud</h3>
+              <p>Fotografia problemei este procesată doar pentru explicația cerută și nu este stocată în Firebase Storage sau în Caiet.</p>
+            </div>
+            <div class="safety-item">
+              <h3>AI-ul explică, nu decide</h3>
+              <p>Aplicația este un instrument educațional care încurajează înțelegerea pașilor, cu raportare rapidă dacă observi vreodată o greșeală.</p>
+            </div>
+            <div class="safety-item">
+              <h3>Ștergere cu o atingere</h3>
+              <p>Oricând vrei, poți șterge definitiv contul, lecțiile, progresul și simulările direct din Setări sau printr-o cerere pe e-mail.</p>
+            </div>
+          </div>
+
+          <div class="doc-links-row" aria-label="Documente legale">
+            <a class="doc-pill" href="/confidentialitate">Politica de confidențialitate →</a>
+            <a class="doc-pill" href="/termeni">Termeni de utilizare →</a>
+            <a class="doc-pill" href="/stergere-date">Cum ștergi datele și contul →</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="contact" class="section">
+        <div class="section-head">
+          <p class="eyebrow">Contact oficial</p>
+          <h2 class="section-title">Ai o întrebare sau vrei să testezi aplicația?</h2>
+          <p class="section-lead">
+            Scrie-ne direct la adresa potrivită — răspundem personal fiecărui mesaj.
+          </p>
+        </div>
+
+        <div class="contact-grid">
+          <div class="contact-card">
+            <span class="contact-label">Suport &amp; feedback</span>
+            <a class="contact-link" href="mailto:support@profudemate.app">support@profudemate.app</a>
+            <p class="contact-note">Întrebări despre aplicație, sugestii, erori sau înscriere în testarea Google Play.</p>
+          </div>
+          <div class="contact-card">
+            <span class="contact-label">Confidențialitate &amp; date</span>
+            <a class="contact-link" href="mailto:privacy@profudemate.app">privacy@profudemate.app</a>
+            <p class="contact-note">Solicitări GDPR, întrebări privind datele personale și ștergerea contului.</p>
+          </div>
+          <div class="contact-card">
+            <span class="contact-label">Abonamente &amp; plăți</span>
+            <a class="contact-link" href="mailto:billing@profudemate.app">billing@profudemate.app</a>
+            <p class="contact-note">Suport pentru abonamentul Premium și restaurarea achizițiilor Google Play.</p>
+          </div>
+        </div>
       </section>
     </main>
-    <footer>Operator: Daniel Matei · Suport: <a href="mailto:support@danielmatei.dev">support@danielmatei.dev</a> · Actualizat la 5 septembrie 2026</footer>
+
+    <footer>
+      <div class="footer-row">
+        <div>
+          Operator: <strong>Daniel Matei</strong> · <a href="https://danielmatei.dev">danielmatei.dev</a> · Actualizat la 26 noiembrie 2026
+        </div>
+        <div class="footer-links">
+          <a href="/confidentialitate">Confidențialitate</a>
+          <a href="/termeni">Termeni</a>
+          <a href="/stergere-date">Ștergere date</a>
+        </div>
+      </div>
+    </footer>
   </div>
 </body>
 </html>

@@ -4,33 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Politica de confidențialitate Profu’ de mate.">
+  <meta name="theme-color" content="#4A1ED9">
+  <link rel="canonical" href="https://profudemate.app/confidentialitate">
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
   <title>Politica de confidențialitate — Profu’ de mate</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <div class="shell">
     <header>
-      <a class="brand" href="/"><span class="mark" aria-hidden="true">P’</span><span>Profu’ de mate</span></a>
-      <nav aria-label="Documente"><a aria-current="page" href="/confidentialitate">Confidențialitate</a><a href="/termeni">Termeni</a><a href="/stergere-date">Ștergere date</a></nav>
+      <a class="brand" href="/">
+        <img class="brand-icon" src="/assets/favicon.png" width="44" height="44" alt="">
+        <span>Profu’ de mate</span>
+      </a>
+      <nav aria-label="Documente"><a href="/">Acasă</a><a aria-current="page" href="/confidentialitate">Confidențialitate</a><a href="/termeni">Termeni</a><a href="/stergere-date">Ștergere date</a></nav>
     </header>
     <main>
       <article class="document">
         <p class="eyebrow">Politica de confidențialitate</p>
         <h1>Date puține, scop clar.</h1>
         <p class="lead">Această politică explică modul în care Daniel Matei operează aplicația Profu’ de mate și prelucrează datele utilizatorilor.</p>
-        <p class="meta">Versiune actualizată la 24 noiembrie 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
+        <p class="meta">Versiune actualizată la 26 noiembrie 2026 · Aplicație destinată persoanelor de cel puțin 13 ani</p>
 
         <div class="notice"><strong>Pe scurt:</strong> fotografia este folosită exclusiv pentru analiza sau corectarea pe barem cerută, nu este pusă în Firebase Storage sau în Caiet, nu avem reclame și poți șterge complet datele aplicației din Setări.</div>
 
         <h2>1. Cine este operatorul</h2>
-        <p>Operatorul aplicației este <strong>Daniel Matei</strong>. Pentru întrebări despre confidențialitate sau drepturile tale poți scrie la <a href="mailto:privacy@danielmatei.dev">privacy@danielmatei.dev</a>.</p>
+        <p>Operatorul aplicației este <strong>Daniel Matei</strong>. Pentru întrebări despre confidențialitate sau drepturile tale poți scrie la <a href="mailto:privacy@profudemate.app">privacy@profudemate.app</a>.</p>
 
         <h2>2. Ce date folosim</h2>
         <ul>
           <li>un identificator Firebase anonim; dacă alegi conectarea Google, identificatorul, adresa de e-mail, numele și fotografia de profil furnizate de Google către Firebase Authentication; pentru cota zilnică gratuită și prevenirea abuzului la reinstalare, aplicația calculează local un hash SHA-256 din identificatorul de dispozitiv specific aplicației Android (fără a trimite valoarea brută), iar backendul transformă atât acest hash, cât și identificatorul Google în coduri HMAC opace;</li>
           <li>fotografia sau formula problemei și rezolvarea pe care alegi să le trimiți pentru analiză, generare de exerciții sau corectare foto pe barem;</li>
           <li>enunțul extras, explicația structurată, formulele, verdictul și starea de salvare;</li>
-          <li>progresul de studiu: profilul ales (V–VII, EN VIII, IX–XI, BAC M1/M2/M3), formulele favorite, exercițiile stăpânite, lista „De repetat” și seria zilnică — salvate local și sincronizate în Firestore pentru contul activ; istoricul simulărilor de examen este stocat exclusiv local pe telefon;</li>
+          <li>progresul de studiu: profilul ales (V–VII, EN VIII, IX–XI, BAC M1/M2/M3), formulele favorite, exercițiile stăpânite, lista „De repetat”, seria zilnică și rezultatele simulărilor finalizate (punctaje, note, durata și numărul de pauze) — salvate local și sincronizate în Firestore pentru contul activ; ciorna unei simulări aflate în pauză este stocată exclusiv local pe telefon;</li>
           <li>metadate tehnice minime pentru limitarea abuzului și evitarea procesării duble;</li>
           <li>metadate standard de conexiune înregistrate automat de infrastructură, precum adresa IP, mărimea cererii, latența și codul răspunsului;</li>
           <li>categoria raportului trimis de tine;</li>
@@ -41,7 +47,7 @@
 
         <h2>3. Cum folosim fotografia sau formula</h2>
         <p>Imaginea este orientată, decupată și comprimată pe telefon, apoi este transmisă printr-o funcție Firebase securizată către Gemini Developer API pentru analiza matematică sau corectarea pe barem solicitată. Aplicația nu scrie fotografia în Firebase Storage și nu o include în Caiet.</p>
-        <p>Dacă folosești editorul matematic sau generatorul AI de exerciții, formula problemei, rezolvarea introdusă ori capitolul selectat sunt trimise prin aceeași infrastructură securizată numai când pornești acțiunea. Ciornele editorului și istoricul simulărilor se păstrează pe telefon; enunțul și explicația generate urmează retenția lecțiilor de mai jos.</p>
+        <p>Dacă folosești editorul matematic sau generatorul AI de exerciții, formula problemei, rezolvarea introdusă ori capitolul selectat sunt trimise prin aceeași infrastructură securizată numai când pornești acțiunea. Ciornele editorului și ciorna unei simulări puse pe pauză se păstrează pe telefon; enunțul și explicația generate urmează retenția lecțiilor de mai jos.</p>
         <p>Într-un proiect Gemini cu facturare activă, Google declară că prompturile și răspunsurile nu sunt folosite pentru îmbunătățirea produselor sale, dar poate păstra loguri limitate pentru detectarea încălcărilor și a abuzului, conform termenilor serviciului aplicabili la momentul folosirii.</p>
 
         <h2>4. Scopurile prelucrării</h2>
@@ -67,7 +73,7 @@
           <li>evenimentele tehnice ale abonamentului: maximum aproximativ 13 luni; starea curentă a abonamentului este păstrată cât timp contul există;</li>
           <li>metadatele standard din bucket-ul implicit Cloud Logging: în mod normal 30 de zile;</li>
           <li>lecțiile din Caiet: cât timp sunt folosite, dar maximum aproximativ 13 luni fără activitate;</li>
-          <li>progresul de studiu sincronizat și istoricul local al simulărilor: cât timp contul există, fiind șterse definitiv când alegi ștergerea datelor din Setări;</li>
+          <li>progresul de studiu și rezultatele simulărilor sincronizate: cât timp contul există, fiind șterse definitiv când alegi ștergerea datelor din Setări; ciorna locală a unei simulări puse pe pauză expiră automat după 14 zile și este eliminată la predare, deconectare ori ștergerea datelor;</li>
           <li>rapoartele trimise și răspunsul generat raportat: 180 de zile sau până ștergi toate datele, dacă alegi ștergerea mai devreme;</li>
           <li>diagnosticarea opțională: conform retenției configurate în Firebase Crashlytics.</li>
         </ul>
@@ -88,7 +94,7 @@
         <p>Vom actualiza data și conținutul acestei pagini când se schimbă aplicația sau cerințele legale. Modificările importante vor fi reflectate și în aplicație.</p>
       </article>
     </main>
-    <footer>Operator: Daniel Matei · Confidențialitate: <a href="mailto:privacy@danielmatei.dev">privacy@danielmatei.dev</a></footer>
+    <footer>Operator: Daniel Matei · Confidențialitate: <a href="mailto:privacy@profudemate.app">privacy@profudemate.app</a> · Suport: <a href="mailto:support@profudemate.app">support@profudemate.app</a></footer>
   </div>
 </body>
 </html>

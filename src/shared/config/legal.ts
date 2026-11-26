@@ -1,10 +1,10 @@
 export const legalDocument = {
-  updatedAt: '24 noiembrie 2026',
+  updatedAt: '26 noiembrie 2026',
   minimumAge: 13,
   operatorName: 'Daniel Matei',
-  contactEmail: 'privacy@danielmatei.dev',
-  supportEmail: 'support@danielmatei.dev',
-  billingEmail: 'billing@danielmatei.dev',
+  contactEmail: 'privacy@profudemate.app',
+  supportEmail: 'support@profudemate.app',
+  billingEmail: 'billing@profudemate.app',
 } as const;
 
 export const legalIdentityIsComplete = Boolean(
