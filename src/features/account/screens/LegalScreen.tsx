@@ -262,7 +262,7 @@ export function LegalScreen({ navigation }: Props) {
                 <Bullet>Plata, anularea și cererile de rambursare sunt procesate exclusiv prin Google Play; noi nu primim datele cardului.</Bullet>
                 <Bullet>Prețul, moneda, perioada și eventualele oferte sunt cele afișate de Google Play înainte de confirmare.</Bullet>
                 <Bullet>Abonamentul se reînnoiește automat până când îl oprești din Google Play. Oprirea reînnoirii păstrează accesul până la sfârșitul perioadei plătite.</Bullet>
-                <Bullet>Poți restaura o achiziție din ecranul Premium folosind același cont Google Play. Ștergerea aplicației sau a datelor nu anulează abonamentul.</Bullet>
+                <Bullet>Poți restaura o achiziție din ecranul Pro &amp; Max folosind același cont Google Play. Ștergerea aplicației sau a datelor nu anulează abonamentul.</Bullet>
                 <Bullet>Pentru conținutul și serviciile digitale livrate imediat la activare se aplică regulile OUG nr. 34/2014 și politica Google Play.</Bullet>
               </Section>
 

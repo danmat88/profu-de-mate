@@ -156,44 +156,29 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
     ? [
       {
         title: `${maxLimit} acțiuni AI pe zi`,
-        detail: `Față de ${freeLimit}/zi gratuit — ideal pentru pregătire intensivă EN, BAC și meditații.`,
+        detail: `De 3× mai mult decât Pro și de ${Math.max(2, Math.round(maxLimit / Math.max(1, freeLimit)))}× față de gratuit (${freeLimit}/zi) — pentru pregătire intensivă EN și BAC.`,
         highlight: true,
       },
       {
         title: 'Raționament matematic extins',
-        detail: 'Analiză mai profundă pe demonstrații, probleme grele de BAC și corectări pe barem.',
+        detail: 'Analiză mai profundă pe demonstrații lungi, probleme grele de BAC și corectarea pe barem.',
         highlight: true,
       },
       {
-        title: 'Foto, editor, exerciții AI & barem EN/BAC',
-        detail: 'Rezolvări pas cu pas, verificare teme, exerciții adaptive și punctaj oficial pe etape.',
-        highlight: false,
-      },
-      {
-        title: 'Fără reclame · Caiet sincronizat în cloud',
-        detail: 'Toate cele 58 fișe offline, 92 exerciții și 12 simulări rămân incluse.',
+        title: 'Pentru toate funcțiile AI',
+        detail: 'Valabil la rezolvări foto și scrise, verificare teme, exerciții AI și corectare foto pe barem, cu reîncărcare automată la 00:00.',
         highlight: false,
       },
     ]
     : [
       {
         title: `${proLimit} acțiuni AI pe zi`,
-        detail: `De ${Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)))}× mai mult decât varianta gratuită (${freeLimit}/zi).`,
+        detail: `De ${Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)))}× mai mult decât gratuit (${freeLimit}/zi), cu reîncărcare automată zilnic la 00:00.`,
         highlight: true,
       },
       {
-        title: 'Corectare foto pe barem EN & BAC',
-        detail: 'Fotografiezi rezolvarea la Subiectul II/III și primești punctajul pe fiecare etapă.',
-        highlight: false,
-      },
-      {
-        title: 'Exerciții AI pe orice formulă & capitol',
-        detail: 'Generezi exerciții noi (Ușor · Mediu · Examen) exact unde ai nevoie de practică.',
-        highlight: false,
-      },
-      {
-        title: 'Fără reclame · Caiet sincronizat în cloud',
-        detail: 'Toate cele 58 fișe offline, 92 exerciții și 12 simulări rămân 100% gratuite.',
+        title: 'Pentru toate funcțiile AI',
+        detail: 'Valabil la rezolvări foto și scrise, verificare teme, exerciții AI și corectare foto pe barem EN/BAC.',
         highlight: false,
       },
     ];
@@ -267,11 +252,11 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             <Text style={styles.heroNote}>
               {success
                 ? `Ai până la ${successLimit} de acțiuni AI pe zi.`
-                : premium
+                : premium && access
                   ? `Până la ${access.limit} de acțiuni AI pe zi, explicate pas cu pas.`
                   : viewingMax
-                    ? `Până la ${maxLimit} acțiuni AI / zi + raționament matematic extins.`
-                    : `Până la ${proLimit} acțiuni AI / zi — foto, editor, exerciții și barem EN/BAC.`}
+                    ? `Până la ${maxLimit} de acțiuni AI pe zi și raționament matematic extins.`
+                    : `Până la ${proLimit} de acțiuni AI pe zi — de ${Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)))}× mai mult decât gratuit.`}
             </Text>
           </View>
           <View pointerEvents="none" style={styles.art}>
@@ -298,7 +283,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                 </Text>
                 <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la matematică când ești pregătit.</Text>
               </View>
-            ) : premium ? (
+            ) : premium && access ? (
               <View style={styles.activeSection}>
                 <Chip label={maxActive ? 'SPAȚIUL TĂU MAX DE AZI' : 'SPAȚIUL TĂU PRO DE AZI'} tone="violetSoft" outlined={false} />
                 <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
@@ -309,6 +294,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                     remaining={access.remaining}
                     limit={access.limit}
                     premium
+                    planName={maxActive ? 'Max' : 'Pro'}
                     variant={quotaExhausted ? 'hero' : 'compact'}
                     active={active}
                     style={styles.activeTimer}
@@ -537,7 +523,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             <Text style={styles.restoreText}>{busy === 'restore' ? 'Caut achiziția…' : 'Restaurează achizițiile'}</Text>
           </Pressable>
         ) : !success && !premium ? (
-          <Text style={styles.footerNote}>Continui gratuit oricând ({freeLimit}/zi + offline complet). Fără obligații.</Text>
+          <Text style={styles.footerNote}>Gratuit rămâne fără reclame ({freeLimit}/zi, Caiet și tot conținutul offline).</Text>
         ) : null}
       </View>
 

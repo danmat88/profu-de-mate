@@ -119,7 +119,7 @@ const CHECK_CHEER_MESSAGES: readonly TutorMessage[] = [
 const EXHAUSTED_FREE_MESSAGES: readonly TutorMessage[] = [
   { title: 'Super treabă azi!', body: 'Problemele revin automat la 00:00.', compactBody: 'Revin automat la 00:00.', pose: 'wave', tone: 'peachSoft' },
   { title: 'Caietul e mereu liber!', body: 'Recitește lecțiile salvate și offline.', compactBody: 'Lecțiile tale merg și offline.', pose: 'point', tone: 'limeSoft' },
-  { title: 'Vrei mai multă practică?', body: 'Atinge cronometrul pentru Premium.', compactBody: 'Atinge sus pentru Premium.', pose: 'cheer', tone: 'violetSoft' },
+  { title: 'Vrei mai multă practică?', body: 'Atinge cronometrul pentru Pro sau Max.', compactBody: 'Atinge sus pentru Pro & Max.', pose: 'cheer', tone: 'violetSoft' },
   { title: 'Pauză binemeritată!', body: 'Sus vezi exact cât mai e până la 00:00.', compactBody: 'Cronometrul arată timpul rămas.', pose: 'thinking', tone: 'peachSoft' },
 ];
 

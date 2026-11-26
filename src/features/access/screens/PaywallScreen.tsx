@@ -149,7 +149,9 @@ export function PaywallScreen({ navigation, route }: Props) {
     setError(null);
     try {
       const session = captureSession();
-      const next = await purchasePremium(plan);
+      const next = await purchasePremium(plan, {
+        replaceProductId: access.premium.active ? access.premium.productId : null,
+      });
       assertSessionActive(session);
       setSuccessLimit(next.limit);
       setSuccessTier(next.premium.tier ?? selectedTier);

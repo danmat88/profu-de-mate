@@ -401,6 +401,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
                 remaining={screenState.access?.remaining ?? commercialAccess?.remaining ?? 0}
                 limit={screenState.access?.limit ?? commercialAccess?.limit ?? 5}
                 premium={Boolean(screenState.access?.premium.active ?? commercialAccess?.premium.active)}
+                planName={(screenState.access?.premium.tier ?? commercialAccess?.premium.tier) === 'max' ? 'Max' : 'Pro'}
                 variant="hero"
                 active={focused}
                 style={styles.commercialTimer}
@@ -414,7 +415,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
             <ComicButton
               compact
               title="Vezi opțiunile"
-              subtitle="Probleme gratuite sau Premium."
+              subtitle="Gratuit, Profu’ Pro sau Profu’ Max."
               icon="trophy"
               tone="lime"
               onPress={() => {

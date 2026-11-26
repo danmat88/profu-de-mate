@@ -637,7 +637,7 @@ export const syncPremiumAccess = revenueCatSecrets ? onCall({
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
   const identity = identityFromAuthToken(request.auth.token);
   if (identity !== 'google') {
-    throw new HttpsError('failed-precondition', 'Conectează-te cu Google înainte să restaurezi Premium.');
+    throw new HttpsError('failed-precondition', 'Conectează-te cu Google înainte să restaurezi abonamentul.');
   }
   const config = await getCommercialConfig(db);
   const principal = requestCommercialPrincipal(request.auth.token, request.auth.uid);

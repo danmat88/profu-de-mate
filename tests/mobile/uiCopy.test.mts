@@ -48,3 +48,31 @@ test('common Romanian action labels keep their diacritics', () => {
     }
   }
 });
+
+test('Pro and Max subscription screens never pitch free-included traits as paid perks or regress to stale Premium copy', () => {
+  const paywall = readFileSync(join(sourceRoot, 'features', 'access', 'components', 'PremiumSurface.tsx'), 'utf8');
+  const settings = readFileSync(join(sourceRoot, 'features', 'account', 'screens', 'SettingsScreen.tsx'), 'utf8');
+  const home = readFileSync(join(sourceRoot, 'features', 'home', 'components', 'HomeSurface.tsx'), 'utf8');
+  const timer = readFileSync(join(sourceRoot, 'features', 'access', 'components', 'QuotaResetTimer.tsx'), 'utf8');
+  const purchases = readFileSync(join(sourceRoot, 'features', 'access', 'services', 'purchases.ts'), 'utf8');
+  const legal = readFileSync(join(sourceRoot, 'features', 'account', 'screens', 'LegalScreen.tsx'), 'utf8');
+  const processing = readFileSync(join(sourceRoot, 'features', 'analysis', 'screens', 'ProcessingScreen.tsx'), 'utf8');
+
+  const benefitsBlock = paywall.slice(paywall.indexOf('const tierBenefits'), paywall.indexOf('return ('));
+  assert.doesNotMatch(benefitsBlock, /reclam/i, 'Ad-free is true for free users too and must not appear as a paid perk');
+  assert.doesNotMatch(benefitsBlock, /Caiet sincronizat/i, 'Cloud-synced Caiet is free with Google and must not appear as a paid perk');
+
+  for (const [label, source] of [
+    ['PremiumSurface', paywall],
+    ['SettingsScreen', settings],
+    ['HomeSurface', home],
+    ['QuotaResetTimer', timer],
+    ['purchases', purchases],
+    ['LegalScreen', legal],
+    ['ProcessingScreen', processing],
+  ] as const) {
+    for (const literal of stringLiterals(source)) {
+      assert.doesNotMatch(literal, /\bPremium\b/, `Text vechi „Premium” în ${label}: ${literal}`);
+    }
+  }
+});

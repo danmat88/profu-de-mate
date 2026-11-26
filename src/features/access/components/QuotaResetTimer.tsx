@@ -16,6 +16,7 @@ type Props = {
   remaining: number;
   limit: number;
   premium?: boolean;
+  planName?: 'Pro' | 'Max' | null;
   variant?: QuotaResetTimerVariant;
   /** Pass `useIsFocused()` from screens to pause ticks when offscreen. */
   active?: boolean;
@@ -183,6 +184,7 @@ export function QuotaResetTimer({
   remaining,
   limit,
   premium = false,
+  planName = null,
   variant = 'compact',
   active = true,
   style,
@@ -236,12 +238,13 @@ export function QuotaResetTimer({
   if (!snapshot) return null;
 
   const progressPercent = `${Math.round(snapshot.dayProgress * 100)}%` as `${number}%`;
+  const paidPlanLabel = planName ?? 'Pro';
   const rechargeSummary = snapshot.expired
-    ? 'Se actualizează problemele tale…'
-    : `Revin ${limit} probleme ${premium ? 'Premium' : 'gratuite'} la 00:00`;
+    ? 'Se actualizează cota ta…'
+    : `Revin ${limit} acțiuni ${premium ? paidPlanLabel : 'gratuite'} la 00:00`;
   const accessibleLabel = snapshot.expired
-    ? 'Problemele se reîncarcă acum.'
-    : `Problemele se reîncarcă în ${snapshot.accessibleDuration}. Revin ${limit} probleme ${premium ? 'Premium' : 'gratuite'} la miezul nopții.`;
+    ? 'Acțiunile AI se reîncarcă acum.'
+    : `Acțiunile AI se reîncarcă în ${snapshot.accessibleDuration}. Revin ${limit} acțiuni ${premium ? paidPlanLabel : 'gratuite'} la miezul nopții.`;
 
   if (isHero) {
     return (

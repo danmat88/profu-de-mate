@@ -4,7 +4,9 @@ import Purchases, {
   LOG_LEVEL,
   PACKAGE_TYPE,
   PURCHASES_ERROR_CODE,
+  STORE_REPLACEMENT_MODE,
   type PurchasesPackage,
+  type StoreProductChangeInfo,
 } from 'react-native-purchases';
 import type { CommercialAccess } from '../../../shared/types';
 import { writeCachedCommercialAccess } from './commercialAccessCache';
@@ -160,7 +162,7 @@ async function requirePurchases(session: ActiveSession): Promise<void> {
   assertSessionActive(session);
   if (!publicApiKey()) throw new Error('Abonamentele nu sunt configurate în acest build.');
   if (!purchasesSdkConfigured || !configuredUserId || configuredSessionKey !== session.sessionKey) {
-    throw new Error('Contul comercial nu este încă verificat. Redeschide ecranul Premium.');
+    throw new Error('Contul comercial nu este încă verificat. Redeschide ecranul de abonamente.');
   }
 }
 
@@ -201,7 +203,7 @@ export async function getPremiumOffer(options: { purchaseUserId?: string; force?
     };
 
     if (!pro.monthly && !pro.annual && !max.monthly && !max.annual) {
-      throw new Error('Oferta Premium nu este disponibilă momentan.');
+      throw new Error('Oferta de abonamente nu este disponibilă momentan.');
     }
     const offer: PremiumOffer = {
       monthly: pro.monthly,
@@ -225,21 +227,42 @@ async function syncServerPremium(session: ActiveSession): Promise<CommercialAcce
   return access;
 }
 
-export async function purchasePremium(plan: PurchasesPackage): Promise<CommercialAccess> {
+export function buildSubscriptionReplacement(
+  activeProductId: string | null | undefined,
+): StoreProductChangeInfo | null {
+  const normalized = typeof activeProductId === 'string'
+    ? activeProductId.trim().split(':')[0]?.trim()
+    : '';
+  if (!normalized) return null;
+  return {
+    oldProductIdentifier: normalized,
+    replacementMode: STORE_REPLACEMENT_MODE.WITH_TIME_PRORATION,
+  };
+}
+
+export async function purchasePremium(
+  plan: PurchasesPackage,
+  options: { replaceProductId?: string | null } = {},
+): Promise<CommercialAccess> {
   const session = captureSession();
   beginBillingOperation();
+  const productChangeInfo = buildSubscriptionReplacement(options.replaceProductId);
   return withSdk(async () => {
     await requirePurchases(session);
-    await Purchases.purchasePackage(plan);
+    if (productChangeInfo) {
+      await Purchases.purchasePackage(plan, null, productChangeInfo);
+    } else {
+      await Purchases.purchasePackage(plan);
+    }
     assertSessionActive(session);
     try {
       const access = await syncServerPremium(session);
       if (access.premium.active) return access;
     } catch {
       assertSessionActive(session);
-      throw new Error('Google Play a înregistrat plata, dar confirmarea Premium nu a ajuns încă. Folosește „Restaurează achizițiile” peste câteva momente.');
+      throw new Error('Google Play a înregistrat plata, dar confirmarea abonamentului nu a ajuns încă. Folosește „Restaurează achizițiile” peste câteva momente.');
     }
-    throw new Error('Plata a fost înregistrată, dar accesul Premium nu este încă activ. Folosește „Restaurează achizițiile”.');
+    throw new Error('Plata a fost înregistrată, dar abonamentul nu este încă activ. Folosește „Restaurează achizițiile”.');
   }, {
     timeoutMs: 120_000,
     timeoutMessage: 'Confirmarea Google Play întârzie. Plata poate continua; nu cumpăra din nou. Verifică abonamentul în Google Play și apoi folosește „Restaurează achizițiile”.',
@@ -282,9 +305,9 @@ export function purchaseErrorCopy(error: unknown): string | null {
   const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
   switch (code) {
     case PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR:
-      return 'Plata este în așteptare în Google Play. Nu cumpăra din nou; Premium se activează după confirmarea plății.';
+      return 'Plata este în așteptare în Google Play. Nu cumpăra din nou; abonamentul se activează după confirmarea plății.';
     case PURCHASES_ERROR_CODE.PRODUCT_ALREADY_PURCHASED_ERROR:
-      return 'Abonamentul pare deja cumpărat. Folosește „Restaurează achizițiile” pentru a activa Premium.';
+      return 'Abonamentul pare deja cumpărat. Folosește „Restaurează achizițiile” pentru a-l activa.';
     case PURCHASES_ERROR_CODE.NETWORK_ERROR:
     case PURCHASES_ERROR_CODE.OFFLINE_CONNECTION_ERROR:
     case PURCHASES_ERROR_CODE.PRODUCT_REQUEST_TIMED_OUT_ERROR:
@@ -294,7 +317,7 @@ export function purchaseErrorCopy(error: unknown): string | null {
       return 'Google Play nu permite această achiziție pentru contul sau dispozitivul folosit.';
     case PURCHASES_ERROR_CODE.PRODUCT_NOT_AVAILABLE_FOR_PURCHASE_ERROR:
     case PURCHASES_ERROR_CODE.CONFIGURATION_ERROR:
-      return 'Oferta Premium nu este disponibilă în acest build sau pentru acest cont Google Play.';
+      return 'Abonamentele nu sunt disponibile în acest build sau pentru acest cont Google Play.';
     case PURCHASES_ERROR_CODE.OPERATION_ALREADY_IN_PROGRESS_ERROR:
       return 'Google Play finalizează deja o acțiune. Așteaptă câteva secunde.';
     case PURCHASES_ERROR_CODE.RECEIPT_ALREADY_IN_USE_ERROR:

@@ -305,15 +305,15 @@ test('top-left owl icon adapts tutor messages for exhausted free, exhausted prem
     assert.doesNotMatch(bubble.props.body, /Fă o poză|Deschide camera/i);
     assert.ok(bubble.props.body.length <= 44);
   }
-  assert.equal(seenFreeBodies.some(body => body.includes('Premium')), true);
+  assert.equal(seenFreeBodies.some(body => body.includes('Pro')), true);
 
   const premiumExhausted = statefulSurfaceFixture();
-  tree = premiumExhausted.render({ remaining: 0, limit: 30, premiumActive: true });
+  tree = premiumExhausted.render({ remaining: 0, limit: 50, premiumActive: true });
   for (let tap = 0; tap < 3; tap += 1) {
     find(tree, node => node.props?.accessibilityLabel === 'Profu’ de mate').props.onPress();
-    tree = premiumExhausted.render({ remaining: 0, limit: 30, premiumActive: true });
+    tree = premiumExhausted.render({ remaining: 0, limit: 50, premiumActive: true });
     bubble = find(tree, node => node.type === 'SpeechBubble');
-    assert.doesNotMatch(bubble.props.title + bubble.props.body, /Premium/i, 'exhausted Premium users must not get Premium upsell tips');
+    assert.doesNotMatch(bubble.props.title + bubble.props.body, /\b(?:Pro|Max|Premium)\b/i, 'exhausted paid users must not get subscription upsell tips');
   }
 
   const lastProblem = statefulSurfaceFixture();

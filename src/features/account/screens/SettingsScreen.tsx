@@ -428,6 +428,7 @@ export function SettingsScreen({ navigation }: Props) {
                   remaining={access.remaining}
                   limit={access.limit}
                   premium={access.premium.active}
+                  planName={access.premium.tier === 'max' ? 'Max' : access.premium.active ? 'Pro' : null}
                   variant="embedded"
                   active={ambientActive}
                   style={styles.identityTimer}
@@ -456,7 +457,7 @@ export function SettingsScreen({ navigation }: Props) {
               <GoogleAccountButton
                 busy={googleSignInBusy}
                 disabled={accountBusy && !googleSignInBusy}
-                note="Păstrezi Caietul în cloud și poți activa Premium"
+                note="Păstrezi Caietul în cloud și poți activa Pro sau Max"
                 onPress={() => void connectAccount()}
               />
             ) : null}
@@ -499,7 +500,7 @@ export function SettingsScreen({ navigation }: Props) {
                     <Text style={styles.rowText}>
                       {access?.premium.active
                         ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
-                        : '50 sau 150 acțiuni AI pe zi, fără reclame și fără pachete de credite.'}
+                        : '50 sau 150 acțiuni AI pe zi · Max include raționament extins.'}
                     </Text>
                   </View>
                   <MiniGlyph name="next" size={17} color={colors.violetDeep} />
@@ -747,7 +748,7 @@ export function SettingsScreen({ navigation }: Props) {
           </View>
           <Chip label="SCHIMBI CONTUL DE PE TELEFON" tone="cyanSoft" />
           <Text style={styles.confirmTitle}>Te deconectezi?</Text>
-          <Text style={styles.confirmText}>Nu se șterge nimic și nu se resetează nicio limită. Caietul, problemele folosite azi și Premium rămân legate de contul Google și reapar când îl conectezi din nou.</Text>
+          <Text style={styles.confirmText}>Nu se șterge nimic și nu se resetează nicio limită. Caietul, acțiunile folosite azi și abonamentul rămân legate de contul Google și reapar când îl conectezi din nou.</Text>
           <PressableScale
             accessibilityRole="button"
             disabled={logoutSheetBusy}

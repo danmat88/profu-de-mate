@@ -24,7 +24,10 @@ function harness(overrides: Record<string, (...args: any[]) => unknown> = {}) {
     logIn: async (id: string) => { calls.push({ name: 'login', value: id }); const result = await overrides.logIn?.(id); customer = id; return result; },
     logOut: async () => { calls.push({ name: 'logout' }); const result = await overrides.logOut?.(); customer = null; return result; },
     isAnonymous: async () => customer === null,
-    purchasePackage: async (plan: unknown) => { calls.push({ name: 'purchase', value: customer }); return overrides.purchasePackage?.(plan); },
+    purchasePackage: async (plan: unknown, _upgradeInfo?: unknown, productChangeInfo?: unknown) => {
+      calls.push({ name: 'purchase', value: customer, changeInfo: productChangeInfo ?? null } as any);
+      return overrides.purchasePackage?.(plan, productChangeInfo);
+    },
     restorePurchases: async () => { calls.push({ name: 'restore', value: customer }); return overrides.restorePurchases?.(); },
     getOfferings: async () => { calls.push({ name: 'offerings' }); return overrides.getOfferings?.() ?? { current: { monthly: { identifier: 'month' }, annual: { identifier: 'year' } } }; },
     getCustomerInfo: async () => ({ managementURL: 'https://play.google.com/store/account/subscriptions' }),
@@ -36,7 +39,13 @@ function harness(overrides: Record<string, (...args: any[]) => unknown> = {}) {
       getFunctions: () => ({}),
       httpsCallable: () => async () => { calls.push({ name: 'sync', value: auth.currentUser?.uid }); await overrides.sync?.(); return { data: access }; },
     },
-    'react-native-purchases': { ...sdk, PACKAGE_TYPE: {}, LOG_LEVEL: {}, PURCHASES_ERROR_CODE: {} },
+    'react-native-purchases': {
+      ...sdk,
+      PACKAGE_TYPE: {},
+      LOG_LEVEL: {},
+      PURCHASES_ERROR_CODE: {},
+      STORE_REPLACEMENT_MODE: { WITH_TIME_PRORATION: 'WITH_TIME_PRORATION' },
+    },
     'src/shared/services/firebase.ts': { initializeVerifiedFirebaseServices: async () => auth.currentUser },
     'src/features/access/services/commercialAccessCache.ts': { writeCachedCommercialAccess: async (_access: unknown, sessionKey: string) => { calls.push({ name: 'cache', value: sessionKey }); } },
   }, {
@@ -366,4 +375,13 @@ test('a native rejection after a caller timeout is consumed and releases the SDK
   await h.purchases.initializePurchases(h.id('b'));
   await h.purchases.purchasePremium({});
   assert.equal(h.calls.find((call) => call.name === 'purchase')?.value, h.id('b'));
+});
+
+test('upgrading from Pro to Max passes Android Google Play subscription replacement info to prevent double billing', async () => {
+  const h = harness();
+  await h.purchases.initializePurchases(h.id('a'));
+  await h.purchases.purchasePremium({ identifier: '$rc_monthly' }, { replaceProductId: 'profu_premium:monthly' });
+  const purchaseCall = h.calls.find((call) => call.name === 'purchase') as { changeInfo?: { oldProductIdentifier?: string; replacementMode?: string } } | undefined;
+  assert.equal(purchaseCall?.changeInfo?.oldProductIdentifier, 'profu_premium');
+  assert.equal(purchaseCall?.changeInfo?.replacementMode, 'WITH_TIME_PRORATION');
 });

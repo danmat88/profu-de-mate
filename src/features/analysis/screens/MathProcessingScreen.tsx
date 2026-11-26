@@ -325,6 +325,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
                   remaining={state.access?.remaining ?? commercialAccess?.remaining ?? 0}
                   limit={state.access?.limit ?? commercialAccess?.limit ?? 5}
                   premium={Boolean(state.access?.premium.active ?? commercialAccess?.premium.active)}
+                  planName={(state.access?.premium.tier ?? commercialAccess?.premium.tier) === 'max' ? 'Max' : 'Pro'}
                   variant="hero"
                   active={focused}
                 />
