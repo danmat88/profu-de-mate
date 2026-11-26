@@ -72,7 +72,7 @@ test('live quota reset timer is wired cleanly into Home, Paywall, Settings, and 
   ]);
 
   assert.match(homeSurface, /<HomeResetPillNote/);
-  assert.match(premiumSurface, /<QuotaResetTimer[\s\S]*variant=\{quotaExhausted \? 'hero' : 'compact'\}/);
+  assert.match(premiumSurface, /<QuotaResetTimer[\s\S]*variant="canopy"/);
   assert.match(settings, /<QuotaResetTimer[\s\S]*variant="embedded"/);
   assert.match(processing, /<QuotaResetTimer[\s\S]*variant="hero"/);
   assert.match(mathProcessing, /<QuotaResetTimer[\s\S]*variant="hero"/);

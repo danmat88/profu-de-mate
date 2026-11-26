@@ -19,7 +19,7 @@ let purchasesSdkConfigured = false;
 let configuredSessionKey: string | null = null;
 let sdkQueue: Promise<unknown> = Promise.resolve();
 let billingOperationActive = false;
-let cachedOffer: { sessionKey: string; userId: string; savedAt: number; offer: PremiumOffer } | null = null;
+let cachedOffer: { sessionKey: string; userId: string | null; savedAt: number; offer: PremiumOffer } | null = null;
 const OFFER_CACHE_MS = 5 * 60_000;
 
 // Identity changes and transactions share a queue: a login cannot switch the
@@ -166,14 +166,27 @@ async function requirePurchases(session: ActiveSession): Promise<void> {
   }
 }
 
-export async function getPremiumOffer(options: { purchaseUserId?: string; force?: boolean } = {}): Promise<PremiumOffer> {
+export async function getPremiumOffer(options: { purchaseUserId?: string; force?: boolean; allowAnonymousCatalog?: boolean } = {}): Promise<PremiumOffer> {
   const session = captureSession();
-  if (options.purchaseUserId) await initializePurchases(options.purchaseUserId, session);
+  if (options.purchaseUserId) {
+    await initializePurchases(options.purchaseUserId, session);
+  }
   assertSessionActive(session);
   const cached = getCachedPremiumOffer();
   if (cached && !options.force) return cached;
   return withSdk(async () => {
-    await requirePurchases(session);
+    assertSessionActive(session);
+    if (options.allowAnonymousCatalog && !options.purchaseUserId && !configuredUserId) {
+      const apiKey = publicApiKey();
+      if (!apiKey) throw new Error('Abonamentele nu sunt disponibile momentan.');
+      if (!purchasesSdkConfigured) {
+        if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+        Purchases.configure({ apiKey });
+        purchasesSdkConfigured = true;
+      }
+    } else {
+      await requirePurchases(session);
+    }
     const offerings = await withDeadline(Purchases.getOfferings(), 12_000, 'Oferta nu a sosit. Încearcă din nou.');
     assertSessionActive(session);
     const current = offerings.current;
@@ -211,7 +224,7 @@ export async function getPremiumOffer(options: { purchaseUserId?: string; force?
       pro,
       max,
     };
-    if (configuredUserId) cachedOffer = { sessionKey: session.sessionKey, userId: configuredUserId, savedAt: Date.now(), offer };
+    cachedOffer = { sessionKey: session.sessionKey, userId: configuredUserId, savedAt: Date.now(), offer };
     return offer;
   });
 }

@@ -102,13 +102,23 @@ test('a quota screen never resurrects an expired Premium route snapshot during m
   assert.equal(offline.nodes.some(n => n.type === 'GoogleAccountButton'), false);
 });
 
-test('guest users see the Premium overview and both plan choices before Google sign-in', () => {
+test('guest users see Start, Pro and Max plan tabs plus 1-tap checkout without a separate login wall', () => {
   const guest = { ...exhausted, identity: 'anonymous' as const, tier: 'guest' as const };
-  const result = render(guest, false, 'home', guest, { identity: 'anonymous' });
-  assert.equal(result.nodes.filter(n => n.props.accessibilityRole === 'radio').length, 2);
-  assert.equal(result.nodes.some(n => n.type === 'GoogleAccountButton'), true);
-  assert.equal(result.text.includes('Abonamentele nu sunt disponibile momentan'), true);
-  assert.equal(result.text.includes('lei'), false, 'the UI must not invent a price when billing is unconfigured');
+  const unconfigured = render(guest, false, 'home', guest, { identity: 'anonymous' });
+  assert.equal(unconfigured.nodes.filter(n => n.props.accessibilityRole === 'tab').length, 3, 'Start, Pro and Max tabs are all visible');
+  assert.equal(unconfigured.nodes.filter(n => n.props.accessibilityRole === 'radio').length, 2);
+  assert.equal(unconfigured.nodes.some(n => n.type === 'GoogleAccountButton'), false, 'no separate Google login wall hides the Buy CTA');
+  assert.equal(unconfigured.text.includes('Abonamentele Google Play se activează în curând'), true);
+  assert.equal(unconfigured.text.includes('lei'), false, 'the UI must not invent a price when billing is unconfigured');
+
+  const offer = {
+    monthly: { identifier: 'pro_monthly', product: { priceString: '19,99 RON' } },
+    annual: { identifier: 'pro_annual', product: { priceString: '149,99 RON' } },
+  };
+  const readyGuest = render(guest, false, 'home', guest, { identity: 'anonymous', configured: true, offer });
+  const buy = readyGuest.nodes.find(n => n.type === 'ComicButton' && n.props.title === 'Alege Pro · 149,99 RON');
+  assert.ok(buy, 'guest immediately sees real Google Play price on the 1-tap Buy button');
+  assert.equal(buy.props.disabled, false);
 });
 
 test('a missing billing key keeps the real purchase action disabled with an explicit message', () => {
@@ -152,7 +162,7 @@ test('Pro subscribers can view their 50/day balance and upgrade seamlessly to Ma
   };
   const result = render(proAccess, false, 'settings', proAccess, { configured: true, offer: maxOffer });
   assert.equal(result.text.includes('150'), true);
-  const buyMax = result.nodes.find(n => n.type === 'ComicButton' && n.props.title === 'Alege Max · 299,99 RON');
+  const buyMax = result.nodes.find(n => n.type === 'ComicButton' && n.props.title === 'Treci la Max · 299,99 RON');
   assert.ok(buyMax);
   assert.equal(buyMax.props.disabled, false);
 });

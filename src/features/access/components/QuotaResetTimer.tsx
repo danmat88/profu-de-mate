@@ -10,14 +10,14 @@ import { Text } from '../../../shared/ui/Typography';
 import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { useQuotaResetCountdown } from '../hooks/useQuotaResetCountdown';
 
-export type QuotaResetTimerVariant = 'hero' | 'compact' | 'embedded';
+export type QuotaResetTimerVariant = 'hero' | 'compact' | 'embedded' | 'canopy';
 
 type Props = {
   resetAt: string | null | undefined;
   remaining: number;
   limit: number;
   premium?: boolean;
-  planName?: 'Pro' | 'Max' | null;
+  planName?: 'Start' | 'Pro' | 'Max' | null;
   variant?: QuotaResetTimerVariant;
   /** Pass `useIsFocused()` from screens to pause ticks when offscreen. */
   active?: boolean;
@@ -195,6 +195,7 @@ export function QuotaResetTimer({
   const pulsePhase = useRef(new Animated.Value(0)).current;
   const isHero = variant === 'hero';
   const isEmbedded = variant === 'embedded';
+  const isCanopy = variant === 'canopy';
   const isExhausted = remaining <= 0;
   const heroAccent = premium ? colors.lime : colors.peach;
 
@@ -239,19 +240,96 @@ export function QuotaResetTimer({
   if (!snapshot) return null;
 
   const progressPercent = `${Math.round(snapshot.dayProgress * 100)}%` as `${number}%`;
-  const paidPlanLabel = planName ?? 'Pro';
+  const paidPlanLabel = planName ?? (premium ? 'Pro' : 'Start');
   const actionsCountText = formatRoCount(limit, 'acțiune AI', 'acțiuni AI');
   const compactSummary = snapshot.expired
     ? 'Se reîncarcă acțiunile AI…'
     : premium
       ? `Revin ${limit} ${paidPlanLabel} la 00:00`
-      : `Revin ${limit} gratuite la 00:00`;
+      : `Revin ${limit} Start la 00:00`;
+  const canopyQuotaText = snapshot.expired
+    ? 'Se reîncarcă acțiunile AI…'
+    : isExhausted
+      ? `0 / ${limit} azi · revin la 00:00`
+      : `${remaining} / ${limit} acțiuni AI rămase azi`;
   const heroSummary = snapshot.expired
     ? 'Se reîncarcă acțiunile AI…'
-    : `Revin ${actionsCountText} ${premium ? `(${paidPlanLabel})` : 'gratuite'} la 00:00`;
+    : `Revin ${actionsCountText} ${premium ? `(${paidPlanLabel})` : 'Start'} la 00:00`;
   const accessibleLabel = snapshot.expired
     ? 'Acțiunile AI se reîncarcă acum.'
-    : `Acțiunile AI se reîncarcă în ${snapshot.accessibleDuration}. Revin ${actionsCountText} ${premium ? `din planul ${paidPlanLabel}` : 'gratuite'} la miezul nopții.`;
+    : `Acțiunile AI se reîncarcă în ${snapshot.accessibleDuration}. Revin ${actionsCountText} din planul ${paidPlanLabel} la miezul nopții.`;
+
+  if (isCanopy) {
+    const canopyAccent = isExhausted ? colors.peach : colors.lime;
+    return (
+      <View
+        accessible
+        accessibilityLabel={accessibleLabel}
+        style={[styles.canopyStrip, style]}
+      >
+        <View style={styles.canopyStripRow}>
+          <View style={styles.canopyStripCopy}>
+            <View style={styles.canopyKickerRow}>
+              <Animated.View
+                style={[
+                  styles.canopyLiveDot,
+                  { backgroundColor: canopyAccent },
+                  liveDotStyle,
+                ]}
+              />
+              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.canopyStripKicker}>
+                {snapshot.expired ? 'SE REÎNCARCĂ' : `PLAN ${paidPlanLabel.toUpperCase()} · RESET LA 00:00`}
+              </Text>
+            </View>
+            <Text
+              maxFontSizeMultiplier={1.15}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              style={styles.canopyStripSummary}
+            >
+              {canopyQuotaText}
+            </Text>
+          </View>
+
+          {snapshot.expired ? (
+            <View style={styles.compactRefreshing}>
+              <PlayfulLoader micro inverse />
+            </View>
+          ) : (
+            <View style={styles.canopyClockRow}>
+              <View style={styles.canopyDigitTile}>
+                <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.canopyDigitText}>
+                  {snapshot.hoursText}
+                </Text>
+              </View>
+              <Animated.Text style={[styles.canopyColon, colonStyle]}>:</Animated.Text>
+              <View style={styles.canopyDigitTile}>
+                <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.canopyDigitText}>
+                  {snapshot.minutesText}
+                </Text>
+              </View>
+              <Animated.Text style={[styles.canopyColon, colonStyle]}>:</Animated.Text>
+              <View style={[styles.canopyDigitTile, { backgroundColor: canopyAccent, borderColor: canopyAccent }]}>
+                <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={[styles.canopyDigitText, styles.canopyDigitAccent]}>
+                  {snapshot.secondsText}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.canopyTrack}>
+          <LinearGradient
+            colors={isExhausted ? ['#A475FF', colors.peach] : ['#B68CFF', colors.cyan, colors.lime]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={[styles.canopyFill, { width: progressPercent }]}
+          />
+        </View>
+      </View>
+    );
+  }
 
   if (isHero) {
     return (
@@ -819,6 +897,97 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   compactFill: {
+    height: '100%',
+    borderRadius: radii.pill,
+  },
+
+  // Sleek dark-glass live countdown strip integrated inside the Plans canopy
+  canopyStrip: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(18, 8, 54, 0.42)',
+    paddingHorizontal: 12,
+    paddingTop: 9,
+    paddingBottom: 8,
+    gap: 7,
+  },
+  canopyStripRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  canopyStripCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  canopyKickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  canopyLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  canopyStripKicker: {
+    ...typography.kicker,
+    fontSize: 9,
+    lineHeight: 11.5,
+    color: 'rgba(236, 228, 255, 0.86)',
+  },
+  canopyStripSummary: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12.5,
+    lineHeight: 16,
+    color: colors.paper,
+  },
+  canopyClockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2.5,
+    flexShrink: 0,
+  },
+  canopyDigitTile: {
+    minWidth: 30,
+    height: 30,
+    paddingHorizontal: 5,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    backgroundColor: 'rgba(13, 6, 40, 0.72)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  canopyDigitText: {
+    fontFamily: fonts.display,
+    fontSize: 14,
+    lineHeight: 17,
+    color: colors.paper,
+    fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
+  },
+  canopyDigitAccent: {
+    color: colors.ink,
+  },
+  canopyColon: {
+    fontFamily: fonts.display,
+    fontSize: 13.5,
+    lineHeight: 16,
+    color: 'rgba(255, 255, 255, 0.72)',
+    width: 6,
+    textAlign: 'center',
+  },
+  canopyTrack: {
+    height: 4.5,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    overflow: 'hidden',
+  },
+  canopyFill: {
     height: '100%',
     borderRadius: radii.pill,
   },

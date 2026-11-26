@@ -2,7 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, Linking } from 'react-native';
 import { useCommercial } from '../context/CommercialContext';
-import { PremiumSurface, type PremiumAction } from '../components/PremiumSurface';
+import { PremiumSurface, type PlanTabId, type PremiumAction } from '../components/PremiumSurface';
 import {
   getCachedPremiumOffer,
   getPremiumOffer,
@@ -15,7 +15,7 @@ import {
   restorePremium,
   type PremiumOffer,
 } from '../services/purchases';
-import type { PaidPlanTier, RootStackParamList } from '../../../shared/types';
+import type { CommercialAccess, PaidPlanTier, RootStackParamList } from '../../../shared/types';
 import { beginAppTransition, useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
@@ -25,6 +25,7 @@ import { isCommercialAccessExpired } from '../services/commercialRefreshPolicy';
 import { friendlyGoogleConnectError, isGoogleSignInCancelledError } from '../services/googleAuthErrors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Paywall'>;
+
 function friendlyPurchaseError(error: unknown): string {
   const mapped = purchaseErrorCopy(error);
   if (mapped) return mapped;
@@ -59,9 +60,9 @@ export function PaywallScreen({ navigation, route }: Props) {
   });
   const offer = offerState?.status === 'ready' ? offerState.value : getCachedPremiumOffer();
   const activePaidTier: PaidPlanTier | null = access?.premium.active ? (access.premium.tier ?? 'pro') : null;
-  const [selectedTier, setSelectedTier] = useState<PaidPlanTier>(() => (activePaidTier === 'pro' ? 'max' : 'pro'));
-  const effectiveSelectedTier: PaidPlanTier = activePaidTier === 'pro' ? 'max' : selectedTier;
-  const tierPackages = packagesForTier(offer, effectiveSelectedTier);
+  const [selectedTab, setSelectedTab] = useState<PlanTabId>(() => (activePaidTier === 'pro' || activePaidTier === 'max' ? 'max' : 'pro'));
+  const selectedPaidTier: PaidPlanTier = selectedTab === 'max' ? 'max' : 'pro';
+  const tierPackages = packagesForTier(offer, selectedPaidTier);
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual');
   const selectedPlan = (tierPackages.annual || tierPackages.monthly) && !tierPackages[selected]
     ? tierPackages.annual ? 'annual' : 'monthly'
@@ -83,11 +84,16 @@ export function PaywallScreen({ navigation, route }: Props) {
   const purchaseUserId = access?.purchaseUserId;
 
   useEffect(() => {
+    setScreenFocused(navigation.isFocused?.() ?? true);
     const onFocus = navigation.addListener?.('focus', () => setScreenFocused(true));
     const onBlur = navigation.addListener?.('blur', () => setScreenFocused(false));
+    const onTransitionEnd = navigation.addListener?.('transitionEnd', () => {
+      setScreenFocused(navigation.isFocused?.() ?? true);
+    });
     return () => {
       onFocus?.();
       onBlur?.();
+      onTransitionEnd?.();
     };
   }, [navigation]);
 
@@ -109,55 +115,88 @@ export function PaywallScreen({ navigation, route }: Props) {
     };
   }, [activeBusy, navigation]);
 
+  // Load real Google Play prices for both signed-in users and guests (anonymous catalog).
   const offerTask = useMemo(() => createLatestTask(
     async () => {
       const session = captureSession();
-      const result = await getPremiumOffer({ purchaseUserId });
+      const result = await getPremiumOffer(
+        googleLinked && purchaseUserId
+          ? { purchaseUserId }
+          : { allowAnonymousCatalog: true },
+      );
       assertSessionActive(session);
       return result;
     },
     setOfferState,
     15_000,
     'Google Play nu este disponibil momentan. Verifică internetul și încearcă din nou.',
-  ), [purchaseUserId]);
+  ), [googleLinked, purchaseUserId]);
 
   useEffect(() => {
     const cached = getCachedPremiumOffer();
     setOfferState(cached ? { status: 'ready', value: cached } : null);
     if (!ambientActive) return undefined;
-    if (access?.purchaseUserId && googleLinked && !maxActive && isPurchasesConfigured()) void offerTask.run();
+    if (!maxActive && isPurchasesConfigured() && (!googleLinked || Boolean(access?.purchaseUserId))) {
+      void offerTask.run();
+    }
     return () => offerTask.cancel();
   }, [ambientActive, googleLinked, maxActive, access?.purchaseUserId, offerTask]);
 
-  const connect = async () => {
-    if (activeBusy) return;
-    setAllowRouteAccessFallback(false);
-    setBusy('google');
-    setError(null);
-    try {
-      await connectGoogle();
-    } catch (connectError) {
-      if (!isGoogleSignInCancelledError(connectError)) {
-        setError(friendlyGoogleConnectError(connectError));
-      }
-    } finally {
-      setBusy(null);
-    }
-  };
-
+  // Seamless 1-tap purchase: if user is anonymous, connect Google first, then immediately launch Play billing.
   const buy = async () => {
-    const plan = tierPackages[selectedPlan];
-    if (activeBusy || !plan || !access || !googleLinked) return;
-    setBusy('purchase');
+    if (activeBusy || selectedTab === 'start' || !isPurchasesConfigured()) return;
+    const targetTier: PaidPlanTier = selectedTab;
     setError(null);
+
+    let effectiveAccess: CommercialAccess | null = access;
+    let planToBuy = tierPackages[selectedPlan];
+
+    if (!googleLinked) {
+      setAllowRouteAccessFallback(false);
+      setBusy('google');
+      try {
+        const connectedAccess = await connectGoogle();
+        if (!connectedAccess || connectedAccess.identity !== 'google') {
+          return;
+        }
+        effectiveAccess = connectedAccess;
+        // If this Google account already owns the chosen (or higher) tier, unlock immediately without charging again.
+        const connectedTier = connectedAccess.premium.active ? (connectedAccess.premium.tier ?? 'pro') : null;
+        if (connectedTier === 'max' || (connectedTier === 'pro' && targetTier === 'pro')) {
+          setSuccessLimit(connectedAccess.limit);
+          setSuccessTier(connectedTier);
+          setSuccess(true);
+          return;
+        }
+        setBusy('purchase');
+        const identifiedOffer = await getPremiumOffer({ purchaseUserId: connectedAccess.purchaseUserId, force: true });
+        setOfferState({ status: 'ready', value: identifiedOffer });
+        const identifiedTierOffer = packagesForTier(identifiedOffer, targetTier);
+        planToBuy = identifiedTierOffer[selectedPlan] ?? identifiedTierOffer.annual ?? identifiedTierOffer.monthly;
+      } catch (connectError) {
+        if (!isGoogleSignInCancelledError(connectError)) {
+          setError(friendlyGoogleConnectError(connectError));
+        }
+        return;
+      } finally {
+        setBusy(null);
+      }
+    }
+
+    if (!planToBuy || !effectiveAccess) {
+      setError(`Planul Profu’ ${targetTier === 'max' ? 'Max' : 'Pro'} nu este disponibil momentan în Google Play.`);
+      return;
+    }
+
+    setBusy('purchase');
     try {
       const session = captureSession();
-      const next = await purchasePremium(plan, {
-        replaceProductId: access.premium.active ? access.premium.productId : null,
+      const next = await purchasePremium(planToBuy, {
+        replaceProductId: effectiveAccess.premium.active ? effectiveAccess.premium.productId : null,
       });
       assertSessionActive(session);
       setSuccessLimit(next.limit);
-      setSuccessTier(next.premium.tier ?? effectiveSelectedTier);
+      setSuccessTier(next.premium.tier ?? targetTier);
       applyServerAccess(next);
       setSuccess(true);
     } catch (purchaseError) {
@@ -169,8 +208,30 @@ export function PaywallScreen({ navigation, route }: Props) {
 
   const restore = async () => {
     if (activeBusy) return;
-    setBusy('restore');
     setError(null);
+    if (!googleLinked) {
+      setAllowRouteAccessFallback(false);
+      setBusy('google');
+      try {
+        const connectedAccess = await connectGoogle();
+        if (!connectedAccess || connectedAccess.identity !== 'google') return;
+        if (connectedAccess.premium.active) {
+          setSuccessLimit(connectedAccess.limit);
+          setSuccessTier(connectedAccess.premium.tier ?? 'pro');
+          setSuccess(true);
+          return;
+        }
+      } catch (connectError) {
+        if (!isGoogleSignInCancelledError(connectError)) {
+          setError(friendlyGoogleConnectError(connectError));
+        }
+        return;
+      } finally {
+        setBusy(null);
+      }
+    }
+
+    setBusy('restore');
     try {
       const session = captureSession();
       const next = await restorePremium();
@@ -180,8 +241,9 @@ export function PaywallScreen({ navigation, route }: Props) {
         setSuccessLimit(next.limit);
         setSuccessTier(next.premium.tier ?? 'pro');
         setSuccess(true);
+      } else {
+        setError('Nu am găsit un abonament activ pentru acest cont Google Play.');
       }
-      else setError('Nu am găsit un abonament activ pentru acest cont Google Play.');
     } catch (restoreError) {
       setError(friendlyPurchaseError(restoreError));
     } finally {
@@ -214,7 +276,7 @@ export function PaywallScreen({ navigation, route }: Props) {
       offer={offer}
       offerLoading={offerState?.status === 'loading'}
       offerError={offerState?.status === 'error' ? friendlyPurchaseError(offerState.error) : null}
-      selectedTier={effectiveSelectedTier}
+      selectedTab={selectedTab}
       selected={selectedPlan}
       busy={activeBusy}
       error={error}
@@ -222,15 +284,15 @@ export function PaywallScreen({ navigation, route }: Props) {
       successLimit={successLimit}
       successTier={successTier}
       active={ambientActive}
+      timerActive={screenFocused}
       onClose={() => { if (!activeBusy) { beginAppTransition(); navigation.goBack(); } }}
-      onConnect={() => void connect()}
       onBuy={() => void buy()}
       onRestore={() => void restore()}
       onManage={() => void manage()}
       onRefresh={() => { if (!activeBusy) void refresh(); }}
       onRetryOffer={() => { if (!activeBusy) void offerTask.run(); }}
       onLegal={() => { if (!activeBusy) { beginAppTransition(); navigation.navigate('Legal'); } }}
-      onSelectTier={(tier) => { if (!activeBusy) { setSelectedTier(tier); setError(null); } }}
+      onSelectTab={(tab) => { if (!activeBusy) { setSelectedTab(tab); setError(null); } }}
       onSelect={(plan) => { if (!activeBusy) setSelected(plan); }}
     />
   );

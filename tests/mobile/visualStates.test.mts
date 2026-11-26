@@ -23,7 +23,7 @@ test('visible asynchronous states use the branded loader instead of platform spi
   assert.match(combined, /PlayfulLoader/);
 });
 
-test('Google account entry uses the app-owned accessible button in every screen', async () => {
+test('Google account entry uses the app-owned accessible button and Paywall offers 1-tap checkout', async () => {
   const [settings, paywall, button] = await Promise.all([
     readFile(path.resolve('src/features/account/screens/SettingsScreen.tsx'), 'utf8'),
     readFile(path.resolve('src/features/access/components/PremiumSurface.tsx'), 'utf8'),
@@ -31,7 +31,7 @@ test('Google account entry uses the app-owned accessible button in every screen'
   ]);
 
   assert.match(settings, /<GoogleAccountButton/);
-  assert.match(paywall, /<GoogleAccountButton/);
+  assert.match(paywall, /onPress=\{props\.onBuy\}/);
   assert.match(button, /accessibilityLabel=/);
   assert.match(button, /Continuă cu Google/);
 });
