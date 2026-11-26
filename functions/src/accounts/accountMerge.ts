@@ -468,7 +468,13 @@ export async function completeAccountMerge(args: {
     const entitlementData = targetEntitlement.data();
     const entitlementExpiry = entitlementData?.expiresAt instanceof Timestamp ? entitlementData.expiresAt.toMillis() : null;
     const premiumActive = entitlementData?.active === true && (entitlementExpiry === null || entitlementExpiry > now);
-    const dailyLimit = premiumActive ? commercialConfig.premiumDailyLimit : commercialConfig.freeDailyLimit;
+    const isMax = premiumActive
+      && (entitlementData?.planTier === 'max' || entitlementData?.entitlementId === commercialConfig.maxEntitlementId);
+    const dailyLimit = isMax
+      ? commercialConfig.maxDailyLimit
+      : premiumActive
+        ? commercialConfig.premiumDailyLimit
+        : commercialConfig.freeDailyLimit;
     const targetUsed = numeric(targetDaily.data()?.requests);
 
     const sourceDailyData = sourceDaily.data();

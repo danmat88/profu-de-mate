@@ -184,7 +184,7 @@ export const analyzeMathImage = onCall({
 
     const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
     const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
-    await reserveAnalysisQuota(
+    const reservedAccess = await reserveAnalysisQuota(
       db,
       request.auth.uid,
       input.requestId,
@@ -192,7 +192,8 @@ export const analyzeMathImage = onCall({
       Date.now(),
       installationPrincipal,
     );
-    const provider = createMathProvider(openAiApiKey.value());
+    const reasoningEffort = reservedAccess.premium.tier === 'max' ? 'medium' : 'low';
+    const provider = createMathProvider(openAiApiKey.value(), undefined, undefined, reasoningEffort);
     let result: RenderedMathAnalysis;
 
     try {
@@ -322,7 +323,7 @@ export const generatePracticeExercise = onCall({
       throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste un minut.');
     }
 
-    await reserveAnalysisQuota(
+    const reservedAccess = await reserveAnalysisQuota(
       db,
       request.auth.uid,
       input.requestId,
@@ -337,6 +338,7 @@ export const generatePracticeExercise = onCall({
       exercise = await generateRenderedPracticeExercise({
         apiKey: openAiApiKey.value(),
         request: input,
+        reasoningEffort: reservedAccess.premium.tier === 'max' ? 'medium' : 'low',
         beforeGenerate: async () => {
           await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
           logger.info('Practice AI attempt reserved', { track: input.track, category: input.category, difficulty: input.difficulty });
@@ -405,7 +407,7 @@ export const gradeExamSolution = onCall({
       throw new HttpsError('unavailable', 'Profu’ este într-o scurtă pauză tehnică. Încearcă din nou peste un minut.');
     }
 
-    await reserveAnalysisQuota(
+    const reservedAccess = await reserveAnalysisQuota(
       db,
       request.auth.uid,
       input.requestId,
@@ -420,6 +422,7 @@ export const gradeExamSolution = onCall({
       grading = await gradeExamSolutionWithAi({
         apiKey: openAiApiKey.value(),
         request: input,
+        reasoningEffort: reservedAccess.premium.tier === 'max' ? 'medium' : 'low',
         beforeGenerate: async () => {
           await consumeProviderAttempt(db, aiConfig.maxDailyRequests, Date.now(), request.auth!.uid);
           logger.info('Exam grading AI attempt reserved', { examId: input.examId, maxPoints: input.maxPoints });
@@ -643,6 +646,7 @@ export const syncPremiumAccess = revenueCatSecrets ? onCall({
     appUserId: principal.principalId,
     secretApiKey: revenueCatSecrets.apiKey.value(),
     entitlementId: config.premiumEntitlementId,
+    maxEntitlementId: config.maxEntitlementId,
     source: 'callable',
     userId: request.auth.uid,
   });
@@ -719,6 +723,7 @@ export const revenueCatWebhook = revenueCatSecrets ? onRequest({
       appUserId,
       secretApiKey: revenueCatSecrets.apiKey.value(),
       entitlementId: config.premiumEntitlementId,
+      maxEntitlementId: config.maxEntitlementId,
       source: 'webhook',
     })));
     await eventRef.set({

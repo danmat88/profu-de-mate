@@ -52,9 +52,11 @@ export async function gradeExamSolutionWithAi(params: {
   onRejected?: (event: { stage: 'empty' | 'json' | 'schema'; issues: { code: string; path: string }[] }) => void;
   client?: OpenAI;
   model?: string;
+  reasoningEffort?: 'low' | 'medium';
 }): Promise<ExamGradingResult> {
   const runtime = resolveOpenAiRuntimeConfig();
   const model = params.model ?? runtime.model;
+  const reasoningEffort = params.reasoningEffort ?? 'low';
   const client = params.client ?? createOpenAiClient(params.apiKey, runtime);
   const promptText = buildExamGradingPrompt(params.request);
 
@@ -76,7 +78,7 @@ export async function gradeExamSolutionWithAi(params: {
         ],
       },
     ],
-    reasoning: { effort: 'low' },
+    reasoning: { effort: reasoningEffort },
     max_output_tokens: 3200,
     text: {
       format: {

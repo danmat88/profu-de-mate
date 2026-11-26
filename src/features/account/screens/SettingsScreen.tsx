@@ -267,19 +267,21 @@ export function SettingsScreen({ navigation }: Props) {
   const isInteractionLocked = () => (
     accountBusy || connectLocked.current || logoutLocked.current || deletionLocked.current
   );
-  const accountLabel = access?.premium.active ? 'PROFU’ PREMIUM' : hasGoogleAccount ? 'CONT GOOGLE CONECTAT' : 'SPAȚIUL TĂU';
+  const accountLabel = access?.premium.active
+    ? access.premium.tier === 'max' ? 'PROFU’ MAX' : 'PROFU’ PRO'
+    : hasGoogleAccount ? 'CONT GOOGLE CONECTAT' : 'SPAȚIUL TĂU';
   const accountTitle = !access
     ? hasGoogleAccount ? 'Caietul tău, în contul tău' : 'Setările tale, într-un singur loc'
     : access.premium.active
-      ? 'Premium și Caietul sunt legate de contul tău'
+      ? `${access.premium.tier === 'max' ? 'Profu’ Max' : 'Profu’ Pro'} și Caietul sunt pe contul tău`
       : access.identity === 'google'
         ? 'Caietul poate fi recuperat'
         : 'Caietul este legat de această instalare';
   const accountText = !access
     ? accessLoading ? 'Poți folosi setările cât timp limita de azi se actualizează în fundal.' : 'Limita de azi nu este disponibilă momentan. Verifică internetul pentru actualizare.'
     : access.identity === 'google'
-      ? `Ai ${access.remaining} din ${access.limit} probleme disponibile astăzi. Contul Google păstrează Caietul și accesul Premium după reinstalare și pe alte telefoane.`
-      : `Ai ${access.remaining} din ${access.limit} probleme gratuite astăzi. Conectează-te cu Google pentru a păstra Caietul în cloud și pentru a putea activa Premium.`;
+      ? `Ai ${access.remaining} din ${access.limit} acțiuni AI disponibile astăzi. Contul Google păstrează Caietul și abonamentul pe toate telefoanele.`
+      : `Ai ${access.remaining} din ${access.limit} acțiuni AI gratuite astăzi. Conectează-te cu Google pentru sincronizarea Caietului și pentru Pro sau Max.`;
 
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: !accountBusy });
@@ -487,11 +489,17 @@ export function SettingsScreen({ navigation }: Props) {
                     <AppIcon name="trophy" size={30} />
                   </View>
                   <View style={styles.rowCopy}>
-                    <Text style={styles.rowTitle}>{access?.premium.active ? 'Administrează Premium' : 'Vezi Profu’ Premium'}</Text>
+                    <Text style={styles.rowTitle}>
+                      {access?.premium.active
+                        ? access.premium.tier === 'max'
+                          ? 'Administrează Profu’ Max'
+                          : 'Profu’ Pro · Vezi Max'
+                        : 'Vezi Profu’ Pro & Max'}
+                    </Text>
                     <Text style={styles.rowText}>
                       {access?.premium.active
                         ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
-                        : 'O limită zilnică mai mare, fără reclame și fără pachete de credite.'}
+                        : '50 sau 150 acțiuni AI pe zi, fără reclame și fără pachete de credite.'}
                     </Text>
                   </View>
                   <MiniGlyph name="next" size={17} color={colors.violetDeep} />

@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import test from 'node:test';
 import {
   parseRevenueCatEntitlement,
+  parseRevenueCatTieredEntitlement,
   parseRevenueCatWebhook,
   secureSecretEquals,
   verifyRevenueCatSignature,
@@ -28,6 +29,34 @@ test('treats missing and expired entitlements as inactive', () => {
     expires_date: '2026-08-25T09:00:00.000Z',
     product_identifier: 'premium_monthly',
   } } } }, 'premium', now).active, false);
+});
+
+test('resolves Max over Pro when both entitlements exist and falls back cleanly to Pro', () => {
+  const now = Date.parse('2026-08-25T10:00:00.000Z');
+  const both = parseRevenueCatTieredEntitlement({
+    subscriber: {
+      entitlements: {
+        premium: { expires_date: '2026-09-25T10:00:00.000Z', product_identifier: 'pro_monthly' },
+        max: { expires_date: '2026-09-25T10:00:00.000Z', product_identifier: 'max_annual' },
+      },
+    },
+  }, { proEntitlementId: 'premium', maxEntitlementId: 'max' }, now);
+  assert.equal(both.active, true);
+  assert.equal(both.planTier, 'max');
+  assert.equal(both.entitlementId, 'max');
+  assert.equal(both.productId, 'max_annual');
+
+  const proOnly = parseRevenueCatTieredEntitlement({
+    subscriber: {
+      entitlements: {
+        premium: { expires_date: '2026-09-25T10:00:00.000Z', product_identifier: 'pro_monthly' },
+        max: { expires_date: '2026-08-01T10:00:00.000Z', product_identifier: 'max_monthly' },
+      },
+    },
+  }, { proEntitlementId: 'premium', maxEntitlementId: 'max' }, now);
+  assert.equal(proOnly.active, true);
+  assert.equal(proOnly.planTier, 'pro');
+  assert.equal(proOnly.entitlementId, 'premium');
 });
 
 test('verifies the raw RevenueCat webhook body with timestamp tolerance', () => {

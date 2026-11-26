@@ -12,6 +12,11 @@ export type RevenueCatEntitlementSnapshot = {
   expiresAtMs: number | null;
 };
 
+export type RevenueCatTieredEntitlementSnapshot = RevenueCatEntitlementSnapshot & {
+  planTier: 'pro' | 'max' | null;
+  entitlementId: string;
+};
+
 function objectValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
@@ -50,6 +55,29 @@ export function parseRevenueCatEntitlement(
   };
 }
 
+export function parseRevenueCatTieredEntitlement(
+  customerInfo: unknown,
+  entitlements: { proEntitlementId: string; maxEntitlementId?: string },
+  now = Date.now(),
+): RevenueCatTieredEntitlementSnapshot {
+  if (entitlements.maxEntitlementId) {
+    const maxSnap = parseRevenueCatEntitlement(customerInfo, entitlements.maxEntitlementId, now);
+    if (maxSnap.active) {
+      return {
+        ...maxSnap,
+        planTier: 'max',
+        entitlementId: entitlements.maxEntitlementId,
+      };
+    }
+  }
+  const proSnap = parseRevenueCatEntitlement(customerInfo, entitlements.proEntitlementId, now);
+  return {
+    ...proSnap,
+    planTier: proSnap.active ? 'pro' : null,
+    entitlementId: entitlements.proEntitlementId,
+  };
+}
+
 export async function fetchRevenueCatCustomer(appUserId: string, secretApiKey: string): Promise<unknown | null> {
   const response = await fetch(`${REVENUECAT_API_BASE}/subscribers/${encodeURIComponent(appUserId)}`, {
     headers: {
@@ -83,12 +111,19 @@ export async function syncRevenueCatEntitlement(args: {
   appUserId: string;
   secretApiKey: string;
   entitlementId: string;
+  maxEntitlementId?: string;
   source: 'callable' | 'webhook';
   userId?: string;
   now?: number;
-}): Promise<RevenueCatEntitlementSnapshot> {
+}): Promise<RevenueCatTieredEntitlementSnapshot> {
   const now = args.now ?? Date.now();
-  const inactive: RevenueCatEntitlementSnapshot = { active: false, productId: null, expiresAtMs: null };
+  const inactive: RevenueCatTieredEntitlementSnapshot = {
+    active: false,
+    planTier: null,
+    entitlementId: args.entitlementId,
+    productId: null,
+    expiresAtMs: null,
+  };
   const profileRef = args.db.collection('_commercialUsers').doc(args.appUserId);
   const deletionRef = args.db.collection('_pendingRevenueCatDeletions').doc(args.appUserId);
   // Bind the fetch to the account that owned this stable commercial identity
@@ -106,7 +141,11 @@ export async function syncRevenueCatEntitlement(args: {
   });
   if (expectedUid === null) return inactive;
   const customerInfo = await fetchRevenueCatCustomer(args.appUserId, args.secretApiKey);
-  const entitlement = parseRevenueCatEntitlement(customerInfo, args.entitlementId, now);
+  const entitlement = parseRevenueCatTieredEntitlement(
+    customerInfo,
+    { proEntitlementId: args.entitlementId, maxEntitlementId: args.maxEntitlementId },
+    now,
+  );
   return args.db.runTransaction(async (transaction) => {
     const [profile, deletion] = await Promise.all([
       transaction.get(profileRef), transaction.get(deletionRef),
@@ -117,7 +156,8 @@ export async function syncRevenueCatEntitlement(args: {
     await assertUserActive(transaction, args.db, expectedUid);
     transaction.set(args.db.collection('_commercialEntitlements').doc(args.appUserId), {
       principalId: args.appUserId,
-      entitlementId: args.entitlementId,
+      entitlementId: entitlement.entitlementId,
+      planTier: entitlement.planTier,
       active: entitlement.active,
       productId: entitlement.productId,
       expiresAt: entitlement.expiresAtMs === null ? null : Timestamp.fromMillis(entitlement.expiresAtMs),

@@ -27,13 +27,16 @@ const STALE_RESERVATION_RECOVERY_MS = 5 * 60 * 1000;
 const CONFIG_CACHE_MS = 15_000;
 
 export type CommercialTier = 'guest' | 'free' | 'premium';
+export type PaidPlanTier = 'pro' | 'max';
 export type CommercialBlockReason = 'available' | 'welcome_exhausted' | 'daily_exhausted';
 
 export type CommercialConfig = {
   welcomeLimit: number;
   freeDailyLimit: number;
   premiumDailyLimit: number;
+  maxDailyLimit: number;
   premiumEntitlementId: string;
+  maxEntitlementId: string;
   deviceRecallMode: 'off' | 'monitor' | 'enforce';
 };
 
@@ -51,9 +54,11 @@ export type CommercialAccess = {
     welcome: number;
     freeDaily: number;
     premiumDaily: number;
+    maxDaily: number;
   };
   premium: {
     active: boolean;
+    tier: PaidPlanTier | null;
     productId: string | null;
     expiresAt: string | null;
   };
@@ -66,8 +71,10 @@ export type CommercialAccess = {
 export const DEFAULT_COMMERCIAL_CONFIG: CommercialConfig = {
   welcomeLimit: 5,
   freeDailyLimit: 5,
-  premiumDailyLimit: 30,
+  premiumDailyLimit: 50,
+  maxDailyLimit: 150,
   premiumEntitlementId: 'premium',
+  maxEntitlementId: 'max',
   deviceRecallMode: defaultDeviceRecallForStage(RELEASE_SECURITY_STAGE),
 };
 
@@ -92,17 +99,37 @@ function integerInRange(value: unknown, fallback: number, min: number, max: numb
 
 export function normalizeCommercialConfig(value: unknown): CommercialConfig {
   const data = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  const premiumDailyLimit = integerInRange(data.premiumDailyLimit, DEFAULT_COMMERCIAL_CONFIG.premiumDailyLimit, 5, 250);
+  const rawMaxDaily = integerInRange(data.maxDailyLimit, DEFAULT_COMMERCIAL_CONFIG.maxDailyLimit, 10, 500);
   return {
     welcomeLimit: integerInRange(data.welcomeLimit, DEFAULT_COMMERCIAL_CONFIG.welcomeLimit, 1, 20),
     freeDailyLimit: integerInRange(data.freeDailyLimit, DEFAULT_COMMERCIAL_CONFIG.freeDailyLimit, 1, 20),
-    premiumDailyLimit: integerInRange(data.premiumDailyLimit, DEFAULT_COMMERCIAL_CONFIG.premiumDailyLimit, 5, 200),
+    premiumDailyLimit,
+    maxDailyLimit: Math.max(premiumDailyLimit, rawMaxDaily),
     premiumEntitlementId: typeof data.premiumEntitlementId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(data.premiumEntitlementId)
       ? data.premiumEntitlementId
       : DEFAULT_COMMERCIAL_CONFIG.premiumEntitlementId,
+    maxEntitlementId: typeof data.maxEntitlementId === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(data.maxEntitlementId)
+      ? data.maxEntitlementId
+      : DEFAULT_COMMERCIAL_CONFIG.maxEntitlementId,
     deviceRecallMode: data.deviceRecallMode === 'off' || data.deviceRecallMode === 'monitor' || data.deviceRecallMode === 'enforce'
       ? data.deviceRecallMode
       : DEFAULT_COMMERCIAL_CONFIG.deviceRecallMode,
   };
+}
+
+export function resolvePaidPlanTier(
+  entitlement: DocumentData | undefined,
+  config: Pick<CommercialConfig, 'maxEntitlementId'>,
+  now: number,
+): PaidPlanTier | null {
+  const expiresAtMs = timestampMillis(entitlement?.expiresAt);
+  const active = entitlement?.active === true && (expiresAtMs === null || expiresAtMs > now);
+  if (!active) return null;
+  if (entitlement?.planTier === 'max' || entitlement?.entitlementId === config.maxEntitlementId) {
+    return 'max';
+  }
+  return 'pro';
 }
 
 export async function getCommercialConfig(db: Firestore, now = Date.now()): Promise<CommercialConfig> {
@@ -250,15 +277,20 @@ export function buildCommercialAccess(args: {
   resetAt: string;
 }): CommercialAccess {
   const expiresAtMs = timestampMillis(args.entitlement?.expiresAt);
-  const premiumActive = args.entitlement?.active === true && (expiresAtMs === null || expiresAtMs > args.now);
+  const paidTier = resolvePaidPlanTier(args.entitlement, args.config, args.now);
+  const premiumActive = paidTier !== null;
   const tier: CommercialTier = premiumActive ? 'premium' : args.identity === 'google' ? 'free' : 'guest';
-  const limit = tier === 'premium' ? args.config.premiumDailyLimit : args.config.freeDailyLimit;
+  const limit = paidTier === 'max'
+    ? args.config.maxDailyLimit
+    : paidTier === 'pro'
+      ? args.config.premiumDailyLimit
+      : args.config.freeDailyLimit;
   const primaryUsed = numeric(args.daily, 'requests');
   const deviceUsed = numeric(args.deviceDaily, 'requests');
   // Free tiers (both guest and signed-in) are bound to BOTH the account and
   // the persistent device counter so reinstalls, sign-outs, and account
   // switches on the same phone cannot reset or multiply the daily allowance.
-  // Paid Premium subscribers always receive their full account-bound limit.
+  // Paid Pro/Max subscribers always receive their full account-bound limit.
   const used = tier === 'premium' ? primaryUsed : Math.max(primaryUsed, deviceUsed);
   const remaining = Math.max(0, limit - used);
   const deviceRecallVerified = args.profile?.deviceRecallClaimed === true;
@@ -276,9 +308,11 @@ export function buildCommercialAccess(args: {
       welcome: args.config.freeDailyLimit,
       freeDaily: args.config.freeDailyLimit,
       premiumDaily: args.config.premiumDailyLimit,
+      maxDaily: args.config.maxDailyLimit,
     },
     premium: {
       active: premiumActive,
+      tier: paidTier,
       productId: typeof args.entitlement?.productId === 'string' ? args.entitlement.productId : null,
       expiresAt: expiresAtMs === null ? null : new Date(expiresAtMs).toISOString(),
     },
@@ -479,11 +513,12 @@ export async function reserveAnalysisQuota(
     const dailyUsed = numeric(daily, 'requests');
     const dailyIds = stringArray(daily, 'requestIds');
     const nextDailyUsed = dailyUsed + 1;
+    const maxTrackedIds = Math.max(config.premiumDailyLimit, config.maxDailyLimit);
     transaction.set(refs.daily, {
       principalId: principal.principalId,
       day: window.day,
       requests: nextDailyUsed,
-      requestIds: [...dailyIds.filter((value) => value !== requestId), requestId].slice(-config.premiumDailyLimit),
+      requestIds: [...dailyIds.filter((value) => value !== requestId), requestId].slice(-maxTrackedIds),
       updatedAt: FieldValue.serverTimestamp(),
       expiresAt,
     }, { merge: true });
@@ -497,7 +532,7 @@ export async function reserveAnalysisQuota(
         principalId: refs.devicePrincipalId,
         day: window.day,
         requests: nextDeviceUsed,
-        requestIds: [...deviceIds.filter((value) => value !== requestId), requestId].slice(-config.premiumDailyLimit),
+        requestIds: [...deviceIds.filter((value) => value !== requestId), requestId].slice(-maxTrackedIds),
         updatedAt: FieldValue.serverTimestamp(),
         expiresAt,
       }, { merge: true });

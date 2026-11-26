@@ -111,6 +111,13 @@ test('actual OpenAI adapter propagates cancellation, strict schema, detail=high 
 
   const repairContent = calls[1].request.input[0].content;
   assert.ok(repairContent.every((part: { type: string }) => part.type === 'input_text'));
+
+  // Max tier passes extended medium reasoning for analysis while keeping repair fast (low).
+  const maxProvider = createMathProvider('fixture-only', client, 'gpt-6-luna', 'medium');
+  await maxProvider.generate({ kind: 'image', prompt: 'solve', imageBase64: 'fixture', mimeType: 'image/jpeg' }, context);
+  await maxProvider.generate({ kind: 'repair', prompt: 'repair', source: 'invalid-json' }, context);
+  assert.deepEqual(calls[2].request.reasoning, { effort: 'medium' });
+  assert.deepEqual(calls[3].request.reasoning, { effort: 'low' });
 });
 
 test('typed OpenAI adapter sends separate math data as text without image parts or storage', async () => {

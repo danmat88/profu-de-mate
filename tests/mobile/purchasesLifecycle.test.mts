@@ -72,11 +72,33 @@ test('opening Premium initializes its account before fetching offers and reuses 
 });
 
 test('a single available monthly plan is offered instead of hiding the entire purchase screen', async () => {
-  const monthly = { identifier: 'monthly', product: { priceString: '29,99 RON' } };
+  const monthly = { identifier: 'monthly', product: { priceString: '19,99 RON' } };
   const h = harness({ getOfferings: async () => ({ current: { monthly, annual: null, availablePackages: [] } }) });
   const offer = await h.purchases.getPremiumOffer({ purchaseUserId: h.id('a') });
   assert.equal(offer.monthly, monthly);
   assert.equal(offer.annual, null);
+  assert.equal(offer.pro?.monthly, monthly);
+  assert.equal(offer.max?.monthly, null);
+});
+
+test('loads both Pro and Max packages from RevenueCat offerings cleanly', async () => {
+  const proMonthly = { identifier: '$rc_monthly', product: { identifier: 'pro_monthly', priceString: '19,99 RON' } };
+  const proAnnual = { identifier: '$rc_annual', product: { identifier: 'pro_annual', priceString: '149,99 RON' } };
+  const maxMonthly = { identifier: 'max_monthly', product: { identifier: 'max_monthly', priceString: '39,99 RON' } };
+  const maxAnnual = { identifier: 'max_annual', product: { identifier: 'max_annual', priceString: '299,99 RON' } };
+  const h = harness({
+    getOfferings: async () => ({
+      current: { monthly: proMonthly, annual: proAnnual, availablePackages: [proMonthly, proAnnual] },
+      all: {
+        max: { monthly: maxMonthly, annual: maxAnnual, availablePackages: [maxMonthly, maxAnnual] },
+      },
+    }),
+  });
+  const offer = await h.purchases.getPremiumOffer({ purchaseUserId: h.id('a') });
+  assert.equal(offer.pro?.monthly, proMonthly);
+  assert.equal(offer.pro?.annual, proAnnual);
+  assert.equal(offer.max?.monthly, maxMonthly);
+  assert.equal(offer.max?.annual, maxAnnual);
 });
 
 test('a price response that arrives after an identity change cannot populate the next account cache', async () => {

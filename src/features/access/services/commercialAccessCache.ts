@@ -49,8 +49,10 @@ function isCommercialAccess(value: unknown): value is CommercialAccess {
     && finiteNonNegative(allowances?.welcome)
     && finiteNonNegative(allowances?.freeDaily)
     && finiteNonNegative(allowances?.premiumDaily)
+    && (allowances?.maxDaily === undefined || finiteNonNegative(allowances.maxDaily))
     && Boolean(premium)
     && typeof premium?.active === 'boolean'
+    && (premium?.tier === undefined || premium.tier === null || premium.tier === 'pro' || premium.tier === 'max')
     && (premium?.productId === null || typeof premium?.productId === 'string')
     && validOptionalDate(premium?.expiresAt)
     && Boolean(deviceRecall)

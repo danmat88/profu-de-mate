@@ -14,16 +14,20 @@ test('normalizes commercial limits without accepting unsafe values', () => {
     welcomeLimit: 6,
     freeDailyLimit: 4,
     premiumDailyLimit: 60,
+    maxDailyLimit: 180,
     premiumEntitlementId: 'pro_access',
+    maxEntitlementId: 'max_access',
     deviceRecallMode: 'monitor',
   }), {
     welcomeLimit: 6,
     freeDailyLimit: 4,
     premiumDailyLimit: 60,
+    maxDailyLimit: 180,
     premiumEntitlementId: 'pro_access',
+    maxEntitlementId: 'max_access',
     deviceRecallMode: 'monitor',
   });
-  assert.deepEqual(normalizeCommercialConfig({ welcomeLimit: 0, premiumDailyLimit: 10_000 }), DEFAULT_COMMERCIAL_CONFIG);
+  assert.deepEqual(normalizeCommercialConfig({ welcomeLimit: 0, premiumDailyLimit: 10_000, maxDailyLimit: 99_999 }), DEFAULT_COMMERCIAL_CONFIG);
 });
 
 test('uses Europe/Bucharest day boundaries in winter and summer', () => {
@@ -73,8 +77,8 @@ test('builds unified daily guest, dual-bound free, and account-bound premium acc
   };
   assert.deepEqual(buildCommercialAccess({ identity: 'anonymous', principalId: guestPrincipal, daily: { requests: 3 }, ...common }), {
     identity: 'anonymous', tier: 'guest', limit: 5, used: 3, remaining: 2, canAnalyze: true,
-    reason: 'available', resetAt: common.resetAt, purchaseUserId: guestPrincipal, premium: { active: false, productId: null, expiresAt: null },
-    allowances: { welcome: 5, freeDaily: 5, premiumDaily: 30 },
+    reason: 'available', resetAt: common.resetAt, purchaseUserId: guestPrincipal, premium: { active: false, tier: null, productId: null, expiresAt: null },
+    allowances: { welcome: 5, freeDaily: 5, premiumDaily: 50, maxDaily: 150 },
     deviceRecall: { shouldVerify: false, verified: false },
   });
   assert.equal(buildCommercialAccess({ identity: 'google', principalId: googlePrincipal, daily: { requests: 5 }, ...common }).reason, 'daily_exhausted');
@@ -104,19 +108,35 @@ test('builds unified daily guest, dual-bound free, and account-bound premium acc
   assert.equal(usedGoogleOnNewDevice.remaining, 0);
   assert.equal(usedGoogleOnNewDevice.reason, 'daily_exhausted');
 
-  // Premium users always receive their paid account-bound limit even if the
-  // device already spent 5 free problems.
-  const premium = buildCommercialAccess({
+  // Pro subscribers receive 50/day even if the device already spent 5 free problems.
+  const pro = buildCommercialAccess({
     identity: 'google',
     principalId: googlePrincipal,
     daily: { requests: 12 },
     deviceDaily: { requests: 5 },
-    entitlement: { active: true, productId: 'premium_monthly', expiresAt: Timestamp.fromMillis(common.now + 60_000) },
+    entitlement: { active: true, planTier: 'pro', entitlementId: 'premium', productId: 'pro_monthly', expiresAt: Timestamp.fromMillis(common.now + 60_000) },
     ...common,
   });
-  assert.equal(premium.tier, 'premium');
-  assert.equal(premium.used, 12);
-  assert.equal(premium.remaining, 18);
+  assert.equal(pro.tier, 'premium');
+  assert.equal(pro.premium.tier, 'pro');
+  assert.equal(pro.limit, 50);
+  assert.equal(pro.used, 12);
+  assert.equal(pro.remaining, 38);
+
+  // Max subscribers receive 150/day and tier='max'.
+  const max = buildCommercialAccess({
+    identity: 'google',
+    principalId: googlePrincipal,
+    daily: { requests: 40 },
+    deviceDaily: { requests: 5 },
+    entitlement: { active: true, planTier: 'max', entitlementId: 'max', productId: 'max_monthly', expiresAt: Timestamp.fromMillis(common.now + 60_000) },
+    ...common,
+  });
+  assert.equal(max.tier, 'premium');
+  assert.equal(max.premium.tier, 'max');
+  assert.equal(max.limit, 150);
+  assert.equal(max.used, 40);
+  assert.equal(max.remaining, 110);
 });
 
 test('does not trust an expired premium snapshot', () => {

@@ -14,18 +14,18 @@ function access(overrides: Partial<CommercialAccess> = {}): CommercialAccess {
     reason: 'available',
     resetAt: '2026-09-20T21:00:00.000Z',
     purchaseUserId: `i_${'a'.repeat(64)}`,
-    allowances: { welcome: 5, freeDaily: 5, premiumDaily: 30 },
-    premium: { active: false, productId: null, expiresAt: null },
+    allowances: { welcome: 5, freeDaily: 5, premiumDaily: 50, maxDaily: 150 },
+    premium: { active: false, tier: null, productId: null, expiresAt: null },
     deviceRecall: { shouldVerify: false, verified: false },
     ...overrides,
   };
 }
 
-test('presents unified daily free and Premium access cleanly without guest/account ambiguity', () => {
+test('presents unified daily free, Pro, and Max access cleanly without guest/account ambiguity', () => {
   assert.deepEqual(allowancePresentation(access()), {
     label: '4 din 5 azi',
-    note: 'VEZI PREMIUM',
-    accessibilityLabel: '4 din 5 azi. Descoperă Profu’ Premium.',
+    note: 'VEZI PRO',
+    accessibilityLabel: '4 din 5 azi. Descoperă Profu’ Pro și Max.',
   });
 
   assert.equal(allowancePresentation(access({ identity: 'google', tier: 'free' })).label, '4 din 5 azi');
@@ -33,9 +33,16 @@ test('presents unified daily free and Premium access cleanly without guest/accou
     allowancePresentation(access({ canAnalyze: false, reason: 'daily_exhausted', remaining: 0, used: 5 })),
     {
       label: '0 din 5 azi',
-      note: 'VEZI PREMIUM',
-      accessibilityLabel: '0 din 5 azi. Descoperă Profu’ Premium.',
+      note: 'VEZI PRO',
+      accessibilityLabel: '0 din 5 azi. Descoperă Profu’ Pro și Max.',
     },
   );
-  assert.equal(allowancePresentation(access({ identity: 'google', tier: 'premium', premium: { active: true, productId: 'profu_premium', expiresAt: null } })).note, 'PREMIUM');
+  assert.equal(
+    allowancePresentation(access({ identity: 'google', tier: 'premium', limit: 50, remaining: 42, premium: { active: true, tier: 'pro', productId: 'profu_pro', expiresAt: null } })).note,
+    'PRO',
+  );
+  assert.equal(
+    allowancePresentation(access({ identity: 'google', tier: 'premium', limit: 150, remaining: 140, premium: { active: true, tier: 'max', productId: 'profu_max', expiresAt: null } })).note,
+    'MAX',
+  );
 });

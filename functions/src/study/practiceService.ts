@@ -175,9 +175,11 @@ export async function generateRenderedPracticeExercise(params: {
   onRejected?: (event: PracticeRejectionEvent) => void;
   client?: OpenAI;
   model?: string;
+  reasoningEffort?: 'low' | 'medium';
 }): Promise<RenderedAiPracticeExercise> {
   const runtime = resolveOpenAiRuntimeConfig();
   const model = params.model ?? runtime.model;
+  const reasoningEffort = params.reasoningEffort ?? 'low';
   const client = params.client ?? createOpenAiClient(params.apiKey, runtime);
   const promptText = buildPracticePrompt(params.request);
 
@@ -191,7 +193,7 @@ export async function generateRenderedPracticeExercise(params: {
       model,
       store: false,
       input: [{ role: 'user', content: nextContent }],
-      reasoning: { effort: 'low' },
+      reasoning: { effort: attempt === 1 ? reasoningEffort : 'low' },
       max_output_tokens: PRACTICE_MAX_OUTPUT_TOKENS,
       text: {
         format: {

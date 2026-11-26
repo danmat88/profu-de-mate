@@ -59,10 +59,43 @@ function beginBillingOperation(): void {
   billingOperationActive = true;
 }
 
-export type PremiumOffer = {
+export type TierOfferPackages = {
   monthly: PurchasesPackage | null;
   annual: PurchasesPackage | null;
 };
+
+export type PremiumOffer = TierOfferPackages & {
+  pro?: TierOfferPackages;
+  max?: TierOfferPackages;
+};
+
+export function packagesForTier(
+  offer: PremiumOffer | null,
+  tier: 'pro' | 'max',
+): TierOfferPackages {
+  if (!offer) return { monthly: null, annual: null };
+  if (tier === 'max') {
+    return offer.max ?? { monthly: null, annual: null };
+  }
+  return offer.pro ?? { monthly: offer.monthly ?? null, annual: offer.annual ?? null };
+}
+
+function isMaxPackage(item: PurchasesPackage): boolean {
+  const id = `${item.identifier ?? ''} ${item.product?.identifier ?? ''}`.toLowerCase();
+  return /\b(?:max|ultra)\b|(?:^|[_-])(?:max|ultra)(?:[_-]|$)/.test(id);
+}
+
+function isAnnualPackage(item: PurchasesPackage): boolean {
+  if (item.packageType === PACKAGE_TYPE.ANNUAL) return true;
+  const id = `${item.identifier ?? ''} ${item.product?.identifier ?? ''}`.toLowerCase();
+  return id.includes('annual') || id.includes('yearly') || id.includes('year');
+}
+
+function isMonthlyPackage(item: PurchasesPackage): boolean {
+  if (item.packageType === PACKAGE_TYPE.MONTHLY) return true;
+  const id = `${item.identifier ?? ''} ${item.product?.identifier ?? ''}`.toLowerCase();
+  return id.includes('monthly') || id.includes('month');
+}
 
 export function getCachedPremiumOffer(): PremiumOffer | null {
   try {
@@ -142,14 +175,40 @@ export async function getPremiumOffer(options: { purchaseUserId?: string; force?
     const offerings = await withDeadline(Purchases.getOfferings(), 12_000, 'Oferta nu a sosit. Încearcă din nou.');
     assertSessionActive(session);
     const current = offerings.current;
-    const monthly = current?.monthly
-      ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.MONTHLY)
-      ?? null;
-    const annual = current?.annual
-      ?? current?.availablePackages.find((item) => item.packageType === PACKAGE_TYPE.ANNUAL)
-      ?? null;
-    if (!monthly && !annual) throw new Error('Oferta Premium nu este disponibilă momentan.');
-    const offer = { monthly, annual };
+    const available = current?.availablePackages ?? [];
+    const proPackages = available.filter((item) => !isMaxPackage(item));
+    const maxFromCurrent = available.filter((item) => isMaxPackage(item));
+    const maxOffering = offerings.all?.max ?? offerings.all?.ultra ?? null;
+    const maxAvailable = maxOffering?.availablePackages ?? [];
+
+    const pro: TierOfferPackages = {
+      monthly: current?.monthly
+        ?? proPackages.find((item) => isMonthlyPackage(item))
+        ?? null,
+      annual: current?.annual
+        ?? proPackages.find((item) => isAnnualPackage(item))
+        ?? null,
+    };
+    const max: TierOfferPackages = {
+      monthly: maxOffering?.monthly
+        ?? maxAvailable.find((item) => isMonthlyPackage(item))
+        ?? maxFromCurrent.find((item) => isMonthlyPackage(item))
+        ?? null,
+      annual: maxOffering?.annual
+        ?? maxAvailable.find((item) => isAnnualPackage(item))
+        ?? maxFromCurrent.find((item) => isAnnualPackage(item))
+        ?? null,
+    };
+
+    if (!pro.monthly && !pro.annual && !max.monthly && !max.annual) {
+      throw new Error('Oferta Premium nu este disponibilă momentan.');
+    }
+    const offer: PremiumOffer = {
+      monthly: pro.monthly,
+      annual: pro.annual,
+      pro,
+      max,
+    };
     if (configuredUserId) cachedOffer = { sessionKey: session.sessionKey, userId: configuredUserId, savedAt: Date.now(), offer };
     return offer;
   });

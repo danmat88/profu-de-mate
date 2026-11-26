@@ -3,6 +3,8 @@ import { createOpenAiClient, resolveOpenAiRuntimeConfig } from '../infrastructur
 import { mathAnalysisJsonSchema } from './analysisSchema.js';
 import type { ProviderGenerationContext, ProviderGenerationRequest } from './providerPipeline.js';
 
+export type MathReasoningEffort = 'low' | 'medium';
+
 export interface MathProvider {
   readonly model: string;
   generate(request: ProviderGenerationRequest, context: ProviderGenerationContext): Promise<string | undefined>;
@@ -12,6 +14,7 @@ export function createMathProvider(
   apiKey: string,
   client?: OpenAI,
   model?: string,
+  reasoningEffort: MathReasoningEffort = 'low',
 ): MathProvider {
   const runtime = resolveOpenAiRuntimeConfig();
   const resolvedModel = model ?? runtime.model;
@@ -49,7 +52,7 @@ export function createMathProvider(
         model: resolvedModel,
         store: false,
         input: [{ role: 'user', content }],
-        reasoning: { effort: 'low' },
+        reasoning: { effort: request.kind === 'repair' ? 'low' : reasoningEffort },
         max_output_tokens: context.maxOutputTokens,
         text: {
           format: {

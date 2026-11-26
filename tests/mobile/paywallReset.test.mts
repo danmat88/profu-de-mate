@@ -9,8 +9,8 @@ const midnight = Date.parse('2026-09-20T21:00:00.000Z');
 const exhausted: CommercialAccess = {
   identity: 'google', tier: 'free', limit: 5, used: 5, remaining: 0,
   canAnalyze: false, reason: 'daily_exhausted', resetAt: new Date(midnight).toISOString(),
-  purchaseUserId: 'account', allowances: { welcome: 5, freeDaily: 5, premiumDaily: 30 },
-  premium: { active: false, productId: null, expiresAt: null },
+  purchaseUserId: 'account', allowances: { welcome: 5, freeDaily: 5, premiumDaily: 50, maxDaily: 150 },
+  premium: { active: false, tier: null, productId: null, expiresAt: null },
   deviceRecall: { shouldVerify: false, verified: false },
 };
 type Node = { type: string; props: Record<string, any> };
@@ -46,7 +46,15 @@ function render(contextAccess: CommercialAccess | null, loading: boolean, source
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'src/features/access/context/CommercialContext.tsx': { useCommercial: () => ({ access: contextAccess, identity: options.identity, loading, refresh: () => { refreshCalls++; }, connectGoogle: noop, applyServerAccess: noop }) },
     'src/features/access/services/commercialRefreshPolicy.ts': { isCommercialAccessExpired },
-    'src/features/access/services/purchases.ts': { isPurchasesConfigured: () => options.configured ?? false, getCachedPremiumOffer: () => options.offer ?? null },
+    'src/features/access/services/purchases.ts': {
+      isPurchasesConfigured: () => options.configured ?? false,
+      getCachedPremiumOffer: () => options.offer ?? null,
+      packagesForTier: (offer: any, tier: 'pro' | 'max') => {
+        if (!offer) return { monthly: null, annual: null };
+        if (tier === 'max') return offer.max ?? { monthly: null, annual: null };
+        return offer.pro ?? { monthly: offer.monthly ?? null, annual: offer.annual ?? null };
+      },
+    },
     'src/shared/hooks/useReducedMotion.ts': { useReducedMotion: () => true },
     'src/shared/hooks/useResponsiveLayout.ts': { useResponsiveLayout: () => ({ gutter: 16 }) },
     'src/shared/hooks/useDelayedBusy.ts': { useDelayedBusy: () => false },
@@ -111,14 +119,42 @@ test('a missing billing key keeps the real purchase action disabled with an expl
 });
 
 test('a monthly-only store offering selects the available package and displays its actual localized price', () => {
-  const offer = { annual: null, monthly: { identifier: 'monthly', product: { priceString: '29,99 RON' } } };
+  const offer = { annual: null, monthly: { identifier: 'monthly', product: { priceString: '19,99 RON' } } };
   const result = render({ ...exhausted, resetAt: null }, false, 'settings', exhausted, { configured: true, offer });
   const options = result.nodes.filter(n => n.props.accessibilityRole === 'radio');
   assert.equal(options.length, 1);
   assert.equal(options[0].props.accessibilityState.checked, true);
-  const buy = result.nodes.find(n => n.type === 'ComicButton' && n.props.title === 'Alege Premium · 29,99 RON');
+  const buy = result.nodes.find(n => n.type === 'ComicButton' && n.props.title === 'Alege Pro · 19,99 RON');
   assert.ok(buy);
   assert.equal(buy.props.disabled, false);
+});
+
+test('Pro subscribers can view their 50/day balance and upgrade seamlessly to Max (150/day) when configured', () => {
+  const proAccess: CommercialAccess = {
+    ...exhausted,
+    tier: 'premium',
+    limit: 50,
+    used: 12,
+    remaining: 38,
+    canAnalyze: true,
+    reason: 'available',
+    resetAt: new Date(midnight + 86_400_000).toISOString(),
+    premium: { active: true, tier: 'pro', productId: 'pro_monthly', expiresAt: null },
+  };
+  const maxOffer = {
+    monthly: null,
+    annual: null,
+    pro: { monthly: null, annual: null },
+    max: {
+      monthly: { identifier: 'max_monthly', product: { priceString: '39,99 RON' } },
+      annual: { identifier: 'max_annual', product: { priceString: '299,99 RON' } },
+    },
+  };
+  const result = render(proAccess, false, 'settings', proAccess, { configured: true, offer: maxOffer });
+  assert.equal(result.text.includes('150'), true);
+  const buyMax = result.nodes.find(n => n.type === 'ComicButton' && n.props.title === 'Alege Max · 299,99 RON');
+  assert.ok(buyMax);
+  assert.equal(buyMax.props.disabled, false);
 });
 
 test('identity changes retain a usable Premium back stack and discard old account params', () => {

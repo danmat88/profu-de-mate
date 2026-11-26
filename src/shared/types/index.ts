@@ -2,6 +2,7 @@ export type FlowMode = 'solve' | 'check';
 
 export type CommercialIdentity = 'anonymous' | 'google';
 export type CommercialTier = 'guest' | 'free' | 'premium';
+export type PaidPlanTier = 'pro' | 'max';
 export type CommercialBlockReason = 'available' | 'welcome_exhausted' | 'daily_exhausted' | 'account_required';
 export type CommercialStatus = 'resolving' | 'ready' | 'unavailable';
 
@@ -19,9 +20,11 @@ export type CommercialAccess = {
     welcome: number;
     freeDaily: number;
     premiumDaily: number;
+    maxDaily?: number;
   };
   premium: {
     active: boolean;
+    tier?: PaidPlanTier | null;
     productId: string | null;
     expiresAt: string | null;
   };

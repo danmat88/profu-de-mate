@@ -8,7 +8,7 @@ import { useDelayedBusy } from '../../../shared/hooks/useDelayedBusy';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
-import type { CommercialAccess } from '../../../shared/types';
+import type { CommercialAccess, PaidPlanTier } from '../../../shared/types';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
@@ -19,7 +19,7 @@ import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { GoogleAccountButton } from '../../account/components/GoogleAccountButton';
-import type { PremiumOffer } from '../services/purchases';
+import { packagesForTier, type PremiumOffer } from '../services/purchases';
 import { QuotaResetTimer } from './QuotaResetTimer';
 
 export type PremiumAction = 'google' | 'purchase' | 'restore' | 'manage' | null;
@@ -34,11 +34,13 @@ type Props = {
   offer: PremiumOffer | null;
   offerLoading: boolean;
   offerError: string | null;
+  selectedTier: PaidPlanTier;
   selected: PremiumPlan;
   busy: PremiumAction;
   error: string | null;
   success: boolean;
   successLimit: number;
+  successTier?: PaidPlanTier;
   active?: boolean;
   onClose: () => void;
   onConnect: () => void;
@@ -48,6 +50,7 @@ type Props = {
   onRefresh: () => void;
   onRetryOffer: () => void;
   onLegal: () => void;
+  onSelectTier: (tier: PaidPlanTier) => void;
   onSelect: (plan: PremiumPlan) => void;
 };
 
@@ -97,23 +100,50 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
 }
 
 /**
- * Flagship Premium upgrade surface with LaunchSplash studio spotlight hero,
+ * Flagship Pro & Max upgrade surface with LaunchSplash studio spotlight hero,
  * pure native UI (zero Reanimated worklet mount cost), and instant modal open.
  */
 export const PremiumSurface = memo(function PremiumSurface(props: Props) {
   const frame = useSafeAreaFrame();
   const { gutter, isVeryShort } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
-  const { access, identity, accessLoading, configured, offer, selected, busy, success, successLimit, active = true } = props;
-  const premium = access?.premium.active === true;
+  const {
+    access,
+    identity,
+    accessLoading,
+    configured,
+    offer,
+    selectedTier,
+    selected,
+    busy,
+    success,
+    successLimit,
+    successTier = 'pro',
+    active = true,
+  } = props;
+  const activePaidTier: PaidPlanTier | null = access?.premium.active ? (access.premium.tier ?? 'pro') : null;
+  const premium = activePaidTier !== null;
+  const maxActive = activePaidTier === 'max';
+  const proActive = activePaidTier === 'pro';
   const quotaExhausted = Boolean(access && !access.canAnalyze);
   const googleLinked = identity === 'google';
   const busyPrices = useDelayedBusy(props.offerLoading);
-  const selectedPackage = offer?.[selected] ?? null;
-  const dailyLimit = access?.allowances.premiumDaily;
-  const canBuy = googleLinked && Boolean(access && selectedPackage && configured);
+
+  const freeLimit = access?.allowances.freeDaily ?? 5;
+  const proLimit = access?.allowances.premiumDaily ?? 50;
+  const maxLimit = access?.allowances.maxDaily ?? 150;
+  const viewingMax = selectedTier === 'max';
+  const selectedTierLabel = viewingMax ? 'Max' : 'Pro';
+  const selectedTierLimit = viewingMax ? maxLimit : proLimit;
+  const tierOffer = packagesForTier(offer, selectedTier);
+  const hasTierOffer = Boolean(tierOffer.annual || tierOffer.monthly);
+  const selectedPackage = tierOffer[selected] ?? null;
+  const canBuy = googleLinked && Boolean(access && selectedPackage && configured) && !maxActive && !(proActive && selectedTier === 'pro');
   const waitingForAccess = !access && accessLoading;
-  const showPlans = !premium && !success;
+  const showPlans = !maxActive && !success && (!proActive || selectedTier === 'max');
+  const showTierTabs = !maxActive && !success && !proActive;
+  const showUpgradeFromPro = proActive && !success;
+
   const busyLabel = busy === 'google'
     ? 'Conectez contul Google…'
     : busy === 'purchase'
@@ -122,15 +152,61 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         ? 'Caut abonamentul tău…'
         : 'Deschid Google Play…';
 
+  const tierBenefits = viewingMax
+    ? [
+      {
+        title: `${maxLimit} acțiuni AI pe zi`,
+        detail: `Față de ${freeLimit}/zi gratuit — ideal pentru pregătire intensivă EN, BAC și meditații.`,
+        highlight: true,
+      },
+      {
+        title: 'Raționament matematic extins',
+        detail: 'Analiză mai profundă pe demonstrații, probleme grele de BAC și corectări pe barem.',
+        highlight: true,
+      },
+      {
+        title: 'Foto, editor, exerciții AI & barem EN/BAC',
+        detail: 'Rezolvări pas cu pas, verificare teme, exerciții adaptive și punctaj oficial pe etape.',
+        highlight: false,
+      },
+      {
+        title: 'Fără reclame · Caiet sincronizat în cloud',
+        detail: 'Toate cele 58 fișe offline, 92 exerciții și 12 simulări rămân incluse.',
+        highlight: false,
+      },
+    ]
+    : [
+      {
+        title: `${proLimit} acțiuni AI pe zi`,
+        detail: `De ${Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)))}× mai mult decât varianta gratuită (${freeLimit}/zi).`,
+        highlight: true,
+      },
+      {
+        title: 'Corectare foto pe barem EN & BAC',
+        detail: 'Fotografiezi rezolvarea la Subiectul II/III și primești punctajul pe fiecare etapă.',
+        highlight: false,
+      },
+      {
+        title: 'Exerciții AI pe orice formulă & capitol',
+        detail: 'Generezi exerciții noi (Ușor · Mediu · Examen) exact unde ai nevoie de practică.',
+        highlight: false,
+      },
+      {
+        title: 'Fără reclame · Caiet sincronizat în cloud',
+        detail: 'Toate cele 58 fișe offline, 92 exerciții și 12 simulări rămân 100% gratuite.',
+        highlight: false,
+      },
+    ];
+
   return (
     <View style={styles.safe}>
       <StatusBar style="light" />
       <ComicBackdrop />
 
-      {/* Full-bleed curved Royal-Violet Premium canopy unifying top bar and hero spotlight */}
+      {/* Full-bleed curved Royal-Violet canopy unifying top bar and hero spotlight */}
       <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
         <LinearGradient
-          colors={['#924BFF', '#6822EE', '#4713C2', '#310C92']}
+          colors={viewingMax || maxActive ? ['#6A24F5', '#4915C7', '#2E0D8A', '#1C0759'] : ['#924BFF', '#6822EE', '#4713C2', '#310C92']}
           start={{ x: 0.06, y: 0 }}
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
@@ -144,11 +220,13 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
           <View style={styles.brandRow}>
             <Text style={styles.brand}>Profu’ de mate</Text>
             <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>PREMIUM</Text>
+              <Text style={styles.brandBadgeText}>
+                {maxActive ? 'MAX' : proActive ? 'PRO' : 'PRO & MAX'}
+              </Text>
             </View>
           </View>
           <IconButton
-            label="Închide Premium"
+            label="Închide abonamentele"
             disabled={Boolean(busy)}
             dimWhenDisabled={false}
             onPress={props.onClose}
@@ -162,18 +240,38 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         <View style={[styles.hero, isVeryShort && styles.heroCompact, { paddingHorizontal: gutter }]}>
           <View style={styles.heroCopy}>
             <Chip
-              label={success || premium ? 'PREMIUM ACTIV' : 'MAI MULTĂ PRACTICĂ'}
+              label={
+                success
+                  ? `PROFU’ ${successTier === 'max' ? 'MAX' : 'PRO'} ACTIV`
+                  : maxActive
+                    ? 'PROFU’ MAX ACTIV'
+                    : proActive
+                      ? 'PROFU’ PRO ACTIV'
+                      : viewingMax
+                        ? 'PUTERE MAXIMĂ'
+                        : 'MAI MULTĂ PRACTICĂ'
+              }
               tone="lime"
             />
             <Text style={styles.heroTitle}>
-              {success ? 'Gata. Continuăm!' : premium ? 'Ai loc pentru\nmai multe idei.' : 'Mai mult loc\npentru „aha!”'}
+              {success
+                ? 'Gata. Continuăm!'
+                : maxActive
+                  ? 'Ai Profu’ Max\nla putere maximă.'
+                  : proActive
+                    ? 'Ai Profu’ Pro\nactiv pe cont.'
+                    : viewingMax
+                      ? 'Putere maximă\npentru examene.'
+                      : 'Mai mult loc\npentru „aha!”'}
             </Text>
             <Text style={styles.heroNote}>
               {success
-                ? `Ai până la ${successLimit} de probleme pe zi.`
-                : dailyLimit
-                  ? `Până la ${dailyLimit} de probleme pe zi, explicate pas cu pas.`
-                  : 'Mai multă practică, cu explicații pas cu pas.'}
+                ? `Ai până la ${successLimit} de acțiuni AI pe zi.`
+                : premium
+                  ? `Până la ${access.limit} de acțiuni AI pe zi, explicate pas cu pas.`
+                  : viewingMax
+                    ? `Până la ${maxLimit} acțiuni AI / zi + raționament matematic extins.`
+                    : `Până la ${proLimit} acțiuni AI / zi — foto, editor, exerciții și barem EN/BAC.`}
             </Text>
           </View>
           <View pointerEvents="none" style={styles.art}>
@@ -192,28 +290,19 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       >
         <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'}>
           <View style={{ paddingHorizontal: gutter }}>
-            <View style={styles.benefits}>
-              {['Rezolvi', 'Verifici', 'Păstrezi în Caiet'].map((label) => (
-                <View key={label} style={styles.benefit}>
-                  <View style={styles.benefitCheck}>
-                    <MiniGlyph name="check" size={11} color={colors.ink} />
-                  </View>
-                  <Text style={styles.benefitText}>{label}</Text>
-                </View>
-              ))}
-            </View>
-
             {success ? (
               <View style={styles.activeSection}>
                 <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
-                <Text style={styles.sectionTitle}>Premium este activ.</Text>
-                <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la problemă când ești pregătit.</Text>
+                <Text style={styles.sectionTitle}>
+                  {successTier === 'max' ? 'Profu’ Max este activ.' : 'Profu’ Pro este activ.'}
+                </Text>
+                <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la matematică când ești pregătit.</Text>
               </View>
             ) : premium ? (
               <View style={styles.activeSection}>
-                <Chip label="SPAȚIUL TĂU DE AZI" tone="violetSoft" outlined={false} />
+                <Chip label={maxActive ? 'SPAȚIUL TĂU MAX DE AZI' : 'SPAȚIUL TĂU PRO DE AZI'} tone="violetSoft" outlined={false} />
                 <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
-                <Text style={styles.sectionTitle}>probleme disponibile</Text>
+                <Text style={styles.sectionTitle}>acțiuni AI disponibile</Text>
                 {access.resetAt ? (
                   <QuotaResetTimer
                     resetAt={access.resetAt}
@@ -253,15 +342,108 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
               </View>
             ) : null}
 
+            {showTierTabs ? (
+              <View style={styles.tierSelectorWrap}>
+                <View accessibilityRole="tablist" accessibilityLabel="Alege nivelul de abonament" style={styles.tierTabs}>
+                  <Pressable
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: selectedTier === 'pro' }}
+                    disabled={Boolean(busy)}
+                    onPress={() => {
+                      Haptics.selection();
+                      props.onSelectTier('pro');
+                    }}
+                    style={({ pressed }) => [
+                      styles.tierTab,
+                      selectedTier === 'pro' && styles.tierTabActive,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.tierTabHead}>
+                      <Text style={[styles.tierTabName, selectedTier === 'pro' && styles.tierTabNameActive]}>Profu’ Pro</Text>
+                      <View style={[styles.tierMiniBadge, selectedTier === 'pro' && styles.tierMiniBadgeActive]}>
+                        <Text style={[styles.tierMiniBadgeText, selectedTier === 'pro' && styles.tierMiniBadgeTextActive]}>POPULAR</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.tierTabQuota, selectedTier === 'pro' && styles.tierTabQuotaActive]}>
+                      {proLimit} acțiuni AI / zi
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: selectedTier === 'max' }}
+                    disabled={Boolean(busy)}
+                    onPress={() => {
+                      Haptics.selection();
+                      props.onSelectTier('max');
+                    }}
+                    style={({ pressed }) => [
+                      styles.tierTab,
+                      selectedTier === 'max' && styles.tierTabActiveMax,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.tierTabHead}>
+                      <Text style={[styles.tierTabName, selectedTier === 'max' && styles.tierTabNameActive]}>Profu’ Max</Text>
+                      <View style={[styles.tierMiniBadge, selectedTier === 'max' && styles.tierMiniBadgeMax]}>
+                        <Text style={[styles.tierMiniBadgeText, selectedTier === 'max' && styles.tierMiniBadgeTextMax]}>3× + EXTINS</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.tierTabQuota, selectedTier === 'max' && styles.tierTabQuotaActive]}>
+                      {maxLimit} / zi · extins
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {showUpgradeFromPro ? (
+              <View style={styles.upgradeBanner}>
+                <View style={styles.upgradeBannerTop}>
+                  <Chip label="TRECI LA PROFU’ MAX" tone="lime" outlined={false} />
+                  <Text style={styles.upgradeQuotaTag}>{maxLimit} / zi</Text>
+                </View>
+                <Text style={styles.upgradeTitle}>Vrei 3× mai mult + raționament extins?</Text>
+                <Text style={styles.bodySmall}>
+                  Profu’ Max urcă limita de la {proLimit} la {maxLimit} acțiuni AI pe zi și activează raționamentul matematic extins pentru EN și BAC.
+                </Text>
+              </View>
+            ) : null}
+
+            {!success && !maxActive ? (
+              <View style={styles.benefitsCard}>
+                <View style={styles.benefitsHeader}>
+                  <Text style={styles.benefitsHeading}>
+                    Ce primești în Profu’ {selectedTierLabel}
+                  </Text>
+                  <Text style={styles.freeCompareTag}>Gratuit: {freeLimit}/zi</Text>
+                </View>
+                <View style={styles.benefitsList}>
+                  {tierBenefits.map((item) => (
+                    <View key={item.title} style={styles.benefitRow}>
+                      <View style={[styles.benefitCheck, item.highlight && styles.benefitCheckHighlight]}>
+                        <MiniGlyph name="check" size={12} color={colors.ink} />
+                      </View>
+                      <View style={styles.benefitCopy}>
+                        <Text style={styles.benefitTitle}>{item.title}</Text>
+                        <Text style={styles.benefitDetail}>{item.detail}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
             {showPlans ? (
               <View style={styles.plansSection}>
                 <View style={styles.sectionHeading}>
-                  <Text style={styles.sectionTitle}>Alege ritmul tău.</Text>
-                  <Chip label="PREMIUM" tone="violetSoft" outlined={false} />
+                  <Text style={styles.sectionTitle}>Alege perioada</Text>
+                  <Chip label={`PROFU’ ${selectedTierLabel.toUpperCase()} · ${selectedTierLimit}/ZI`} tone="violetSoft" outlined={false} />
                 </View>
-                <View accessibilityRole="radiogroup" accessibilityLabel="Planuri Premium" style={styles.plans}>
-                  {(!offer || offer.annual) ? <PlanOption period="annual" plan={offer?.annual ?? null} selected={selected === 'annual'} disabled={Boolean(busy)} onSelect={() => props.onSelect('annual')} /> : null}
-                  {(!offer || offer.monthly) ? <PlanOption period="monthly" plan={offer?.monthly ?? null} selected={selected === 'monthly'} disabled={Boolean(busy)} onSelect={() => props.onSelect('monthly')} /> : null}
+                <View accessibilityRole="radiogroup" accessibilityLabel={`Planuri Profu’ ${selectedTierLabel}`} style={styles.plans}>
+                  {(!hasTierOffer || tierOffer.annual) ? <PlanOption period="annual" plan={tierOffer.annual} selected={selected === 'annual'} disabled={Boolean(busy)} onSelect={() => props.onSelect('annual')} /> : null}
+                  {(!hasTierOffer || tierOffer.monthly) ? <PlanOption period="monthly" plan={tierOffer.monthly} selected={selected === 'monthly'} disabled={Boolean(busy)} onSelect={() => props.onSelect('monthly')} /> : null}
                 </View>
                 <View style={styles.offerStatus} accessibilityLiveRegion="polite">
                   {!configured ? (
@@ -279,6 +461,8 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                     <Text style={styles.bodySmall}>Actualizez prețurile din Google Play…</Text>
                   ) : !googleLinked ? (
                     <Text style={styles.bodySmall}>Conectează contul pentru prețurile disponibile în Google Play.</Text>
+                  ) : offer && !hasTierOffer ? (
+                    <Text style={styles.bodySmall}>Planul Profu’ {selectedTierLabel} nu este publicat încă în Google Play.</Text>
                   ) : (
                     <Text style={styles.bodySmall}>Prețul și perioada sunt confirmate în Google Play înainte de plată.</Text>
                   )}
@@ -289,7 +473,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             {!access && !success ? (
               <View style={styles.accountStatus}>
                 <Text style={styles.bodySmall}>
-                  {waitingForAccess ? 'Contul se actualizează în fundal. Poți explora Premium între timp.' : 'Limita de azi nu a putut fi verificată. Poți continua să explorezi aplicația.'}
+                  {waitingForAccess ? 'Contul se actualizează în fundal. Poți explora planurile între timp.' : 'Limita de azi nu a putut fi verificată. Poți continua să explorezi aplicația.'}
                 </Text>
                 {!waitingForAccess ? (
                   <Pressable accessibilityRole="button" onPress={props.onRefresh} disabled={Boolean(busy)} style={styles.textAction}>
@@ -302,9 +486,9 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             {props.error ? <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text> : null}
 
             <View style={styles.legal}>
-              {!premium && !success ? (
+              {!maxActive && !success ? (
                 <Text style={styles.legalText}>
-                  Abonamentul se reînnoiește automat. Îl poți anula din Google Play înainte de următoarea reînnoire. Prețul și perioada de facturare sunt confirmate înainte de plată.
+                  Abonamentul se reînnoiește automat. Îl poți anula oricând din Google Play înainte de următoarea reînnoire. Prețul și perioada de facturare sunt confirmate înainte de plată.
                 </Text>
               ) : null}
               <Pressable accessibilityRole="link" disabled={Boolean(busy)} onPress={props.onLegal} style={styles.textAction}>
@@ -318,7 +502,9 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       <View style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
         {success ? (
           <ComicButton title="Înapoi la matematică" icon="scan" onPress={props.onClose} compact />
-        ) : premium ? (
+        ) : maxActive ? (
+          <ComicButton title={busy === 'manage' ? 'Deschid Google Play…' : 'Administrează abonamentul'} icon="settings" disabled={Boolean(busy)} onPress={props.onManage} compact />
+        ) : proActive && (!configured || !selectedPackage) ? (
           <ComicButton title={busy === 'manage' ? 'Deschid Google Play…' : 'Administrează abonamentul'} icon="settings" disabled={Boolean(busy)} onPress={props.onManage} compact />
         ) : identity === 'anonymous' ? (
           <GoogleAccountButton busy={busy === 'google'} disabled={Boolean(busy) && busy !== 'google'} note="Un cont pentru Caiet și abonament" onPress={props.onConnect} />
@@ -328,12 +514,12 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
               busy === 'purchase'
                 ? 'Confirmă în Google Play…'
                 : canBuy && selectedPackage
-                  ? `Alege Premium · ${selectedPackage.product.priceString}`
+                  ? `Alege ${selectedTierLabel} · ${selectedPackage.product.priceString}`
                   : !configured
                     ? 'Abonamente indisponibile'
                     : waitingForAccess
                       ? 'Actualizarea contului continuă…'
-                      : 'Alege Premium'
+                      : `Alege ${selectedTierLabel}`
             }
             icon="trophy"
             tone={!configured ? 'paper' : 'lime'}
@@ -342,12 +528,16 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             compact
           />
         )}
-        {googleLinked && configured && !success ? (
+        {proActive && canBuy && !success ? (
+          <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onManage} style={styles.restore}>
+            <Text style={styles.restoreText}>{busy === 'manage' ? 'Deschid Google Play…' : 'Administrează abonamentul Pro'}</Text>
+          </Pressable>
+        ) : googleLinked && configured && !success ? (
           <Pressable accessibilityRole="button" disabled={Boolean(busy) || !access} onPress={props.onRestore} style={styles.restore}>
             <Text style={styles.restoreText}>{busy === 'restore' ? 'Caut achiziția…' : 'Restaurează achizițiile'}</Text>
           </Pressable>
         ) : !success && !premium ? (
-          <Text style={styles.footerNote}>Continui gratuit oricând. Fără obligații.</Text>
+          <Text style={styles.footerNote}>Continui gratuit oricând ({freeLimit}/zi + offline complet). Fără obligații.</Text>
         ) : null}
       </View>
 
@@ -470,54 +660,201 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, minWidth: 0, zIndex: 1 },
   heroTitle: {
     fontFamily: fonts.display,
-    fontSize: 27,
-    lineHeight: 31,
+    fontSize: 26,
+    lineHeight: 30,
     color: colors.paper,
     marginTop: 9,
     textShadowColor: 'rgba(18, 6, 62, 0.28)',
     textShadowOffset: { width: 0, height: 1.5 },
     textShadowRadius: 3,
   },
-  heroNote: { maxWidth: 230, fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18, color: 'rgba(244, 238, 255, 0.92)', marginTop: 6 },
+  heroNote: { maxWidth: 235, fontFamily: fonts.bodyMedium, fontSize: 12.8, lineHeight: 17.8, color: 'rgba(244, 238, 255, 0.92)', marginTop: 6 },
   art: { width: 116, height: 126, justifyContent: 'center', alignItems: 'center', marginLeft: 4, position: 'relative' },
 
-  benefits: {
+  tierSelectorWrap: { marginTop: 12 },
+  tierTabs: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 8,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(124, 60, 255, 0.08)',
+    gap: 10,
   },
-  benefit: {
+  tierTab: {
+    flex: 1,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderBottomWidth: 3.8,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#CEC0F8',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    gap: 4,
+  },
+  tierTabActive: {
+    borderColor: '#8B52FF',
+    borderBottomColor: '#4514BE',
+    backgroundColor: colors.violet,
+  },
+  tierTabActiveMax: {
+    borderColor: '#6D3DFF',
+    borderBottomColor: '#230A6E',
+    backgroundColor: '#3712A8',
+  },
+  tierTabHead: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 6.5,
+    justifyContent: 'space-between',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  tierTabName: {
+    fontFamily: fonts.display,
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.ink,
+  },
+  tierTabNameActive: {
+    color: colors.paper,
+  },
+  tierMiniBadge: {
+    paddingHorizontal: 6.5,
+    paddingVertical: 2,
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderBottomWidth: 3,
+    backgroundColor: colors.violetSoft,
+  },
+  tierMiniBadgeActive: {
+    backgroundColor: colors.lime,
+  },
+  tierMiniBadgeMax: {
+    backgroundColor: colors.gold,
+  },
+  tierMiniBadgeText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 8.5,
+    letterSpacing: 0.5,
+    color: colors.violetDeep,
+    includeFontPadding: false,
+  },
+  tierMiniBadgeTextActive: {
+    color: colors.ink,
+  },
+  tierMiniBadgeTextMax: {
+    color: colors.ink,
+  },
+  tierTabQuota: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 12,
+    color: colors.inkSoft,
+  },
+  tierTabQuotaActive: {
+    color: 'rgba(244, 238, 255, 0.94)',
+  },
+
+  upgradeBanner: {
+    marginTop: 12,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    borderBottomWidth: 3.5,
+    borderColor: '#DDF68E',
+    borderBottomColor: '#B1D63D',
+    backgroundColor: '#F5FFD2',
+    padding: 14,
+    gap: 5,
+  },
+  upgradeBannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  upgradeQuotaTag: {
+    fontFamily: fonts.display,
+    fontSize: 15,
+    color: colors.violetDeep,
+  },
+  upgradeTitle: {
+    fontFamily: fonts.displaySemi,
+    fontSize: 17,
+    lineHeight: 21,
+    color: colors.ink,
+  },
+
+  benefitsCard: {
+    marginTop: 12,
+    borderRadius: 24,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.5,
     borderColor: '#E8E0FC',
     borderBottomColor: '#D4C7F7',
     backgroundColor: '#FFFFFF',
+    padding: 15,
+    gap: 11,
+  },
+  benefitsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  benefitsHeading: {
+    fontFamily: fonts.displaySemi,
+    fontSize: 16.5,
+    lineHeight: 21,
+    color: colors.ink,
+  },
+  freeCompareTag: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.violetDeep,
+    backgroundColor: colors.violetSoft,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+  },
+  benefitsList: {
+    gap: 10,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
   },
   benefitCheck: {
-    width: 19,
-    height: 19,
-    borderRadius: 10,
-    backgroundColor: colors.limeSoft,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 1,
+    flexShrink: 0,
   },
-  benefitText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12 },
-  resetTimerWrap: { marginTop: 14 },
+  benefitCheckHighlight: {
+    backgroundColor: colors.lime,
+  },
+  benefitCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1.5,
+  },
+  benefitTitle: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: colors.ink,
+  },
+  benefitDetail: {
+    fontFamily: fonts.body,
+    fontSize: 12.2,
+    lineHeight: 16.8,
+    color: colors.inkSoft,
+  },
+
+  resetTimerWrap: { marginTop: 12 },
   activeTimer: { width: '100%', marginTop: 6 },
 
   plansSection: { paddingTop: 16 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 },
-  sectionTitle: { fontFamily: fonts.display, fontSize: 23, lineHeight: 27, color: colors.ink },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.ink },
   plans: { gap: 10 },
   plan: {
     minHeight: 80,
@@ -590,7 +927,7 @@ const styles = StyleSheet.create({
   restore: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   restoreText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
 
-  activeSection: { alignItems: 'center', gap: 10, paddingVertical: 24 },
+  activeSection: { alignItems: 'center', gap: 10, paddingVertical: 18 },
   activeMark: {
     width: 60,
     height: 60,
@@ -599,8 +936,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quota: { fontFamily: fonts.display, fontSize: 60, color: colors.violetDeep },
-  quotaTotal: { fontSize: 29, color: colors.inkSoft },
+  quota: { fontFamily: fonts.display, fontSize: 56, color: colors.violetDeep },
+  quotaTotal: { fontSize: 28, color: colors.inkSoft },
   continueRow: {
     marginTop: 14,
     flexDirection: 'row',

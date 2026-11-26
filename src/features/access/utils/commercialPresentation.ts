@@ -2,7 +2,7 @@ import type { CommercialAccess } from '../../../shared/types';
 
 export type AllowancePresentation = {
   label: string;
-  note: 'PREMIUM' | 'VEZI PREMIUM';
+  note: 'PRO' | 'MAX' | 'VEZI PRO';
   accessibilityLabel: string;
 };
 
@@ -15,10 +15,17 @@ export function allowancePresentation(
   access: CommercialAccess,
 ): AllowancePresentation {
   const label = `${access.remaining} din ${access.limit} azi`;
-  const note = access.premium.active ? 'PREMIUM' : 'VEZI PREMIUM';
+  const note = access.premium.active
+    ? access.premium.tier === 'max' ? 'MAX' : 'PRO'
+    : 'VEZI PRO';
+  const actionLabel = access.premium.active
+    ? access.premium.tier === 'max'
+      ? 'Administrează Profu’ Max.'
+      : 'Administrează Profu’ Pro.'
+    : 'Descoperă Profu’ Pro și Max.';
   return {
     label,
     note,
-    accessibilityLabel: `${label}. ${access.premium.active ? 'Administrează Premium.' : 'Descoperă Profu’ Premium.'}`,
+    accessibilityLabel: `${label}. ${actionLabel}`,
   };
 }
