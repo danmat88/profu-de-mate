@@ -58,3 +58,32 @@ test('AgeConsentSheet uses unified ComicBottomSheet, links to Legal, clears on d
   assert.match(prefsSource, /age-eligibility-v1\.json/);
   assert.match(prefsSource, /if \(ageEligibilityFile\.exists\) ageEligibilityFile\.delete\(\);/);
 });
+
+test('in-app LegalScreen and public web legal pages stay aligned on Romania 16+, GDPR rights, OpenAI transfers, and ANPC/ANSPDCP', async () => {
+  const [legalScreenSource, privacyHtml, termsHtml, settingsSource] = await Promise.all([
+    readFile(new URL('../../src/features/account/screens/LegalScreen.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../hosting/public/confidentialitate.html', import.meta.url), 'utf8'),
+    readFile(new URL('../../hosting/public/termeni.html', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/account/screens/SettingsScreen.tsx', import.meta.url), 'utf8'),
+  ]);
+
+  for (const doc of [legalScreenSource, privacyHtml]) {
+    assert.match(doc, /OpenAI/);
+    assert.match(doc, /190\/2018/);
+    assert.match(doc, /16 ani/);
+    assert.match(doc, /ANSPDCP/);
+    assert.match(doc, /dataprotection\.ro/);
+    assert.match(doc, /Clauze(?:le)? Contractuale Standard/);
+    assert.match(doc, /Art\. 6/);
+  }
+
+  for (const doc of [legalScreenSource, termsHtml]) {
+    assert.match(doc, /34\/2014/);
+    assert.match(doc, /ANPC/);
+    assert.match(doc, /anpc\.ro/);
+    assert.match(doc, /legea română/i);
+  }
+
+  assert.match(settingsSource, /Ajutor și suport/);
+  assert.match(settingsSource, /legalDocument\.supportEmail/);
+});

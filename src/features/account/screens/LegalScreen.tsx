@@ -145,7 +145,7 @@ export function LegalScreen({ navigation }: Props) {
                 </View>
                 <Text style={styles.heroText}>Folosim fotografia sau formula trimisă de tine ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
                 <View style={styles.chips}>
-                  <Chip label="13+" tone="violetSoft" />
+                  <Chip label="13+ · Acord sub 16" tone="violetSoft" />
                   <Chip label="Fără reclame" tone="lime" />
                   <Chip label="Ștergere din aplicație" tone="cyanSoft" />
                 </View>
@@ -193,12 +193,16 @@ export function LegalScreen({ navigation }: Props) {
                 <Bullet>Infrastructura poate înregistra automat metadate de conexiune, precum adresa IP, mărimea cererii, latența și codul răspunsului, fără conținutul fotografiei.</Bullet>
               </Section>
 
-              <Section number="02" title="De ce le folosim">
-                <Paragraph>Le folosim pentru a analiza problema, a afișa pașii, a genera exerciții și feedback orientativ pe barem, a sincroniza Caietul și progresul de studiu, a preveni abuzurile, a proteja serviciul și a îmbunătăți răspunsurile raportate. Rapoartele tehnice opționale sunt trimise numai dacă alegi acest lucru și le poți opri oricând.</Paragraph>
+              <Section number="02" title="De ce și pe ce temei legal (GDPR)">
+                <Bullet>Executarea serviciului (Art. 6(1)(b)): analiza problemei, explicațiile pas cu pas, exercițiile AI, corectarea pe barem, sincronizarea Caietului/progresului și abonamentele.</Bullet>
+                <Bullet>Interes legitim (Art. 6(1)(f)): securitatea aplicației (Play Integrity / App Check), limitarea abuzului, controlul costurilor și investigarea răspunsurilor raportate.</Bullet>
+                <Bullet>Consimțământ (Art. 6(1)(a)): rapoartele tehnice opționale (Crashlytics), pe care le poți opri oricând din Setări.</Bullet>
+                <Bullet>Obligație legală (Art. 6(1)(c)): respectarea obligațiilor legale și fiscale aplicabile.</Bullet>
               </Section>
 
-              <Section number="03" title="Cine procesează datele">
-                <Paragraph>Folosim Google Firebase pentru autentificare, funcții și baza de date; Google Sign-In dacă îl alegi; Google Play pentru plăți și verificarea integrității; RevenueCat pentru starea abonamentului; Firebase Crashlytics doar dacă îl activezi; și OpenAI API pentru analiza matematică, generarea de exerciții și corectarea orientativă pe barem. Nu folosim rețele publicitare și nu vindem date.</Paragraph>
+              <Section number="03" title="Cine procesează datele și transferuri">
+                <Paragraph>Folosim Google Firebase (servere în UE, europe-west1) pentru autentificare, funcții și baza de date; Google Sign-In dacă îl alegi; Google Play pentru plăți și verificarea integrității; RevenueCat, Inc. pentru starea abonamentului; Firebase Crashlytics doar dacă îl activezi; și OpenAI, LLC (OpenAI API) pentru analiza matematică, generarea de exerciții și corectarea orientativă pe barem. Nu folosim rețele publicitare și nu vindem date.</Paragraph>
+                <Paragraph>Deoarece OpenAI, RevenueCat și infrastructura globală Google pot procesa date în SUA, transferurile în afara SEE se fac în baza garanțiilor GDPR (Clauze Contractuale Standard / EU–US Data Privacy Framework).</Paragraph>
               </Section>
 
               <Section number="04" title="Cât timp le păstrăm">
@@ -218,13 +222,15 @@ export function LegalScreen({ navigation }: Props) {
                 <Bullet>Rapoartele tale și răspunsul generat raportat: 180 de zile sau până ștergi toate datele din aplicație, dacă alegi ștergerea mai devreme.</Bullet>
               </Section>
 
-              <Section number="05" title="Drepturile tale">
+              <Section number="05" title="Drepturile tale GDPR">
                 <Paragraph>Poți opri rapoartele tehnice, te poți deconecta fără să ștergi datele sau poți șterge definitiv contul, lecțiile, progresul de studiu, simulările și raportările din Setări. După ștergere, aplicația creează automat un spațiu temporar nou, fără legătură cu identitatea ștearsă, ca să poată fi folosită fără conectare. Cererea pentru profilul tehnic RevenueCat necesită verificarea echipei de suport; identificatorii necesari urmăririi cererii rămân până la soluționare. Ștergerea cere și eliminarea profilului RevenueCat, dar nu oprește automat abonamentul din Google Play. Numai markerii anti-abuz minimizați, totalurile anonime și logurile strict necesare securității pot urma retențiile limitate descrise aici. Datele contului nu mai pot fi recuperate.</Paragraph>
+                <Paragraph>Conform GDPR, ai dreptul de acces, rectificare, ștergere, restricționare, portabilitate, opoziție și retragere a consimțământului, precum și dreptul de a depune o plângere la ANSPDCP (www.dataprotection.ro).</Paragraph>
                 {legalDocument.contactEmail ? <Paragraph>Pentru întrebări sau exercitarea drepturilor: {legalDocument.contactEmail}</Paragraph> : null}
               </Section>
 
-              <Section number="06" title="Vârsta și date sensibile">
-                <Paragraph>Aplicația este destinată persoanelor de cel puțin {legalDocument.minimumAge} ani. Nu fotografia nume, fețe, adrese, note sau alte informații personale; încadrează doar problema de matematică.</Paragraph>
+              <Section number="06" title="Vârsta, acordul parental și date sensibile">
+                <Paragraph>Aplicația este destinată persoanelor de cel puțin {legalDocument.minimumAge} ani și părinților. Copiii sub {legalDocument.minimumAge} ani o pot folosi doar împreună cu un părinte sau tutore.</Paragraph>
+                <Paragraph>În România, conform Legii nr. 190/2018, pragul de consimțământ digital este 16 ani: între 13 și 15 ani este necesar acordul părintelui sau tutorelui legal. La prima deschidere salvăm local doar categoria de eligibilitate, fără a colecta data nașterii. Nu fotografia nume, fețe, adrese, note sau alte informații personale; încadrează doar problema de matematică.</Paragraph>
               </Section>
             </>
           ) : null}
@@ -252,16 +258,20 @@ export function LegalScreen({ navigation }: Props) {
                 <Paragraph>Formulele, ghidurile și testele curatate merg și offline. Funcțiile AI (analiză foto/scrisă, exerciții AI și corectare foto pe barem) au nevoie de internet și pot avea limite zilnice, perioade de mentenanță sau întreruperi ale furnizorilor. Putem opri accesul automat când detectăm abuz sau risc de securitate.</Paragraph>
               </Section>
 
-              <Section number="04" title="Abonamentul Premium">
-                <Bullet>Plata este procesată exclusiv de Google Play; noi nu primim datele cardului.</Bullet>
+              <Section number="04" title="Abonamentul și rambursările">
+                <Bullet>Plata, anularea și cererile de rambursare sunt procesate exclusiv prin Google Play; noi nu primim datele cardului.</Bullet>
                 <Bullet>Prețul, moneda, perioada și eventualele oferte sunt cele afișate de Google Play înainte de confirmare.</Bullet>
-                <Bullet>Abonamentul se reînnoiește automat până când îl oprești din Google Play. Oprirea reînnoirii păstrează Premium până la sfârșitul perioadei plătite.</Bullet>
-                <Bullet>Poți restaura o achiziție din ecranul Premium folosind același cont Google Play.</Bullet>
-                <Bullet>Ștergerea aplicației sau a datelor nu anulează abonamentul.</Bullet>
+                <Bullet>Abonamentul se reînnoiește automat până când îl oprești din Google Play. Oprirea reînnoirii păstrează accesul până la sfârșitul perioadei plătite.</Bullet>
+                <Bullet>Poți restaura o achiziție din ecranul Premium folosind același cont Google Play. Ștergerea aplicației sau a datelor nu anulează abonamentul.</Bullet>
+                <Bullet>Pentru conținutul și serviciile digitale livrate imediat la activare se aplică regulile OUG nr. 34/2014 și politica Google Play.</Bullet>
               </Section>
 
               <Section number="05" title="Raportează o problemă">
                 <Paragraph>Din fiecare lecție sau recapitulare poți semnala un răspuns greșit, neclar ori nepotrivit fără să ieși din aplicație. Mesajul tău ne ajută să îmbunătățim filtrele și explicațiile.</Paragraph>
+              </Section>
+
+              <Section number="06" title="Legea aplicabilă, suport și ANPC">
+                <Paragraph>Acești termeni sunt guvernați de legea română. Pentru suport tehnic scrie la {legalDocument.supportEmail}, iar pentru plăți la {legalDocument.billingEmail}. Consumatorii din România pot apela și la ANPC / Soluționarea Alternativă a Litigiilor (anpc.ro).</Paragraph>
               </Section>
 
               <View style={styles.safetyCard}>

@@ -168,7 +168,7 @@ export const STUDY_TRACKS: readonly StudyTrackMeta[] = [
     label: 'Gimnaziu (V–VII)',
     shortLabel: 'Clasele V–VII',
     eyebrow: 'BAZE GIMNAZIU',
-    description: 'Fracții, puteri, radicali, calcul algebric și geometrie plană.',
+    description: 'Recapitulare pentru EN și sprijin pentru părinți: fracții, puteri, radicali și geometrie plană.',
     examGuideId: 'en',
     accent: 'gold',
   },

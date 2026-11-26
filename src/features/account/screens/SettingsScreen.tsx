@@ -6,8 +6,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, BackHandler, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { legalDocument } from '../../../shared/config/legal';
 import { beginAppTransition, useTransitionMotion } from '../../../shared/context/TransitionMotionContext';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
@@ -613,11 +614,30 @@ export function SettingsScreen({ navigation }: Props) {
             <View style={styles.porcelainGroup}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={`Ajutor și suport pe e-mail la ${legalDocument.supportEmail}`}
+                disabled={accountBusy}
+                onPress={() => {
+                  if (isInteractionLocked()) return;
+                  Haptics.selection();
+                  void Linking.openURL(`mailto:${legalDocument.supportEmail}?subject=${encodeURIComponent('Suport Profu’ de mate')}`).catch(() => undefined);
+                }}
+                style={({ pressed }) => [styles.row, styles.rowBorder, pressed && styles.rowPressed]}
+              >
+                <View style={[styles.rowIcon, { backgroundColor: colors.limeSoft }]}><AppIcon name="help" size={30} /></View>
+                <View style={styles.rowCopy}>
+                  <Text style={styles.rowTitle}>Ajutor și suport</Text>
+                  <Text style={styles.rowText}>Scrie-ne la {legalDocument.supportEmail} pentru întrebări, sugestii sau probleme tehnice.</Text>
+                </View>
+                <MiniGlyph name="next" size={17} color={colors.violetDeep} />
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
                 disabled={accountBusy}
                 onPress={() => { if (isInteractionLocked()) return; Haptics.selection(); beginAppTransition(); navigation.navigate('Legal'); }}
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
               >
-                <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="help" size={30} /></View>
+                <View style={[styles.rowIcon, { backgroundColor: colors.cyanSoft }]}><AppIcon name="privacy" size={30} /></View>
                 <View style={styles.rowCopy}>
                   <Text style={styles.rowTitle}>Legal și siguranță</Text>
                   <Text style={styles.rowText}>Confidențialitatea, folosirea inteligenței artificiale, păstrarea datelor și regulile aplicației.</Text>

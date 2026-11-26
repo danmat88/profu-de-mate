@@ -47,7 +47,7 @@ export function friendlyGoogleConnectError(error: unknown): string {
     return 'Conectarea cu Google nu este disponibilă în această versiune. Încearcă din nou mai târziu.';
   }
   if (upperCode === 'ONE_TAP_START_FAILED' || upperCode === 'SIGN_IN_REQUIRED') {
-    return 'Nu am găsit un cont Google disponibil pe telefon. Adaugă un cont Google în setările telefonului și încearcă din nou.';
+    return 'Nu am găsit un cont Google disponibil pe telefon (conturile supravegheate prin Family Link pot bloca conectarea în aplicații). Poți folosi gratuit aplicația și fără conectare, sau adaugă un cont eligibil în setările telefonului.';
   }
   if (code === 'auth/user-disabled') {
     return 'Acest cont Google este dezactivat și nu poate fi conectat.';
