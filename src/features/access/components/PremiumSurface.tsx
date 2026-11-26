@@ -25,6 +25,15 @@ import { QuotaResetTimer } from './QuotaResetTimer';
 export type PremiumAction = 'google' | 'purchase' | 'restore' | 'manage' | null;
 export type PremiumPlan = 'annual' | 'monthly';
 
+type BenefitBadgeTone = 'lime' | 'gold' | 'violet';
+
+type TierBenefit = {
+  badge: string;
+  tone: BenefitBadgeTone;
+  title: string;
+  detail: string;
+};
+
 type Props = {
   access: CommercialAccess | null;
   identity: CommercialAccess['identity'] | null;
@@ -54,14 +63,28 @@ type Props = {
   onSelect: (plan: PremiumPlan) => void;
 };
 
-function PlanOption({ period, plan, selected, disabled, onSelect }: {
+function PeriodCard({
+  period,
+  plan,
+  selected,
+  disabled,
+  viewingMax,
+  onSelect,
+}: {
   period: PremiumPlan;
   plan: PurchasesPackage | null;
   selected: boolean;
   disabled: boolean;
+  viewingMax: boolean;
   onSelect: () => void;
 }) {
   const annual = period === 'annual';
+  const priceText = plan?.product.priceString ?? 'Preț în Play';
+  const subNote = annual
+    ? plan?.product.pricePerMonthString
+      ? `${plan.product.pricePerMonthString} / lună`
+      : 'Facturat anual'
+    : 'Anulezi oricând';
 
   return (
     <Pressable
@@ -73,35 +96,52 @@ function PlanOption({ period, plan, selected, disabled, onSelect }: {
         Haptics.selection();
         onSelect();
       }}
-      style={({ pressed }) => [styles.plan, selected && styles.planSelected, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.periodCard,
+        selected && (viewingMax ? styles.periodCardSelectedMax : styles.periodCardSelected),
+        pressed && styles.pressed,
+      ]}
     >
-      <View style={[styles.radio, selected && styles.radioSelected]}>
-        {selected ? <MiniGlyph name="check" size={14} color={colors.ink} /> : null}
-      </View>
-      <View style={styles.planCopy}>
-        <View style={styles.planTitleRow}>
-          <Text style={styles.planTitle}>{annual ? 'Anual' : 'Lunar'}</Text>
-          {annual ? <View collapsable={false} style={styles.bestBadge}><Text style={styles.bestBadgeText}>RECOMANDAT</Text></View> : null}
+      <View style={styles.periodTopRow}>
+        <View style={styles.periodTitleWrap}>
+          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.periodTitle}>
+            {annual ? 'Anual' : 'Lunar'}
+          </Text>
+          {annual ? (
+            <View collapsable={false} style={styles.saveBadge}>
+              <Text maxFontSizeMultiplier={1.1} style={styles.saveBadgeText}>ECONOMISEȘTI</Text>
+            </View>
+          ) : null}
         </View>
-        <Text style={styles.planNote}>
-          {annual
-            ? plan?.product.pricePerMonthString ? `${plan.product.pricePerMonthString} / lună, facturat anual` : 'Un an întreg de practică'
-            : 'Se reînnoiește lunar'}
-        </Text>
+        <View style={[styles.radio, selected && (viewingMax ? styles.radioSelectedMax : styles.radioSelected)]}>
+          {selected ? <MiniGlyph name="check" size={12} color={colors.ink} /> : null}
+        </View>
       </View>
-      <View style={styles.priceCopy}>
-        <Text style={[styles.price, !plan && styles.pricePending]}>
-          {plan?.product.priceString ?? 'Preț în Google Play'}
+
+      <View style={styles.periodPriceRow}>
+        <Text
+          maxFontSizeMultiplier={1.25}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.78}
+          style={[styles.periodPrice, !plan && styles.periodPricePending]}
+        >
+          {priceText}
         </Text>
-        {plan ? <Text style={styles.planPeriod}>{annual ? '/ an' : '/ lună'}</Text> : null}
+        {plan ? <Text maxFontSizeMultiplier={1.15} style={styles.periodUnit}>{annual ? '/ an' : '/ lună'}</Text> : null}
       </View>
+
+      <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.periodNote}>
+        {subNote}
+      </Text>
     </Pressable>
   );
 }
 
 /**
- * Flagship Pro & Max upgrade surface with LaunchSplash studio spotlight hero,
- * pure native UI (zero Reanimated worklet mount cost), and instant modal open.
+ * Single-screen flagship Pro & Max upgrade surface designed to fit cleanly
+ * above the fold on standard Android phones with zero visual clutter, clear
+ * metric badges (no ambiguous checkmarks), and instant Pro ↔ Max switching.
  */
 export const PremiumSurface = memo(function PremiumSurface(props: Props) {
   const frame = useSafeAreaFrame();
@@ -134,7 +174,6 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
   const maxLimit = access?.allowances.maxDaily ?? 150;
   const viewingMax = selectedTier === 'max';
   const selectedTierLabel = viewingMax ? 'Max' : 'Pro';
-  const selectedTierLimit = viewingMax ? maxLimit : proLimit;
   const tierOffer = packagesForTier(offer, selectedTier);
   const hasTierOffer = Boolean(tierOffer.annual || tierOffer.monthly);
   const selectedPackage = tierOffer[selected] ?? null;
@@ -152,46 +191,69 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         ? 'Caut abonamentul tău…'
         : 'Deschid Google Play…';
 
-  const tierBenefits = viewingMax
+  const proMultiplier = Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)));
+  const maxMultiplier = Math.max(3, Math.round(maxLimit / Math.max(1, freeLimit)));
+
+  const tierBenefits: readonly TierBenefit[] = viewingMax
     ? [
       {
-        title: `${maxLimit} acțiuni AI pe zi`,
-        detail: `De 3× mai mult decât Pro și de ${Math.max(2, Math.round(maxLimit / Math.max(1, freeLimit)))}× față de gratuit (${freeLimit}/zi) — pentru pregătire intensivă EN și BAC.`,
-        highlight: true,
+        badge: `${maxMultiplier}×`,
+        tone: 'gold',
+        title: `${maxLimit} acțiuni AI în fiecare zi`,
+        detail: `De 3× mai mult decât Pro — ritm intens pentru EN & BAC.`,
       },
       {
+        badge: '✦',
+        tone: 'lime',
         title: 'Raționament matematic extins',
-        detail: 'Analiză mai profundă pe demonstrații lungi, probleme grele de BAC și corectarea pe barem.',
-        highlight: true,
+        detail: 'Analiză mai profundă pe demonstrații lungi, probleme grele și barem.',
       },
       {
-        title: 'Pentru toate funcțiile AI',
-        detail: 'Valabil la rezolvări foto și scrise, verificare teme, exerciții AI și corectare foto pe barem, cu reîncărcare automată la 00:00.',
-        highlight: false,
+        badge: 'AI',
+        tone: 'violet',
+        title: 'Toate funcțiile AI incluse',
+        detail: 'Poză, editor, verificare teme, exerciții AI și barem EN/BAC · reset la 00:00.',
       },
     ]
     : [
       {
-        title: `${proLimit} acțiuni AI pe zi`,
-        detail: `De ${Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)))}× mai mult decât gratuit (${freeLimit}/zi), cu reîncărcare automată zilnic la 00:00.`,
-        highlight: true,
+        badge: `${proMultiplier}×`,
+        tone: 'lime',
+        title: `${proLimit} acțiuni AI în fiecare zi`,
+        detail: `Față de ${freeLimit}/zi gratuit · reîncărcare automată la 00:00.`,
       },
       {
-        title: 'Pentru toate funcțiile AI',
-        detail: 'Valabil la rezolvări foto și scrise, verificare teme, exerciții AI și corectare foto pe barem EN/BAC.',
-        highlight: false,
+        badge: 'AI',
+        tone: 'violet',
+        title: 'Toate funcțiile AI incluse',
+        detail: 'Poză pas cu pas, editor, verificare teme, exerciții AI și barem EN/BAC.',
       },
     ];
+
+  const statusText = !configured
+    ? 'Abonamentele nu sunt disponibile momentan. Varianta gratuită rămâne disponibilă.'
+    : props.offerError
+      ? props.offerError
+      : busyPrices
+        ? 'Actualizez prețurile din Google Play…'
+        : !googleLinked
+          ? 'Conectează contul Google pentru prețurile din Google Play.'
+          : offer && !hasTierOffer
+            ? `Planul Profu’ ${selectedTierLabel} nu este publicat încă în Google Play.`
+            : null;
+
+  const showRestoreLink = googleLinked && configured && !success && !(proActive && canBuy);
+  const showManageProLink = proActive && canBuy && !success;
 
   return (
     <View style={styles.safe}>
       <StatusBar style="light" />
       <ComicBackdrop />
 
-      {/* Full-bleed curved Royal-Violet canopy unifying top bar and hero spotlight */}
+      {/* Sleek compact Royal-Violet / Midnight-Max canopy */}
       <View style={[styles.canopy, { paddingTop: insets.top ?? 0 }]}>
         <LinearGradient
-          colors={viewingMax || maxActive ? ['#6A24F5', '#4915C7', '#2E0D8A', '#1C0759'] : ['#924BFF', '#6822EE', '#4713C2', '#310C92']}
+          colors={viewingMax || maxActive ? ['#5D1EEB', '#3B11AD', '#22096E'] : ['#8A3DFF', '#5F1EE8', '#3B10AD']}
           start={{ x: 0.06, y: 0 }}
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
@@ -199,14 +261,13 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         <View pointerEvents="none" style={styles.canopyGlowCyan} />
         <View pointerEvents="none" style={styles.canopyGlowLime} />
         <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyStar}>✦</Text>
 
         <View style={[styles.header, { paddingHorizontal: gutter }]}>
           <View style={styles.brandRow}>
-            <Text style={styles.brand}>Profu’ de mate</Text>
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>
-                {maxActive ? 'MAX' : proActive ? 'PRO' : 'PRO & MAX'}
+            <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.brand}>Profu’ de mate</Text>
+            <View style={[styles.brandBadge, (viewingMax || maxActive) && styles.brandBadgeMax]}>
+              <Text maxFontSizeMultiplier={1.1} style={[styles.brandBadgeText, (viewingMax || maxActive) && styles.brandBadgeTextMax]}>
+                {maxActive ? 'MAX ACTIV' : proActive ? 'PRO ACTIV' : viewingMax ? 'PROFU’ MAX' : 'PROFU’ PRO'}
               </Text>
             </View>
           </View>
@@ -215,53 +276,39 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             disabled={Boolean(busy)}
             dimWhenDisabled={false}
             onPress={props.onClose}
-            size={42}
+            size={38}
             style={styles.closeBtn}
           >
-            <MiniGlyph name="close" size={18} color={colors.violetDeep} />
+            <MiniGlyph name="close" size={16} color={colors.violetDeep} />
           </IconButton>
         </View>
 
         <View style={[styles.hero, isVeryShort && styles.heroCompact, { paddingHorizontal: gutter }]}>
           <View style={styles.heroCopy}>
-            <Chip
-              label={
-                success
-                  ? `PROFU’ ${successTier === 'max' ? 'MAX' : 'PRO'} ACTIV`
-                  : maxActive
-                    ? 'PROFU’ MAX ACTIV'
-                    : proActive
-                      ? 'PROFU’ PRO ACTIV'
-                      : viewingMax
-                        ? 'PUTERE MAXIMĂ'
-                        : 'MAI MULTĂ PRACTICĂ'
-              }
-              tone="lime"
-            />
-            <Text style={styles.heroTitle}>
+            <Text maxFontSizeMultiplier={1.25} style={styles.heroTitle}>
               {success
-                ? 'Gata. Continuăm!'
+                ? 'Gata. Hai la treabă!'
                 : maxActive
-                  ? 'Ai Profu’ Max\nla putere maximă.'
+                  ? 'Profu’ Max este activ.'
                   : proActive
-                    ? 'Ai Profu’ Pro\nactiv pe cont.'
+                    ? 'Profu’ Pro este activ.'
                     : viewingMax
-                      ? 'Putere maximă\npentru examene.'
-                      : 'Mai mult loc\npentru „aha!”'}
+                      ? 'Putere maximă la examene.'
+                      : 'Învață în ritmul tău.'}
             </Text>
-            <Text style={styles.heroNote}>
+            <Text maxFontSizeMultiplier={1.2} style={styles.heroNote}>
               {success
                 ? `Ai până la ${successLimit} de acțiuni AI pe zi.`
                 : premium && access
                   ? `Până la ${access.limit} de acțiuni AI pe zi, explicate pas cu pas.`
                   : viewingMax
-                    ? `Până la ${maxLimit} de acțiuni AI pe zi și raționament matematic extins.`
-                    : `Până la ${proLimit} de acțiuni AI pe zi — de ${Math.max(2, Math.round(proLimit / Math.max(1, freeLimit)))}× mai mult decât gratuit.`}
+                    ? `${maxLimit} acțiuni AI / zi + raționament matematic extins.`
+                    : `${proLimit} acțiuni AI / zi — de ${proMultiplier}× mai mult decât gratuit.`}
             </Text>
           </View>
           <View pointerEvents="none" style={styles.art}>
-            <SpotlightAura size={118} tone="onViolet" active={active} />
-            <Mascot pose={success || premium ? 'cheer' : 'wave'} size={114} active={active} />
+            <SpotlightAura size={74} tone="onViolet" active={active} />
+            <Mascot pose={success || premium || viewingMax ? 'cheer' : 'wave'} size={70} active={active} />
           </View>
         </View>
       </View>
@@ -271,221 +318,245 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
         removeClippedSubviews={false}
         showsVerticalScrollIndicator={false}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}
       >
-        <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'}>
-          <View style={{ paddingHorizontal: gutter }}>
-            {success ? (
-              <View style={styles.activeSection}>
-                <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
-                <Text style={styles.sectionTitle}>
-                  {successTier === 'max' ? 'Profu’ Max este activ.' : 'Profu’ Pro este activ.'}
-                </Text>
-                <Text style={styles.body}>Abonamentul este legat de contul tău. Revino la matematică când ești pregătit.</Text>
-              </View>
-            ) : premium && access ? (
-              <View style={styles.activeSection}>
-                <Chip label={maxActive ? 'SPAȚIUL TĂU MAX DE AZI' : 'SPAȚIUL TĂU PRO DE AZI'} tone="violetSoft" outlined={false} />
-                <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
-                <Text style={styles.sectionTitle}>acțiuni AI disponibile</Text>
-                {access.resetAt ? (
-                  <QuotaResetTimer
-                    resetAt={access.resetAt}
-                    remaining={access.remaining}
-                    limit={access.limit}
-                    premium
-                    planName={maxActive ? 'Max' : 'Pro'}
-                    variant={quotaExhausted ? 'hero' : 'compact'}
-                    active={active}
-                    style={styles.activeTimer}
-                  />
-                ) : null}
-                <Text style={styles.body}>Abonamentul se administrează din Google Play.</Text>
-              </View>
-            ) : null}
-
-            {!success && !premium && access?.resetAt ? (
-              <QuotaResetTimer
-                resetAt={access.resetAt}
-                remaining={access.remaining}
-                limit={access.limit}
-                premium={false}
-                variant={quotaExhausted ? 'hero' : 'compact'}
-                active={active}
-                style={styles.resetTimerWrap}
-              />
-            ) : null}
-
-            {props.canContinue && !success ? (
-              <View style={styles.continueRow}>
-                <View style={styles.continueCopy}>
-                  <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
-                  <Text style={styles.bodySmall}>Poți reveni la problema ta.</Text>
-                </View>
-                <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onClose} style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}>
-                  <Text style={styles.continueLabel}>Continuă</Text>
-                </Pressable>
-              </View>
-            ) : null}
-
-            {showTierTabs ? (
-              <View style={styles.tierSelectorWrap}>
-                <View accessibilityRole="tablist" accessibilityLabel="Alege nivelul de abonament" style={styles.tierTabs}>
-                  <Pressable
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: selectedTier === 'pro' }}
-                    disabled={Boolean(busy)}
-                    onPress={() => {
-                      Haptics.selection();
-                      props.onSelectTier('pro');
-                    }}
-                    style={({ pressed }) => [
-                      styles.tierTab,
-                      selectedTier === 'pro' && styles.tierTabActive,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <View style={styles.tierTabHead}>
-                      <Text style={[styles.tierTabName, selectedTier === 'pro' && styles.tierTabNameActive]}>Profu’ Pro</Text>
-                      <View style={[styles.tierMiniBadge, selectedTier === 'pro' && styles.tierMiniBadgeActive]}>
-                        <Text style={[styles.tierMiniBadgeText, selectedTier === 'pro' && styles.tierMiniBadgeTextActive]}>POPULAR</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.tierTabQuota, selectedTier === 'pro' && styles.tierTabQuotaActive]}>
-                      {proLimit} acțiuni AI / zi
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="tab"
-                    accessibilityState={{ selected: selectedTier === 'max' }}
-                    disabled={Boolean(busy)}
-                    onPress={() => {
-                      Haptics.selection();
-                      props.onSelectTier('max');
-                    }}
-                    style={({ pressed }) => [
-                      styles.tierTab,
-                      selectedTier === 'max' && styles.tierTabActiveMax,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <View style={styles.tierTabHead}>
-                      <Text style={[styles.tierTabName, selectedTier === 'max' && styles.tierTabNameActive]}>Profu’ Max</Text>
-                      <View style={[styles.tierMiniBadge, selectedTier === 'max' && styles.tierMiniBadgeMax]}>
-                        <Text style={[styles.tierMiniBadgeText, selectedTier === 'max' && styles.tierMiniBadgeTextMax]}>3× + EXTINS</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.tierTabQuota, selectedTier === 'max' && styles.tierTabQuotaActive]}>
-                      {maxLimit} / zi · extins
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : null}
-
-            {showUpgradeFromPro ? (
-              <View style={styles.upgradeBanner}>
-                <View style={styles.upgradeBannerTop}>
-                  <Chip label="TRECI LA PROFU’ MAX" tone="lime" outlined={false} />
-                  <Text style={styles.upgradeQuotaTag}>{maxLimit} / zi</Text>
-                </View>
-                <Text style={styles.upgradeTitle}>Vrei 3× mai mult + raționament extins?</Text>
-                <Text style={styles.bodySmall}>
-                  Profu’ Max urcă limita de la {proLimit} la {maxLimit} acțiuni AI pe zi și activează raționamentul matematic extins pentru EN și BAC.
-                </Text>
-              </View>
-            ) : null}
-
-            {!success && !maxActive ? (
-              <View style={styles.benefitsCard}>
-                <View style={styles.benefitsHeader}>
-                  <Text style={styles.benefitsHeading}>
-                    Ce primești în Profu’ {selectedTierLabel}
-                  </Text>
-                  <Text style={styles.freeCompareTag}>Gratuit: {freeLimit}/zi</Text>
-                </View>
-                <View style={styles.benefitsList}>
-                  {tierBenefits.map((item) => (
-                    <View key={item.title} style={styles.benefitRow}>
-                      <View style={[styles.benefitCheck, item.highlight && styles.benefitCheckHighlight]}>
-                        <MiniGlyph name="check" size={12} color={colors.ink} />
-                      </View>
-                      <View style={styles.benefitCopy}>
-                        <Text style={styles.benefitTitle}>{item.title}</Text>
-                        <Text style={styles.benefitDetail}>{item.detail}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            ) : null}
-
-            {showPlans ? (
-              <View style={styles.plansSection}>
-                <View style={styles.sectionHeading}>
-                  <Text style={styles.sectionTitle}>Alege perioada</Text>
-                  <Chip label={`PROFU’ ${selectedTierLabel.toUpperCase()} · ${selectedTierLimit}/ZI`} tone="violetSoft" outlined={false} />
-                </View>
-                <View accessibilityRole="radiogroup" accessibilityLabel={`Planuri Profu’ ${selectedTierLabel}`} style={styles.plans}>
-                  {(!hasTierOffer || tierOffer.annual) ? <PlanOption period="annual" plan={tierOffer.annual} selected={selected === 'annual'} disabled={Boolean(busy)} onSelect={() => props.onSelect('annual')} /> : null}
-                  {(!hasTierOffer || tierOffer.monthly) ? <PlanOption period="monthly" plan={tierOffer.monthly} selected={selected === 'monthly'} disabled={Boolean(busy)} onSelect={() => props.onSelect('monthly')} /> : null}
-                </View>
-                <View style={styles.offerStatus} accessibilityLiveRegion="polite">
-                  {!configured ? (
-                    <View style={styles.noticePill}>
-                      <Text style={styles.bodySmall}>Abonamentele nu sunt disponibile momentan. Varianta gratuită rămâne disponibilă.</Text>
-                    </View>
-                  ) : props.offerError ? (
-                    <>
-                      <Text style={styles.bodySmall}>{props.offerError}</Text>
-                      <Pressable accessibilityRole="button" onPress={props.onRetryOffer} disabled={Boolean(busy)} style={styles.textAction}>
-                        <Text style={styles.link}>Reîncearcă încărcarea prețurilor</Text>
-                      </Pressable>
-                    </>
-                  ) : busyPrices ? (
-                    <Text style={styles.bodySmall}>Actualizez prețurile din Google Play…</Text>
-                  ) : !googleLinked ? (
-                    <Text style={styles.bodySmall}>Conectează contul pentru prețurile disponibile în Google Play.</Text>
-                  ) : offer && !hasTierOffer ? (
-                    <Text style={styles.bodySmall}>Planul Profu’ {selectedTierLabel} nu este publicat încă în Google Play.</Text>
-                  ) : (
-                    <Text style={styles.bodySmall}>Prețul și perioada sunt confirmate în Google Play înainte de plată.</Text>
-                  )}
-                </View>
-              </View>
-            ) : null}
-
-            {!access && !success ? (
-              <View style={styles.accountStatus}>
-                <Text style={styles.bodySmall}>
-                  {waitingForAccess ? 'Contul se actualizează în fundal. Poți explora planurile între timp.' : 'Limita de azi nu a putut fi verificată. Poți continua să explorezi aplicația.'}
-                </Text>
-                {!waitingForAccess ? (
-                  <Pressable accessibilityRole="button" onPress={props.onRefresh} disabled={Boolean(busy)} style={styles.textAction}>
-                    <Text style={styles.link}>Reîncearcă verificarea</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
-
-            {props.error ? <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text> : null}
-
-            <View style={styles.legal}>
-              {!maxActive && !success ? (
-                <Text style={styles.legalText}>
-                  Abonamentul se reînnoiește automat. Îl poți anula oricând din Google Play înainte de următoarea reînnoire. Prețul și perioada de facturare sunt confirmate înainte de plată.
-                </Text>
+        <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'} style={styles.bodyStack}>
+          {success ? (
+            <View style={styles.activeSection}>
+              <View style={styles.activeMark}><MiniGlyph name="check" size={28} color={colors.ink} /></View>
+              <Text style={styles.sectionTitle}>
+                {successTier === 'max' ? 'Profu’ Max este activ.' : 'Profu’ Pro este activ.'}
+              </Text>
+              <Text style={styles.body}>Abonamentul este legat de contul tău Google. Revino la matematică când ești pregătit.</Text>
+            </View>
+          ) : premium && access ? (
+            <View style={styles.activeSection}>
+              <Chip label={maxActive ? 'SPAȚIUL TĂU MAX DE AZI' : 'SPAȚIUL TĂU PRO DE AZI'} tone="violetSoft" outlined={false} />
+              <Text style={styles.quota}>{access.remaining}<Text style={styles.quotaTotal}> / {access.limit}</Text></Text>
+              <Text style={styles.activeQuotaLabel}>acțiuni AI disponibile</Text>
+              {access.resetAt ? (
+                <QuotaResetTimer
+                  resetAt={access.resetAt}
+                  remaining={access.remaining}
+                  limit={access.limit}
+                  premium
+                  planName={maxActive ? 'Max' : 'Pro'}
+                  variant={quotaExhausted ? 'hero' : 'compact'}
+                  active={active}
+                  style={styles.activeTimer}
+                />
               ) : null}
-              <Pressable accessibilityRole="link" disabled={Boolean(busy)} onPress={props.onLegal} style={styles.textAction}>
-                <Text style={styles.legalLink}>Termeni și confidențialitate</Text>
+              <Text style={styles.body}>Abonamentul se administrează din Google Play.</Text>
+            </View>
+          ) : null}
+
+          {!success && !premium && quotaExhausted && access?.resetAt ? (
+            <QuotaResetTimer
+              resetAt={access.resetAt}
+              remaining={access.remaining}
+              limit={access.limit}
+              premium={false}
+              variant="hero"
+              active={active}
+            />
+          ) : null}
+
+          {props.canContinue && !success ? (
+            <View style={styles.continueRow}>
+              <View style={styles.continueCopy}>
+                <Text style={styles.continueTitle}>Ai probleme disponibile.</Text>
+                <Text style={styles.bodySmall}>Poți reveni la problema ta.</Text>
+              </View>
+              <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onClose} style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}>
+                <Text style={styles.continueLabel}>Continuă</Text>
               </Pressable>
             </View>
-          </View>
+          ) : null}
+
+          {showTierTabs ? (
+            <View accessibilityRole="tablist" accessibilityLabel="Alege planul" style={styles.tierTrack}>
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: selectedTier === 'pro' }}
+                disabled={Boolean(busy)}
+                onPress={() => {
+                  Haptics.selection();
+                  props.onSelectTier('pro');
+                }}
+                style={({ pressed }) => [
+                  styles.tierTab,
+                  selectedTier === 'pro' && styles.tierTabActivePro,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.tierTabTop}>
+                  <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.tierTabName, selectedTier === 'pro' && styles.tierTabNameActive]}>
+                    Profu’ Pro
+                  </Text>
+                  <View style={[styles.tierTag, selectedTier === 'pro' && styles.tierTagPro]}>
+                    <Text maxFontSizeMultiplier={1.1} style={[styles.tierTagText, selectedTier === 'pro' && styles.tierTagTextActive]}>
+                      POPULAR
+                    </Text>
+                  </View>
+                </View>
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.tierTabMeta, selectedTier === 'pro' && styles.tierTabMetaActive]}>
+                  {proLimit} acțiuni AI / zi
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: selectedTier === 'max' }}
+                disabled={Boolean(busy)}
+                onPress={() => {
+                  Haptics.selection();
+                  props.onSelectTier('max');
+                }}
+                style={({ pressed }) => [
+                  styles.tierTab,
+                  selectedTier === 'max' && styles.tierTabActiveMax,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.tierTabTop}>
+                  <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.tierTabName, selectedTier === 'max' && styles.tierTabNameActive]}>
+                    Profu’ Max
+                  </Text>
+                  <View style={[styles.tierTag, selectedTier === 'max' && styles.tierTagMax]}>
+                    <Text maxFontSizeMultiplier={1.1} style={[styles.tierTagText, selectedTier === 'max' && styles.tierTagTextActive]}>
+                      EXTINS
+                    </Text>
+                  </View>
+                </View>
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.tierTabMeta, selectedTier === 'max' && styles.tierTabMetaActive]}>
+                  {maxLimit} / zi · extins
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {showUpgradeFromPro ? (
+            <View style={styles.upgradeBanner}>
+              <View style={styles.upgradeBannerTop}>
+                <Chip label="TRECI LA PROFU’ MAX" tone="lime" outlined={false} />
+                <Text style={styles.upgradeQuotaTag}>{maxLimit} / zi</Text>
+              </View>
+              <Text style={styles.upgradeTitle}>Vrei 3× mai mult + raționament extins?</Text>
+              <Text style={styles.bodySmall}>
+                Google Play înlocuiește automat Pro și creditează zilele rămase către Max.
+              </Text>
+            </View>
+          ) : null}
+
+          {!success && !maxActive ? (
+            <View style={[styles.benefitsCard, viewingMax && styles.benefitsCardMax]}>
+              <View style={styles.benefitsHeader}>
+                <Text maxFontSizeMultiplier={1.2} style={styles.benefitsHeading}>
+                  Inclus în Profu’ {selectedTierLabel}
+                </Text>
+                <Text maxFontSizeMultiplier={1.15} style={styles.freeCompareTag}>
+                  vs. {freeLimit}/zi gratuit
+                </Text>
+              </View>
+              <View style={styles.benefitsList}>
+                {tierBenefits.map((item) => (
+                  <View key={item.title} style={styles.benefitRow}>
+                    <View
+                      style={[
+                        styles.benefitBadge,
+                        item.tone === 'lime'
+                          ? styles.benefitBadgeLime
+                          : item.tone === 'gold'
+                            ? styles.benefitBadgeGold
+                            : styles.benefitBadgeViolet,
+                      ]}
+                    >
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        style={[
+                          styles.benefitBadgeText,
+                          item.tone === 'violet' && styles.benefitBadgeTextViolet,
+                        ]}
+                      >
+                        {item.badge}
+                      </Text>
+                    </View>
+                    <View style={styles.benefitCopy}>
+                      <Text maxFontSizeMultiplier={1.25} style={styles.benefitTitle}>{item.title}</Text>
+                      <Text maxFontSizeMultiplier={1.25} style={styles.benefitDetail}>{item.detail}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {showPlans ? (
+            <View style={styles.plansSection}>
+              <View accessibilityRole="radiogroup" accessibilityLabel={`Planuri Profu’ ${selectedTierLabel}`} style={styles.periodRow}>
+                {(!hasTierOffer || tierOffer.annual) ? (
+                  <PeriodCard
+                    period="annual"
+                    plan={tierOffer.annual}
+                    selected={selected === 'annual'}
+                    disabled={Boolean(busy)}
+                    viewingMax={viewingMax}
+                    onSelect={() => props.onSelect('annual')}
+                  />
+                ) : null}
+                {(!hasTierOffer || tierOffer.monthly) ? (
+                  <PeriodCard
+                    period="monthly"
+                    plan={tierOffer.monthly}
+                    selected={selected === 'monthly'}
+                    disabled={Boolean(busy)}
+                    viewingMax={viewingMax}
+                    onSelect={() => props.onSelect('monthly')}
+                  />
+                ) : null}
+              </View>
+
+              {statusText ? (
+                <View style={styles.offerStatus} accessibilityLiveRegion="polite">
+                  <View style={styles.noticePill}>
+                    <Text style={styles.noticeText}>{statusText}</Text>
+                    {props.offerError ? (
+                      <Pressable accessibilityRole="button" onPress={props.onRetryOffer} disabled={Boolean(busy)} style={styles.inlineRetry}>
+                        <Text style={styles.link}>Reîncearcă</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {!access && !success ? (
+            <View style={styles.accountStatus}>
+              <Text style={styles.bodySmall}>
+                {waitingForAccess
+                  ? 'Contul se actualizează în fundal. Poți explora planurile între timp.'
+                  : 'Limita de azi nu a putut fi verificată. Poți continua să explorezi aplicația.'}
+              </Text>
+              {!waitingForAccess ? (
+                <Pressable accessibilityRole="button" onPress={props.onRefresh} disabled={Boolean(busy)} style={styles.inlineRetry}>
+                  <Text style={styles.link}>Reîncearcă verificarea</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+
+          {props.error ? <Text accessibilityRole="alert" style={styles.error}>{props.error}</Text> : null}
+
+          {!maxActive && !success ? (
+            <Text style={styles.legalCompact}>
+              Reînnoire automată prin Google Play · Anulezi oricând. Gratuit rămâne fără reclame ({freeLimit}/zi, Caiet și tot conținutul offline).
+            </Text>
+          ) : null}
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) }]}>
+      <View style={[styles.footer, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 10) }]}>
         {success ? (
           <ComicButton title="Înapoi la matematică" icon="scan" onPress={props.onClose} compact />
         ) : maxActive ? (
@@ -514,17 +585,27 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             compact
           />
         )}
-        {proActive && canBuy && !success ? (
-          <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onManage} style={styles.restore}>
-            <Text style={styles.restoreText}>{busy === 'manage' ? 'Deschid Google Play…' : 'Administrează abonamentul Pro'}</Text>
+
+        <View style={styles.footerLinksRow}>
+          {showManageProLink ? (
+            <>
+              <Pressable accessibilityRole="button" disabled={Boolean(busy)} onPress={props.onManage} style={styles.footerLinkBtn}>
+                <Text style={styles.footerLinkText}>{busy === 'manage' ? 'Deschid Google Play…' : 'Administrează Pro'}</Text>
+              </Pressable>
+              <Text accessible={false} style={styles.footerDot}>•</Text>
+            </>
+          ) : showRestoreLink ? (
+            <>
+              <Pressable accessibilityRole="button" disabled={Boolean(busy) || !access} onPress={props.onRestore} style={styles.footerLinkBtn}>
+                <Text style={styles.footerLinkText}>{busy === 'restore' ? 'Caut achiziția…' : 'Restaurează achizițiile'}</Text>
+              </Pressable>
+              <Text accessible={false} style={styles.footerDot}>•</Text>
+            </>
+          ) : null}
+          <Pressable accessibilityRole="link" disabled={Boolean(busy)} onPress={props.onLegal} style={styles.footerLinkBtn}>
+            <Text style={styles.footerLinkText}>Termeni și confidențialitate</Text>
           </Pressable>
-        ) : googleLinked && configured && !success ? (
-          <Pressable accessibilityRole="button" disabled={Boolean(busy) || !access} onPress={props.onRestore} style={styles.restore}>
-            <Text style={styles.restoreText}>{busy === 'restore' ? 'Caut achiziția…' : 'Restaurează achizițiile'}</Text>
-          </Pressable>
-        ) : !success && !premium ? (
-          <Text style={styles.footerNote}>Gratuit rămâne fără reclame ({freeLimit}/zi, Caiet și tot conținutul offline).</Text>
-        ) : null}
+        </View>
       </View>
 
       {busy ? (
@@ -573,177 +654,180 @@ const styles = StyleSheet.create({
 
   canopy: {
     width: '100%',
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
     overflow: 'hidden',
-    paddingBottom: 18,
+    paddingBottom: 14,
     position: 'relative',
     zIndex: 4,
   },
   canopyGlowCyan: {
     position: 'absolute',
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    top: -85,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    top: -95,
     left: -55,
-    backgroundColor: 'rgba(67, 214, 230, 0.22)',
+    backgroundColor: 'rgba(67, 214, 230, 0.2)',
   },
   canopyGlowLime: {
     position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    bottom: -85,
-    right: 16,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    bottom: -90,
+    right: 10,
     backgroundColor: 'rgba(216, 255, 62, 0.16)',
   },
   canopyOrbitArc: {
     position: 'absolute',
-    width: 290,
-    height: 290,
-    borderRadius: 145,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
     borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.11)',
     top: -120,
-    right: -85,
+    right: -80,
   },
-  canopyStar: {
-    position: 'absolute',
-    left: 22,
-    bottom: 20,
-    fontFamily: fonts.display,
-    fontSize: 14,
-    color: 'rgba(216, 255, 62, 0.38)',
+  header: {
+    minHeight: 44,
+    paddingTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  header: { minHeight: 54, paddingTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
-  brand: { fontFamily: fonts.display, fontSize: 19, color: colors.paper },
+  brand: { fontFamily: fonts.display, fontSize: 17.5, color: colors.paper },
   brandBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2.5,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(216, 255, 62, 0.22)',
+    backgroundColor: 'rgba(216, 255, 62, 0.2)',
     borderWidth: 1,
     borderColor: 'rgba(216, 255, 62, 0.55)',
   },
-  brandBadgeText: { fontFamily: fonts.bodyBold, fontSize: 9.5, letterSpacing: 0.7, color: colors.lime, includeFontPadding: false },
+  brandBadgeMax: {
+    backgroundColor: 'rgba(255, 212, 71, 0.22)',
+    borderColor: 'rgba(255, 212, 71, 0.65)',
+  },
+  brandBadgeText: { fontFamily: fonts.bodyBold, fontSize: 9, letterSpacing: 0.7, color: colors.lime, includeFontPadding: false },
+  brandBadgeTextMax: { color: colors.gold },
   closeBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
+    borderRadius: 19,
+    borderBottomWidth: 3,
     borderBottomColor: '#C5B8FA',
     backgroundColor: '#FFFFFF',
   },
-  content: { paddingTop: 12, paddingBottom: 14 },
 
   hero: {
-    paddingTop: 6,
-    paddingBottom: 2,
+    paddingTop: 2,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  heroCompact: { paddingTop: 2 },
+  heroCompact: { paddingTop: 0 },
   heroCopy: { flex: 1, minWidth: 0, zIndex: 1 },
   heroTitle: {
     fontFamily: fonts.display,
-    fontSize: 26,
-    lineHeight: 30,
+    fontSize: 22,
+    lineHeight: 26,
     color: colors.paper,
-    marginTop: 9,
-    textShadowColor: 'rgba(18, 6, 62, 0.28)',
-    textShadowOffset: { width: 0, height: 1.5 },
-    textShadowRadius: 3,
+    textShadowColor: 'rgba(18, 6, 62, 0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  heroNote: { maxWidth: 235, fontFamily: fonts.bodyMedium, fontSize: 12.8, lineHeight: 17.8, color: 'rgba(244, 238, 255, 0.92)', marginTop: 6 },
-  art: { width: 116, height: 126, justifyContent: 'center', alignItems: 'center', marginLeft: 4, position: 'relative' },
+  heroNote: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12.2,
+    lineHeight: 16.5,
+    color: 'rgba(244, 238, 255, 0.92)',
+    marginTop: 3,
+  },
+  art: { width: 76, height: 76, justifyContent: 'center', alignItems: 'center', position: 'relative' },
 
-  tierSelectorWrap: { marginTop: 12 },
-  tierTabs: {
+  content: { paddingTop: 10, paddingBottom: 10 },
+  bodyStack: { gap: 10 },
+
+  // Unified segmented Pro / Max switcher
+  tierTrack: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 6,
+    padding: 4,
+    borderRadius: 22,
+    backgroundColor: '#ECE4FF',
+    borderWidth: 1,
+    borderColor: '#DDD2FA',
   },
   tierTab: {
     flex: 1,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.8,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-    gap: 4,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  tierTabActive: {
-    borderColor: '#8B52FF',
-    borderBottomColor: '#4514BE',
+  tierTabActivePro: {
     backgroundColor: colors.violet,
+    borderColor: '#8B52FF',
+    borderBottomWidth: 3,
+    borderBottomColor: '#4514BE',
   },
   tierTabActiveMax: {
+    backgroundColor: '#2E0F96',
     borderColor: '#6D3DFF',
-    borderBottomColor: '#230A6E',
-    backgroundColor: '#3712A8',
+    borderBottomWidth: 3,
+    borderBottomColor: '#1B075D',
   },
-  tierTabHead: {
+  tierTabTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 4,
-    flexWrap: 'wrap',
   },
   tierTabName: {
     fontFamily: fonts.display,
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 15.5,
+    lineHeight: 19,
     color: colors.ink,
+    flexShrink: 1,
   },
-  tierTabNameActive: {
-    color: colors.paper,
-  },
-  tierMiniBadge: {
-    paddingHorizontal: 6.5,
-    paddingVertical: 2,
+  tierTabNameActive: { color: colors.paper },
+  tierTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
     borderRadius: radii.pill,
-    backgroundColor: colors.violetSoft,
+    backgroundColor: '#FFFFFF',
   },
-  tierMiniBadgeActive: {
-    backgroundColor: colors.lime,
-  },
-  tierMiniBadgeMax: {
-    backgroundColor: colors.gold,
-  },
-  tierMiniBadgeText: {
+  tierTagPro: { backgroundColor: colors.lime },
+  tierTagMax: { backgroundColor: colors.gold },
+  tierTagText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 8.5,
-    letterSpacing: 0.5,
+    fontSize: 8,
+    letterSpacing: 0.45,
     color: colors.violetDeep,
     includeFontPadding: false,
   },
-  tierMiniBadgeTextActive: {
-    color: colors.ink,
-  },
-  tierMiniBadgeTextMax: {
-    color: colors.ink,
-  },
-  tierTabQuota: {
+  tierTagTextActive: { color: colors.ink },
+  tierTabMeta: {
     fontFamily: fonts.bodyBold,
-    fontSize: 12,
+    fontSize: 11.5,
+    lineHeight: 15,
     color: colors.inkSoft,
   },
-  tierTabQuotaActive: {
-    color: 'rgba(244, 238, 255, 0.94)',
-  },
+  tierTabMetaActive: { color: 'rgba(244, 238, 255, 0.92)' },
 
   upgradeBanner: {
-    marginTop: 12,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.5,
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3,
     borderColor: '#DDF68E',
     borderBottomColor: '#B1D63D',
     backgroundColor: '#F5FFD2',
-    padding: 14,
-    gap: 5,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    gap: 4,
   },
   upgradeBannerTop: {
     flexDirection: 'row',
@@ -751,201 +835,305 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
   },
-  upgradeQuotaTag: {
-    fontFamily: fonts.display,
-    fontSize: 15,
-    color: colors.violetDeep,
-  },
-  upgradeTitle: {
-    fontFamily: fonts.displaySemi,
-    fontSize: 17,
-    lineHeight: 21,
-    color: colors.ink,
-  },
+  upgradeQuotaTag: { fontFamily: fonts.display, fontSize: 14.5, color: colors.violetDeep },
+  upgradeTitle: { fontFamily: fonts.displaySemi, fontSize: 15.5, lineHeight: 19.5, color: colors.ink },
 
+  // Clean benefit card with meaningful metric/icon badges (no ambiguous checks)
   benefitsCard: {
-    marginTop: 12,
-    borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderRadius: 22,
+    borderWidth: 1.3,
+    borderBottomWidth: 3,
     borderColor: '#E8E0FC',
     borderBottomColor: '#D4C7F7',
     backgroundColor: '#FFFFFF',
-    padding: 15,
-    gap: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    gap: 9,
+  },
+  benefitsCardMax: {
+    borderColor: '#D8C8FF',
+    borderBottomColor: '#B99CF7',
   },
   benefitsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-    flexWrap: 'wrap',
   },
   benefitsHeading: {
     fontFamily: fonts.displaySemi,
-    fontSize: 16.5,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 19,
     color: colors.ink,
   },
   freeCompareTag: {
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
+    fontSize: 10.5,
     color: colors.violetDeep,
     backgroundColor: colors.violetSoft,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
     borderRadius: radii.pill,
   },
-  benefitsList: {
-    gap: 10,
-  },
+  benefitsList: { gap: 8 },
   benefitRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 10,
   },
-  benefitCheck: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.violetSoft,
+  benefitBadge: {
+    width: 36,
+    height: 28,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 1,
     flexShrink: 0,
   },
-  benefitCheckHighlight: {
+  benefitBadgeLime: {
     backgroundColor: colors.lime,
   },
-  benefitCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 1.5,
+  benefitBadgeGold: {
+    backgroundColor: colors.gold,
   },
+  benefitBadgeViolet: {
+    backgroundColor: colors.violetSoft,
+  },
+  benefitBadgeText: {
+    fontFamily: fonts.display,
+    fontSize: 12.5,
+    lineHeight: 15,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
+  benefitBadgeTextViolet: {
+    color: colors.violetDeep,
+  },
+  benefitCopy: { flex: 1, minWidth: 0, gap: 1 },
   benefitTitle: {
     fontFamily: fonts.bodyBold,
-    fontSize: 13.5,
-    lineHeight: 18,
+    fontSize: 13.2,
+    lineHeight: 17,
     color: colors.ink,
   },
   benefitDetail: {
     fontFamily: fonts.body,
-    fontSize: 12.2,
-    lineHeight: 16.8,
+    fontSize: 11.6,
+    lineHeight: 15.5,
     color: colors.inkSoft,
   },
 
-  resetTimerWrap: { marginTop: 12 },
-  activeTimer: { width: '100%', marginTop: 6 },
-
-  plansSection: { paddingTop: 16 },
-  sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 },
-  sectionTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, color: colors.ink },
-  plans: { gap: 10 },
-  plan: {
-    minHeight: 80,
-    padding: 15,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
+  // Side-by-side Annual & Monthly period selector
+  plansSection: { gap: 8 },
+  periodRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    overflow: 'hidden',
+    gap: 10,
   },
-  planSelected: {
+  periodCard: {
+    flex: 1,
+    minHeight: 96,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    borderRadius: 20,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
+    borderColor: '#E5DCFF',
+    borderBottomColor: '#D0C2F7',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'space-between',
+    gap: 5,
+  },
+  periodCardSelected: {
     backgroundColor: '#F5EEFF',
     borderWidth: 1.75,
-    borderBottomWidth: 4,
+    borderBottomWidth: 3.8,
     borderColor: colors.violet,
     borderBottomColor: '#4E16CE',
   },
+  periodCardSelectedMax: {
+    backgroundColor: '#F2ECFF',
+    borderWidth: 1.75,
+    borderBottomWidth: 3.8,
+    borderColor: '#3B11AD',
+    borderBottomColor: '#22096E',
+  },
+  periodTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  periodTitleWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  periodTitle: {
+    fontFamily: fonts.display,
+    fontSize: 16.5,
+    lineHeight: 20,
+    color: colors.ink,
+  },
+  saveBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6.5,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.gold,
+  },
+  saveBadgeText: {
+    ...typography.kicker,
+    fontSize: 8,
+    lineHeight: 10.5,
+    color: colors.ink,
+    includeFontPadding: false,
+  },
   radio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.borderSoft,
     backgroundColor: colors.paper,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 1,
   },
   radioSelected: { backgroundColor: colors.lime, borderColor: 'rgba(86, 120, 0, 0.35)' },
-  planCopy: { flex: 1, minWidth: 0 },
-  planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
-  planTitle: { fontFamily: fonts.display, fontSize: 19, color: colors.ink },
-  bestBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderRadius: radii.pill,
-    backgroundColor: colors.gold,
+  radioSelectedMax: { backgroundColor: colors.gold, borderColor: 'rgba(138, 86, 0, 0.35)' },
+  periodPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+    marginTop: 2,
   },
-  bestBadgeText: { ...typography.kicker, fontSize: 9.5, lineHeight: 13, paddingHorizontal: 1, color: colors.ink, includeFontPadding: false },
-  planNote: { fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 16, color: colors.inkSoft, marginTop: 2 },
-  priceCopy: { maxWidth: '42%', alignItems: 'flex-end' },
-  price: { fontFamily: fonts.displaySemi, fontSize: 18, color: colors.ink, textAlign: 'right' },
-  pricePending: { fontFamily: fonts.bodyBold, fontSize: 11.5, lineHeight: 15, color: colors.inkSoft, maxWidth: 88 },
-  planPeriod: { fontFamily: fonts.bodyMedium, fontSize: 11, lineHeight: 14, color: colors.inkSoft, marginTop: 2 },
+  periodPrice: {
+    fontFamily: fonts.display,
+    fontSize: 18,
+    lineHeight: 22,
+    color: colors.ink,
+    flexShrink: 1,
+  },
+  periodPricePending: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13.5,
+    lineHeight: 18,
+    color: colors.violetDeep,
+  },
+  periodUnit: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.inkSoft,
+  },
+  periodNote: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.inkSoft,
+  },
 
-  offerStatus: { minHeight: 46, paddingTop: 12 },
+  offerStatus: {},
   noticePill: {
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
+    borderColor: 'rgba(124, 60, 255, 0.12)',
     backgroundColor: colors.paperTint,
-    paddingHorizontal: 13,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  body: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
-  bodySmall: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12.5, lineHeight: 17.5 },
-  accountStatus: { paddingTop: 12 },
-  textAction: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
-  link: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
-  legal: { paddingTop: 14 },
-  legalText: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 11.5, lineHeight: 16.5 },
-  legalLink: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12 },
+  noticeText: { flex: 1, fontFamily: fonts.body, color: colors.inkSoft, fontSize: 11.8, lineHeight: 16 },
+  inlineRetry: { minHeight: 34, justifyContent: 'center', paddingHorizontal: 4 },
+  link: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12.5 },
 
-  footer: { paddingTop: 10, backgroundColor: colors.canvas, borderTopWidth: 1, borderTopColor: 'rgba(124, 60, 255, 0.08)' },
-  footerNote: { fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, textAlign: 'center', marginTop: 6 },
-  restore: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  restoreText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 13 },
+  accountStatus: {
+    borderRadius: 14,
+    backgroundColor: colors.paperTint,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  body: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13, lineHeight: 18.5, textAlign: 'center' },
+  bodySmall: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12, lineHeight: 16.5 },
+  legalCompact: {
+    fontFamily: fonts.body,
+    color: colors.inkSoft,
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
 
-  activeSection: { alignItems: 'center', gap: 10, paddingVertical: 18 },
+  footer: {
+    paddingTop: 9,
+    backgroundColor: colors.canvas,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(124, 60, 255, 0.08)',
+  },
+  footerLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  footerLinkBtn: {
+    minHeight: 34,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  footerLinkText: {
+    fontFamily: fonts.bodyBold,
+    color: colors.violetDeep,
+    fontSize: 12,
+  },
+  footerDot: {
+    color: colors.inkSoft,
+    fontSize: 12,
+  },
+
+  activeSection: { alignItems: 'center', gap: 8, paddingVertical: 14 },
   activeMark: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  quota: { fontFamily: fonts.display, fontSize: 56, color: colors.violetDeep },
-  quotaTotal: { fontSize: 28, color: colors.inkSoft },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 20, lineHeight: 24, color: colors.ink },
+  activeQuotaLabel: { fontFamily: fonts.displaySemi, fontSize: 16, lineHeight: 20, color: colors.ink },
+  activeTimer: { width: '100%', marginTop: 4 },
+  quota: { fontFamily: fonts.display, fontSize: 48, lineHeight: 54, color: colors.violetDeep },
+  quotaTotal: { fontSize: 24, color: colors.inkSoft },
+
   continueRow: {
-    marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 13,
-    borderRadius: 22,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(86, 120, 0, 0.2)',
     backgroundColor: '#F3FFE0',
   },
   continueCopy: { flex: 1 },
-  continueTitle: { fontFamily: fonts.displaySemi, fontSize: 15, color: colors.ink },
+  continueTitle: { fontFamily: fonts.displaySemi, fontSize: 14.5, color: colors.ink },
   continueButton: {
-    minHeight: 42,
-    paddingHorizontal: 16,
+    minHeight: 38,
+    paddingHorizontal: 14,
     borderRadius: radii.pill,
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  continueLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.ink },
-  error: { fontFamily: fonts.bodyBold, fontSize: 12.5, lineHeight: 18, color: '#A92D46', paddingTop: 12 },
+  continueLabel: { fontFamily: fonts.bodyBold, fontSize: 12.5, color: colors.ink },
+  error: { fontFamily: fonts.bodyBold, fontSize: 12.2, lineHeight: 17, color: '#A92D46', textAlign: 'center' },
   pressed: { opacity: 0.94, transform: [{ scale: 0.985 }] },
 });

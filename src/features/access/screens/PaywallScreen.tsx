@@ -58,7 +58,8 @@ export function PaywallScreen({ navigation, route }: Props) {
   const offer = offerState?.status === 'ready' ? offerState.value : getCachedPremiumOffer();
   const activePaidTier: PaidPlanTier | null = access?.premium.active ? (access.premium.tier ?? 'pro') : null;
   const [selectedTier, setSelectedTier] = useState<PaidPlanTier>(() => (activePaidTier === 'pro' ? 'max' : 'pro'));
-  const tierPackages = packagesForTier(offer, selectedTier);
+  const effectiveSelectedTier: PaidPlanTier = activePaidTier === 'pro' ? 'max' : selectedTier;
+  const tierPackages = packagesForTier(offer, effectiveSelectedTier);
   const [selected, setSelected] = useState<'annual' | 'monthly'>('annual');
   const selectedPlan = (tierPackages.annual || tierPackages.monthly) && !tierPackages[selected]
     ? tierPackages.annual ? 'annual' : 'monthly'
@@ -154,7 +155,7 @@ export function PaywallScreen({ navigation, route }: Props) {
       });
       assertSessionActive(session);
       setSuccessLimit(next.limit);
-      setSuccessTier(next.premium.tier ?? selectedTier);
+      setSuccessTier(next.premium.tier ?? effectiveSelectedTier);
       applyServerAccess(next);
       setSuccess(true);
     } catch (purchaseError) {
@@ -211,7 +212,7 @@ export function PaywallScreen({ navigation, route }: Props) {
       offer={offer}
       offerLoading={offerState?.status === 'loading'}
       offerError={offerState?.status === 'error' ? friendlyPurchaseError(offerState.error) : null}
-      selectedTier={selectedTier}
+      selectedTier={effectiveSelectedTier}
       selected={selectedPlan}
       busy={activeBusy}
       error={error}
