@@ -1,9 +1,11 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Animated, BackHandler, Keyboard, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { useCommercial } from '../../features/access/context/CommercialContext';
+import { AgeConsentSheet } from '../../features/account/components/AgeConsentSheet';
 import { HomeMotionReadyContext } from '../../features/home/context/HomeMotionContext';
 import { HomeScreen } from '../../features/home/screens/HomeScreen';
 import { NotebookScreen } from '../../features/lessons/screens/NotebookScreen';
@@ -20,8 +22,14 @@ import { useActionToast } from '../../shared/hooks/useActionToast';
 import { useKeyboardHeight } from '../../shared/hooks/useKeyboardHeight';
 import { useReducedMotion } from '../../shared/hooks/useReducedMotion';
 import * as Haptics from '../../shared/services/haptics';
+import {
+  hasConfirmedAgeEligibility,
+  saveAgeEligibilityConfirmation,
+} from '../../shared/storage/localPreferences';
 import { colors } from '../../shared/theme';
+import type { RootStackParamList } from '../../shared/types';
 import { ActionToast } from '../../shared/ui/ActionToast';
+import type { AgeEligibilityGroup } from '../../shared/utils/ageEligibility';
 import { StudioTabBar, type StudioTabId } from '../components/StudioTabBar';
 
 // Spatial rail order matching the Split-Island dock: Rezolvă (0) -> Învață (1) -> Caiet (2)
@@ -88,6 +96,7 @@ const MemoNotebookPane = memo(function MemoNotebookPane({ active }: { active: bo
  * can never bleed underneath the navigator.
  */
 export function StudioScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const frame = useSafeAreaFrame();
   const stageWidth = Math.max(1, Math.round(frame.width));
   const reducedMotion = useReducedMotion();
@@ -110,6 +119,9 @@ export function StudioScreen() {
   const [statusBarReady, setStatusBarReady] = useState(reducedMotion);
   const [homeTrackSheetOpen, setHomeTrackSheetOpen] = useState(false);
   const [homeTrackSheetEverOpened, setHomeTrackSheetEverOpened] = useState(false);
+  const [ageConsentConfirmed, setAgeConsentConfirmed] = useState<boolean>(
+    () => hasConfirmedAgeEligibility(),
+  );
   const { toast, showToast } = useActionToast();
   const captureActionRef = useRef<(() => void) | null>(null);
   const railPosition = useRef(new Animated.Value(TAB_ORDER.solve)).current;
@@ -161,6 +173,7 @@ export function StudioScreen() {
   useFocusEffect(useCallback(() => {
     setScreenFocused(true);
     setSavedLessonsCount(getCachedFavoriteLessons()?.length ?? 0);
+    setAgeConsentConfirmed(hasConfirmedAgeEligibility());
     return () => {
       setScreenFocused(false);
     };
@@ -237,6 +250,13 @@ export function StudioScreen() {
     Keyboard.dismiss();
     captureActionRef.current?.();
   }, []);
+  const handleConfirmAgeEligibility = useCallback((group: AgeEligibilityGroup) => {
+    saveAgeEligibilityConfirmation(group);
+    setAgeConsentConfirmed(true);
+  }, []);
+  const handleOpenLegalFromConsent = useCallback(() => {
+    navigation.navigate('Legal');
+  }, [navigation]);
 
   const railAnimatedStyle = useMemo(
     () => ({
@@ -332,6 +352,14 @@ export function StudioScreen() {
           selectedTrack={profile.hasChosenTrack ? profile.track : null}
           onSelect={handleSelectHomeTrack}
           onClose={() => setHomeTrackSheetOpen(false)}
+        />
+      ) : null}
+
+      {!ageConsentConfirmed && motionReady ? (
+        <AgeConsentSheet
+          visible={screenFocused}
+          onConfirm={handleConfirmAgeEligibility}
+          onOpenLegal={handleOpenLegalFromConsent}
         />
       ) : null}
 

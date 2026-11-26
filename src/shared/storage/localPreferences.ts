@@ -1,13 +1,21 @@
 import { File, Paths } from 'expo-file-system';
+import {
+  createAgeEligibilityConfirmation,
+  parseAgeEligibilityConfirmation,
+  type AgeEligibilityConfirmation,
+  type AgeEligibilityGroup,
+} from '../utils/ageEligibility';
 
 const saveCoachMarker = new File(Paths.document, 'save-coach-v1.seen');
 const homeGuideMarker = new File(Paths.document, 'home-guide-v1.seen');
 const readingScaleFile = new File(Paths.document, 'math-reading-scale-v1.txt');
+const ageEligibilityFile = new File(Paths.document, 'age-eligibility-v1.json');
 
 const MATH_READING_SCALES = [1, 1.14, 1.28] as const;
 export type MathReadingScale = (typeof MATH_READING_SCALES)[number];
 
 let cachedReadingScale: MathReadingScale | undefined;
+let cachedAgeEligibility: AgeEligibilityConfirmation | null | undefined;
 
 export function nextMathReadingScale(current: MathReadingScale): MathReadingScale {
   const index = MATH_READING_SCALES.indexOf(current);
@@ -81,12 +89,45 @@ export function markHomeGuideSeen(): void {
   }
 }
 
+export function getAgeEligibilityConfirmation(): AgeEligibilityConfirmation | null {
+  if (cachedAgeEligibility !== undefined) return cachedAgeEligibility;
+  try {
+    if (ageEligibilityFile.exists) {
+      const parsed = parseAgeEligibilityConfirmation(ageEligibilityFile.textSync());
+      cachedAgeEligibility = parsed;
+      return parsed;
+    }
+  } catch {
+    // Fall back to unconfirmed when local storage cannot be read.
+  }
+  cachedAgeEligibility = null;
+  return null;
+}
+
+export function hasConfirmedAgeEligibility(): boolean {
+  return getAgeEligibilityConfirmation() !== null;
+}
+
+export function saveAgeEligibilityConfirmation(group: AgeEligibilityGroup): AgeEligibilityConfirmation {
+  const confirmation = createAgeEligibilityConfirmation(group);
+  cachedAgeEligibility = confirmation;
+  try {
+    if (!ageEligibilityFile.exists) ageEligibilityFile.create({ intermediates: true });
+    ageEligibilityFile.write(JSON.stringify(confirmation));
+  } catch {
+    // Session confirmation still holds even if local disk write fails.
+  }
+  return confirmation;
+}
+
 export function clearLocalPreferences(): void {
   cachedReadingScale = 1;
+  cachedAgeEligibility = null;
   try {
     if (saveCoachMarker.exists) saveCoachMarker.delete();
     if (homeGuideMarker.exists) homeGuideMarker.delete();
     if (readingScaleFile.exists) readingScaleFile.delete();
+    if (ageEligibilityFile.exists) ageEligibilityFile.delete();
   } catch {
     // Local preference cleanup will be retried on the next deletion request.
   }
