@@ -17,7 +17,32 @@ const criticalAssetModules = [
   ...Object.values(iconAssets),
 ];
 
+const UI_FONTS = {
+  BalsamiqSans_400Regular,
+  BalsamiqSans_700Bold,
+  FiraSans_400Regular,
+  FiraSans_500Medium,
+  FiraSans_600SemiBold,
+};
+
+let splashFontsPromise: Promise<void> | null = null;
 let criticalAssetsPromise: Promise<void> | null = null;
+
+/**
+ * Fast-path UI typeface preload so LaunchSplash hands off from the native
+ * Android splash almost immediately instead of sitting on empty solid purple
+ * while secondary screen icons and lesson document fonts decode in parallel.
+ */
+export function preloadSplashFonts(): Promise<void> {
+  if (splashFontsPromise) return splashFontsPromise;
+  splashFontsPromise = loadAsync(UI_FONTS)
+    .then(() => undefined)
+    .catch((error) => {
+      splashFontsPromise = null;
+      throw error;
+    });
+  return splashFontsPromise;
+}
 
 /**
  * All shared icons, mascot poses, branding, UI fonts and document fonts are
@@ -28,7 +53,7 @@ export function preloadCriticalAppAssets(): Promise<void> {
   if (criticalAssetsPromise) return criticalAssetsPromise;
   criticalAssetsPromise = Promise.all([
     prepareBundledImages(criticalAssetModules),
-    loadAsync({ BalsamiqSans_400Regular, BalsamiqSans_700Bold, FiraSans_400Regular, FiraSans_500Medium, FiraSans_600SemiBold }),
+    preloadSplashFonts(),
     preloadDocumentFonts(),
   ])
     .then(() => undefined)

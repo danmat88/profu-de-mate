@@ -53,7 +53,7 @@ import { clearStudyLocalState } from '../features/study/services/studyStorage';
 import { stopStudyProgressSync } from '../features/study/services/studySync';
 import { registerTerminalSessionCleanup, resetFirebaseInitialization } from '../shared/services/firebase';
 import { hasConfirmedAgeEligibility } from '../shared/storage/localPreferences';
-import { preloadCriticalAppAssets } from './services/startupAssets';
+import { preloadCriticalAppAssets, preloadSplashFonts } from './services/startupAssets';
 import { StartupError, type StartupSnapshot } from './services/startupBootstrap';
 import { currentStartupSession, prepareApplication } from './services/applicationStartup';
 import { navigationStateAfterIdentityChange } from './navigation/sessionNavigation';
@@ -255,7 +255,7 @@ function AppRoot() {
     setNavigationReady(false);
     setHomeRevealReady(false);
     setShowLaunchSplash(true);
-    void preloadCriticalAppAssets().then(() => {
+    void preloadSplashFonts().then(() => {
       if (active) setVisualsReady(true);
     }).catch(() => undefined);
     void prepareApplication().then((snapshot) => {

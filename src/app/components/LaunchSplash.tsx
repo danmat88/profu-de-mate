@@ -348,15 +348,14 @@ export function LaunchSplash({
       }
 
       // Seamless "studio lights turning on" choreography over the exact #5218D2 native surface:
-      // 1) 4-stop Royal-Violet gradient blooms -> 2) fine math grid settles in -> 3) optical radial lights illuminate ->
-      // 4) Profu lands with Pixar squash-and-stretch -> 5) wordmark + lime marker slash -> 6) 4px shimmer ribbon.
-      startTiming(gradientReveal, 1, 460, 0);
-      startTiming(gridReveal, 1, 520, 55);
-      startTiming(lightReveal, 1, 540, 85);
-      startTiming(owlEnter, 1, 560, 110);
-      startTiming(copyEnter, 1, 460, 235);
-      startTiming(underlineReveal, 1, 410, 350);
-      startTiming(ribbonEnter, 1, 360, 410);
+      // fires immediately with zero dead pause so empty solid purple never lingers.
+      startTiming(gradientReveal, 1, 380, 0);
+      startTiming(gridReveal, 1, 440, 25);
+      startTiming(lightReveal, 1, 460, 40);
+      startTiming(owlEnter, 1, 500, 50);
+      startTiming(copyEnter, 1, 420, 175);
+      startTiming(underlineReveal, 1, 380, 280);
+      startTiming(ribbonEnter, 1, 340, 340);
 
       // Gentle RenderThread living float engages smoothly after the owl settles.
       ambientTimer = setTimeout(() => {
@@ -365,7 +364,7 @@ export function LaunchSplash({
         loops.push(loop);
         ambientLoopsRef.current.push(loop);
         loop.start();
-      }, 640);
+      }, 540);
 
       // Mount destination screen behind the opaque Royal-Violet curtain once the studio reveal settles.
       introTimer = setTimeout(() => {
