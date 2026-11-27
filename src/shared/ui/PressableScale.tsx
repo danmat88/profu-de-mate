@@ -15,6 +15,8 @@ export type PressHaptic = 'none' | 'selection' | 'light' | 'medium';
 
 type Props = Omit<PressableProps, 'style' | 'children'> & {
   children: ReactNode;
+  /** Optional unclipped visual layer (e.g. CachedOutsetShadow) rendered behind Pressable inside the scaling container. */
+  backdrop?: ReactNode;
   style?: StyleProp<ViewStyle>;
   contentStyle?: StyleProp<ViewStyle>;
   /** Legacy visual depth hint (maps to gentle tactile press scale). */
@@ -45,6 +47,7 @@ function triggerHaptic(kind: PressHaptic) {
  */
 export function PressableScale({
   children,
+  backdrop,
   style,
   contentStyle,
   depth = 0,
@@ -138,6 +141,7 @@ export function PressableScale({
         style,
       ]}
     >
+      {backdrop}
       <Pressable
         {...rest}
         disabled={disabled}

@@ -16,6 +16,7 @@ import { bundledImageSource } from '../../../shared/services/bundledImages';
 import { colors, fonts, radii } from '../../../shared/theme';
 import type { FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { Enter } from '../../../shared/ui/Enter';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -23,7 +24,7 @@ import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ROYAL_HERO_GRADIENT, RoyalHeroCanopyBackdrop, StudioCardBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
+import { MissionCardBackdrop, ROYAL_HERO_GRADIENT, RoyalHeroCanopyBackdrop, StudioCardBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SegmentedToggle, type SegmentedOption } from '../../../shared/ui/SegmentedToggle';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
 import { SpotlightAura, type SpotlightAuraTone } from '../../../shared/ui/SpotlightAura';
@@ -69,12 +70,70 @@ type Props = {
   onAllowance: () => void;
 };
 
+const SHADOWS = {
+  headerOutset: '0 4px 8px -1px rgba(20, 4, 66, 0.24), 0 1px 3px rgba(20, 4, 66, 0.16)',
+  logoInset: 'inset 0 2px 4px rgba(255, 255, 255, 0.96), inset 0 -3px 5px rgba(82, 24, 210, 0.16)',
+  trackOutset: '0 4px 8px -1px rgba(20, 4, 66, 0.20), 0 1px 3px rgba(20, 4, 66, 0.14)',
+  trackInset: 'inset 0 2px 4px rgba(255, 255, 255, 0.48), inset 0 -3px 5px rgba(22, 5, 72, 0.26)',
+  allowanceInset: 'inset 0 2.5px 4px rgba(255, 255, 255, 0.98), inset 0 -4px 7px rgba(102, 58, 214, 0.20)',
+  allowanceInsetPremium: 'inset 0 2.5px 4px rgba(255, 255, 240, 0.98), inset 0 -4px 7px rgba(108, 152, 0, 0.24)',
+  allowanceInsetExhausted: 'inset 0 2.5px 4px rgba(255, 255, 255, 0.98), inset 0 -4px 7px rgba(212, 92, 62, 0.22)',
+  stageOutsetSolve: '0 6px 12px -3px rgba(58, 18, 168, 0.14), 0 2px 5px -1px rgba(58, 18, 168, 0.08)',
+  stageOutsetCheck: '0 6px 12px -3px rgba(168, 28, 84, 0.14), 0 2px 5px -1px rgba(168, 28, 84, 0.08)',
+  stageInsetSolve: 'inset 0 2.5px 5px rgba(255, 255, 255, 0.98), inset 0 -6px 12px rgba(108, 66, 216, 0.12)',
+  stageInsetCheck: 'inset 0 2.5px 5px rgba(255, 255, 255, 0.98), inset 0 -6px 12px rgba(196, 36, 98, 0.12)',
+  eyebrowSolve: '0 2px 5px -1px rgba(72, 26, 184, 0.12), inset 0 1.5px 2.5px rgba(255, 255, 255, 0.98), inset 0 -2px 3.5px rgba(114, 62, 232, 0.13)',
+  eyebrowCheck: '0 2px 5px -1px rgba(180, 26, 86, 0.12), inset 0 1.5px 2.5px rgba(255, 255, 255, 0.98), inset 0 -2px 3.5px rgba(214, 38, 102, 0.13)',
+  eyebrowPending: '0 2px 5px -1px rgba(86, 120, 0, 0.14), inset 0 1.5px 2.5px rgba(255, 255, 255, 0.98), inset 0 -2px 3.5px rgba(110, 154, 0, 0.14)',
+  scopeSolve: '0 2px 5px -1px rgba(72, 26, 184, 0.10), inset 0 1.5px 2.5px rgba(255, 255, 255, 1), inset 0 -2px 3.5px rgba(120, 74, 224, 0.10)',
+  scopeCheck: '0 2px 5px -1px rgba(176, 26, 86, 0.10), inset 0 1.5px 2.5px rgba(255, 255, 255, 1), inset 0 -2px 3.5px rgba(210, 42, 102, 0.10)',
+  scopePending: '0 2px 5px -1px rgba(86, 120, 0, 0.12), inset 0 1.5px 2.5px rgba(255, 255, 255, 1), inset 0 -2px 3.5px rgba(110, 154, 0, 0.12)',
+  lensOutsetSolve: '0 5px 10px -2px rgba(68, 18, 192, 0.28), 0 2px 4px rgba(40, 8, 126, 0.16)',
+  lensOutsetCheck: '0 5px 10px -2px rgba(178, 22, 82, 0.28), 0 2px 4px rgba(120, 12, 54, 0.16)',
+  lensInset: 'inset 0 3px 6px rgba(255, 255, 255, 0.44), inset 0 -5px 10px rgba(18, 4, 68, 0.44)',
+  lensPlate: '0 3px 6px rgba(20, 4, 66, 0.24), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -3px 5px rgba(96, 48, 220, 0.16)',
+  ctaOutsetSolve: '0 5px 10px -2px rgba(108, 152, 0, 0.32), 0 2px 4px rgba(82, 118, 0, 0.18)',
+  ctaOutsetCheck: '0 5px 10px -2px rgba(186, 118, 0, 0.30), 0 2px 4px rgba(154, 92, 0, 0.16)',
+  ctaInsetSolve: 'inset 0 3.5px 6px rgba(255, 255, 236, 0.85), inset 0 -5px 9px rgba(80, 116, 0, 0.36)',
+  ctaInsetCheck: 'inset 0 3.5px 6px rgba(255, 252, 232, 0.88), inset 0 -5px 9px rgba(162, 92, 0, 0.34)',
+  ctaBadge: '0 2px 4px rgba(68, 98, 0, 0.18), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(86, 120, 0, 0.14)',
+  ctaArrow: '0 2px 4px rgba(23, 19, 55, 0.24), inset 0 1.5px 2px rgba(255, 255, 255, 0.22), inset 0 -2px 3px rgba(6, 4, 22, 0.4)',
+  splitOutsetCyan: '0 4px 8px -2px rgba(11, 130, 158, 0.16), 0 1px 3px rgba(11, 130, 158, 0.09)',
+  splitOutsetAmber: '0 4px 8px -2px rgba(176, 114, 0, 0.16), 0 1px 3px rgba(176, 114, 0, 0.09)',
+  splitOutsetDiscard: '0 4px 8px -2px rgba(184, 42, 70, 0.15), 0 1px 3px rgba(184, 42, 70, 0.08)',
+  splitInsetCyan: 'inset 0 2.5px 4px rgba(255, 255, 255, 0.98), inset 0 -4px 7px rgba(14, 146, 178, 0.19)',
+  splitInsetAmber: 'inset 0 2.5px 4px rgba(255, 255, 255, 0.98), inset 0 -4px 7px rgba(202, 136, 0, 0.21)',
+  splitInsetDiscard: 'inset 0 2.5px 4px rgba(255, 255, 255, 0.98), inset 0 -4px 7px rgba(204, 62, 74, 0.18)',
+  splitIconCyan: '0 2px 4px rgba(11, 128, 156, 0.13), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(14, 146, 178, 0.12)',
+  splitIconAmber: '0 2px 4px rgba(178, 118, 0, 0.13), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(196, 132, 0, 0.13)',
+  splitIconDiscard: '0 2px 4px rgba(190, 44, 72, 0.12), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(200, 56, 74, 0.12)',
+  questOutsetQuiz: '0 6px 12px -3px rgba(12, 126, 96, 0.15), 0 2px 5px -1px rgba(12, 126, 96, 0.08)',
+  questOutsetSetup: '0 6px 12px -3px rgba(180, 114, 0, 0.16), 0 2px 5px -1px rgba(180, 114, 0, 0.09)',
+  questOutsetMistakes: '0 6px 12px -3px rgba(192, 28, 86, 0.15), 0 2px 5px -1px rgba(192, 28, 86, 0.08)',
+  questInsetQuiz: 'inset 0 2.5px 5px rgba(255, 255, 255, 0.98), inset 0 -5px 9px rgba(14, 166, 127, 0.18)',
+  questInsetSetup: 'inset 0 2.5px 5px rgba(255, 255, 255, 0.98), inset 0 -5px 9px rgba(212, 144, 0, 0.22)',
+  questInsetMistakes: 'inset 0 2.5px 5px rgba(255, 255, 255, 0.98), inset 0 -5px 9px rgba(214, 34, 92, 0.18)',
+  questMetaQuiz: '0 2px 5px -1px rgba(12, 126, 96, 0.12), inset 0 1.5px 2px rgba(255, 255, 255, 0.96), inset 0 -2px 3px rgba(14, 166, 127, 0.13)',
+  questMetaSetup: '0 2px 5px -1px rgba(180, 118, 0, 0.13), inset 0 1.5px 2px rgba(255, 255, 255, 0.96), inset 0 -2px 3px rgba(212, 144, 0, 0.15)',
+  questMetaMistakes: '0 2px 5px -1px rgba(196, 30, 88, 0.12), inset 0 1.5px 2px rgba(255, 255, 255, 0.96), inset 0 -2px 3px rgba(214, 34, 92, 0.13)',
+  questInfoQuiz: '0 2px 5px -1px rgba(12, 126, 96, 0.10), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(14, 166, 127, 0.10)',
+  questInfoSetup: '0 2px 5px -1px rgba(180, 118, 0, 0.11), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(212, 144, 0, 0.12)',
+  questInfoMistakes: '0 2px 5px -1px rgba(196, 30, 88, 0.10), inset 0 1.5px 2px rgba(255, 255, 255, 1), inset 0 -2px 3px rgba(214, 34, 92, 0.10)',
+  questOrbQuiz: '0 3px 6px -1px rgba(12, 125, 96, 0.15), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -3px 5px rgba(14, 166, 127, 0.14)',
+  questOrbSetup: '0 3px 6px -1px rgba(181, 116, 0, 0.16), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -3px 5px rgba(212, 144, 0, 0.16)',
+  questOrbMistakes: '0 3px 6px -1px rgba(196, 31, 88, 0.15), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -3px 5px rgba(214, 34, 92, 0.15)',
+  questActionQuiz: '0 4px 8px -2px rgba(8, 130, 98, 0.34), 0 1px 3px rgba(6, 102, 77, 0.18)',
+  questActionSetup: '0 4px 8px -2px rgba(198, 116, 0, 0.36), 0 1px 3px rgba(154, 84, 0, 0.18)',
+  questActionMistakes: '0 4px 8px -2px rgba(192, 20, 74, 0.34), 0 1px 3px rgba(148, 14, 58, 0.18)',
+  questActionInset: 'inset 0 2.5px 4px rgba(255, 255, 255, 0.48), inset 0 -4px 7px rgba(0, 0, 0, 0.24)',
+} as const;
+
 const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode>] = [
   {
     value: 'solve',
     label: 'Rezolvă',
     subtitle: 'Explică pas cu pas',
-    icon: 'camera',
+    icon: 'scan',
     activeFill: colors.violet,
     activeGradient: ['#8E49FF', '#6520EC', '#4410B4'],
     activeText: colors.paper,
@@ -668,8 +727,6 @@ export const HomeSurface = memo(function HomeSurface({
       : (streakDays > 0 ? `Serie · ${streakDays} ${streakDays === 1 ? 'zi' : 'zile'}` : 'Clasa ta');
   const handleTrackPillPress = onChooseStudyTrack ?? onStudy ?? triggerTutorFromHeader;
 
-  const hardwareEntranceLayer = !ambientReady && !reducedMotion;
-
   return (
     <View style={styles.safe}>
       <ComicBackdrop />
@@ -689,7 +746,6 @@ export const HomeSurface = memo(function HomeSurface({
             distance={8}
             scaleFrom={0.99}
             preRasterize
-            hardwareLayer={hardwareEntranceLayer}
             style={[styles.header, compact && styles.headerCompact]}
           >
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
@@ -699,8 +755,23 @@ export const HomeSurface = memo(function HomeSurface({
                 pressedScale={0.92}
                 haptic="selection"
                 onPress={triggerTutorFromHeader}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={compact || isVeryNarrow ? 17.5 : 22}
+                    shadow={SHADOWS.headerOutset}
+                    padTop={12}
+                    padX={16}
+                    padBottom={20}
+                  />
+                )}
+                style={styles.logoShadow}
                 contentStyle={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}
               >
+                <CachedInsetRelief
+                  borderRadius={compact || isVeryNarrow ? 17.5 : 22}
+                  shadow={SHADOWS.logoInset}
+                  zIndex={1}
+                />
                 <Image
                   accessible={false}
                   source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
@@ -720,6 +791,15 @@ export const HomeSurface = memo(function HomeSurface({
                 pressedScale={0.95}
                 haptic="selection"
                 onPress={handleTrackPillPress}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={SHADOWS.trackOutset}
+                    padTop={12}
+                    padX={16}
+                    padBottom={20}
+                  />
+                )}
                 style={styles.trackPillWrap}
                 contentStyle={[
                   styles.trackPill,
@@ -727,19 +807,37 @@ export const HomeSurface = memo(function HomeSurface({
                   (compact || isVeryNarrow) && styles.trackPillCompact,
                 ]}
               >
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={
+                    !studyTrackChosen
+                      ? ['rgba(255, 232, 126, 0.36)', 'rgba(255, 198, 64, 0.16)']
+                      : ['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.12)']
+                  }
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={SHADOWS.trackInset} zIndex={1} />
                 <View
                   style={[
-                    styles.trackPillDot,
-                    !studyTrackChosen
-                      ? styles.trackPillDotSetup
-                      : isCheckTheme && styles.trackPillDotCheck,
+                    styles.trackDotHalo,
+                    !studyTrackChosen && styles.trackDotHaloSetup,
                   ]}
-                />
+                >
+                  <View
+                    style={[
+                      styles.trackPillDot,
+                      !studyTrackChosen
+                        ? styles.trackPillDotSetup
+                        : isCheckTheme && styles.trackPillDotCheck,
+                    ]}
+                  />
+                </View>
                 <Text
-                  maxFontSizeMultiplier={1.2}
+                  maxFontSizeMultiplier={1.15}
                   numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.78}
+                  ellipsizeMode="tail"
                   style={[
                     styles.trackPillText,
                     !studyTrackChosen && styles.trackPillTextSetup,
@@ -748,12 +846,14 @@ export const HomeSurface = memo(function HomeSurface({
                 >
                   {trackPillLabel}
                 </Text>
-                <Text
-                  accessible={false}
-                  style={[styles.trackPillChevron, !studyTrackChosen && styles.trackPillChevronSetup]}
-                >
-                  ▾
-                </Text>
+                <View style={[styles.trackChevronOrb, !studyTrackChosen && styles.trackChevronOrbSetup]}>
+                  <Text
+                    accessible={false}
+                    style={[styles.trackPillChevron, !studyTrackChosen && styles.trackPillChevronSetup]}
+                  >
+                    ▾
+                  </Text>
+                </View>
               </PressableScale>
             </View>
 
@@ -763,6 +863,15 @@ export const HomeSurface = memo(function HomeSurface({
               pressedScale={0.95}
               haptic="selection"
               onPress={onAllowance}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={SHADOWS.headerOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={20}
+                />
+              )}
               style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
               contentStyle={[
                 styles.allowancePill,
@@ -771,12 +880,43 @@ export const HomeSurface = memo(function HomeSurface({
                 quotaExhausted && styles.allowancePillExhausted,
               ]}
             >
-              <View pointerEvents="none" style={styles.pillTopGloss} />
-              {quotaExhausted ? (
-                <ComicClockIcon size={14} color={colors.peachDeep} accent={colors.peach} />
-              ) : (
-                <MiniGlyph name="spark" size={14} color={colors.violetDeep} />
-              )}
+              <LinearGradient
+                pointerEvents="none"
+                colors={
+                  quotaExhausted
+                    ? ['#FFF9F6', '#FFEBE3']
+                    : premiumActive
+                      ? ['#F8FFE6', '#EAFFB5']
+                      : ['#FFFFFF', '#F5F0FF']
+                }
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief
+                borderRadius={radii.pill}
+                shadow={
+                  quotaExhausted
+                    ? SHADOWS.allowanceInsetExhausted
+                    : premiumActive
+                      ? SHADOWS.allowanceInsetPremium
+                      : SHADOWS.allowanceInset
+                }
+                zIndex={1}
+              />
+              <View
+                style={[
+                  styles.allowanceIconWell,
+                  premiumActive && !quotaExhausted && styles.allowanceIconWellPremium,
+                  quotaExhausted && styles.allowanceIconWellExhausted,
+                ]}
+              >
+                {quotaExhausted ? (
+                  <ComicClockIcon size={13} color={colors.peachDeep} accent={colors.peach} />
+                ) : (
+                  <MiniGlyph name="spark" size={13} color={premiumActive ? colors.limeDeep : colors.violetDeep} />
+                )}
+              </View>
               <View style={styles.allowanceCopy}>
                 <Text
                   maxFontSizeMultiplier={1.3}
@@ -808,13 +948,17 @@ export const HomeSurface = memo(function HomeSurface({
               </View>
               {energyPercent !== null ? (
                 <View pointerEvents="none" style={styles.energyTrack}>
-                  <View
-                    style={[
-                      styles.energyFill,
-                      premiumActive && styles.energyFillPremium,
-                      quotaExhausted && styles.energyFillEmpty,
-                      { width: energyPercent },
-                    ]}
+                  <LinearGradient
+                    colors={
+                      quotaExhausted
+                        ? ['#FF8B6E', '#E54B6B']
+                        : premiumActive
+                          ? ['#B4ED12', '#10B981']
+                          : ['#9652FF', '#581EE0', '#18C4DC']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.energyFill, { width: energyPercent }]}
                   />
                 </View>
               ) : null}
@@ -824,7 +968,16 @@ export const HomeSurface = memo(function HomeSurface({
               label="Deschide setările"
               onPress={onSettings}
               size={compact ? 38 : 42}
-              style={[styles.settingsWrap, compact && styles.settingsWrapCompact]}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={compact ? 19 : 21}
+                  shadow={SHADOWS.headerOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={20}
+                />
+              )}
+              style={styles.settingsWrap}
             >
               <AppIcon name="settings" size={compact ? 25 : 28} />
             </IconButton>
@@ -837,7 +990,6 @@ export const HomeSurface = memo(function HomeSurface({
             distance={18}
             scaleFrom={0.96}
             preRasterize
-            hardwareLayer={hardwareEntranceLayer}
             style={[styles.tutorRow, compact && styles.tutorRowCompact]}
           >
             <SpeechBubble
@@ -880,7 +1032,6 @@ export const HomeSurface = memo(function HomeSurface({
             distance={16}
             scaleFrom={0.96}
             preRasterize
-            hardwareLayer={hardwareEntranceLayer}
             style={styles.modeSwitchEnter}
           >
             <SegmentedToggle
@@ -901,29 +1052,41 @@ export const HomeSurface = memo(function HomeSurface({
             distance={22}
             scaleFrom={0.95}
             preRasterize
-            hardwareLayer={hardwareEntranceLayer}
             style={styles.cameraStageEnter}
           >
             <Animated.View
               style={[
                 styles.cameraStageShadow,
-                isCheckTheme && styles.cameraStageShadowCheck,
                 stageAnimated,
               ]}
             >
+              <CachedOutsetShadow
+                borderRadius={30}
+                shadow={isCheckTheme ? SHADOWS.stageOutsetCheck : SHADOWS.stageOutsetSolve}
+                padTop={16}
+                padX={20}
+                padBottom={28}
+              />
               <View style={[styles.cameraStage, isCheckTheme && styles.cameraStageCheck, compact && styles.cameraStageCompact]}>
                 <StudioCardBackdrop checkTheme={isCheckTheme} />
+                <CachedInsetRelief
+                  borderRadius={29}
+                  shadow={isCheckTheme ? SHADOWS.stageInsetCheck : SHADOWS.stageInsetSolve}
+                  zIndex={1}
+                />
 
-                {/* Top quiet studio bar: mode indicator + truthful framing hint */}
+                {/* Top precision studio chips: mode indicator + matched framing pill */}
                 <View style={styles.stageHudBar}>
-                  <View
-                    style={[
-                      styles.stageEyebrowPill,
-                      hasPendingAnalysis && styles.stageEyebrowPillPending,
-                      !hasPendingAnalysis && isCheckTheme && styles.stageEyebrowPillCheck,
-                    ]}
-                  >
-                    <Animated.View style={sparkStyle}>
+                  <View style={styles.stageEyebrowPill}>
+                    <CachedSurface
+                      borderRadius={radii.pill}
+                      backgroundColor={hasPendingAnalysis ? '#F0FFDC' : isCheckTheme ? '#FFF2F6' : '#F7F2FF'}
+                      shadow={hasPendingAnalysis ? SHADOWS.eyebrowPending : isCheckTheme ? SHADOWS.eyebrowCheck : SHADOWS.eyebrowSolve}
+                      padTop={9}
+                      padX={11}
+                      padBottom={14}
+                    />
+                    <Animated.View style={[styles.frontLayer, sparkStyle]}>
                       <View
                         style={[
                           styles.stageEyebrowDot,
@@ -955,25 +1118,35 @@ export const HomeSurface = memo(function HomeSurface({
                   </View>
 
                   {!isVeryNarrow ? (
-                    <Text
-                      maxFontSizeMultiplier={1.1}
-                      numberOfLines={1}
-                      style={[
-                        styles.hudScopeHint,
-                        isCheckTheme && styles.hudScopeHintCheck,
-                        hasPendingAnalysis && styles.hudScopeHintPending,
-                      ]}
-                    >
-                      {hasPendingAnalysis
-                        ? 'În fundal'
-                        : isSolve
-                          ? 'Doar enunțul'
-                          : 'Enunț + rezolvare'}
-                    </Text>
+                    <View style={styles.hudScopeChip}>
+                      <CachedSurface
+                        borderRadius={radii.pill}
+                        backgroundColor="#FFFFFF"
+                        shadow={hasPendingAnalysis ? SHADOWS.scopePending : isCheckTheme ? SHADOWS.scopeCheck : SHADOWS.scopeSolve}
+                        padTop={9}
+                        padX={11}
+                        padBottom={14}
+                      />
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        numberOfLines={1}
+                        style={[
+                          styles.hudScopeHint,
+                          isCheckTheme && styles.hudScopeHintCheck,
+                          hasPendingAnalysis && styles.hudScopeHintPending,
+                        ]}
+                      >
+                        {hasPendingAnalysis
+                          ? 'În fundal'
+                          : isSolve
+                            ? 'Doar enunțul'
+                            : 'Enunț + rezolvare'}
+                      </Text>
+                    </View>
                   ) : null}
                 </View>
 
-                {/* Centered Focal Optical Shutter Portal — spacious, iconic, tappable */}
+                {/* Horizontal Optical Studio Stage — crisp glass lens + zero overlap */}
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={hasPendingAnalysis ? 'Revino la analiza în curs' : 'Deschide camera din cadru'}
@@ -985,64 +1158,83 @@ export const HomeSurface = memo(function HomeSurface({
                     pressed && styles.portalStagePressed,
                   ]}
                 >
-                  <View style={[styles.portalFinder, compact && styles.portalFinderCompact]}>
-                    <View pointerEvents="none" style={[styles.corner, styles.cornerTL, isCheckTheme && styles.cornerCheck]} />
-                    <View pointerEvents="none" style={[styles.corner, styles.cornerTR, isCheckTheme && styles.cornerCheck]} />
-                    <View pointerEvents="none" style={[styles.corner, styles.cornerBL, isCheckTheme && styles.cornerCheck]} />
-                    <View pointerEvents="none" style={[styles.corner, styles.cornerBR, isCheckTheme && styles.cornerCheck]} />
-
-                    <Animated.View pointerEvents="none" style={[styles.scanBeamWrap, beamStyle]}>
-                      <View
-                        style={[
-                          styles.scanBeamHalo,
-                          { backgroundColor: isCheckTheme ? 'rgba(232,62,120,0.22)' : 'rgba(124,60,255,0.22)' },
-                        ]}
+                  <View style={[styles.lensFrameWrap, isVeryNarrow && styles.lensFrameWrapNarrow, compact && styles.lensFrameWrapCompact]}>
+                    <Animated.View
+                      pointerEvents="none"
+                      style={[
+                        styles.lensAuraRing,
+                        compact && styles.lensAuraRingCompact,
+                        { borderColor: isCheckTheme ? '#FFB53D' : '#18C4DC' },
+                        lensHaloStyle,
+                      ]}
+                    />
+                    <View style={[styles.lensBoxShadow, compact && styles.lensBoxCompact]}>
+                      <CachedOutsetShadow
+                        borderRadius={compact ? 18 : 24}
+                        shadow={isCheckTheme ? SHADOWS.lensOutsetCheck : SHADOWS.lensOutsetSolve}
+                        padTop={14}
+                        padX={18}
+                        padBottom={24}
                       />
-                      <View style={[styles.scanBeam, { backgroundColor: isCheckTheme ? '#E83E78' : colors.violet }]} />
-                    </Animated.View>
-
-                    <View style={[styles.shutterRingWrap, compact && styles.shutterRingWrapCompact]}>
-                      <Animated.View
-                        pointerEvents="none"
-                        style={[
-                          styles.shutterAuraRing,
-                          compact && styles.shutterAuraRingCompact,
-                          { borderColor: isCheckTheme ? '#FF8A65' : colors.violet },
-                          lensHaloStyle,
-                        ]}
-                      />
-                      <View style={[styles.shutterOrb, compact && styles.shutterOrbCompact]}>
+                      <View style={[styles.lensBox, compact && styles.lensBoxCompact]}>
                         <LinearGradient
-                          colors={['#8E49FF', '#621EEB', '#400EB0']}
-                          start={{ x: 0.12, y: 0 }}
-                          end={{ x: 0.88, y: 1 }}
+                          colors={['#8B47FF', '#621EEB', '#400EB0']}
+                          start={{ x: 0.1, y: 0 }}
+                          end={{ x: 0.9, y: 1 }}
                           style={styles.fill}
                         />
                         <Animated.View pointerEvents="none" style={[styles.fill, checkGradientStyle]}>
                           <LinearGradient
-                            colors={['#FF7C62', '#E53574', '#AD1455']}
-                            start={{ x: 0.12, y: 0 }}
-                            end={{ x: 0.88, y: 1 }}
+                            colors={['#FF7B62', '#E53574', '#AD1455']}
+                            start={{ x: 0.1, y: 0 }}
+                            end={{ x: 0.9, y: 1 }}
                             style={styles.fill}
                           />
                         </Animated.View>
-                        <View pointerEvents="none" style={styles.shutterOrbRim} />
-                        <Animated.View pointerEvents="none" style={[styles.shutterIconPlate, compact && styles.shutterIconPlateCompact, medallionAnimated]}>
-                          <AppIcon
-                            name={isWrittenPending ? 'practice' : isSolve ? 'camera' : 'verify'}
-                            size={compact ? 30 : 40}
+                        <CachedInsetRelief borderRadius={compact ? 18 : 24} shadow={SHADOWS.lensInset} zIndex={1} />
+                        <View pointerEvents="none" style={[styles.lensLiveDot, { backgroundColor: cornerColor }]} />
+
+                        <View pointerEvents="none" style={[styles.corner, styles.cornerTL, { borderColor: cornerColor }]} />
+                        <View pointerEvents="none" style={[styles.corner, styles.cornerTR, { borderColor: cornerColor }]} />
+                        <View pointerEvents="none" style={[styles.corner, styles.cornerBL, { borderColor: cornerColor }]} />
+                        <View pointerEvents="none" style={[styles.corner, styles.cornerBR, { borderColor: cornerColor }]} />
+
+                        <Animated.View pointerEvents="none" style={[styles.lensIconPlate, compact && styles.lensIconPlateCompact, medallionAnimated]}>
+                          <CachedSurface
+                            borderRadius={compact ? 13 : 18}
+                            backgroundColor="#FFFFFF"
+                            shadow={SHADOWS.lensPlate}
+                            padTop={10}
+                            padX={12}
+                            padBottom={16}
                           />
+                          <View style={styles.frontLayer}>
+                            <AppIcon
+                              name={isWrittenPending ? 'practice' : isSolve ? 'scan' : 'verify'}
+                              size={compact ? 30 : isVeryNarrow ? 38 : 44}
+                            />
+                          </View>
+                        </Animated.View>
+
+                        <Animated.View pointerEvents="none" style={[styles.scanBeamWrap, beamStyle]}>
+                          <View
+                            style={[
+                              styles.scanBeamHalo,
+                              { backgroundColor: isCheckTheme ? 'rgba(255,212,71,0.44)' : 'rgba(216,255,62,0.44)' },
+                            ]}
+                          />
+                          <View style={[styles.scanBeam, { backgroundColor: cornerColor }]} />
                         </Animated.View>
                       </View>
                     </View>
                   </View>
 
-                  <View style={[styles.portalCopy, compact && styles.portalCopyCompact]}>
+                  <View style={styles.portalCopy}>
                     <Text
-                      maxFontSizeMultiplier={1.3}
-                      numberOfLines={1}
+                      maxFontSizeMultiplier={1.25}
+                      numberOfLines={2}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.82}
+                      minimumFontScale={0.84}
                       style={[styles.stageTitle, isVeryNarrow && styles.stageTitleNarrow, compact && styles.stageTitleCompact]}
                     >
                       {hasPendingAnalysis
@@ -1053,7 +1245,7 @@ export const HomeSurface = memo(function HomeSurface({
                     </Text>
                     <Text
                       maxFontSizeMultiplier={1.25}
-                      numberOfLines={compact ? 1 : 2}
+                      numberOfLines={2}
                       style={[styles.stageNote, compact && styles.stageNoteCompact]}
                     >
                       {hasPendingAnalysis
@@ -1067,7 +1259,7 @@ export const HomeSurface = memo(function HomeSurface({
                   </View>
                 </Pressable>
 
-                {/* Unified Bottom Studio Controls: Primary Shutter Pill + Integrated Tonal Galerie|Scrie Tray */}
+                {/* Unified Bottom Studio Controls inside Photo Card: Radiant Shutter CTA + Airy Light Galerie & Scrie */}
                 <View style={[styles.monolithControls, compact && styles.monolithControlsCompact]}>
                   <PressableScale
                     accessibilityRole="button"
@@ -1083,20 +1275,47 @@ export const HomeSurface = memo(function HomeSurface({
                     pressedScale={0.975}
                     haptic="medium"
                     onPress={onCapture}
+                    backdrop={(
+                      <CachedOutsetShadow
+                        borderRadius={radii.pill}
+                        shadow={isCheckTheme ? SHADOWS.ctaOutsetCheck : SHADOWS.ctaOutsetSolve}
+                        padTop={14}
+                        padX={18}
+                        padBottom={24}
+                      />
+                    )}
+                    style={styles.captureCtaShadow}
                     contentStyle={[
                       styles.captureCta,
+                      isCheckTheme && styles.captureCtaCheck,
                       compact && styles.captureCtaCompact,
                     ]}
                   >
                     <LinearGradient
-                      colors={isCheckTheme ? ['#FF7A63', '#E43573', '#B4165B'] : ['#8B47FF', '#621EEB', '#4310B4']}
+                      colors={isCheckTheme ? ['#FFE98A', '#FFD04A', '#F4AA1C'] : ['#F2FF82', '#D8FF3E', '#B5EB0A']}
                       start={{ x: 0.06, y: 0 }}
                       end={{ x: 0.94, y: 1 }}
                       style={styles.fill}
                     />
-                    <View pointerEvents="none" style={styles.ctaTopGloss} />
+                    <CachedInsetRelief
+                      borderRadius={radii.pill}
+                      shadow={isCheckTheme ? SHADOWS.ctaInsetCheck : SHADOWS.ctaInsetSolve}
+                      zIndex={1}
+                    />
                     <Animated.View pointerEvents="none" style={[styles.ctaSweep, ctaSheenStyle]} />
-                    <View style={[styles.ctaAccentDot, { backgroundColor: cornerColor }]} />
+                    <View style={[styles.ctaIconBadge, compact && styles.ctaIconBadgeCompact]}>
+                      <CachedSurface
+                        borderRadius={compact ? 14 : 17}
+                        backgroundColor={colors.paper}
+                        shadow={SHADOWS.ctaBadge}
+                        padTop={7}
+                        padX={8}
+                        padBottom={11}
+                      />
+                      <View style={styles.frontLayer}>
+                        <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 22 : 26} />
+                      </View>
+                    </View>
                     <Text
                       maxFontSizeMultiplier={1.3}
                       numberOfLines={1}
@@ -1110,16 +1329,25 @@ export const HomeSurface = memo(function HomeSurface({
                       style={[
                         styles.captureArrow,
                         compact && styles.captureArrowCompact,
-                        { backgroundColor: cornerColor },
                         arrowStyle,
                       ]}
                     >
-                      <MiniGlyph name="next" size={compact ? 14 : 16} color={colors.ink} />
+                      <CachedSurface
+                        borderRadius={compact ? 14 : 17}
+                        backgroundColor={colors.ink}
+                        shadow={SHADOWS.ctaArrow}
+                        padTop={7}
+                        padX={8}
+                        padBottom={11}
+                      />
+                      <View style={styles.frontLayer}>
+                        <MiniGlyph name="next" size={compact ? 14 : 16} color={colors.paper} />
+                      </View>
                     </Animated.View>
                   </PressableScale>
 
                   {hasPendingAnalysis ? (
-                    <View style={[styles.inputSplitTray, isCheckTheme && styles.inputSplitTrayCheck, compact && styles.inputSplitTrayCompact]}>
+                    <View style={[styles.inputDuoRow, compact && styles.inputDuoRowCompact]}>
                       <PressableScale
                         accessibilityRole="button"
                         accessibilityLabel="Anulează analiza în curs și începe altă problemă"
@@ -1128,25 +1356,50 @@ export const HomeSurface = memo(function HomeSurface({
                         pressedScale={0.97}
                         haptic="light"
                         onPress={onDiscardPending}
+                        backdrop={(
+                          <CachedOutsetShadow
+                            borderRadius={compact ? 14 : 18}
+                            shadow={SHADOWS.splitOutsetDiscard}
+                            padTop={12}
+                            padX={15}
+                            padBottom={20}
+                          />
+                        )}
                         style={styles.splitSlotWrap}
-                        contentStyle={[styles.splitSlot, compact && styles.splitSlotCompact]}
+                        contentStyle={[styles.splitPill, styles.splitPillDiscard, compact && styles.splitPillCompact]}
                       >
-                        <View style={[styles.splitIconWrap, styles.splitIconDiscard, compact && styles.splitIconWrapCompact]}>
-                          <MiniGlyph name="close" size={compact ? 14 : 16} color={colors.berryDeep} />
+                        <View style={[styles.splitIconWrap, compact && styles.splitIconWrapCompact]}>
+                          <CachedSurface
+                            borderRadius={compact ? 9 : 12}
+                            backgroundColor="#FFF9F8"
+                            shadow={SHADOWS.splitIconDiscard}
+                            padTop={7}
+                            padX={8}
+                            padBottom={11}
+                          />
+                          <View style={styles.frontLayer}>
+                            <MiniGlyph name="close" size={compact ? 14 : 16} color={colors.berryDeep} />
+                          </View>
                         </View>
                         <View style={styles.splitCopy}>
                           <Text maxFontSizeMultiplier={1.25} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.splitTitle, styles.discardTitle, compact && styles.splitTitleCompact]}>
                             Anulează
                           </Text>
                           {!compact ? (
-                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.splitNote}>
+                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={styles.splitNote}>
                               Începe alta
                             </Text>
                           ) : null}
                         </View>
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={['#FFF9F7', '#FFE8E3']}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 1 }}
+                          style={[styles.fill, styles.behind]}
+                        />
+                        <CachedInsetRelief borderRadius={compact ? 13 : 17} shadow={SHADOWS.splitInsetDiscard} zIndex={1} />
                       </PressableScale>
-
-                      <View style={[styles.splitDivider, isCheckTheme && styles.splitDividerCheck]} />
 
                       <PressableScale
                         accessibilityRole="button"
@@ -1156,26 +1409,53 @@ export const HomeSurface = memo(function HomeSurface({
                         pressedScale={0.97}
                         haptic="light"
                         onPress={onNotebook}
+                        backdrop={(
+                          <CachedOutsetShadow
+                            borderRadius={compact ? 14 : 18}
+                            shadow={SHADOWS.splitOutsetCyan}
+                            padTop={12}
+                            padX={15}
+                            padBottom={20}
+                          />
+                        )}
                         style={styles.splitSlotWrap}
-                        contentStyle={[styles.splitSlot, compact && styles.splitSlotCompact]}
+                        contentStyle={[styles.splitPill, styles.splitPillCyan, compact && styles.splitPillCompact]}
                       >
                         <View style={[styles.splitIconWrap, compact && styles.splitIconWrapCompact]}>
-                          <AppIcon name="notebook" size={compact ? 21 : 25} />
+                          <CachedSurface
+                            borderRadius={compact ? 9 : 12}
+                            backgroundColor="#FFFFFF"
+                            shadow={SHADOWS.splitIconCyan}
+                            padTop={7}
+                            padX={8}
+                            padBottom={11}
+                          />
+                          <View style={styles.frontLayer}>
+                            <AppIcon name="notebook" size={compact ? 21 : 25} />
+                          </View>
                         </View>
                         <View style={styles.splitCopy}>
                           <Text maxFontSizeMultiplier={1.25} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.splitTitle, compact && styles.splitTitleCompact]}>
                             Caiet
                           </Text>
                           {!compact ? (
-                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.splitNote}>
+                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={[styles.splitNote, styles.splitNoteCyan]}>
                               {savedCountLabel ?? 'Lecții salvate'}
                             </Text>
                           ) : null}
                         </View>
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={['#F7FEFF', '#E2F8FE']}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 1 }}
+                          style={[styles.fill, styles.behind]}
+                        />
+                        <CachedInsetRelief borderRadius={compact ? 13 : 17} shadow={SHADOWS.splitInsetCyan} zIndex={1} />
                       </PressableScale>
                     </View>
                   ) : (
-                    <View style={[styles.inputSplitTray, isCheckTheme && styles.inputSplitTrayCheck, compact && styles.inputSplitTrayCompact]}>
+                    <View style={[styles.inputDuoRow, compact && styles.inputDuoRowCompact]}>
                       <PressableScale
                         accessibilityRole="button"
                         accessibilityLabel="Alege o fotografie din galerie"
@@ -1185,29 +1465,54 @@ export const HomeSurface = memo(function HomeSurface({
                         pressedScale={0.97}
                         haptic="light"
                         onPress={onGallery}
+                        backdrop={(
+                          <CachedOutsetShadow
+                            borderRadius={compact ? 14 : 18}
+                            shadow={SHADOWS.splitOutsetCyan}
+                            padTop={12}
+                            padX={15}
+                            padBottom={20}
+                          />
+                        )}
                         style={styles.splitSlotWrap}
-                        contentStyle={[styles.splitSlot, compact && styles.splitSlotCompact]}
+                        contentStyle={[styles.splitPill, styles.splitPillCyan, compact && styles.splitPillCompact]}
                       >
                         <View style={[styles.splitIconWrap, compact && styles.splitIconWrapCompact]}>
-                          {galleryBusy ? (
-                            <PlayfulLoader micro />
-                          ) : (
-                            <AppIcon name="gallery" size={compact ? 22 : 26} />
-                          )}
+                          <CachedSurface
+                            borderRadius={compact ? 9 : 12}
+                            backgroundColor="#FFFFFF"
+                            shadow={SHADOWS.splitIconCyan}
+                            padTop={7}
+                            padX={8}
+                            padBottom={11}
+                          />
+                          <View style={styles.frontLayer}>
+                            {galleryBusy ? (
+                              <PlayfulLoader micro />
+                            ) : (
+                              <AppIcon name="gallery" size={compact ? 22 : 26} />
+                            )}
+                          </View>
                         </View>
                         <View style={styles.splitCopy}>
                           <Text maxFontSizeMultiplier={1.25} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.splitTitle, compact && styles.splitTitleCompact]}>
                             Galerie
                           </Text>
                           {!compact ? (
-                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.splitNote}>
+                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={[styles.splitNote, styles.splitNoteCyan]}>
                               {isSolve ? 'Poză cu enunțul' : 'Enunț + pașii tăi'}
                             </Text>
                           ) : null}
                         </View>
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={['#F7FEFF', '#E2F8FE']}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 1 }}
+                          style={[styles.fill, styles.behind]}
+                        />
+                        <CachedInsetRelief borderRadius={compact ? 13 : 17} shadow={SHADOWS.splitInsetCyan} zIndex={1} />
                       </PressableScale>
-
-                      <View style={[styles.splitDivider, isCheckTheme && styles.splitDividerCheck]} />
 
                       <PressableScale
                         accessibilityRole="button"
@@ -1218,22 +1523,49 @@ export const HomeSurface = memo(function HomeSurface({
                         pressedScale={0.97}
                         haptic="light"
                         onPress={onMath}
+                        backdrop={(
+                          <CachedOutsetShadow
+                            borderRadius={compact ? 14 : 18}
+                            shadow={SHADOWS.splitOutsetAmber}
+                            padTop={12}
+                            padX={15}
+                            padBottom={20}
+                          />
+                        )}
                         style={styles.splitSlotWrap}
-                        contentStyle={[styles.splitSlot, compact && styles.splitSlotCompact]}
+                        contentStyle={[styles.splitPill, styles.splitPillAmber, compact && styles.splitPillCompact]}
                       >
                         <View style={[styles.splitIconWrap, compact && styles.splitIconWrapCompact]}>
-                          <AppIcon name="practice" size={compact ? 22 : 26} />
+                          <CachedSurface
+                            borderRadius={compact ? 9 : 12}
+                            backgroundColor="#FFFFFF"
+                            shadow={SHADOWS.splitIconAmber}
+                            padTop={7}
+                            padX={8}
+                            padBottom={11}
+                          />
+                          <View style={styles.frontLayer}>
+                            <AppIcon name="practice" size={compact ? 22 : 26} />
+                          </View>
                         </View>
                         <View style={styles.splitCopy}>
                           <Text maxFontSizeMultiplier={1.25} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.splitTitle, compact && styles.splitTitleCompact]}>
                             Scrie
                           </Text>
                           {!compact ? (
-                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.splitNote}>
+                            <Text maxFontSizeMultiplier={1.15} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.86} style={[styles.splitNote, styles.splitNoteAmber]}>
                               {isSolve ? 'Scrie enunțul' : 'Enunț + soluția ta'}
                             </Text>
                           ) : null}
                         </View>
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={['#FFFDF6', '#FFF1C7']}
+                          start={{ x: 0.5, y: 0 }}
+                          end={{ x: 0.5, y: 1 }}
+                          style={[styles.fill, styles.behind]}
+                        />
+                        <CachedInsetRelief borderRadius={compact ? 13 : 17} shadow={SHADOWS.splitInsetAmber} zIndex={1} />
                       </PressableScale>
                     </View>
                   )}
@@ -1242,17 +1574,16 @@ export const HomeSurface = memo(function HomeSurface({
             </Animated.View>
           </Enter>
 
-          {/* Sleek Velvet-Indigo Daily Practice Strip harmonizing with the bottom dock */}
-          <View style={[styles.bottomStripWrap, compact && styles.bottomStripWrapCompact]}>
+          {/* Flagship 2-Row Luminous Quest Showcase Card for Antrenament / Alege clasa / Repetă greșelile */}
+          <View style={styles.questWrap}>
             {embedded && (onQuickPractice || showTrackSetupBanner) ? (
               <Enter
                 ready={motionReady}
-                delay={430}
+                delay={420}
                 duration={500}
-                distance={14}
-                scaleFrom={0.97}
+                distance={16}
+                scaleFrom={0.965}
                 preRasterize
-                hardwareLayer={hardwareEntranceLayer}
               >
                 <PressableScale
                   accessibilityRole="button"
@@ -1269,95 +1600,213 @@ export const HomeSurface = memo(function HomeSurface({
                   pressedScale={0.975}
                   haptic="medium"
                   onPress={showTrackSetupBanner ? (onChooseStudyTrack ?? onStudy) : onQuickPractice}
+                  backdrop={(
+                    <CachedOutsetShadow
+                      borderRadius={compact ? 19 : 26}
+                      shadow={
+                        showTrackSetupBanner
+                          ? SHADOWS.questOutsetSetup
+                          : wrongCount > 0
+                            ? SHADOWS.questOutsetMistakes
+                            : SHADOWS.questOutsetQuiz
+                      }
+                      padTop={16}
+                      padX={20}
+                      padBottom={28}
+                    />
+                  )}
+                  style={styles.questShadow}
                   contentStyle={[
-                    styles.velvetStrip,
+                    styles.questCard,
                     showTrackSetupBanner
-                      ? styles.velvetStripSetup
-                      : wrongCount > 0 && styles.velvetStripMistakes,
-                    compact && styles.velvetStripCompact,
+                      ? styles.questCardSetup
+                      : wrongCount > 0 && styles.questCardMistakes,
+                    compact && styles.questCardCompact,
                   ]}
                 >
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={
-                      showTrackSetupBanner
-                        ? ['#391B88', '#250F64', '#180846']
-                        : wrongCount > 0
-                          ? ['#64133D', '#430B2D', '#29061D']
-                          : ['#2E1478', '#1D0B54', '#13063A']
-                    }
-                    start={{ x: 0.05, y: 0 }}
-                    end={{ x: 0.95, y: 1 }}
-                    style={styles.fill}
+                  <MissionCardBackdrop
+                    tone={showTrackSetupBanner ? 'setup' : wrongCount > 0 ? 'mistakes' : 'quiz'}
                   />
-                  <View pointerEvents="none" style={styles.velvetTopRim} />
-                  <View
-                    style={[
-                      styles.velvetIconOrb,
-                      compact && styles.velvetIconOrbCompact,
-                    ]}
-                  >
-                    <AppIcon name={showTrackSetupBanner ? 'class' : wrongCount > 0 ? 'retake' : 'streak'} size={compact ? 22 : 28} />
-                  </View>
-                  <View style={styles.velvetCopy}>
-                    <View style={styles.velvetTitleRow}>
+                  <CachedInsetRelief
+                    borderRadius={compact ? 18 : 25}
+                    shadow={
+                      showTrackSetupBanner
+                        ? SHADOWS.questInsetSetup
+                        : wrongCount > 0
+                          ? SHADOWS.questInsetMistakes
+                          : SHADOWS.questInsetQuiz
+                    }
+                    zIndex={1}
+                  />
+
+                  {!compact ? (
+                    <View style={styles.questMetaRow}>
+                      <View style={styles.questMetaPill}>
+                        <CachedSurface
+                          borderRadius={radii.pill}
+                          backgroundColor={showTrackSetupBanner ? '#FFF5DA' : wrongCount > 0 ? '#FFEBF0' : '#E8FAF4'}
+                          shadow={showTrackSetupBanner ? SHADOWS.questMetaSetup : wrongCount > 0 ? SHADOWS.questMetaMistakes : SHADOWS.questMetaQuiz}
+                          padTop={9}
+                          padX={11}
+                          padBottom={14}
+                        />
+                        <Text
+                          accessible={false}
+                          style={[
+                            styles.questMetaSpark,
+                            showTrackSetupBanner
+                              ? styles.questMetaSparkSetup
+                              : wrongCount > 0 && styles.questMetaSparkMistakes,
+                          ]}
+                        >
+                          ✦
+                        </Text>
+                        <Text
+                          maxFontSizeMultiplier={1.08}
+                          numberOfLines={1}
+                          style={[
+                            styles.questMetaLabel,
+                            showTrackSetupBanner
+                              ? styles.questMetaLabelSetup
+                              : wrongCount > 0 && styles.questMetaLabelMistakes,
+                          ]}
+                        >
+                          {showTrackSetupBanner
+                            ? 'PERSONALIZARE'
+                            : wrongCount > 0
+                              ? 'RECAPITULARE'
+                              : streakDays > 0
+                                ? `SERIE · ${streakDays} ${streakDays === 1 ? 'ZI' : 'ZILE'}`
+                                : 'ANTRENAMENT ZILNIC'}
+                        </Text>
+                      </View>
+
+                      <View style={styles.questInfoPill}>
+                        <CachedSurface
+                          borderRadius={radii.pill}
+                          backgroundColor="#FFFFFF"
+                          shadow={showTrackSetupBanner ? SHADOWS.questInfoSetup : wrongCount > 0 ? SHADOWS.questInfoMistakes : SHADOWS.questInfoQuiz}
+                          padTop={9}
+                          padX={11}
+                          padBottom={14}
+                        />
+                        <Text
+                          maxFontSizeMultiplier={1.08}
+                          numberOfLines={1}
+                          style={[
+                            styles.questInfoText,
+                            showTrackSetupBanner
+                              ? styles.questInfoTextSetup
+                              : wrongCount > 0 && styles.questInfoTextMistakes,
+                          ]}
+                        >
+                          {showTrackSetupBanner
+                            ? 'V–XII · EN · BAC'
+                            : wrongCount > 0
+                              ? `${wrongCount} ${wrongCount === 1 ? 'greșeală' : 'greșeli'}`
+                              : '5 întrebări · offline'}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.questMainRow}>
+                    <View style={[styles.questIconOrb, compact && styles.questIconOrbCompact]}>
+                      <CachedSurface
+                        borderRadius={compact ? 12 : 16}
+                        backgroundColor="#FFFFFF"
+                        shadow={showTrackSetupBanner ? SHADOWS.questOrbSetup : wrongCount > 0 ? SHADOWS.questOrbMistakes : SHADOWS.questOrbQuiz}
+                        padTop={9}
+                        padX={11}
+                        padBottom={15}
+                      />
+                      <View style={styles.frontLayer}>
+                        <AppIcon name={showTrackSetupBanner ? 'class' : wrongCount > 0 ? 'retake' : 'streak'} size={compact ? 23 : 30} />
+                      </View>
+                    </View>
+                    <View style={styles.questCopy}>
                       <Text
                         maxFontSizeMultiplier={1.25}
                         numberOfLines={1}
                         adjustsFontSizeToFit
-                        minimumFontScale={0.84}
-                        style={[styles.velvetTitle, compact && styles.velvetTitleCompact]}
+                        minimumFontScale={0.82}
+                        style={[
+                          styles.questTitle,
+                          showTrackSetupBanner
+                            ? styles.questTitleSetup
+                            : wrongCount > 0 && styles.questTitleMistakes,
+                          compact && styles.questTitleCompact,
+                        ]}
                       >
                         {showTrackSetupBanner
-                          ? 'Alege clasa'
+                          ? 'Alege clasa ta'
                           : wrongCount > 0
                             ? 'Repetă greșelile'
                             : 'Antrenament fulger'}
                       </Text>
-                      {showTrackSetupBanner ? (
-                        <View collapsable={false} style={styles.velvetPillGold}>
-                          <Text maxFontSizeMultiplier={1.05} style={styles.velvetPillDarkText}>
-                            Începe
-                          </Text>
-                        </View>
-                      ) : wrongCount > 0 ? (
-                        <View collapsable={false} style={styles.velvetPillCoral}>
-                          <Text maxFontSizeMultiplier={1.05} style={styles.velvetPillLightText}>
-                            {wrongCount}
-                          </Text>
-                        </View>
-                      ) : (
-                        <View collapsable={false} style={styles.velvetPillLime}>
-                          <Text maxFontSizeMultiplier={1.05} style={styles.velvetPillDarkText}>
-                            {streakDays > 0 ? `${streakDays} ${streakDays === 1 ? 'zi' : 'zile'}` : '5 min'}
-                          </Text>
-                        </View>
-                      )}
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.questNote}>
+                          {showTrackSetupBanner
+                            ? 'Formule, teste și simulări pe nivelul tău'
+                            : wrongCount > 0
+                              ? 'Reia rapid exercițiile greșite'
+                              : studyTrackLabel
+                                ? `Ritm zilnic · ${studyTrackLabel}`
+                                : 'Grilă și răspuns scurt, cu explicații'}
+                        </Text>
+                      ) : null}
                     </View>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.velvetNote}>
-                        {showTrackSetupBanner
-                          ? 'Formule, teste și simulări pe nivelul tău'
-                          : wrongCount > 0
-                            ? 'Reia rapid exercițiile greșite la practică'
-                            : '5 întrebări · offline'}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View
-                    style={[
-                      styles.velvetActionOrb,
-                      showTrackSetupBanner
-                        ? styles.velvetActionGold
-                        : wrongCount > 0 && styles.velvetActionCoral,
-                      compact && styles.velvetActionOrbCompact,
-                    ]}
-                  >
-                    <MiniGlyph
-                      name="next"
-                      size={compact ? 13 : 15}
-                      color={wrongCount > 0 ? colors.paper : colors.ink}
-                    />
+                    <View style={styles.questActionShadow}>
+                      <CachedOutsetShadow
+                        borderRadius={radii.pill}
+                        shadow={
+                          showTrackSetupBanner
+                            ? SHADOWS.questActionSetup
+                            : wrongCount > 0
+                              ? SHADOWS.questActionMistakes
+                              : SHADOWS.questActionQuiz
+                        }
+                        padTop={11}
+                        padX={14}
+                        padBottom={19}
+                      />
+                      <View
+                        style={[
+                          styles.questActionPill,
+                          showTrackSetupBanner
+                            ? styles.questActionPillSetup
+                            : wrongCount > 0
+                              ? styles.questActionPillMistakes
+                              : styles.questActionPillQuiz,
+                          compact && styles.questActionPillCompact,
+                        ]}
+                      >
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={
+                            showTrackSetupBanner
+                              ? ['#FFB42E', '#EB8A00', '#D46E00']
+                              : wrongCount > 0
+                                ? ['#FF5280', '#DF215A', '#BF1449']
+                                : ['#16C898', '#0CA37B', '#078262']
+                          }
+                          start={{ x: 0.1, y: 0 }}
+                          end={{ x: 0.9, y: 1 }}
+                          style={styles.fill}
+                        />
+                        <CachedInsetRelief borderRadius={radii.pill} shadow={SHADOWS.questActionInset} zIndex={1} />
+                        <Text
+                          maxFontSizeMultiplier={1.1}
+                          numberOfLines={1}
+                          style={styles.questActionText}
+                        >
+                          {showTrackSetupBanner ? 'Alege' : wrongCount > 0 ? 'Reia' : 'Începe'}
+                        </Text>
+                        <View style={styles.frontLayer}>
+                          <MiniGlyph name="next" size={compact ? 11 : 12} color={colors.paper} />
+                        </View>
+                      </View>
+                    </View>
                   </View>
                 </PressableScale>
               </Enter>
@@ -1371,38 +1820,50 @@ export const HomeSurface = memo(function HomeSurface({
                   pressedScale={0.975}
                   haptic="selection"
                   onPress={onNotebook}
-                  contentStyle={[styles.velvetStrip, compact && styles.velvetStripCompact]}
+                  backdrop={(
+                    <CachedOutsetShadow
+                      borderRadius={compact ? 19 : 26}
+                      shadow={SHADOWS.questOutsetQuiz}
+                      padTop={16}
+                      padX={20}
+                      padBottom={28}
+                    />
+                  )}
+                  style={styles.questShadow}
+                  contentStyle={[styles.questCard, compact && styles.questCardCompact]}
                 >
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={['#2E1478', '#1D0B54', '#13063A']}
-                    start={{ x: 0.05, y: 0 }}
-                    end={{ x: 0.95, y: 1 }}
-                    style={styles.fill}
-                  />
-                  <View pointerEvents="none" style={styles.velvetTopRim} />
-                  <View style={[styles.velvetIconOrb, compact && styles.velvetIconOrbCompact]}>
-                    <AppIcon name="notebook" size={compact ? 22 : 28} />
-                  </View>
-                  <View style={styles.velvetCopy}>
-                    <View style={styles.velvetTitleRow}>
-                      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={[styles.velvetTitle, compact && styles.velvetTitleCompact]}>
+                  <MissionCardBackdrop tone="quiz" />
+                  <CachedInsetRelief borderRadius={compact ? 18 : 25} shadow={SHADOWS.questInsetQuiz} zIndex={1} />
+                  <View style={styles.questMainRow}>
+                    <View style={[styles.questIconOrb, compact && styles.questIconOrbCompact]}>
+                      <CachedSurface
+                        borderRadius={compact ? 12 : 16}
+                        backgroundColor="#FFFFFF"
+                        shadow={SHADOWS.questOrbQuiz}
+                        padTop={9}
+                        padX={11}
+                        padBottom={15}
+                      />
+                      <View style={styles.frontLayer}>
+                        <AppIcon name="notebook" size={compact ? 23 : 30} />
+                      </View>
+                    </View>
+                    <View style={styles.questCopy}>
+                      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={[styles.questTitle, compact && styles.questTitleCompact]}>
                         Caietul meu
                       </Text>
-                      {savedCountLabel ? (
-                        <View collapsable={false} style={styles.velvetPillLime}>
-                          <Text maxFontSizeMultiplier={1.05} style={styles.velvetPillDarkText}>{savedCountLabel}</Text>
-                        </View>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.questNote}>
+                          {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate, disponibile și offline'}
+                        </Text>
                       ) : null}
                     </View>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.velvetNote}>
-                        {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate, disponibile și offline'}
+                    <View style={[styles.questActionPill, styles.questActionPillQuiz, compact && styles.questActionPillCompact]}>
+                      <Text maxFontSizeMultiplier={1.1} numberOfLines={1} style={styles.questActionText}>
+                        {savedCountLabel ?? 'Deschide'}
                       </Text>
-                    ) : null}
-                  </View>
-                  <View style={[styles.velvetActionOrb, compact && styles.velvetActionOrbCompact]}>
-                    <MiniGlyph name="next" size={compact ? 13 : 15} color={colors.ink} />
+                      <MiniGlyph name="next" size={compact ? 11 : 12} color={colors.paper} />
+                    </View>
                   </View>
                 </PressableScale>
 
@@ -1437,7 +1898,6 @@ export const HomeSurface = memo(function HomeSurface({
       {/* Full-bleed curved Royal-Violet / Coral-Berry hero canopy unified with LaunchSplash & Onboarding */}
       <Animated.View
         pointerEvents="none"
-        renderToHardwareTextureAndroid={hardwareEntranceLayer}
         style={[
           styles.skyDome,
           {
@@ -1477,6 +1937,7 @@ const styles = StyleSheet.create({
   homeScene: { flex: 1, overflow: 'hidden', zIndex: 2 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   behind: { zIndex: 0 },
+  frontLayer: { zIndex: 2, alignItems: 'center', justifyContent: 'center' },
   page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 10, paddingTop: 4, paddingBottom: 8 },
   pageCompact: { gap: 6, paddingTop: 2 },
 
@@ -1490,11 +1951,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 
-  // Brand top bar floating over curved sky dome
+  // Brand top bar floating in 3D relief over curved sky dome
   header: { height: 58, flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerCompact: { height: 44 },
   brandRow: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 },
   brandRowNarrow: { gap: 6 },
+  logoShadow: {
+    position: 'relative',
+  },
   logo: {
     width: 44,
     height: 44,
@@ -1502,41 +1966,65 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2.5,
     borderColor: colors.lime,
-    borderBottomWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
-  logoCompact: { width: 35, height: 35, borderRadius: 17.5, borderWidth: 2, borderBottomWidth: 2.5 },
-  logoImage: { width: 35, height: 35 },
+  logoCompact: { width: 35, height: 35, borderRadius: 17.5, borderWidth: 2 },
+  logoImage: { width: 35, height: 35, zIndex: 2 },
   logoImageCompact: { width: 28, height: 28 },
-  trackPillWrap: { flexShrink: 1, minWidth: 0 },
+  trackPillWrap: {
+    flexShrink: 1,
+    minWidth: 0,
+    alignSelf: 'center',
+    position: 'relative',
+  },
   trackPill: {
     height: 36,
+    alignSelf: 'flex-start',
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.34)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 11,
+    paddingLeft: 9,
+    paddingRight: 7,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   trackPillSetup: {
-    backgroundColor: 'rgba(255, 212, 71, 0.22)',
-    borderColor: 'rgba(255, 224, 112, 0.56)',
+    backgroundColor: 'rgba(255, 212, 71, 0.2)',
+    borderColor: 'rgba(255, 234, 140, 0.56)',
   },
   trackPillCompact: {
     height: 32,
-    paddingHorizontal: 9,
+    paddingLeft: 8,
+    paddingRight: 6,
     gap: 5,
+  },
+  trackDotHalo: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: 'rgba(216, 255, 62, 0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    zIndex: 2,
+  },
+  trackDotHaloSetup: {
+    backgroundColor: 'rgba(255, 216, 77, 0.28)',
   },
   trackPillDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
     backgroundColor: colors.lime,
-    flexShrink: 0,
   },
   trackPillDotCheck: {
     backgroundColor: '#FFE169',
@@ -1552,89 +2040,99 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     letterSpacing: -0.1,
     includeFontPadding: false,
+    zIndex: 2,
   },
   trackPillTextSetup: {
-    color: '#FFF6D1',
+    color: '#FFF8D8',
   },
   trackPillTextCompact: {
     fontSize: 11,
     lineHeight: 13.5,
   },
+  trackChevronOrb: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    zIndex: 2,
+  },
+  trackChevronOrbSetup: {
+    backgroundColor: 'rgba(255, 224, 112, 0.24)',
+  },
   trackPillChevron: {
     fontFamily: fonts.bodyBold,
-    color: 'rgba(255, 255, 255, 0.82)',
-    fontSize: 11,
-    lineHeight: 13,
+    color: colors.paper,
+    fontSize: 10.5,
+    lineHeight: 12,
     includeFontPadding: false,
-    flexShrink: 0,
   },
   trackPillChevronSetup: {
-    color: '#FFE37A',
+    color: '#FFE88A',
   },
 
-  allowanceWrap: { marginLeft: 8 },
+  allowanceWrap: {
+    marginLeft: 8,
+    position: 'relative',
+  },
   allowanceWrapNarrow: { marginLeft: 6 },
   allowancePill: {
-    minWidth: 100,
-    maxWidth: 134,
+    minWidth: 104,
+    maxWidth: 140,
     height: 42,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1,
     borderColor: '#FFFFFF',
-    borderBottomColor: '#D6C4FA',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 11,
+    paddingLeft: 8,
+    paddingRight: 11,
     paddingBottom: 2,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
-  allowancePillCompact: { minWidth: 90, height: 36, paddingHorizontal: 9 },
-  allowancePillPremium: { backgroundColor: '#F4FFE0', borderColor: '#E5FFAD', borderBottomColor: '#A9D632' },
-  allowancePillExhausted: { backgroundColor: '#FFF2EC', borderColor: '#FFD9CB', borderBottomColor: '#EE9E84' },
-  pillTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 14,
-    right: 14,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  allowancePillCompact: { minWidth: 92, height: 36, paddingLeft: 7, paddingRight: 9 },
+  allowancePillPremium: { backgroundColor: '#F4FFE0', borderColor: '#EAFFBA' },
+  allowancePillExhausted: { backgroundColor: '#FFF2EC', borderColor: '#FFE0D4' },
+  allowanceIconWell: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#F2EAFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    zIndex: 2,
   },
+  allowanceIconWellPremium: { backgroundColor: '#E6FFAC' },
+  allowanceIconWellExhausted: { backgroundColor: '#FFE0D4' },
   energyTrack: {
     position: 'absolute',
-    left: 12,
-    right: 12,
-    bottom: 2,
-    height: 3,
+    left: 14,
+    right: 14,
+    bottom: 2.5,
+    height: 3.5,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(124, 60, 255, 0.13)',
+    backgroundColor: 'rgba(124, 60, 255, 0.12)',
     overflow: 'hidden',
+    zIndex: 2,
   },
   energyFill: {
     height: '100%',
-    backgroundColor: colors.violet,
     borderRadius: radii.pill,
   },
-  energyFillPremium: { backgroundColor: colors.limeDeep },
-  energyFillEmpty: { backgroundColor: colors.peach },
-  allowanceCopy: { flexShrink: 1, minWidth: 0, alignItems: 'flex-start' },
+  allowanceCopy: { flexShrink: 1, minWidth: 0, alignItems: 'flex-start', zIndex: 2 },
   allowanceText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 11.5, lineHeight: 13.5, includeFontPadding: false },
   allowanceNote: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 9.5, letterSpacing: 0.4, lineHeight: 11.5, includeFontPadding: false },
   settingsWrap: {
     marginLeft: 8,
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#D6C4FA',
-    backgroundColor: '#FFFFFF',
-  },
-  settingsWrapCompact: {
-    borderRadius: 19,
-    borderBottomWidth: 3,
+    position: 'relative',
   },
 
   // Hero owl + borderless luminous message row inside the sky dome
@@ -1669,24 +2167,24 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
 
-  // Unified Luminous Ceramic-White Capture Studio Monolith
+  // Unified Sculpted 3D Ceramic-White Photo Hero Card
   cameraStageEnter: { flex: 1, minHeight: 0, width: '100%', zIndex: 3 },
-  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: 30, shadowColor: '#3E14B2', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.11, shadowRadius: 24 },
-  cameraStageShadowCheck: { shadowColor: '#A81C54' },
+  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', position: 'relative' },
   cameraStage: {
     flex: 1,
     minHeight: 0,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#EAE1FB',
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     borderRadius: 30,
     backgroundColor: '#FFFFFF',
     justifyContent: 'space-between',
     padding: 15,
     position: 'relative',
+    zIndex: 1,
   },
   cameraStageCheck: {
-    borderColor: '#F8D4E0',
+    borderColor: 'rgba(255, 245, 248, 0.96)',
   },
   cameraStageCompact: { padding: 10 },
   stageHudBar: {
@@ -1700,16 +2198,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
-    backgroundColor: '#F3ECFF',
-  },
-  stageEyebrowPillCheck: {
-    backgroundColor: '#FFEFF4',
-  },
-  stageEyebrowPillPending: {
-    backgroundColor: '#ECFFD6',
+    position: 'relative',
   },
   stageEyebrowDot: {
     width: 6.5,
@@ -1723,6 +2215,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.85,
     color: colors.violetDeep,
     includeFontPadding: false,
+    zIndex: 2,
   },
   stageEyebrowCheck: {
     color: '#B01955',
@@ -1730,12 +2223,19 @@ const styles = StyleSheet.create({
   stageEyebrowPending: {
     color: colors.limeDeep,
   },
+  hudScopeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4.5,
+    borderRadius: radii.pill,
+    position: 'relative',
+  },
   hudScopeHint: {
     fontFamily: fonts.bodyBold,
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.inkSoft,
+    fontSize: 10.5,
+    lineHeight: 13,
+    color: colors.violetDeep,
     includeFontPadding: false,
+    zIndex: 2,
   },
   hudScopeHintCheck: {
     color: '#A52458',
@@ -1744,59 +2244,110 @@ const styles = StyleSheet.create({
     color: colors.limeDeep,
   },
 
-  // Spacious centered Optical Shutter Portal
+  // Clean Horizontal Optical Viewfinder Stage (zero vertical overflow)
   portalStage: {
     flex: 1,
     minHeight: 0,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    gap: 10,
+    justifyContent: 'flex-start',
+    gap: 14,
+    paddingHorizontal: 2,
     zIndex: 2,
   },
   portalStageCompact: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 4,
+    gap: 11,
+    paddingHorizontal: 1,
   },
   portalStagePressed: {
     opacity: 0.92,
     transform: [{ scale: 0.985 }],
   },
-  portalFinder: {
-    width: 148,
-    height: 104,
+  lensFrameWrap: {
+    width: 88,
+    height: 88,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-  },
-  portalFinderCompact: {
-    width: 78,
-    height: 70,
     flexShrink: 0,
+  },
+  lensFrameWrapNarrow: { width: 78, height: 78 },
+  lensFrameWrapCompact: { width: 62, height: 62 },
+  lensAuraRing: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    bottom: -5,
+    left: -5,
+    borderRadius: 29,
+    borderWidth: 2,
+  },
+  lensAuraRingCompact: {
+    top: -4,
+    right: -4,
+    bottom: -4,
+    left: -4,
+    borderRadius: 22,
+  },
+  lensBoxShadow: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 24,
+    position: 'relative',
+  },
+  lensBox: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
+  },
+  lensBoxCompact: {
+    borderRadius: 18,
+  },
+  lensLiveDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 5.5,
+    height: 5.5,
+    borderRadius: 3,
+    zIndex: 4,
   },
   corner: {
     position: 'absolute',
-    width: 16,
-    height: 16,
-    borderColor: 'rgba(115, 44, 244, 0.34)',
+    width: 13,
+    height: 13,
+    zIndex: 3,
+  },
+  cornerTL: { top: 8, left: 8, borderTopWidth: 2.5, borderLeftWidth: 2.5, borderTopLeftRadius: 5 },
+  cornerTR: { top: 8, right: 8, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 5 },
+  cornerBL: { bottom: 8, left: 8, borderBottomWidth: 2.5, borderLeftWidth: 2.5, borderBottomLeftRadius: 5 },
+  cornerBR: { bottom: 8, right: 8, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 5 },
+  lensIconPlate: {
+    width: 58,
+    height: 58,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
     zIndex: 2,
   },
-  cornerCheck: {
-    borderColor: 'rgba(229, 53, 116, 0.36)',
+  lensIconPlateCompact: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
   },
-  cornerTL: { top: 2, left: 4, borderTopWidth: 2.2, borderLeftWidth: 2.2, borderTopLeftRadius: 7 },
-  cornerTR: { top: 2, right: 4, borderTopWidth: 2.2, borderRightWidth: 2.2, borderTopRightRadius: 7 },
-  cornerBL: { bottom: 2, left: 4, borderBottomWidth: 2.2, borderLeftWidth: 2.2, borderBottomLeftRadius: 7 },
-  cornerBR: { bottom: 2, right: 4, borderBottomWidth: 2.2, borderRightWidth: 2.2, borderBottomRightRadius: 7 },
   scanBeamWrap: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    height: 12,
+    left: 10,
+    right: 10,
+    height: 10,
     justifyContent: 'center',
-    zIndex: 1,
+    zIndex: 4,
   },
   scanBeamHalo: {
     position: 'absolute',
@@ -1804,151 +2355,80 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    borderRadius: 6,
+    borderRadius: 5,
   },
-  scanBeam: { width: '100%', height: 2, borderRadius: 2, opacity: 0.72 },
-  shutterRingWrap: {
-    width: 82,
-    height: 82,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    zIndex: 3,
-  },
-  shutterRingWrapCompact: {
-    width: 58,
-    height: 58,
-  },
-  shutterAuraRing: {
-    position: 'absolute',
-    top: -7,
-    right: -7,
-    bottom: -7,
-    left: -7,
-    borderRadius: 48,
-    borderWidth: 2,
-  },
-  shutterAuraRingCompact: {
-    top: -4,
-    right: -4,
-    bottom: -4,
-    left: -4,
-    borderRadius: 34,
-  },
-  shutterOrb: {
-    width: 82,
-    height: 82,
-    borderRadius: 41,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    shadowColor: '#4813C4',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.24,
-    shadowRadius: 14,
-  },
-  shutterOrbCompact: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-  },
-  shutterOrbRim: {
-    position: 'absolute',
-    top: 2,
-    left: 16,
-    right: 16,
-    height: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.28)',
-  },
-  shutterIconPlate: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterIconPlateCompact: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
+  scanBeam: { width: '100%', height: 2.5, borderRadius: 2.5 },
   portalCopy: {
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  portalCopyCompact: {
     flex: 1,
     minWidth: 0,
     alignItems: 'flex-start',
-    paddingHorizontal: 0,
   },
   stageTitle: {
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 22,
-    lineHeight: 25,
-    letterSpacing: -0.4,
-    textAlign: 'center',
+    fontSize: 21.5,
+    lineHeight: 24.5,
+    letterSpacing: -0.35,
+    textAlign: 'left',
   },
-  stageTitleNarrow: { fontSize: 19.5, lineHeight: 22.5 },
-  stageTitleCompact: { fontSize: 17, lineHeight: 20, textAlign: 'left' },
+  stageTitleNarrow: { fontSize: 19, lineHeight: 22 },
+  stageTitleCompact: { fontSize: 16.5, lineHeight: 19.5 },
   stageNote: {
-    marginTop: 3,
+    marginTop: 4,
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 12.5,
     lineHeight: 16.5,
-    textAlign: 'center',
+    textAlign: 'left',
   },
-  stageNoteCompact: { marginTop: 2, fontSize: 11.5, lineHeight: 15, textAlign: 'left' },
+  stageNoteCompact: { marginTop: 2, fontSize: 11.5, lineHeight: 15 },
 
-  // Integrated Capture CTA + Tonal Split Input Tray inside the Ceramic Monolith
+  // Integrated Sculpted 3D Shutter CTA + Airy Light Galerie & Scrie inside Photo Card
   monolithControls: {
-    gap: 8,
+    gap: 10,
     zIndex: 3,
   },
   monolithControlsCompact: {
     gap: 6,
   },
+  captureCtaShadow: {
+    position: 'relative',
+  },
   captureCta: {
-    height: 50,
+    height: 52,
     borderRadius: radii.pill,
+    backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 16,
-    paddingRight: 8,
+    paddingHorizontal: 8,
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  captureCtaCompact: { height: 42, paddingLeft: 14, paddingRight: 6, gap: 8 },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 24,
-    right: 24,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.32)',
     zIndex: 1,
   },
+  captureCtaCheck: {
+    backgroundColor: '#FFD04A',
+  },
+  captureCtaCompact: { height: 42, paddingHorizontal: 7, gap: 8 },
   ctaSweep: {
     position: 'absolute',
     top: -10,
     bottom: -10,
     width: 48,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.52)',
     zIndex: 1,
   },
-  ctaAccentDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  ctaIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
     zIndex: 2,
   },
-  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.paper, fontSize: 18, lineHeight: 21, zIndex: 2 },
+  ctaIconBadgeCompact: { width: 28, height: 28, borderRadius: 14 },
+  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 18, lineHeight: 21, zIndex: 2 },
   captureCtaTextCompact: { fontSize: 15.5, lineHeight: 18.5 },
   captureArrow: {
     width: 34,
@@ -1956,200 +2436,236 @@ const styles = StyleSheet.create({
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
     zIndex: 2,
   },
   captureArrowCompact: { width: 28, height: 28, borderRadius: 14 },
 
-  // Unified Whisper-Soft Tonal Tray for Galerie | Scrie (zero clashing bricks)
-  inputSplitTray: {
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: '#F6F2FF',
-    borderWidth: 1,
-    borderColor: '#EAE1FC',
+  // Airy Light Sculpted 3D Ceramic Galerie + Scrie Action Pills inside the Photo Card
+  inputDuoRow: {
     flexDirection: 'row',
     alignItems: 'stretch',
-    overflow: 'hidden',
+    gap: 9,
   },
-  inputSplitTrayCheck: {
-    backgroundColor: '#FFF3F6',
-    borderColor: '#FADCE5',
-  },
-  inputSplitTrayCompact: {
-    height: 40,
-    borderRadius: 14,
-  },
-  splitSlotWrap: { flex: 1, minWidth: 0 },
-  splitSlot: {
+  inputDuoRowCompact: { gap: 6 },
+  splitSlotWrap: {
     flex: 1,
+    minWidth: 0,
+    position: 'relative',
+  },
+  splitPill: {
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
-  splitSlotCompact: {
-    paddingHorizontal: 8,
+  splitPillCompact: {
+    height: 40,
+    borderRadius: 14,
+    paddingHorizontal: 7,
     gap: 6,
   },
+  splitPillCyan: {
+    backgroundColor: '#EDFCFF',
+    borderColor: '#D6F5FD',
+  },
+  splitPillAmber: {
+    backgroundColor: '#FFFBEF',
+    borderColor: '#FCEBC0',
+  },
+  splitPillDiscard: {
+    backgroundColor: '#FFF2F0',
+    borderColor: '#FFD8D1',
+  },
   splitIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 11,
-    backgroundColor: '#FFFFFF',
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
     flexShrink: 0,
+    zIndex: 2,
   },
   splitIconWrapCompact: {
     width: 26,
     height: 26,
     borderRadius: 9,
   },
-  splitIconDiscard: {
-    backgroundColor: '#FFE8E4',
-  },
-  splitCopy: { flexShrink: 1, minWidth: 0, alignItems: 'flex-start' },
-  splitTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15.5, lineHeight: 18.5, letterSpacing: -0.2 },
+  splitCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start', zIndex: 2 },
+  splitTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18, letterSpacing: -0.2 },
   splitTitleCompact: { fontSize: 13.5, lineHeight: 16.5 },
   discardTitle: { color: colors.berryDeep },
   splitNote: { marginTop: 0.5, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 10.5, lineHeight: 13 },
-  splitDivider: {
-    width: 1,
-    marginVertical: 10,
-    backgroundColor: 'rgba(104, 54, 224, 0.14)',
-  },
-  splitDividerCheck: {
-    backgroundColor: 'rgba(208, 36, 98, 0.16)',
-  },
+  splitNoteCyan: { color: '#0B6F86' },
+  splitNoteAmber: { color: '#8A5A00' },
 
-  // Sleek Deep Velvet-Indigo Daily Practice Strip matching the bottom dock
-  bottomStripWrap: { flexShrink: 0, zIndex: 3 },
-  bottomStripWrapCompact: {},
-  velvetStrip: {
-    height: 68,
-    borderRadius: 24,
+  // Chill Sculpted 3D Luminous 2-Row Quest Showcase Card (Antrenament / Alege clasa / Repetă greșelile)
+  questWrap: { flexShrink: 0, zIndex: 3 },
+  questShadow: {
+    position: 'relative',
+  },
+  questCard: {
+    minHeight: 104,
+    borderRadius: 26,
     borderWidth: 1,
-    borderColor: 'rgba(182, 148, 255, 0.3)',
-    backgroundColor: '#1C0A50',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 11,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    justifyContent: 'space-between',
+    gap: 9,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#22086E',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-  },
-  velvetStripSetup: {
-    borderColor: 'rgba(255, 220, 104, 0.42)',
-  },
-  velvetStripMistakes: {
-    borderColor: 'rgba(255, 146, 174, 0.38)',
-  },
-  velvetStripCompact: {
-    height: 52,
-    borderRadius: 18,
-    paddingHorizontal: 10,
-    gap: 9,
-  },
-  velvetTopRim: {
-    position: 'absolute',
-    top: 1,
-    left: 24,
-    right: 24,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.24)',
     zIndex: 1,
   },
-  velvetIconOrb: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-    alignItems: 'center',
+  questCardSetup: {
+    borderColor: 'rgba(255, 252, 240, 0.95)',
+  },
+  questCardMistakes: {
+    borderColor: 'rgba(255, 245, 248, 0.95)',
+  },
+  questCardCompact: {
+    minHeight: 56,
+    borderRadius: 19,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 0,
     justifyContent: 'center',
-    flexShrink: 0,
+  },
+  questMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
     zIndex: 2,
   },
-  velvetIconOrbCompact: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
+  questMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: radii.pill,
+    position: 'relative',
   },
-  velvetCopy: { flex: 1, minWidth: 0, zIndex: 2 },
-  velvetTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  velvetTitle: {
-    flexShrink: 1,
+  questMetaSpark: {
     fontFamily: fonts.display,
-    color: colors.paper,
-    fontSize: 16.5,
-    lineHeight: 19.5,
-    letterSpacing: -0.2,
+    color: '#0A8F6C',
+    fontSize: 10,
+    lineHeight: 12,
+    includeFontPadding: false,
+    zIndex: 2,
   },
-  velvetTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
-  velvetNote: {
+  questMetaSparkSetup: { color: '#C67B00' },
+  questMetaSparkMistakes: { color: '#D4225A' },
+  questMetaLabel: {
+    fontFamily: fonts.bodyBold,
+    color: '#0A7B5D',
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 0.75,
+    includeFontPadding: false,
+    zIndex: 2,
+  },
+  questMetaLabelSetup: { color: '#9E6100' },
+  questMetaLabelMistakes: { color: '#B81B4D' },
+  questInfoPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: radii.pill,
+    position: 'relative',
+  },
+  questInfoText: {
+    fontFamily: fonts.bodyBold,
+    color: '#0D5E49',
+    fontSize: 10,
+    lineHeight: 12.5,
+    includeFontPadding: false,
+    zIndex: 2,
+  },
+  questInfoTextSetup: { color: '#7D4E00' },
+  questInfoTextMistakes: { color: '#9E1843' },
+  questMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    zIndex: 2,
+  },
+  questIconOrb: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    flexShrink: 0,
+  },
+  questIconOrbCompact: { width: 34, height: 34, borderRadius: 12 },
+  questCopy: { flex: 1, minWidth: 0 },
+  questTitle: {
+    fontFamily: fonts.display,
+    color: '#0B3E33',
+    fontSize: 18.5,
+    lineHeight: 21.5,
+    letterSpacing: -0.3,
+  },
+  questTitleSetup: { color: '#583400' },
+  questTitleMistakes: { color: '#7A1138' },
+  questTitleCompact: { fontSize: 15, lineHeight: 18 },
+  questNote: {
     marginTop: 1.5,
     fontFamily: fonts.bodyMedium,
-    color: 'rgba(232, 224, 255, 0.8)',
+    color: colors.inkSoft,
     fontSize: 11.5,
     lineHeight: 14.5,
   },
-  velvetPillLime: {
-    height: 19,
-    paddingHorizontal: 7.5,
+  questActionShadow: {
     borderRadius: radii.pill,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
+    flexShrink: 0,
   },
-  velvetPillGold: {
-    height: 19,
-    paddingHorizontal: 7.5,
+  questActionPill: {
+    height: 38,
+    paddingLeft: 14,
+    paddingRight: 10,
     borderRadius: radii.pill,
-    backgroundColor: colors.gold,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    flexShrink: 0,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
-  velvetPillCoral: {
-    minWidth: 20,
-    height: 19,
-    paddingHorizontal: 6.5,
-    borderRadius: radii.pill,
-    backgroundColor: '#FF5D8F',
-    alignItems: 'center',
-    justifyContent: 'center',
+  questActionPillQuiz: {
+    backgroundColor: '#0CA37B',
   },
-  velvetPillDarkText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.ink,
-    fontSize: 10,
-    lineHeight: 12,
-    includeFontPadding: false,
+  questActionPillSetup: {
+    backgroundColor: '#EB8A00',
   },
-  velvetPillLightText: {
+  questActionPillMistakes: {
+    backgroundColor: '#DF215A',
+  },
+  questActionPillCompact: {
+    height: 30,
+    paddingLeft: 10,
+    paddingRight: 8,
+  },
+  questActionText: {
     fontFamily: fonts.bodyBold,
     color: colors.paper,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 12,
+    lineHeight: 14,
     includeFontPadding: false,
-  },
-  velvetActionOrb: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
     zIndex: 2,
   },
-  velvetActionGold: { backgroundColor: colors.gold },
-  velvetActionCoral: { backgroundColor: '#FF5D8F' },
-  velvetActionOrbCompact: { width: 26, height: 26, borderRadius: 13 },
 
   notebookGroup: { gap: 7 },
   guidePill: {

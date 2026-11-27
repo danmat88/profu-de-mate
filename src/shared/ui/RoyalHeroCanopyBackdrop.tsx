@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 export const ROYAL_HERO_GRADIENT = ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'] as const;
 
@@ -18,18 +18,20 @@ type Props = {
   bottomRightAccent?: string;
   /** Optional center spotlight coordinates (used by LaunchSplash behind the owl). */
   spotlightCenterY?: number;
-  /** Render the fine architectural math coordinate grid, crosshairs, and delicate glowing sine curve. */
+  /** Render the fine architectural math coordinate grid and subtle optical star glints. */
   showGrid?: boolean;
-  /** Show subtle luminous bottom highlight rim along the curved canopy arch. */
-  showBottomRim?: boolean;
 };
+
+function diamondSpark(cx: number, cy: number, r: number): string {
+  const inner = r * 0.34;
+  return `M${cx} ${cy - r} Q${cx + inner * 0.4} ${cy - inner * 0.4} ${cx + r} ${cy} Q${cx + inner * 0.4} ${cy + inner * 0.4} ${cx} ${cy + r} Q${cx - inner * 0.4} ${cy + inner * 0.4} ${cx - r} ${cy} Q${cx - inner * 0.4} ${cy - inner * 0.4} ${cx} ${cy - r}Z`;
+}
 
 /**
  * Unified Royal-Violet Hero Canopy backdrop shared identically across
  * LaunchSplash's retracting curtain, WelcomeOnboardingScreen, HomeSurface,
  * and every hero canopy across the app — pure static SVG optical
- * RadialGradients + architectural math coordinate grid + delicate luminous
- * mathematical wave curve with zero flat CSS circles and zero per-frame work.
+ * RadialGradients + whisper-soft optical glints with zero flat CSS circles.
  */
 export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
   width,
@@ -40,15 +42,14 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
   bottomRightAccent = '#D8FF3E',
   spotlightCenterY,
   showGrid = true,
-  showBottomRim = true,
 }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const responsive = width === undefined || height === undefined;
   const safeWidth = Math.max(1, Math.round(width ?? 360));
   const safeHeight = Math.max(1, Math.round(height ?? 220));
 
-  const { gridPath, crosshairPath, mathCurvePath } = useMemo(() => {
-    if (!showGrid) return { gridPath: '', crosshairPath: '', mathCurvePath: '' };
+  const { gridPath, sparklePath } = useMemo(() => {
+    if (!showGrid) return { gridPath: '', sparklePath: '' };
     const step = 36;
     const cols = Math.ceil(safeWidth / step);
     const rows = Math.ceil(safeHeight / step);
@@ -63,37 +64,24 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
       lines.push(`M0 ${y}H${safeWidth}`);
     }
 
-    const marks: string[] = [];
-    const points = safeHeight > 420
+    const sparks = safeHeight > 420
       ? [
-        [Math.round(safeWidth * 0.16), Math.round(safeHeight * 0.2)],
-        [Math.round(safeWidth * 0.84), Math.round(safeHeight * 0.24)],
-        [Math.round(safeWidth * 0.14), Math.round(safeHeight * 0.72)],
-        [Math.round(safeWidth * 0.86), Math.round(safeHeight * 0.68)],
-      ]
+        diamondSpark(Math.round(safeWidth * 0.22), Math.round(safeHeight * 0.28), 5.5),
+        diamondSpark(Math.round(safeWidth * 0.79), Math.round(safeHeight * 0.32), 6),
+        diamondSpark(Math.round(safeWidth * 0.72), Math.round(safeHeight * 0.66), 4.5),
+      ].join('')
       : [
-        [Math.round(safeWidth * 0.16), Math.round(safeHeight * 0.78)],
-        [Math.round(safeWidth * 0.62), Math.round(safeHeight * 0.34)],
-      ];
-    for (const [px, py] of points) {
-      marks.push(`M${px - 4.5} ${py}H${px + 4.5}M${px} ${py - 4.5}V${py + 4.5}`);
-    }
+        diamondSpark(Math.round(safeWidth * 0.52), Math.round(safeHeight * 0.46), 4.4),
+        diamondSpark(Math.round(safeWidth * 0.9), Math.round(safeHeight * 0.58), 3.8),
+      ].join('');
 
-    const baseY = safeHeight > 420 ? Math.round(safeHeight * 0.56) : Math.round(safeHeight * 0.74);
-    const amp = safeHeight > 420 ? 44 : 22;
-    const q1 = Math.round(safeWidth * 0.28);
-    const mid = Math.round(safeWidth * 0.54);
-    const q3 = Math.round(safeWidth * 0.8);
-    const curve = `M-8 ${baseY + Math.round(amp * 0.45)} Q${q1} ${baseY - amp} ${mid} ${baseY + Math.round(amp * 0.12)} T${safeWidth + 10} ${baseY - Math.round(amp * 0.55)} M-8 ${baseY + Math.round(amp * 0.72)} Q${q3} ${baseY + Math.round(amp * 0.35)} ${safeWidth + 10} ${baseY - Math.round(amp * 0.15)}`;
-
-    return { gridPath: lines.join(''), crosshairPath: marks.join(''), mathCurvePath: curve };
+    return { gridPath: lines.join(''), sparklePath: sparks };
   }, [safeHeight, safeWidth, showGrid]);
 
   const topId = `rhTop_${uid}`;
   const bottomId = `rhBot_${uid}`;
   const spotId = `rhSpot_${uid}`;
   const floorId = `rhFloor_${uid}`;
-  const curveId = `rhCur_${uid}`;
   const spotCyPercent = spotlightCenterY !== undefined
     ? `${Math.round((spotlightCenterY / safeHeight) * 100)}%`
     : '50%';
@@ -122,23 +110,16 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
       >
         <Defs>
           <RadialGradient id={topId} cx="8%" cy="8%" rx="58%" ry="64%">
-            <Stop offset="0%" stopColor={topLeftAccent} stopOpacity="0.26" />
-            <Stop offset="55%" stopColor={topLeftAccent} stopOpacity="0.07" />
+            <Stop offset="0%" stopColor={topLeftAccent} stopOpacity="0.3" />
+            <Stop offset="55%" stopColor={topLeftAccent} stopOpacity="0.085" />
             <Stop offset="100%" stopColor={topLeftAccent} stopOpacity="0" />
           </RadialGradient>
 
           <RadialGradient id={bottomId} cx="92%" cy="92%" rx="56%" ry="62%">
-            <Stop offset="0%" stopColor={bottomRightAccent} stopOpacity="0.22" />
-            <Stop offset="52%" stopColor={bottomRightAccent} stopOpacity="0.06" />
+            <Stop offset="0%" stopColor={bottomRightAccent} stopOpacity="0.24" />
+            <Stop offset="52%" stopColor={bottomRightAccent} stopOpacity="0.065" />
             <Stop offset="100%" stopColor={bottomRightAccent} stopOpacity="0" />
           </RadialGradient>
-
-          <SvgLinearGradient id={curveId} x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor={topLeftAccent} stopOpacity="0" />
-            <Stop offset="32%" stopColor={topLeftAccent} stopOpacity="0.24" />
-            <Stop offset="70%" stopColor={bottomRightAccent} stopOpacity="0.3" />
-            <Stop offset="100%" stopColor={bottomRightAccent} stopOpacity="0" />
-          </SvgLinearGradient>
 
           {spotlightCenterY !== undefined ? (
             <>
@@ -161,9 +142,8 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
         <Rect x={0} y={0} width={safeWidth} height={safeHeight} fill={`url(#${bottomId})`} />
         {showGrid ? (
           <>
-            <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.062} fill="none" />
-            <Path d={mathCurvePath} stroke={`url(#${curveId})`} strokeWidth={1.35} fill="none" />
-            <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.34} fill="none" />
+            <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.05} fill="none" />
+            <Path d={sparklePath} fill="#FFFFFF" fillOpacity={0.4} />
           </>
         ) : null}
         {spotlightCenterY !== undefined ? (
@@ -173,17 +153,14 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
           </>
         ) : null}
       </Svg>
-
-      {showBottomRim ? <View style={styles.bottomRim} /> : null}
     </View>
   );
 });
 
 /**
- * Airy Luminous Ceramic Studio backdrop for Home's unified Capture Monolith:
- * pure porcelain-white depth with a whisper-soft centered optical radial halo
- * behind the floating viewfinder portal and razor-fine architectural drafting
- * grid hairlines — zero heavy borders, zero visual noise.
+ * Pure velvety Ceramic Studio backdrop for Home's Photo Studio card:
+ * porcelain-white depth kissed by soft multi-tone Cyan + Violet + Electric-Lime
+ * optical radial light washes — zero drawn lines, grids, or strokes.
  */
 export const StudioCardBackdrop = memo(function StudioCardBackdrop({
   checkTheme = false,
@@ -191,17 +168,17 @@ export const StudioCardBackdrop = memo(function StudioCardBackdrop({
   checkTheme?: boolean;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const haloId = `scHal_${uid}`;
-  const accentId = `scAcc_${uid}`;
-  const curveId = `scCur_${uid}`;
-  const haloTint = checkTheme ? '#FF6B93' : '#7C3CFF';
-  const accentTint = checkTheme ? '#FFD447' : '#C8FA28';
-  const gridStroke = checkTheme ? '#C82064' : '#6A2CEB';
+  const leftId = `scLft_${uid}`;
+  const centerId = `scCtr_${uid}`;
+  const rightId = `scRgt_${uid}`;
+  const leftTint = checkTheme ? '#FFB84D' : '#2ED6EA';
+  const centerTint = checkTheme ? '#FF5C8D' : '#7C3CFF';
+  const rightTint = checkTheme ? '#FFD84D' : '#C8FF2E';
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LinearGradient
-        colors={checkTheme ? ['#FFFFFF', '#FFFCFD', '#FFF4F7'] : ['#FFFFFF', '#FDFCFF', '#F6F1FF']}
+        colors={checkTheme ? ['#FFFFFF', '#FFFCFD', '#FFF4F7'] : ['#FFFFFF', '#FDFDFF', '#F5F0FF']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
@@ -215,50 +192,100 @@ export const StudioCardBackdrop = memo(function StudioCardBackdrop({
         style={StyleSheet.absoluteFill}
       >
         <Defs>
-          <RadialGradient id={haloId} cx="50%" cy="34%" rx="46%" ry="38%">
-            <Stop offset="0%" stopColor={haloTint} stopOpacity="0.14" />
-            <Stop offset="56%" stopColor={haloTint} stopOpacity="0.04" />
-            <Stop offset="100%" stopColor={haloTint} stopOpacity="0" />
+          <RadialGradient id={leftId} cx="10%" cy="14%" rx="52%" ry="46%">
+            <Stop offset="0%" stopColor={leftTint} stopOpacity={checkTheme ? '0.24' : '0.22'} />
+            <Stop offset="58%" stopColor={leftTint} stopOpacity="0.06" />
+            <Stop offset="100%" stopColor={leftTint} stopOpacity="0" />
           </RadialGradient>
-          <RadialGradient id={accentId} cx="88%" cy="12%" rx="44%" ry="36%">
-            <Stop offset="0%" stopColor={accentTint} stopOpacity={checkTheme ? '0.16' : '0.2'} />
-            <Stop offset="60%" stopColor={accentTint} stopOpacity="0.04" />
-            <Stop offset="100%" stopColor={accentTint} stopOpacity="0" />
+          <RadialGradient id={centerId} cx="46%" cy="32%" rx="48%" ry="38%">
+            <Stop offset="0%" stopColor={centerTint} stopOpacity="0.16" />
+            <Stop offset="58%" stopColor={centerTint} stopOpacity="0.045" />
+            <Stop offset="100%" stopColor={centerTint} stopOpacity="0" />
           </RadialGradient>
-          <SvgLinearGradient id={curveId} x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor={haloTint} stopOpacity="0" />
-            <Stop offset="45%" stopColor={haloTint} stopOpacity="0.12" />
-            <Stop offset="100%" stopColor={accentTint} stopOpacity="0" />
-          </SvgLinearGradient>
+          <RadialGradient id={rightId} cx="92%" cy="16%" rx="50%" ry="42%">
+            <Stop offset="0%" stopColor={rightTint} stopOpacity={checkTheme ? '0.22' : '0.26'} />
+            <Stop offset="60%" stopColor={rightTint} stopOpacity="0.06" />
+            <Stop offset="100%" stopColor={rightTint} stopOpacity="0" />
+          </RadialGradient>
         </Defs>
-        <Rect x="0" y="0" width="360" height="320" fill={`url(#${haloId})`} />
-        <Rect x="0" y="0" width="360" height="320" fill={`url(#${accentId})`} />
-        <Path
-          d="M36 0V220M72 0V220M108 0V220M144 0V220M180 0V220M216 0V220M252 0V220M288 0V220M324 0V220M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360"
-          stroke={gridStroke}
-          strokeWidth={0.7}
-          strokeOpacity={0.036}
-          fill="none"
-        />
-        <Path
-          d="M-6 146 Q98 96 184 128 T368 94"
-          stroke={`url(#${curveId})`}
-          strokeWidth={1.2}
-          fill="none"
-        />
+        <Rect x="0" y="0" width="360" height="320" fill={`url(#${leftId})`} />
+        <Rect x="0" y="0" width="360" height="320" fill={`url(#${centerId})`} />
+        <Rect x="0" y="0" width="360" height="320" fill={`url(#${rightId})`} />
       </Svg>
     </View>
   );
 });
 
-const styles = StyleSheet.create({
-  bottomRim: {
-    position: 'absolute',
-    left: 28,
-    right: 28,
-    bottom: 1.5,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+export type MissionCardTone = 'quiz' | 'setup' | 'mistakes';
+
+const MISSION_PALETTES: Record<MissionCardTone, {
+  gradient: readonly [string, string, string];
+  leftGlow: string;
+  rightGlow: string;
+}> = {
+  quiz: {
+    gradient: ['#FFFFFF', '#EFFCF7', '#D6F6EB'],
+    leftGlow: '#2EE5B2',
+    rightGlow: '#D8FF3E',
   },
+  setup: {
+    gradient: ['#FFFFFF', '#FFFAF0', '#FFEBB0'],
+    leftGlow: '#FFD55A',
+    rightGlow: '#FF9E68',
+  },
+  mistakes: {
+    gradient: ['#FFFFFF', '#FFF3F6', '#FFDDE8'],
+    leftGlow: '#FF7598',
+    rightGlow: '#FFB46E',
+  },
+};
+
+/**
+ * Velvety luminous pastel Quest backdrop for Home's featured Antrenament /
+ * Alege clasa / Repetă greșelile card: soft pearl-to-pastel gradient and
+ * diffuse SVG radial light — zero drawn lines or grids.
+ */
+export const MissionCardBackdrop = memo(function MissionCardBackdrop({
+  tone = 'quiz',
+}: {
+  tone?: MissionCardTone;
+}) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const leftId = `mcLft_${uid}`;
+  const rightId = `mcRgt_${uid}`;
+  const palette = MISSION_PALETTES[tone];
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <LinearGradient
+        colors={palette.gradient}
+        start={{ x: 0.04, y: 0 }}
+        end={{ x: 0.96, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Svg
+        pointerEvents="none"
+        width="100%"
+        height="100%"
+        viewBox="0 0 360 116"
+        preserveAspectRatio="xMidYMid slice"
+        style={StyleSheet.absoluteFill}
+      >
+        <Defs>
+          <RadialGradient id={leftId} cx="12%" cy="14%" rx="52%" ry="82%">
+            <Stop offset="0%" stopColor={palette.leftGlow} stopOpacity="0.26" />
+            <Stop offset="58%" stopColor={palette.leftGlow} stopOpacity="0.065" />
+            <Stop offset="100%" stopColor={palette.leftGlow} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id={rightId} cx="90%" cy="88%" rx="50%" ry="80%">
+            <Stop offset="0%" stopColor={palette.rightGlow} stopOpacity="0.28" />
+            <Stop offset="60%" stopColor={palette.rightGlow} stopOpacity="0.065" />
+            <Stop offset="100%" stopColor={palette.rightGlow} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="360" height="116" fill={`url(#${leftId})`} />
+        <Rect x="0" y="0" width="360" height="116" fill={`url(#${rightId})`} />
+      </Svg>
+    </View>
+  );
 });

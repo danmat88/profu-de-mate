@@ -83,9 +83,6 @@ export function SpeechBubble({
 
   const cardInner = isSky && !isSkyError ? (
     <View style={styles.skyCopy}>
-      {!compact ? (
-        <View style={[styles.skyAccentDash, { backgroundColor: skyDotColor }]} />
-      ) : null}
       <View style={styles.skyTitleRow}>
         {compact ? <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} /> : null}
         <Text
@@ -194,12 +191,6 @@ const styles = StyleSheet.create({
   skyCopy: {
     minWidth: 0,
     alignItems: 'flex-start',
-  },
-  skyAccentDash: {
-    width: 26,
-    height: 3.5,
-    borderRadius: radii.pill,
-    marginBottom: 6,
   },
   skyTitleRow: {
     flexDirection: 'row',

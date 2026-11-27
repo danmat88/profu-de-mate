@@ -1,7 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useReducedMotion } from '../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../shared/hooks/useResponsiveLayout';
 import {
@@ -13,12 +14,21 @@ import {
 import * as Haptics from '../../shared/services/haptics';
 import { colors, fonts, radii } from '../../shared/theme';
 import { AppIcon, type AppIconName } from '../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface } from '../../shared/ui/CachedRelief';
 import { Text } from '../../shared/ui/Typography';
 
 export type StudioTabId = 'solve' | 'study' | 'notebook';
 
 const PILL_HEIGHT = 64;
 const CAMERA_ORB_SIZE = 64;
+
+const DOCK_OUTSET_SHADOW = '0 6px 12px -3px rgba(24, 8, 82, 0.34), 0 2px 5px rgba(12, 4, 48, 0.20)';
+const DOCK_INSET_SHADOW = 'inset 0 2.5px 5px rgba(214, 188, 255, 0.34), inset 0 -5px 10px rgba(4, 1, 18, 0.65)';
+const ACTIVE_PILL_INSET_SHADOW = 'inset 0 3px 5px rgba(255, 255, 255, 1), inset 0 -4px 7px rgba(120, 68, 228, 0.22)';
+const INACTIVE_ORB_SHADOW = '0 3px 6px rgba(6, 2, 26, 0.32), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -3px 5px rgba(114, 68, 220, 0.22)';
+const CAMERA_ORB_OUTSET_SHADOW = '0 6px 12px -2px rgba(96, 140, 0, 0.34), 0 2px 5px rgba(56, 86, 0, 0.20)';
+const CAMERA_ORB_INSET_SHADOW = 'inset 0 4px 8px rgba(255, 255, 236, 0.86), inset 0 -6px 11px rgba(84, 124, 0, 0.40)';
+const SPARK_BADGE_SHADOW = '0 2px 4px rgba(36, 8, 108, 0.30), inset 0 1.5px 2px rgba(255, 255, 255, 0.4), inset 0 -2px 3px rgba(20, 4, 72, 0.36)';
 
 export const STUDIO_DOCK_HEIGHT = PILL_HEIGHT + 16;
 
@@ -176,13 +186,19 @@ const MorphTabButton = memo(function MorphTabButton({
       ]}
     >
       <Animated.View pointerEvents="none" style={[styles.tabFill, pressStyle]}>
-        {/* Pure crisp white 3D porcelain active pill inside the Royal-Violet capsule */}
+        {/* Sculpted white porcelain 3D active pill inside the Obsidian-Royal capsule */}
         {active ? (
           <Animated.View
             pointerEvents="none"
             style={[styles.activeWhitePill, activePillStyle]}
           >
-            <View style={styles.activeAccentBar} />
+            <LinearGradient
+              colors={['#FFFFFF', '#FAF7FF', '#F2ECFF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <CachedInsetRelief borderRadius={26} shadow={ACTIVE_PILL_INSET_SHADOW} />
           </Animated.View>
         ) : null}
 
@@ -194,7 +210,19 @@ const MorphTabButton = memo(function MorphTabButton({
               iconMotionStyle,
             ]}
           >
-            <AppIcon name={tab.icon} size={active ? (isVeryNarrow ? 28 : 31) : (isVeryNarrow ? 26 : 29)} />
+            {!active ? (
+              <CachedSurface
+                borderRadius={21}
+                backgroundColor="#FBF9FF"
+                shadow={INACTIVE_ORB_SHADOW}
+                padTop={9}
+                padX={11}
+                padBottom={15}
+              />
+            ) : null}
+            <View style={styles.iconFront}>
+              <AppIcon name={tab.icon} size={active ? (isVeryNarrow ? 28 : 31) : (isVeryNarrow ? 26 : 29)} />
+            </View>
             {badgeCount > 0 ? (
               <View collapsable={false} style={[styles.badgePill, active && styles.badgePillActive]}>
                 <Text
@@ -249,6 +277,9 @@ export const StudioTabBar = memo(function StudioTabBar({
   const { contentWidth, gutter, isVeryNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
+  const dockUid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const dockCyanId = `dkCyn_${dockUid}`;
+  const dockLimeId = `dkLim_${dockUid}`;
 
   const isHomeActive = activeTab === 'solve';
   const dockWidth = Math.round(Math.min(contentWidth, 430));
@@ -256,19 +287,17 @@ export const StudioTabBar = memo(function StudioTabBar({
 
   const dockPlayed = useRef(reducedMotion || ready);
   const orbInitialWakeDone = useRef(false);
-  const [dockSettled, setDockSettled] = useState(reducedMotion || ready);
   const dockEnter = useRef(new Animated.Value(reducedMotion || ready ? 1 : 0)).current;
   const orbPress = useRef(new Animated.Value(0)).current;
   const orbPulse = useRef(new Animated.Value(0)).current;
   const orbHaloReveal = useRef(new Animated.Value(0)).current;
 
-  // Glide the Split-Island dock smoothly up from below on a pre-baked GPU texture.
+  // Glide the Split-Island dock smoothly up from below without a hardware texture boundary that clips elevation shadows.
   useEffect(() => {
     if (reducedMotion) {
       dockEnter.stopAnimation();
       dockEnter.setValue(1);
       dockPlayed.current = true;
-      setDockSettled(true);
       return undefined;
     }
     if (!ready) {
@@ -277,7 +306,6 @@ export const StudioTabBar = memo(function StudioTabBar({
     }
     if (dockPlayed.current) {
       dockEnter.setValue(1);
-      setDockSettled(true);
       return undefined;
     }
     dockPlayed.current = true;
@@ -291,14 +319,11 @@ export const StudioTabBar = memo(function StudioTabBar({
         easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       });
-      anim.start(({ finished }) => {
-        if (finished) setDockSettled(true);
-      });
+      anim.start();
     });
     const watchdog = setTimeout(() => {
       dockEnter.stopAnimation();
       dockEnter.setValue(1);
-      setDockSettled(true);
     }, 1_060);
 
     return () => {
@@ -452,43 +477,73 @@ export const StudioTabBar = memo(function StudioTabBar({
       ) : null}
 
       <Animated.View
-        renderToHardwareTextureAndroid={!dockSettled && !reducedMotion}
         style={[styles.splitRow, { width: dockWidth }, dockEnterStyle]}
       >
-        {/* Left Island: Jewel-grade Royal-Violet 3D Floating Capsule with porcelain active pill */}
-        <View
-          collapsable={false}
-          accessibilityRole="tablist"
-          style={styles.pillIsland}
-        >
-          <LinearGradient
-            colors={['#3A198E', '#240D61', '#160640']}
-            start={{ x: 0.05, y: 0 }}
-            end={{ x: 0.95, y: 1 }}
-            style={StyleSheet.absoluteFill}
+        {/* Left Island: Sculpted Obsidian-Royal 3D Floating Capsule with porcelain active pill */}
+        <View style={styles.pillIslandShadow}>
+          <CachedOutsetShadow
+            borderRadius={32}
+            shadow={DOCK_OUTSET_SHADOW}
+            padTop={16}
+            padX={20}
+            padBottom={28}
           />
-          <View pointerEvents="none" style={styles.pillAmbientGlow} />
-          <View pointerEvents="none" style={styles.pillIslandShine} />
+          <View
+            collapsable={false}
+            accessibilityRole="tablist"
+            style={styles.pillIsland}
+          >
+            <LinearGradient
+              colors={['#3A198E', '#240D61', '#15063D']}
+              start={{ x: 0.04, y: 0 }}
+              end={{ x: 0.96, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Svg
+              pointerEvents="none"
+              width="100%"
+              height="100%"
+              viewBox="0 0 280 64"
+              preserveAspectRatio="none"
+              style={StyleSheet.absoluteFill}
+            >
+              <Defs>
+                <RadialGradient id={dockCyanId} cx="18%" cy="10%" rx="48%" ry="85%">
+                  <Stop offset="0%" stopColor="#8F54FF" stopOpacity="0.4" />
+                  <Stop offset="62%" stopColor="#43D6E6" stopOpacity="0.1" />
+                  <Stop offset="100%" stopColor="#43D6E6" stopOpacity="0" />
+                </RadialGradient>
+                <RadialGradient id={dockLimeId} cx="94%" cy="55%" rx="34%" ry="80%">
+                  <Stop offset="0%" stopColor="#D8FF3E" stopOpacity="0.22" />
+                  <Stop offset="60%" stopColor="#D8FF3E" stopOpacity="0.05" />
+                  <Stop offset="100%" stopColor="#D8FF3E" stopOpacity="0" />
+                </RadialGradient>
+              </Defs>
+              <Rect x={0} y={0} width={280} height={64} fill={`url(#${dockCyanId})`} />
+              <Rect x={0} y={0} width={280} height={64} fill={`url(#${dockLimeId})`} />
+            </Svg>
+            <CachedInsetRelief borderRadius={31} shadow={DOCK_INSET_SHADOW} zIndex={1} />
 
-          {TABS.map((tab) => {
-            const active = tab.id === activeTab;
-            return (
-              <MorphTabButton
-                key={tab.id}
-                tab={tab}
-                active={active}
-                badgeCount={tab.id === 'notebook' ? notebookBadgeCount : 0}
-                showDot={tab.id === 'study' && studyDot && !active}
-                isVeryNarrow={isVeryNarrow}
-                reducedMotion={reducedMotion}
-                onPress={() => {
-                  if (active) return;
-                  Haptics.selection();
-                  onSelect(tab.id);
-                }}
-              />
-            );
-          })}
+            {TABS.map((tab) => {
+              const active = tab.id === activeTab;
+              return (
+                <MorphTabButton
+                  key={tab.id}
+                  tab={tab}
+                  active={active}
+                  badgeCount={tab.id === 'notebook' ? notebookBadgeCount : 0}
+                  showDot={tab.id === 'study' && studyDot && !active}
+                  isVeryNarrow={isVeryNarrow}
+                  reducedMotion={reducedMotion}
+                  onPress={() => {
+                    if (active) return;
+                    Haptics.selection();
+                    onSelect(tab.id);
+                  }}
+                />
+              );
+            })}
+          </View>
         </View>
 
         {/* Right Detached Island: Always-Ready Floating Electric-Lime 3D Quick-Camera Orb */}
@@ -506,18 +561,39 @@ export const StudioTabBar = memo(function StudioTabBar({
             }}
             style={styles.cameraHitTarget}
           >
-            <Animated.View pointerEvents="none" style={[styles.cameraOrb, orbMotionStyle]}>
-              <LinearGradient
-                colors={['#F4FF8C', '#D8FF3E', '#B5E808']}
-                start={{ x: 0.12, y: 0 }}
-                end={{ x: 0.88, y: 1 }}
-                style={StyleSheet.absoluteFill}
+            <Animated.View pointerEvents="none" style={[styles.cameraOrbShadow, orbMotionStyle]}>
+              <CachedOutsetShadow
+                borderRadius={CAMERA_ORB_SIZE / 2}
+                shadow={CAMERA_ORB_OUTSET_SHADOW}
+                padTop={16}
+                padX={20}
+                padBottom={28}
               />
-              <View style={styles.cameraOrbShine} />
-              <AppIcon name="camera" size={39} />
+              <View style={styles.cameraOrb}>
+                <LinearGradient
+                  colors={['#F2FF82', '#D8FF3E', '#B2E408']}
+                  start={{ x: 0.14, y: 0 }}
+                  end={{ x: 0.86, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <CachedInsetRelief borderRadius={CAMERA_ORB_SIZE / 2} shadow={CAMERA_ORB_INSET_SHADOW} />
+                <View style={styles.iconFront}>
+                  <AppIcon name="camera" size={39} />
+                </View>
+              </View>
             </Animated.View>
           </Pressable>
           <View pointerEvents="none" style={styles.cameraSparkBadge}>
+            <CachedSurface
+              borderRadius={10}
+              backgroundColor={colors.violet}
+              borderWidth={2}
+              borderColor="#FFFFFF"
+              shadow={SPARK_BADGE_SHADOW}
+              padTop={7}
+              padX={8}
+              padBottom={11}
+            />
             <Text accessible={false} style={styles.cameraSparkGlyph}>✦</Text>
           </View>
         </View>
@@ -547,49 +623,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 11,
   },
-  pillIsland: {
+  pillIslandShadow: {
     flex: 1,
     minWidth: 0,
     height: PILL_HEIGHT,
-    padding: 5.5,
+    position: 'relative',
+  },
+  pillIsland: {
+    flex: 1,
     borderRadius: 32,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: 'rgba(186, 152, 255, 0.36)',
-    borderBottomColor: '#0A0322',
+    padding: 5.5,
+    borderWidth: 1,
+    borderColor: 'rgba(196, 166, 255, 0.26)',
     backgroundColor: '#1E0B52',
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 5,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#250976',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 16,
-  },
-  pillAmbientGlow: {
-    position: 'absolute',
-    width: 140,
-    height: 90,
-    borderRadius: 60,
-    top: -42,
-    right: -12,
-    backgroundColor: 'rgba(216, 255, 62, 0.16)',
-  },
-  pillIslandShine: {
-    position: 'absolute',
-    top: 1,
-    left: 26,
-    right: 26,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
+    zIndex: 1,
   },
   tabButton: {
     minWidth: 0,
     alignItems: 'stretch',
     justifyContent: 'center',
+    zIndex: 2,
   },
   tabButtonActive: {
     flex: 2.08,
@@ -611,19 +669,7 @@ const styles = StyleSheet.create({
     left: 0,
     borderRadius: 26,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#D6C4FA',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 3,
-  },
-  activeAccentBar: {
-    width: 20,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.lime,
+    overflow: 'hidden',
   },
   tabInner: {
     flexDirection: 'row',
@@ -635,7 +681,6 @@ const styles = StyleSheet.create({
   tabInnerActive: {
     gap: 7,
     paddingHorizontal: 11,
-    paddingBottom: 2,
   },
   iconWrap: {
     width: 34,
@@ -650,9 +695,11 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    borderWidth: 1.8,
-    borderColor: 'rgba(255, 255, 255, 0.34)',
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  },
+  iconFront: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   activeLabel: {
     fontFamily: fonts.display,
@@ -729,30 +776,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cameraOrbShadow: {
+    width: CAMERA_ORB_SIZE,
+    height: CAMERA_ORB_SIZE,
+    position: 'relative',
+  },
   cameraOrb: {
     width: CAMERA_ORB_SIZE,
     height: CAMERA_ORB_SIZE,
     borderRadius: CAMERA_ORB_SIZE / 2,
-    borderWidth: 2.5,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
-    borderBottomWidth: 5,
-    borderBottomColor: '#84AD00',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: '#5B8000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.26,
-    shadowRadius: 8,
-  },
-  cameraOrbShine: {
-    position: 'absolute',
-    top: 3,
-    left: 13,
-    right: 13,
-    height: 11,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    position: 'relative',
+    zIndex: 1,
   },
   cameraSparkBadge: {
     position: 'absolute',
@@ -761,9 +800,6 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: colors.violet,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 5,
@@ -774,5 +810,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     lineHeight: 12,
     includeFontPadding: false,
+    zIndex: 2,
   },
 });

@@ -12,6 +12,7 @@ import {
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors, fonts, radii } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface } from './CachedRelief';
 import { Text } from './Typography';
 
 export type SegmentedOption<T extends string> = {
@@ -37,8 +38,15 @@ type Props<T extends string> = {
   style?: StyleProp<ViewStyle>;
 };
 
-const TRACK_PADDING = 4;
-const TRACK_BORDER = 1;
+const TRACK_OUTSET_SHADOW = '0 5px 10px -2px rgba(56, 18, 160, 0.14), 0 2px 4px rgba(56, 18, 160, 0.08)';
+const TRACK_RECESS_SHADOW = 'inset 0 2.5px 6px rgba(66, 22, 178, 0.13), inset 0 -2px 4px rgba(255, 255, 255, 0.94)';
+const PILL_OUTSET_SHADOW = '0 2px 5px -1px rgba(60, 16, 176, 0.28), 0 1px 2px rgba(28, 6, 98, 0.16)';
+const PILL_INSET_SHADOW = 'inset 0 3px 5px rgba(255, 255, 255, 0.44), inset 0 -4px 8px rgba(18, 4, 68, 0.34)';
+const ICON_WELL_ACTIVE_SHADOW = '0 2px 4px rgba(34, 8, 108, 0.18), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -2px 3.5px rgba(108, 66, 212, 0.15)';
+const ICON_WELL_INACTIVE_SHADOW = '0 2px 4px rgba(64, 24, 172, 0.11), inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -2px 3.5px rgba(114, 72, 220, 0.12)';
+
+const TRACK_PADDING = 4.5;
+const TRACK_BORDER = 1.5;
 const PRESS_RETENTION = { top: 28, bottom: 28, left: 28, right: 28 };
 
 type SegmentItemProps<T extends string> = {
@@ -77,7 +85,19 @@ function SegmentItem<T extends string>({
       ]}
     >
       <View pointerEvents="none" style={styles.tabContent}>
-        <AppIcon name={option.icon} size={compact ? 21 : 25} />
+        <View style={[styles.iconWell, compact && styles.iconWellCompact]}>
+          <CachedSurface
+            borderRadius={compact ? 9 : 12}
+            backgroundColor="#FFFFFF"
+            shadow={active ? ICON_WELL_ACTIVE_SHADOW : ICON_WELL_INACTIVE_SHADOW}
+            padTop={8}
+            padX={9}
+            padBottom={12}
+          />
+          <View style={styles.iconFront}>
+            <AppIcon name={option.icon} size={compact ? 19 : 23} />
+          </View>
+        </View>
         <View style={styles.labelColumn}>
           <View style={styles.labelRow}>
             <Text
@@ -116,9 +136,9 @@ function SegmentItem<T extends string>({
 }
 
 /**
- * Ceramic-clean architectural dual-mode switcher driven by pure native-driver
- * spring motion with a multi-stop gradient indicator and crisp micro-subtitles
- * — zero chunky borders, zero nested icon boxes, zero Reanimated overhead.
+ * Sculpted flagship dual-mode studio switcher driven by pure native-driver
+ * spring motion with rich multi-stop gradient indicator, icon wells, and
+ * micro-subtitles — zero elevation overdraw and zero Reanimated overhead.
  */
 export function SegmentedToggle<T extends string>({
   options,
@@ -187,31 +207,67 @@ export function SegmentedToggle<T extends string>({
         style,
       ]}
     >
+      <CachedOutsetShadow
+        borderRadius={hasSubtitle ? 24 : 25}
+        shadow={TRACK_OUTSET_SHADOW}
+        padTop={14}
+        padX={18}
+        padBottom={24}
+      />
       <View
         collapsable={false}
         onLayout={handleLayout}
         style={[styles.track, hasSubtitle && styles.trackRich]}
       >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#EFE7FF', '#F7F3FF', '#FFFFFF']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <CachedInsetRelief
+          borderRadius={hasSubtitle ? 23 : 24}
+          shadow={TRACK_RECESS_SHADOW}
+          zIndex={0}
+        />
+
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
-              styles.pill,
-              hasSubtitle && styles.pillRich,
+              styles.pillWrap,
               {
                 width: pillWidth,
-                backgroundColor: activeOption.activeFill,
                 transform: [{ translateX: slideX }],
               },
             ]}
           >
-            <LinearGradient
-              colors={gradientColors}
-              start={{ x: 0.06, y: 0 }}
-              end={{ x: 0.94, y: 1 }}
-              style={StyleSheet.absoluteFill}
+            <CachedOutsetShadow
+              borderRadius={hasSubtitle ? 19 : 20}
+              shadow={PILL_OUTSET_SHADOW}
+              padTop={8}
+              padX={10}
+              padBottom={12}
             />
-            <View style={styles.pillGloss} />
+            <View
+              style={[
+                styles.pill,
+                hasSubtitle && styles.pillRich,
+                { backgroundColor: activeOption.activeFill },
+              ]}
+            >
+              <LinearGradient
+                colors={gradientColors}
+                start={{ x: 0.06, y: 0 }}
+                end={{ x: 0.94, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <CachedInsetRelief
+                borderRadius={hasSubtitle ? 19 : 20}
+                shadow={PILL_INSET_SHADOW}
+              />
+            </View>
           </Animated.View>
         ) : null}
 
@@ -241,53 +297,45 @@ export function SegmentedToggle<T extends string>({
 
 const styles = StyleSheet.create({
   outer: {
-    height: 48,
+    height: 50,
+    borderRadius: 25,
     position: 'relative',
     flexShrink: 0,
   },
   outerRich: {
-    height: 54,
+    height: 58,
+    borderRadius: 24,
   },
   outerCompact: {
-    height: 42,
+    height: 43,
   },
   track: {
     flex: 1,
     padding: TRACK_PADDING,
-    borderRadius: 22,
+    borderRadius: 25,
     borderWidth: TRACK_BORDER,
-    borderColor: '#E9E0FA',
-    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+    backgroundColor: '#F6F1FF',
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#3B11A8',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
   },
   trackRich: {
-    borderRadius: 21,
+    borderRadius: 24,
   },
-  pill: {
+  pillWrap: {
     position: 'absolute',
     top: TRACK_PADDING,
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
     zIndex: 1,
-    borderRadius: 17,
+  },
+  pill: {
+    flex: 1,
+    borderRadius: 20,
     overflow: 'hidden',
   },
   pillRich: {
-    borderRadius: 17,
-  },
-  pillGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 18,
-    right: 18,
-    height: 1.5,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
+    borderRadius: 19,
   },
   tabsRow: {
     flex: 1,
@@ -308,6 +356,25 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 10,
   },
+  iconWell: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    flexShrink: 0,
+  },
+  iconWellCompact: {
+    width: 26,
+    height: 26,
+    borderRadius: 9,
+  },
+  iconFront: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   labelColumn: {
     flexShrink: 1,
     minWidth: 0,
@@ -322,8 +389,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 15.5,
-    lineHeight: 18.5,
+    fontSize: 16,
+    lineHeight: 19,
     letterSpacing: -0.2,
     includeFontPadding: false,
   },
@@ -332,8 +399,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   activeDot: {
-    width: 5.5,
-    height: 5.5,
+    width: 6,
+    height: 6,
     borderRadius: 3,
     flexShrink: 0,
   },
@@ -345,7 +412,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   subtitleActive: {
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: 'rgba(255, 255, 255, 0.84)',
   },
   subtitleInactive: {
     color: colors.inkSoft,
