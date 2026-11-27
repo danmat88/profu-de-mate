@@ -26,11 +26,13 @@ test('does not expose an unexpected provider error message to the user', () => {
 });
 
 test('AI practice and exam grading error mappers never return raw error.message verbatim and exempt server-wide temporary limits from Paywall', async () => {
-  const [practiceSource, gradingSource, processingSource, mathProcessingSource, sheetSource, examSimSource] = await Promise.all([
+  const [practiceSource, gradingSource, processingSource, mathProcessingSource, mathInputSource, reviewSource, sheetSource, examSimSource] = await Promise.all([
     readFile(new URL('../../src/features/practice/services/aiPractice.ts', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/exams/services/examGrading.ts', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/analysis/screens/ProcessingScreen.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/analysis/screens/MathProcessingScreen.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/math/screens/MathInputScreen.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/capture/screens/ReviewScreen.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/practice/components/AiPracticeSheet.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/features/exams/screens/ExamSimulationScreen.tsx', import.meta.url), 'utf8'),
   ]);
@@ -40,7 +42,7 @@ test('AI practice and exam grading error mappers never return raw error.message 
   assert.match(practiceSource, /app-check/);
   assert.match(gradingSource, /app-check/);
 
-  for (const screen of [processingSource, mathProcessingSource, sheetSource, examSimSource]) {
+  for (const screen of [processingSource, mathProcessingSource, mathInputSource, reviewSource, sheetSource, examSimSource]) {
     assert.match(screen, /isTemporaryCommercialLimit/);
   }
 });

@@ -18,7 +18,7 @@ import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
-import { commercialGateFromError, preflightAnalysisAccess } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit, preflightAnalysisAccess } from '../../access/services/commercial';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
 import { getPreparedPendingAnalysis, savePendingWrittenMath } from '../../analysis/services/pendingAnalysis';
 import { MathEditor, type MathEditorExample } from '../components/MathEditor';
@@ -318,10 +318,17 @@ export function MathInputScreen({ navigation, route }: Props) {
     } catch (cause) {
       if (!focused.current) return;
       const gate = commercialGateFromError(cause);
-      if (gate) navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
-      else setError(cause instanceof Error && cause.message === 'pending-write'
-        ? 'Nu am putut păstra problema pe telefon. Verifică spațiul disponibil și încearcă din nou.'
-        : 'Nu am putut porni analiza. Verifică internetul și încearcă din nou.');
+      if (gate) {
+        if (isTemporaryCommercialLimit(gate.reason)) {
+          setError(gate.message);
+        } else {
+          navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
+        }
+      } else {
+        setError(cause instanceof Error && cause.message === 'pending-write'
+          ? 'Nu am putut păstra problema pe telefon. Verifică spațiul disponibil și încearcă din nou.'
+          : 'Nu am putut porni analiza. Verifică internetul și încearcă din nou.');
+      }
     } finally {
       inFlight.current = false;
       if (focused.current) setBusy(false);

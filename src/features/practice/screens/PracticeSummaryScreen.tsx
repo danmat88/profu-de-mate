@@ -55,6 +55,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
     (item) => !item.correct && Boolean(getPracticeQuestionById(item.questionId)),
   ).length;
   const streakDays = getActiveStreakDays(practiceState);
+  const displayStreak = Math.max(1, streakDays);
   const repeatSessionLabel = mode === 'category'
     ? 'Încă un test pe capitol'
     : mode === 'formula'
@@ -172,9 +173,9 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
           </View>
           <View style={[styles.statChip, styles.statChipLime]}>
             <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.statValue}>
-              🔥 {Math.max(1, streakDays)}
+              🔥 {displayStreak}
             </Text>
-            <Text style={styles.statLabel}>{streakDays === 1 ? 'Zi serie' : 'Zile serie'}</Text>
+            <Text style={styles.statLabel}>{displayStreak === 1 ? 'Zi serie' : 'Zile serie'}</Text>
           </View>
         </View>
       </View>

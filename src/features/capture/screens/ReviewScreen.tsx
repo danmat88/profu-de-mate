@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, View } from 'react-native';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { ImageCropEditor } from '../components/ImageCropEditor';
-import { commercialGateFromError, preflightAnalysisAccess } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit, preflightAnalysisAccess } from '../../access/services/commercial';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
 import { clearPendingAnalysis, getPreparedPendingAnalysis, savePendingAnalysis } from '../../analysis/services/pendingAnalysis';
@@ -111,9 +111,13 @@ export function ReviewScreen({ navigation, route }: Props) {
       }
       const gate = commercialGateFromError(error);
       if (gate) {
-        setPreflighting(false);
-        beginAppTransition();
-        navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
+        if (isTemporaryCommercialLimit(gate.reason)) {
+          setAccessError(gate.message);
+        } else {
+          setPreflighting(false);
+          beginAppTransition();
+          navigation.navigate('Paywall', { source: 'quota', ...(gate.access ? { access: gate.access } : {}) });
+        }
       } else {
         recordDiagnosticError('commercial_preflight', error);
         setAccessError('Nu am putut porni analiza. Verifică internetul și încearcă din nou.');
