@@ -63,22 +63,16 @@ const MOOD_ACCENT: Record<SplashTimeOfDay, { topLeft: string; bottomRight: strin
 };
 
 /**
- * Single-pass static SVG studio atmosphere rendered once onto GPU texture:
- * true multi-stop optical RadialGradients (zero hard circular edges) +
- * razor-delicate mathematical coordinate grid and drafting crosshairs.
+ * Static mathematical coordinate grid + subtle drafting crosshairs rendered once
+ * onto GPU texture so it can materialize with zero per-frame JS work.
  */
-const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
+const SplashMathGridSvg = memo(function SplashMathGridSvg({
   width,
   height,
-  owlCenterY,
-  period,
 }: {
   width: number;
   height: number;
-  owlCenterY: number;
-  period: SplashTimeOfDay;
 }) {
-  const accent = MOOD_ACCENT[period];
   const { gridPath, crosshairPath } = useMemo(() => {
     const step = 36;
     const cols = Math.ceil(width / step);
@@ -95,7 +89,6 @@ const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
       lines.push(`M0 ${y}H${width}`);
     }
 
-    // Subtle architectural drafting crosshairs framing the hero axis.
     const marks: string[] = [];
     const points = [
       [Math.round(width * 0.16), Math.round(height * 0.2)],
@@ -116,8 +109,39 @@ const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
       height={height}
       style={StyleSheet.absoluteFill}
     >
+      <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.055} fill="none" />
+      <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.3} fill="none" />
+    </Svg>
+  );
+});
+
+/**
+ * True multi-stop optical SVG RadialGradients (zero hard circular edges):
+ * central studio spotlight behind Profu + time-of-day corner rim lighting +
+ * soft floor shadow beneath the floating owl.
+ */
+const SplashStudioLightsSvg = memo(function SplashStudioLightsSvg({
+  width,
+  height,
+  owlCenterY,
+  period,
+}: {
+  width: number;
+  height: number;
+  owlCenterY: number;
+  period: SplashTimeOfDay;
+}) {
+  const accent = MOOD_ACCENT[period];
+
+  return (
+    <Svg
+      pointerEvents="none"
+      width={width}
+      height={height}
+      style={StyleSheet.absoluteFill}
+    >
       <Defs>
-        {/* True Gaussian-style optical spotlight behind Profu — zero visible circle edge */}
+        {/* Optical spotlight behind Profu — smooth Gaussian falloff, zero visible circle edge */}
         <RadialGradient
           id="splashOwlGlow"
           cx="50%"
@@ -125,22 +149,22 @@ const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
           rx="54%"
           ry="34%"
         >
-          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.26" />
-          <Stop offset="34%" stopColor="#D8FF3E" stopOpacity="0.14" />
+          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.28" />
+          <Stop offset="34%" stopColor="#D8FF3E" stopOpacity="0.15" />
           <Stop offset="68%" stopColor="#9B58FF" stopOpacity="0.06" />
           <Stop offset="100%" stopColor="#5218D2" stopOpacity="0" />
         </RadialGradient>
 
         {/* Time-of-day atmospheric studio key light (top-left) */}
         <RadialGradient id="splashCornerTop" cx="8%" cy="6%" rx="58%" ry="38%">
-          <Stop offset="0%" stopColor={accent.topLeft} stopOpacity="0.22" />
-          <Stop offset="55%" stopColor={accent.topLeft} stopOpacity="0.06" />
+          <Stop offset="0%" stopColor={accent.topLeft} stopOpacity="0.24" />
+          <Stop offset="55%" stopColor={accent.topLeft} stopOpacity="0.065" />
           <Stop offset="100%" stopColor={accent.topLeft} stopOpacity="0" />
         </RadialGradient>
 
         {/* Warm Electric-Lime rim light (bottom-right) */}
         <RadialGradient id="splashCornerBottom" cx="92%" cy="88%" rx="56%" ry="36%">
-          <Stop offset="0%" stopColor={accent.bottomRight} stopOpacity="0.16" />
+          <Stop offset="0%" stopColor={accent.bottomRight} stopOpacity="0.17" />
           <Stop offset="52%" stopColor={accent.bottomRight} stopOpacity="0.05" />
           <Stop offset="100%" stopColor={accent.bottomRight} stopOpacity="0" />
         </RadialGradient>
@@ -161,8 +185,6 @@ const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
 
       <Rect x={0} y={0} width={width} height={height} fill="url(#splashCornerTop)" />
       <Rect x={0} y={0} width={width} height={height} fill="url(#splashCornerBottom)" />
-      <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.052} fill="none" />
-      <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.28} fill="none" />
       <Rect x={0} y={0} width={width} height={height} fill="url(#splashOwlGlow)" />
       <Rect x={0} y={0} width={width} height={height} fill="url(#splashOwlFloor)" />
     </Svg>
@@ -171,17 +193,15 @@ const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
 
 /**
  * Flagship "Royal-Violet Studio Curtain" launch splash:
- * - Opens seamlessly from Android's warm cream native splash (#FFF8EC) with zero flash.
- * - Sweeps in a jewel Royal-Violet architectural math studio with true optical SVG
- *   RadialGradients (zero stacked flat CSS circles), Pixar squash-and-stretch owl,
- *   electric-lime marker wordmark, and a minimalist 4px shimmer ribbon (no fake %
- *   counters or technical installer checklists).
- * - Adapts cadence automatically: rich ~1.15s cinema showcase on first launch
- *   (onboarding), crisp ~0.82s signature sting on daily returns.
- * - Morphs on exit: the full-screen Royal-Violet stage physically pulls upward like
- *   a curved studio curtain right into the top Royal-Violet canopy of Onboarding/Home
- *   while Profu glides smoothly onto the top-right canopy perch — 100% pure native
- *   driver on Android RenderThread (zero Reanimated).
+ * - Frame 0 matches Android's native splash color (#5218D2) pixel-for-pixel so
+ *   native -> React handoff is 100% invisible (zero flash, zero color jump).
+ * - Inside that exact Royal-Violet room, the 4-stop studio gradient, architectural
+ *   math coordinate grid, and true optical SVG radial lights smoothly bloom ON,
+ *   followed by Profu's Pixar squash-and-stretch entrance, Electric-Lime marker
+ *   wordmark, and a minimalist 4px liquid shimmer ribbon.
+ * - On exit, the full-screen Royal-Violet Curtain smoothly retracts upward into
+ *   the curved top canopy of Onboarding or Home while Profu glides onto his
+ *   top-right canopy perch — 100% pure native driver (zero Reanimated).
  */
 export function LaunchSplash({
   ready,
@@ -204,10 +224,11 @@ export function LaunchSplash({
   const [introStarted, setIntroStarted] = useState(reducedMotion);
   const [introComplete, setIntroComplete] = useState(reducedMotion);
   const [passThrough, setPassThrough] = useState(false);
-  const [underlayCleared, setUnderlayCleared] = useState(reducedMotion);
 
   // Pure native-driver Animated values (100% Android RenderThread, 0 Reanimated worklets).
-  const curtainEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const gradientReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const gridReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const lightReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const owlEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const copyEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const underlineReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -252,7 +273,7 @@ export function LaunchSplash({
   const owlExitTargetY = -Math.round(Math.max(145, owlCenterY - (insets.top + (onboardingPending ? 96 : 114))));
 
   // Smart rhythm: cinema-rich on first launch (onboarding), blazing-fast sting on daily returns.
-  const introSettleMs = onboardingPending ? 880 : 560;
+  const introSettleMs = onboardingPending ? 920 : 600;
   const celebrateBeatMs = onboardingPending ? 290 : 210;
 
   introSettledRef.current = onIntroSettled;
@@ -280,11 +301,10 @@ export function LaunchSplash({
     finishRef.current();
   }, [notifyIntroSettledOnce, notifyRevealOnce]);
 
-  // Hide Android native splash once the warm canvas and owl artwork are decoded, then play clean studio sting.
+  // Hide native splash seamlessly over matching #5218D2 base, then illuminate the studio stage layer by layer.
   useEffect(() => {
     if (!sceneReady || !imageReady || !visualsReady) return undefined;
     let active = true;
-    let underlayTimer: ReturnType<typeof setTimeout> | undefined;
     let introTimer: ReturnType<typeof setTimeout> | undefined;
     let ambientTimer: ReturnType<typeof setTimeout> | undefined;
     const oneShotAnims: Animated.CompositeAnimation[] = [];
@@ -316,27 +336,27 @@ export function LaunchSplash({
       setIntroStarted(true);
 
       if (reducedMotion) {
-        curtainEnter.setValue(1);
+        gradientReveal.setValue(1);
+        gridReveal.setValue(1);
+        lightReveal.setValue(1);
         owlEnter.setValue(1);
         copyEnter.setValue(1);
         underlineReveal.setValue(1);
         ribbonEnter.setValue(1);
-        setUnderlayCleared(true);
         notifyIntroSettledOnce();
         return;
       }
 
-      // Crisp 4-beat studio logo sting: Royal-Violet stage -> Pixar owl -> wordmark -> Electric-Lime slash -> 4px ribbon.
-      startTiming(curtainEnter, 1, 300, 0);
-      startTiming(owlEnter, 1, 560, 60);
-      startTiming(copyEnter, 1, 460, 190);
-      startTiming(underlineReveal, 1, 420, 310);
-      startTiming(ribbonEnter, 1, 380, 380);
-
-      // Quietly clear the warm-cream Frame-0 underlay once the Royal-Violet curtain fully covers the viewport.
-      underlayTimer = setTimeout(() => {
-        if (active) setUnderlayCleared(true);
-      }, 330);
+      // Seamless "studio lights turning on" choreography over the exact #5218D2 native surface:
+      // 1) 4-stop Royal-Violet gradient blooms -> 2) fine math grid settles in -> 3) optical radial lights illuminate ->
+      // 4) Profu lands with Pixar squash-and-stretch -> 5) wordmark + lime marker slash -> 6) 4px shimmer ribbon.
+      startTiming(gradientReveal, 1, 460, 0);
+      startTiming(gridReveal, 1, 520, 55);
+      startTiming(lightReveal, 1, 540, 85);
+      startTiming(owlEnter, 1, 560, 110);
+      startTiming(copyEnter, 1, 460, 235);
+      startTiming(underlineReveal, 1, 410, 350);
+      startTiming(ribbonEnter, 1, 360, 410);
 
       // Gentle RenderThread living float engages smoothly after the owl settles.
       ambientTimer = setTimeout(() => {
@@ -345,25 +365,21 @@ export function LaunchSplash({
         loops.push(loop);
         ambientLoopsRef.current.push(loop);
         loop.start();
-      }, 580);
+      }, 640);
 
-      // Mount destination screen behind the opaque Royal-Violet curtain right as the sting settles.
+      // Mount destination screen behind the opaque Royal-Violet curtain once the studio reveal settles.
       introTimer = setTimeout(() => {
         if (active) notifyIntroSettledOnce();
       }, introSettleMs);
     });
 
     const introFallback = setTimeout(() => {
-      if (active) {
-        setUnderlayCleared(true);
-        notifyIntroSettledOnce();
-      }
-    }, 1_400);
+      if (active) notifyIntroSettledOnce();
+    }, 1_450);
 
     return () => {
       active = false;
       cancelAnimationFrame(frame);
-      if (underlayTimer) clearTimeout(underlayTimer);
       if (introTimer) clearTimeout(introTimer);
       if (ambientTimer) clearTimeout(ambientTimer);
       clearTimeout(introFallback);
@@ -374,10 +390,12 @@ export function LaunchSplash({
     };
   }, [
     copyEnter,
-    curtainEnter,
     floatPhase,
+    gradientReveal,
+    gridReveal,
     imageReady,
     introSettleMs,
+    lightReveal,
     notifyIntroSettledOnce,
     owlEnter,
     reducedMotion,
@@ -442,7 +460,6 @@ export function LaunchSplash({
       finishOnce();
       return undefined;
     }
-    setUnderlayCleared(true);
     let revealTimer: ReturnType<typeof setTimeout> | undefined;
     let passThroughTimer: ReturnType<typeof setTimeout> | undefined;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -540,22 +557,35 @@ export function LaunchSplash({
   }, [finishOnce, imageReady, nativeSplashHidden, ready, sceneReady, visualsReady]);
 
   // Strictly memoized Fabric-safe native interpolations.
-  const curtainEnterStyle = useMemo(() => ({
-    opacity: curtainEnter.interpolate({
-      inputRange: [0, 0.72, 1],
-      outputRange: [0, 1, 1],
-      extrapolate: 'clamp',
-    }),
+  const gradientRevealStyle = useMemo(() => ({
+    opacity: gradientReveal,
+  }), [gradientReveal]);
+
+  const gridRevealStyle = useMemo(() => ({
+    opacity: gridReveal,
     transform: [
       {
-        translateY: curtainEnter.interpolate({
+        scale: gridReveal.interpolate({
           inputRange: [0, 1],
-          outputRange: [-24, 0],
+          outputRange: [1.045, 1],
           extrapolate: 'clamp',
         }),
       },
     ],
-  }), [curtainEnter]);
+  }), [gridReveal]);
+
+  const lightRevealStyle = useMemo(() => ({
+    opacity: lightReveal,
+    transform: [
+      {
+        scale: lightReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.88, 1],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [lightReveal]);
 
   // Curtain pulls smoothly upward to exact targetCanopyHeight, then cross-dissolves flush into destination canopy.
   const curtainMorphStyle = useMemo(() => ({
@@ -821,12 +851,9 @@ export function LaunchSplash({
       pointerEvents={passThrough ? 'none' : 'auto'}
       style={styles.root}
     >
-      <StatusBar style={underlayCleared ? 'light' : 'dark'} />
+      <StatusBar style="light" />
 
-      {/* Warm cream Frame-0 underlay matching Android native splash seamlessly */}
-      {!underlayCleared ? <View pointerEvents="none" style={styles.nativeCanvasUnderlay} /> : null}
-
-      {/* Full-bleed curved Royal-Violet Curtain that retracts upward into the destination canopy */}
+      {/* Full-bleed curved Royal-Violet Curtain anchored on exact native #5218D2 for zero-flash handoff */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -835,23 +862,39 @@ export function LaunchSplash({
           curtainMorphStyle,
         ]}
       >
-        <Animated.View style={[styles.curtainSurface, curtainEnterStyle]}>
-          <LinearGradient
-            colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
-            start={{ x: 0.08, y: 0 }}
-            end={{ x: 0.92, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          {visualsReady ? (
-            <SplashStudioAtmosphere
-              width={width}
-              height={curtainHeight}
-              owlCenterY={owlCenterY}
-              period={mood.period}
+        {/* Solid #5218D2 base matches Android native splash pixel-for-pixel on Frame 0 */}
+        <View style={styles.curtainSurface}>
+          {/* Layer 1: 4-stop Royal-Violet gradient gently illuminates over the solid native base */}
+          <Animated.View style={[StyleSheet.absoluteFill, gradientRevealStyle]}>
+            <LinearGradient
+              colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={StyleSheet.absoluteFill}
             />
+          </Animated.View>
+
+          {/* Layer 2: Fine architectural math grid settles gently into depth */}
+          {visualsReady ? (
+            <Animated.View style={[StyleSheet.absoluteFill, gridRevealStyle]}>
+              <SplashMathGridSvg width={width} height={curtainHeight} />
+            </Animated.View>
           ) : null}
-          <View style={styles.curtainBottomRim} />
-        </Animated.View>
+
+          {/* Layer 3: Optical SVG RadialGradient studio lights bloom softly behind Profu */}
+          {visualsReady ? (
+            <Animated.View style={[StyleSheet.absoluteFill, lightRevealStyle]}>
+              <SplashStudioLightsSvg
+                width={width}
+                height={curtainHeight}
+                owlCenterY={owlCenterY}
+                period={mood.period}
+              />
+            </Animated.View>
+          ) : null}
+
+          <Animated.View style={[styles.curtainBottomRim, gradientRevealStyle]} />
+        </View>
       </Animated.View>
 
       {/* Foreground hero stage: owl stays unclipped above the retracting curtain during flight */}
@@ -950,14 +993,6 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     overflow: 'hidden',
   },
-  nativeCanvasUnderlay: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: colors.canvas,
-  },
   curtainWrap: {
     position: 'absolute',
     top: 0,
@@ -969,6 +1004,7 @@ const styles = StyleSheet.create({
   },
   curtainSurface: {
     flex: 1,
+    backgroundColor: colors.splashRoyal,
     borderBottomLeftRadius: 34,
     borderBottomRightRadius: 34,
     overflow: 'hidden',

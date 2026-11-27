@@ -17,6 +17,7 @@ export const colors = {
   violetDeep: '#4B1FB8',
   violetSoft: '#ECE2FF',
   violetShadow: '#32107C',
+  splashRoyal: '#5218D2',
 
   // Signature lime
   lime: '#D8FF3E',

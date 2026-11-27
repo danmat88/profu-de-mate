@@ -46,14 +46,14 @@ test('keeps the supported release surface Android-only', async () => {
   assert.deepEqual(config.expo?.platforms, ['android']);
 });
 
-test('keeps the Android window and native splash on one continuous surface', async () => {
+test('keeps the Android window and native splash on one continuous Royal-Violet surface', async () => {
   const [config, dynamicConfig, appSource] = await Promise.all([
     loadConfig(),
     readFile(new URL('../../app.config.js', import.meta.url), 'utf8'),
     readFile(new URL('../../src/app/App.tsx', import.meta.url), 'utf8'),
   ]);
-  assert.equal(config.expo?.backgroundColor, '#FFF8EC');
-  assert.match(dynamicConfig, /backgroundColor: '#FFF8EC'/);
+  assert.equal(config.expo?.backgroundColor, '#5218D2');
+  assert.match(dynamicConfig, /backgroundColor: '#5218D2'/);
   assert.match(dynamicConfig, /image: '\.\/assets\/brand\/splash-transparent\.png'/);
   assert.match(appSource, /<LaunchSplash ready=\{Boolean\(startup\) && navigationReady\} visualsReady=\{visualsReady\}/);
 });

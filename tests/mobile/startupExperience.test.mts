@@ -69,7 +69,10 @@ test('React splash restores the Royal-Violet curtain studio with true SVG radial
   assert.match(splashSource, /if \(!ready \|\| !introComplete \|\| !nativeSplashHidden\) return/);
   assert.match(splashSource, /const hardDeadline = setTimeout\(finishOnce, 2_500\)/);
   assert.match(splashSource, /assets\/brand\/splash_mark_v2\.png/);
-  assert.match(splashSource, /backgroundColor: colors\.canvas/);
+  assert.match(splashSource, /backgroundColor: colors\.splashRoyal/);
+  assert.match(splashSource, /gradientReveal/);
+  assert.match(splashSource, /gridReveal/);
+  assert.match(splashSource, /lightReveal/);
   assert.match(splashSource, /RadialGradient/);
   assert.match(splashSource, /translateX: ribbonFill\.interpolate\(/);
   assert.match(splashSource, /curtainRetractY/);
