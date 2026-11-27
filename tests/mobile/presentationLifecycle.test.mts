@@ -29,6 +29,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
         sequence: () => composite,
         loop: () => composite,
         delay: () => composite,
+        multiply: () => new MockAnimatedValue(1),
       },
       Easing: { inOut: (fn: unknown) => fn, out: (fn: unknown) => fn, in: (fn: unknown) => fn, quad: (v: number) => v, sin: (v: number) => v, cubic: (v: number) => v },
       Image: () => React.createElement('img'),

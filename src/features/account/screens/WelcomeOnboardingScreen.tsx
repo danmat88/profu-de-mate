@@ -3,9 +3,9 @@ import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { computeHeroGeometry } from '../../../shared/layout/heroGeometry';
 import {
   createNativeLoop,
   SILKY_EASE_IN_OUT,
@@ -19,6 +19,7 @@ import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
@@ -294,10 +295,16 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   onOpenLegal,
 }: Props) {
   const frame = useSafeAreaFrame();
-  const { gutter, contentWidth, height, fontScale } = useResponsiveLayout(frame);
+  const { gutter, contentWidth, fontScale } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
-  const compact = height - insets.top < 700 || fontScale >= 1.28;
+  const hero = computeHeroGeometry({
+    width: frame.width,
+    height: frame.height,
+    topInset: insets.top,
+    fontScale,
+  });
+  const compact = hero.compact;
 
   const [selectedGroup, setSelectedGroup] = useState<AgeEligibilityGroup | null>(null);
   const [parentalConfirmed, setParentalConfirmed] = useState(false);
@@ -989,8 +996,8 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   })), [celebrateBurst]);
 
   const hardwareEntranceLayer = !entranceSettled && !reducedMotion;
-  const mascotSize = compact ? 76 : 92;
-  const spotlightSize = compact ? 74 : 90;
+  const mascotSize = hero.onboardingMascotSize;
+  const spotlightSize = hero.onboardingSpotlightSize;
 
   return (
     <View
@@ -1000,7 +1007,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
       {statusBarReady ? <StatusBar style="light" /> : null}
       <ComicBackdrop />
 
-      {/* Full-bleed curved Royal-Violet hero canopy unfurling seamlessly from Splash */}
+      {/* Full-bleed curved Royal-Violet hero canopy pixel-matched to LaunchSplash's retracting curtain */}
       <Animated.View
         renderToHardwareTextureAndroid={hardwareEntranceLayer}
         style={[styles.canopyExitWrap, canopyExitStyle]}
@@ -1008,69 +1015,46 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
         <Animated.View
           style={[
             styles.canopy,
-            compact && styles.canopyCompact,
-            { paddingTop: insets.top ?? 0 },
+            {
+              height: hero.onboardingCanopyHeight,
+              paddingTop: hero.topInset,
+              borderBottomLeftRadius: hero.canopyRadius,
+              borderBottomRightRadius: hero.canopyRadius,
+            },
             canopyEnterStyle,
           ]}
         >
-          <LinearGradient
-            colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
-            start={{ x: 0.08, y: 0 }}
-            end={{ x: 0.92, y: 1 }}
-            style={styles.fill}
-          />
-          {/* True smooth optical SVG radial studio lighting + fine math grid — zero flat circles */}
-          <Svg
-            pointerEvents="none"
-            width="100%"
-            height="100%"
-            preserveAspectRatio="none"
-            viewBox="0 0 360 220"
-            style={styles.fill}
-          >
-            <Defs>
-              <RadialGradient id="woCyanLight" cx="8%" cy="10%" rx="56%" ry="68%">
-                <Stop offset="0%" stopColor="#43D6E6" stopOpacity="0.24" />
-                <Stop offset="58%" stopColor="#43D6E6" stopOpacity="0.06" />
-                <Stop offset="100%" stopColor="#43D6E6" stopOpacity="0" />
-              </RadialGradient>
-              <RadialGradient id="woLimeLight" cx="92%" cy="94%" rx="54%" ry="64%">
-                <Stop offset="0%" stopColor="#D8FF3E" stopOpacity="0.2" />
-                <Stop offset="55%" stopColor="#D8FF3E" stopOpacity="0.05" />
-                <Stop offset="100%" stopColor="#D8FF3E" stopOpacity="0" />
-              </RadialGradient>
-            </Defs>
-            <Rect x="0" y="0" width="360" height="220" fill="url(#woCyanLight)" />
-            <Rect x="0" y="0" width="360" height="220" fill="url(#woLimeLight)" />
-            <Path
-              d="M36 0V220M72 0V220M108 0V220M144 0V220M180 0V220M216 0V220M252 0V220M288 0V220M324 0V220M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360"
-              stroke="#FFFFFF"
-              strokeWidth={0.75}
-              strokeOpacity={0.052}
-              fill="none"
-            />
-          </Svg>
-          <View pointerEvents="none" style={styles.canopyBottomRim} />
+          <RoyalHeroCanopyBackdrop width={hero.width} height={hero.onboardingCanopyHeight} />
 
-          <View style={[styles.canopyInner, { width: contentWidth }]}>
-            {/* Top brand strip + live readiness badge */}
-            <Animated.View style={[styles.brandBar, heroCopyEnterStyle]}>
-              <View style={styles.brandIdentity}>
-                <View style={styles.brandMark}>
+          <View style={[styles.canopyInner, { width: hero.contentWidth, paddingTop: hero.headerTopPad }]}>
+            {/* Top brand strip sharing exact circular Electric-Lime logo badge geometry with Home & Splash docking */}
+            <Animated.View style={[styles.brandBar, { height: hero.headerHeight }, heroCopyEnterStyle]}>
+              <View style={[styles.brandIdentity, hero.isVeryNarrow && styles.brandIdentityNarrow]}>
+                <View
+                  style={[
+                    styles.brandMark,
+                    {
+                      width: hero.logoBadgeSize,
+                      height: hero.logoBadgeSize,
+                      borderRadius: hero.logoBadgeSize / 2,
+                    },
+                    (hero.compact || hero.isVeryNarrow) && styles.brandMarkCompact,
+                  ]}
+                >
                   <Image
                     accessible={false}
                     source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
                     resizeMode="contain"
                     fadeDuration={0}
-                    style={styles.brandMarkImage}
+                    style={{ width: hero.logoImageSize, height: hero.logoImageSize }}
                   />
                 </View>
                 <Text
-                  maxFontSizeMultiplier={1.2}
+                  maxFontSizeMultiplier={1.25}
                   numberOfLines={1}
                   adjustsFontSizeToFit
-                  minimumFontScale={0.85}
-                  style={styles.brandTitle}
+                  minimumFontScale={0.72}
+                  style={[styles.brandTitle, (hero.compact || hero.isVeryNarrow) && styles.brandTitleCompact]}
                 >
                   Profu’ <Text style={styles.brandTitleAccent}>de mate</Text>
                 </Text>
@@ -1381,30 +1365,11 @@ const styles = StyleSheet.create({
 
   canopy: {
     width: '100%',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
     overflow: 'hidden',
-    paddingBottom: 18,
     position: 'relative',
-  },
-  canopyCompact: {
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    paddingBottom: 13,
-  },
-  canopyBottomRim: {
-    position: 'absolute',
-    left: 28,
-    right: 28,
-    bottom: 1,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
   canopyInner: {
     alignSelf: 'center',
-    paddingTop: 10,
-    gap: 10,
   },
   brandBar: {
     flexDirection: 'row',
@@ -1415,34 +1380,40 @@ const styles = StyleSheet.create({
   brandIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 9,
     flexShrink: 1,
     minWidth: 0,
   },
+  brandIdentityNarrow: {
+    gap: 6,
+  },
   brandMark: {
-    width: 30,
-    height: 30,
-    borderRadius: 11,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.4,
-    borderColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 2.5,
+    borderColor: colors.lime,
+    borderBottomWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     flexShrink: 0,
   },
-  brandMarkImage: {
-    width: 24,
-    height: 24,
+  brandMarkCompact: {
+    borderWidth: 2,
+    borderBottomWidth: 2.5,
   },
   brandTitle: {
     fontFamily: fonts.display,
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 23,
+    lineHeight: 27,
     color: colors.paper,
-    letterSpacing: -0.25,
-    textShadowColor: 'rgba(18, 6, 62, 0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: -0.35,
+    textShadowColor: 'rgba(24, 6, 68, 0.28)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
+  },
+  brandTitleCompact: {
+    fontSize: 18,
+    lineHeight: 22,
   },
   brandTitleAccent: {
     color: colors.lime,
@@ -1471,11 +1442,13 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   heroRow: {
+    marginTop: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
   heroRowCompact: {
+    marginTop: 4,
     gap: 8,
   },
   heroBubbleWrap: {

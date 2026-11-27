@@ -4,6 +4,7 @@ import { Animated, AppState, Easing, Image, Pressable, StyleSheet, View } from '
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
+import { computeHeroGeometry } from '../../../shared/layout/heroGeometry';
 import {
   cosinePingPongRange,
   cosinePulseRange,
@@ -22,6 +23,7 @@ import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
+import { ROYAL_HERO_GRADIENT, RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SegmentedToggle, type SegmentedOption } from '../../../shared/ui/SegmentedToggle';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
 import { SpotlightAura, type SpotlightAuraTone } from '../../../shared/ui/SpotlightAura';
@@ -182,9 +184,15 @@ export const HomeSurface = memo(function HomeSurface({
   onAllowance,
 }: Props) {
   const frame = useSafeAreaFrame();
-  const { contentWidth, height, fontScale, isVeryNarrow } = useResponsiveLayout(frame);
+  const { contentWidth, fontScale, isVeryNarrow } = useResponsiveLayout(frame);
   const insets = useSafeAreaInsets();
-  const compact = height - insets.top < 690 || fontScale >= 1.3;
+  const hero = computeHeroGeometry({
+    width: frame.width,
+    height: frame.height,
+    topInset: insets.top,
+    fontScale,
+  });
+  const compact = hero.compact;
   const reducedMotion = useReducedMotion();
   const motionReady = useContext(HomeMotionReadyContext);
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
@@ -636,10 +644,10 @@ export const HomeSurface = memo(function HomeSurface({
 
   const greetingBody = compact ? compactGreetingBody : fullGreetingBody;
 
-  const mascotSize = compact ? 68 : isVeryNarrow ? 94 : 106;
-  const spotlightSize = compact ? 66 : isVeryNarrow ? 92 : 104;
-  // Curved sky dome extends seamlessly behind the StatusBar down to the vertical midpoint of SegmentedToggle.
-  const skyDomeHeight = insets.top + (compact ? 83 : 110) + mascotSize;
+  const mascotSize = hero.homeMascotSize;
+  const spotlightSize = hero.homeSpotlightSize;
+  // Curved sky dome matches LaunchSplash's retracting curtain height & arch radius pixel-for-pixel.
+  const skyDomeHeight = hero.homeCanopyHeight;
   const isCheckTheme = !isSolve;
   const cornerColor = isCheckTheme ? colors.gold : colors.lime;
   const energyPercent = energyRatio !== null
@@ -666,10 +674,10 @@ export const HomeSurface = memo(function HomeSurface({
         >
           <Enter
             ready={motionReady}
-            delay={100}
-            duration={500}
-            distance={14}
-            scaleFrom={0.98}
+            delay={150}
+            duration={300}
+            distance={8}
+            scaleFrom={0.99}
             preRasterize
             hardwareLayer={hardwareEntranceLayer}
             style={[styles.header, compact && styles.headerCompact]}
@@ -1477,18 +1485,22 @@ export const HomeSurface = memo(function HomeSurface({
         </View>
       </View>
 
-      {/* Full-bleed curved Royal-Violet / Coral-Berry sky canopy unfurling smoothly from top */}
+      {/* Full-bleed curved Royal-Violet / Coral-Berry hero canopy unified with LaunchSplash & Onboarding */}
       <Animated.View
         pointerEvents="none"
         renderToHardwareTextureAndroid={hardwareEntranceLayer}
         style={[
           styles.skyDome,
-          { height: skyDomeHeight },
+          {
+            height: skyDomeHeight,
+            borderBottomLeftRadius: hero.canopyRadius,
+            borderBottomRightRadius: hero.canopyRadius,
+          },
           skyDomeAnimatedStyle,
         ]}
       >
         <LinearGradient
-          colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
+          colors={ROYAL_HERO_GRADIENT}
           start={{ x: 0.08, y: 0 }}
           end={{ x: 0.92, y: 1 }}
           style={styles.fill}
@@ -1501,15 +1513,11 @@ export const HomeSurface = memo(function HomeSurface({
             style={styles.fill}
           />
         </Animated.View>
-        <View style={styles.skyGlowRightLime} />
-        <View style={styles.skyGlowRight} />
-        <View style={styles.skyGlowLime} />
-        <View style={styles.skyOrbitArc} />
-        <Text accessible={false} style={styles.skyStarA}>✦</Text>
-        <Text accessible={false} style={styles.skyStarB}>✦</Text>
-        <Text accessible={false} style={styles.skyGlyphPi}>π</Text>
-        <Text accessible={false} style={styles.skyGlyphRoot}>√</Text>
-        <Text accessible={false} style={styles.skyGlyphSum}>∑</Text>
+        <RoyalHeroCanopyBackdrop
+          width={hero.width}
+          height={skyDomeHeight}
+          showGradient={false}
+        />
       </Animated.View>
     </View>
   );
@@ -1523,96 +1531,14 @@ const styles = StyleSheet.create({
   page: { flex: 1, minHeight: 0, maxWidth: 560, alignSelf: 'center', gap: 10, paddingTop: 4, paddingBottom: 8 },
   pageCompact: { gap: 6, paddingTop: 2 },
 
-  // Full-bleed curved sky dome canopy (smooth gradient arch with zero side-less border seam)
+  // Full-bleed curved sky dome canopy (smooth gradient arch matching LaunchSplash curtain)
   skyDome: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 1,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
     overflow: 'hidden',
-  },
-  skyGlowRightLime: {
-    position: 'absolute',
-    width: 270,
-    height: 270,
-    borderRadius: 135,
-    top: -28,
-    right: -64,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  skyGlowRight: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    top: -12,
-    right: -32,
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-  },
-  skyGlowLime: {
-    position: 'absolute',
-    width: 196,
-    height: 196,
-    borderRadius: 98,
-    bottom: -82,
-    left: -42,
-    backgroundColor: 'rgba(216, 255, 62, 0.16)',
-  },
-  skyOrbitArc: {
-    position: 'absolute',
-    width: 340,
-    height: 340,
-    borderRadius: 170,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    top: -115,
-    right: -120,
-  },
-  skyStarA: {
-    position: 'absolute',
-    left: 26,
-    top: 88,
-    fontFamily: fonts.display,
-    fontSize: 13,
-    color: 'rgba(216, 255, 62, 0.34)',
-  },
-  skyStarB: {
-    position: 'absolute',
-    right: 126,
-    bottom: 34,
-    fontFamily: fonts.display,
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.34)',
-  },
-  skyGlyphPi: {
-    position: 'absolute',
-    left: 16,
-    bottom: 24,
-    fontFamily: fonts.display,
-    fontSize: 40,
-    color: 'rgba(255, 255, 255, 0.08)',
-    transform: [{ rotate: '-12deg' }],
-  },
-  skyGlyphRoot: {
-    position: 'absolute',
-    right: 112,
-    top: 66,
-    fontFamily: fonts.display,
-    fontSize: 28,
-    color: 'rgba(216, 255, 62, 0.14)',
-    transform: [{ rotate: '10deg' }],
-  },
-  skyGlyphSum: {
-    position: 'absolute',
-    left: '44%',
-    bottom: 18,
-    fontFamily: fonts.display,
-    fontSize: 26,
-    color: 'rgba(255, 255, 255, 0.08)',
-    transform: [{ rotate: '8deg' }],
   },
 
   // Brand top bar floating over curved sky dome

@@ -72,6 +72,10 @@ function surfaceFixture() {
     'src/shared/ui/IconButton.tsx': { IconButton: 'IconButton' }, 'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
     'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'Glyph' }, 'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'Loader' },
     'src/shared/ui/PressableScale.tsx': { PressableScale: 'PressableScale' },
+    'src/shared/ui/RoyalHeroCanopyBackdrop.tsx': {
+      ROYAL_HERO_GRADIENT: ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'],
+      RoyalHeroCanopyBackdrop: 'RoyalHeroCanopyBackdrop',
+    },
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
     'src/shared/ui/SpotlightAura.tsx': { SpotlightAura: 'SpotlightAura' },
@@ -255,6 +259,10 @@ function statefulSurfaceFixture(initialHeight = 802) {
     'src/shared/ui/IconButton.tsx': { IconButton: 'IconButton' }, 'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
     'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'Glyph' }, 'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'Loader' },
     'src/shared/ui/PressableScale.tsx': { PressableScale: 'PressableScale' },
+    'src/shared/ui/RoyalHeroCanopyBackdrop.tsx': {
+      ROYAL_HERO_GRADIENT: ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'],
+      RoyalHeroCanopyBackdrop: 'RoyalHeroCanopyBackdrop',
+    },
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
     'src/shared/ui/SpotlightAura.tsx': { SpotlightAura: 'SpotlightAura' },
