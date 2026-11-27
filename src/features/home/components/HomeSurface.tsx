@@ -741,10 +741,10 @@ export const HomeSurface = memo(function HomeSurface({
         >
           <Enter
             ready={motionReady}
-            delay={150}
-            duration={300}
-            distance={8}
-            scaleFrom={0.99}
+            delay={250}
+            duration={200}
+            distance={0}
+            scaleFrom={1}
             preRasterize
             style={[styles.header, compact && styles.headerCompact]}
           >
@@ -985,10 +985,10 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={180}
-            duration={520}
-            distance={18}
-            scaleFrom={0.96}
+            delay={340}
+            duration={440}
+            distance={14}
+            scaleFrom={0.97}
             preRasterize
             style={[styles.tutorRow, compact && styles.tutorRowCompact]}
           >
@@ -1027,8 +1027,8 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={260}
-            duration={500}
+            delay={120}
+            duration={460}
             distance={16}
             scaleFrom={0.96}
             preRasterize
@@ -1047,10 +1047,10 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={330}
-            duration={540}
-            distance={22}
-            scaleFrom={0.95}
+            delay={175}
+            duration={480}
+            distance={20}
+            scaleFrom={0.955}
             preRasterize
             style={styles.cameraStageEnter}
           >
@@ -1579,8 +1579,8 @@ export const HomeSurface = memo(function HomeSurface({
             {embedded && (onQuickPractice || showTrackSetupBanner) ? (
               <Enter
                 ready={motionReady}
-                delay={420}
-                duration={500}
+                delay={235}
+                duration={480}
                 distance={16}
                 scaleFrom={0.965}
                 preRasterize

@@ -314,8 +314,8 @@ export const StudioTabBar = memo(function StudioTabBar({
     const frameId = requestAnimationFrame(() => {
       anim = Animated.timing(dockEnter, {
         toValue: 1,
-        duration: 540,
-        delay: 360,
+        duration: 480,
+        delay: 250,
         easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       });
