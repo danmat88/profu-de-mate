@@ -34,23 +34,22 @@ test('age eligibility serialization stores only privacy-minimized group and reje
   assert.equal(parseAgeEligibilityConfirmation(JSON.stringify({ version: 1, group: '16_plus', confirmedAt: 0 })), null);
 });
 
-test('AgeConsentSheet uses unified ComicBottomSheet, links to Legal, clears on data deletion, and stays free of Reanimated', async () => {
-  const [sheetSource, studioSource, prefsSource] = await Promise.all([
-    readFile(new URL('../../src/features/account/components/AgeConsentSheet.tsx', import.meta.url), 'utf8'),
+test('WelcomeOnboardingScreen blocks Home exclusively until age eligibility is confirmed, links to Legal, clears on data deletion, and stays free of Reanimated', async () => {
+  const [onboardingSource, studioSource, prefsSource] = await Promise.all([
+    readFile(new URL('../../src/features/account/screens/WelcomeOnboardingScreen.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/app/screens/StudioScreen.tsx', import.meta.url), 'utf8'),
     readFile(new URL('../../src/shared/storage/localPreferences.ts', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(sheetSource, /<ComicBottomSheet/);
-  assert.match(sheetSource, /dismissible=\{false\}/);
-  assert.doesNotMatch(sheetSource, /react-native-reanimated/);
-  assert.doesNotMatch(sheetSource, /<SafeAreaView/);
-  assert.match(sheetSource, /13–15/);
-  assert.match(sheetSource, /16\+/);
-  assert.match(sheetSource, /părintelui sau tutorelui/);
-  assert.match(sheetSource, /onOpenLegal/);
+  assert.doesNotMatch(onboardingSource, /<ComicBottomSheet/);
+  assert.doesNotMatch(onboardingSource, /react-native-reanimated/);
+  assert.doesNotMatch(onboardingSource, /<SafeAreaView/);
+  assert.match(onboardingSource, /13–15/);
+  assert.match(onboardingSource, /16\+/);
+  assert.match(onboardingSource, /părintelui sau tutorelui/);
+  assert.match(onboardingSource, /onOpenLegal/);
 
-  assert.match(studioSource, /<AgeConsentSheet/);
+  assert.match(studioSource, /if \(!ageConsentConfirmed\) \{\s*return \(\s*<WelcomeOnboardingScreen/s);
   assert.match(studioSource, /navigation\.navigate\('Legal'\)/);
   assert.match(studioSource, /hasConfirmedAgeEligibility\(\)/);
   assert.match(studioSource, /saveAgeEligibilityConfirmation\(group\)/);

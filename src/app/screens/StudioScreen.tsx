@@ -5,7 +5,7 @@ import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, ty
 import { Animated, BackHandler, Keyboard, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { useCommercial } from '../../features/access/context/CommercialContext';
-import { AgeConsentSheet } from '../../features/account/components/AgeConsentSheet';
+import { WelcomeOnboardingScreen } from '../../features/account/screens/WelcomeOnboardingScreen';
 import { HomeMotionReadyContext } from '../../features/home/context/HomeMotionContext';
 import { HomeScreen } from '../../features/home/screens/HomeScreen';
 import { NotebookScreen } from '../../features/lessons/screens/NotebookScreen';
@@ -154,10 +154,9 @@ export function StudioScreen() {
     return () => clearTimeout(timer);
   }, [motionReady, reducedMotion]);
 
-  // Pre-warm offscreen Învață and Caiet tabs quietly after Home entrance finishes
-  // landing (all Home data is already loaded during splash).
+  // Pre-warm offscreen Învață and Caiet tabs quietly after onboarding is done and Home entrance settles.
   useEffect(() => {
-    if (!motionReady) return undefined;
+    if (!motionReady || !ageConsentConfirmed) return undefined;
     const studyTimer = setTimeout(() => {
       setMountedTabs((current) => (current.study ? current : { ...current, study: true }));
     }, 1_900);
@@ -168,7 +167,7 @@ export function StudioScreen() {
       clearTimeout(studyTimer);
       clearTimeout(notebookTimer);
     };
-  }, [motionReady]);
+  }, [ageConsentConfirmed, motionReady]);
 
   useFocusEffect(useCallback(() => {
     setScreenFocused(true);
@@ -250,8 +249,11 @@ export function StudioScreen() {
     Keyboard.dismiss();
     captureActionRef.current?.();
   }, []);
-  const handleConfirmAgeEligibility = useCallback((group: AgeEligibilityGroup) => {
+  const handleConfirmAgeEligibility = useCallback((group: AgeEligibilityGroup, track: StudyTrackId | null) => {
     saveAgeEligibilityConfirmation(group);
+    if (track) {
+      setStudyTrack(track);
+    }
     setAgeConsentConfirmed(true);
   }, []);
   const handleOpenLegalFromConsent = useCallback(() => {
@@ -280,6 +282,16 @@ export function StudioScreen() {
   const wrongCount = practiceState.wrongQuestionIds.length;
   const trackShortLabel = getStudyTrackMeta(profile.track).shortLabel;
   const hasStudyAlerts = wrongCount > 0;
+
+  if (!ageConsentConfirmed) {
+    return (
+      <WelcomeOnboardingScreen
+        active={screenFocused && motionReady}
+        onConfirm={handleConfirmAgeEligibility}
+        onOpenLegal={handleOpenLegalFromConsent}
+      />
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -352,14 +364,6 @@ export function StudioScreen() {
           selectedTrack={profile.hasChosenTrack ? profile.track : null}
           onSelect={handleSelectHomeTrack}
           onClose={() => setHomeTrackSheetOpen(false)}
-        />
-      ) : null}
-
-      {!ageConsentConfirmed && motionReady ? (
-        <AgeConsentSheet
-          visible={screenFocused}
-          onConfirm={handleConfirmAgeEligibility}
-          onOpenLegal={handleOpenLegalFromConsent}
         />
       ) : null}
 
