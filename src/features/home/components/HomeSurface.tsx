@@ -50,6 +50,7 @@ type Props = {
   wrongCount?: number;
   showGuide?: boolean;
   embedded?: boolean;
+  animateSkyDome?: boolean;
   bottomClearance?: number;
   onDismissGuide?: () => void;
   onClearGalleryError?: () => void;
@@ -164,6 +165,7 @@ export const HomeSurface = memo(function HomeSurface({
   wrongCount = 0,
   showGuide = false,
   embedded = false,
+  animateSkyDome = true,
   bottomClearance = 8,
   onDismissGuide,
   onClearGalleryError,
@@ -191,7 +193,7 @@ export const HomeSurface = memo(function HomeSurface({
   const [mascotNudge, setMascotNudge] = useState(0);
   const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMode = useRef(mode);
-  const skyDomePlayed = useRef(reducedMotion);
+  const skyDomePlayed = useRef(reducedMotion || !animateSkyDome);
   const initialRevealSettled = useRef(false);
 
   const isSolve = mode === 'solve';
@@ -216,7 +218,7 @@ export const HomeSurface = memo(function HomeSurface({
   const cheerIndex = cheer && cheer.scope === cheerScope ? cheer.index % cheerPool.length : null;
   const motionActive = motionReady && focused && foreground && !reducedMotion;
 
-  const skyDomeEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const skyDomeEnter = useRef(new Animated.Value(reducedMotion || !animateSkyDome ? 1 : 0)).current;
   const stagePop = useRef(new Animated.Value(1)).current;
   const medallionPop = useRef(new Animated.Value(1)).current;
   const modeBlend = useRef(new Animated.Value(isSolve ? 0 : 1)).current;
@@ -245,7 +247,7 @@ export const HomeSurface = memo(function HomeSurface({
 
   // Smoothly unfurl the curved Royal-Violet/Coral sky canopy with unhurried splash-like ease.
   useEffect(() => {
-    if (reducedMotion) {
+    if (reducedMotion || !animateSkyDome) {
       skyDomeEnter.stopAnimation();
       skyDomeEnter.setValue(1);
       skyDomePlayed.current = true;
@@ -282,7 +284,7 @@ export const HomeSurface = memo(function HomeSurface({
       anim?.stop();
       skyDomeEnter.stopAnimation();
     };
-  }, [motionReady, reducedMotion, skyDomeEnter]);
+  }, [animateSkyDome, motionReady, reducedMotion, skyDomeEnter]);
 
   // Gate all self-running Home ambient loops strictly AFTER the unhurried entrance lands
   // so cold-start reveal runs at an uninterrupted 60fps with zero RenderThread contention.

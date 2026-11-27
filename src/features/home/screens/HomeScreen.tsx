@@ -45,6 +45,7 @@ function readNotebookPreview(): NotebookPreview {
 export type HomeScreenProps = {
   embedded?: boolean;
   active?: boolean;
+  animateSkyDome?: boolean;
   bottomClearance?: number;
   studyTrackLabel?: string;
   studyTrackChosen?: boolean;
@@ -60,6 +61,7 @@ export function HomeScreen(props?: HomeScreenProps) {
   const {
     embedded = false,
     active = true,
+    animateSkyDome = true,
     bottomClearance = 8,
     studyTrackLabel,
     studyTrackChosen = true,
@@ -311,6 +313,7 @@ export function HomeScreen(props?: HomeScreenProps) {
       wrongCount={wrongCount}
       showGuide={!guideDismissed}
       embedded={embedded}
+      animateSkyDome={animateSkyDome}
       bottomClearance={bottomClearance}
       onDismissGuide={dismissGuide}
       onClearGalleryError={clearGalleryError}

@@ -1,19 +1,45 @@
 import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { colors, fonts } from '../theme';
 import { Text } from './Typography';
 
 /**
- * Whisper-light radial studio atmosphere matching LaunchSplash across every
- * light and dark screen with zero elevation cost.
+ * Whisper-light optical studio atmosphere powered by true multi-stop SVG
+ * RadialGradients (zero hard circular edges, zero elevation cost) plus
+ * subtle math watermarks across light and dark screens.
  */
 export const ComicBackdrop = memo(function ComicBackdrop({ dark = false }: { dark?: boolean }) {
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <View style={[styles.washTopRight, dark && styles.washTopRightDark]} />
-      <View style={[styles.washBottomLeft, dark && styles.washBottomLeftDark]} />
-      <View style={[styles.washMidLeft, dark && styles.washMidLeftDark]} />
-      <View style={[styles.washBottomRight, dark && styles.washBottomRightDark]} />
+      <Svg
+        pointerEvents="none"
+        width="100%"
+        height="100%"
+        preserveAspectRatio="none"
+        viewBox="0 0 100 100"
+        style={StyleSheet.absoluteFill}
+      >
+        <Defs>
+          <RadialGradient id={dark ? 'cbTopDark' : 'cbTopLight'} cx="92%" cy="6%" rx="58%" ry="38%">
+            <Stop offset="0%" stopColor={colors.violet} stopOpacity={dark ? '0.26' : '0.075'} />
+            <Stop offset="55%" stopColor={colors.violet} stopOpacity={dark ? '0.09' : '0.024'} />
+            <Stop offset="100%" stopColor={colors.violet} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id={dark ? 'cbBottomDark' : 'cbBottomLight'} cx="8%" cy="94%" rx="60%" ry="42%">
+            <Stop offset="0%" stopColor={dark ? colors.cyan : colors.lime} stopOpacity={dark ? '0.12' : '0.2'} />
+            <Stop offset="52%" stopColor={dark ? colors.cyan : colors.lime} stopOpacity={dark ? '0.04' : '0.06'} />
+            <Stop offset="100%" stopColor={dark ? colors.cyan : colors.lime} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id={dark ? 'cbMidDark' : 'cbMidLight'} cx="94%" cy="74%" rx="44%" ry="32%">
+            <Stop offset="0%" stopColor={dark ? colors.violetBright : colors.cyan} stopOpacity={dark ? '0.16' : '0.085'} />
+            <Stop offset="100%" stopColor={dark ? colors.violetBright : colors.cyan} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100" height="100" fill={`url(#${dark ? 'cbTopDark' : 'cbTopLight'})`} />
+        <Rect x="0" y="0" width="100" height="100" fill={`url(#${dark ? 'cbBottomDark' : 'cbBottomLight'})`} />
+        <Rect x="0" y="0" width="100" height="100" fill={`url(#${dark ? 'cbMidDark' : 'cbMidLight'})`} />
+      </Svg>
 
       <Text style={[styles.symbol, styles.symbolTopLeft, dark && styles.symbolDark]}>+</Text>
       <Text style={[styles.symbol, styles.symbolMidRight, dark && styles.symbolDark]}>×</Text>
@@ -23,47 +49,7 @@ export const ComicBackdrop = memo(function ComicBackdrop({ dark = false }: { dar
 });
 
 const styles = StyleSheet.create({
-  washTopRight: {
-    position: 'absolute',
-    width: 300,
-    height: 260,
-    borderRadius: 150,
-    backgroundColor: 'rgba(124, 60, 255, 0.06)',
-    top: -110,
-    right: -100,
-  },
-  washTopRightDark: { backgroundColor: 'rgba(124, 60, 255, 0.24)' },
-  washBottomLeft: {
-    position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(216, 255, 62, 0.17)',
-    bottom: -135,
-    left: -110,
-  },
-  washBottomLeftDark: { backgroundColor: 'rgba(67, 214, 230, 0.09)' },
-  washMidLeft: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: 'rgba(255, 141, 107, 0.075)',
-    top: '32%',
-    left: -94,
-  },
-  washMidLeftDark: { backgroundColor: 'rgba(255, 141, 107, 0.08)' },
-  washBottomRight: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(67, 214, 230, 0.075)',
-    bottom: '16%',
-    right: -95,
-  },
-  washBottomRightDark: { backgroundColor: 'rgba(145, 88, 255, 0.14)' },
-  symbol: { position: 'absolute', fontFamily: fonts.display, color: colors.violet, opacity: 0.05 },
+  symbol: { position: 'absolute', fontFamily: fonts.display, color: colors.violet, opacity: 0.045 },
   symbolTopLeft: { left: 12, top: 92, fontSize: 28, transform: [{ rotate: '-14deg' }] },
   symbolMidRight: { right: 12, top: '48%', fontSize: 30, transform: [{ rotate: '14deg' }] },
   symbolBottomRight: { right: 18, bottom: 28, fontSize: 32, transform: [{ rotate: '-10deg' }] },

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import {
@@ -30,6 +31,8 @@ import { STUDY_TRACKS, type StudyTrackId } from '../../study/types';
 type Props = {
   active?: boolean;
   ready?: boolean;
+  /** When false (coming directly from LaunchSplash's retracting curtain), canopy starts seated so the curtain morphs flush into it. */
+  animateCanopy?: boolean;
   onConfirm: (group: AgeEligibilityGroup, track: StudyTrackId | null) => void;
   onOpenLegal: () => void;
 };
@@ -286,6 +289,7 @@ const AgeOptionCard = memo(function AgeOptionCard({
 export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   active = true,
   ready = true,
+  animateCanopy = false,
   onConfirm,
   onOpenLegal,
 }: Props) {
@@ -312,7 +316,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   const exitTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   // Pure native-driver Animated values (100% Android RenderThread).
-  const canopyEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const canopyEnter = useRef(new Animated.Value(reducedMotion || !animateCanopy ? 1 : 0)).current;
   const mascotEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const heroCopyEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const sectionOneTitleEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -369,8 +373,8 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
 
     if (!ready) {
       if (!entrancePlayed.current) {
+        if (animateCanopy) canopyEnter.setValue(0);
         for (const val of [
-          canopyEnter,
           mascotEnter,
           heroCopyEnter,
           sectionOneTitleEnter,
@@ -407,15 +411,15 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     };
 
     const frameId = requestAnimationFrame(() => {
-      run(canopyEnter, 540, 0);
-      run(mascotEnter, 480, 75);
-      run(heroCopyEnter, 460, 130);
-      run(sectionOneTitleEnter, 400, 175);
-      run(cardEnter0, 440, 195);
-      run(cardEnter1, 440, 250);
-      run(cardEnter2, 440, 305);
-      run(tracksEnter, 460, 315);
-      run(footerEnter, 460, 365);
+      if (animateCanopy) run(canopyEnter, 540, 0);
+      run(mascotEnter, 460, 60);
+      run(heroCopyEnter, 440, 115);
+      run(sectionOneTitleEnter, 380, 155);
+      run(cardEnter0, 440, 175);
+      run(cardEnter1, 440, 230);
+      run(cardEnter2, 440, 285);
+      run(tracksEnter, 450, 295);
+      run(footerEnter, 450, 345);
     });
 
     const statusBarTimer = setTimeout(() => setStatusBarReady(true), 560);
@@ -444,6 +448,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
       anims.forEach((anim) => anim.stop());
     };
   }, [
+    animateCanopy,
     canopyEnter,
     cardEnter0,
     cardEnter1,
@@ -1009,19 +1014,42 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
           ]}
         >
           <LinearGradient
-            colors={['#8F44FF', '#601EE8', '#360CA0']}
-            start={{ x: 0.06, y: 0 }}
-            end={{ x: 0.94, y: 1 }}
+            colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
+            start={{ x: 0.08, y: 0 }}
+            end={{ x: 0.92, y: 1 }}
             style={styles.fill}
           />
-          <View pointerEvents="none" style={styles.canopyGlowCyan} />
-          <View pointerEvents="none" style={styles.canopyGlowLime} />
-          <View pointerEvents="none" style={styles.canopyGlowPeach} />
-          <View pointerEvents="none" style={styles.canopyOrbitOuter} />
-          <View pointerEvents="none" style={styles.canopyOrbitInner} />
-          <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
-          <Text accessible={false} style={styles.canopyGlyphRoot}>√</Text>
-          <Text accessible={false} style={styles.canopyGlyphSum}>∑</Text>
+          {/* True smooth optical SVG radial studio lighting + fine math grid — zero flat circles */}
+          <Svg
+            pointerEvents="none"
+            width="100%"
+            height="100%"
+            preserveAspectRatio="none"
+            viewBox="0 0 360 220"
+            style={styles.fill}
+          >
+            <Defs>
+              <RadialGradient id="woCyanLight" cx="8%" cy="10%" rx="56%" ry="68%">
+                <Stop offset="0%" stopColor="#43D6E6" stopOpacity="0.24" />
+                <Stop offset="58%" stopColor="#43D6E6" stopOpacity="0.06" />
+                <Stop offset="100%" stopColor="#43D6E6" stopOpacity="0" />
+              </RadialGradient>
+              <RadialGradient id="woLimeLight" cx="92%" cy="94%" rx="54%" ry="64%">
+                <Stop offset="0%" stopColor="#D8FF3E" stopOpacity="0.2" />
+                <Stop offset="55%" stopColor="#D8FF3E" stopOpacity="0.05" />
+                <Stop offset="100%" stopColor="#D8FF3E" stopOpacity="0" />
+              </RadialGradient>
+            </Defs>
+            <Rect x="0" y="0" width="360" height="220" fill="url(#woCyanLight)" />
+            <Rect x="0" y="0" width="360" height="220" fill="url(#woLimeLight)" />
+            <Path
+              d="M36 0V220M72 0V220M108 0V220M144 0V220M180 0V220M216 0V220M252 0V220M288 0V220M324 0V220M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360"
+              stroke="#FFFFFF"
+              strokeWidth={0.75}
+              strokeOpacity={0.052}
+              fill="none"
+            />
+          </Svg>
           <View pointerEvents="none" style={styles.canopyBottomRim} />
 
           <View style={[styles.canopyInner, { width: contentWidth }]}>
@@ -1363,81 +1391,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
     paddingBottom: 13,
-  },
-  canopyGlowCyan: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -102,
-    left: -58,
-    backgroundColor: 'rgba(67, 214, 230, 0.24)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    bottom: -104,
-    right: -14,
-    backgroundColor: 'rgba(216, 255, 62, 0.18)',
-  },
-  canopyGlowPeach: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    top: 12,
-    right: '36%',
-    backgroundColor: 'rgba(255, 141, 107, 0.12)',
-  },
-  canopyOrbitOuter: {
-    position: 'absolute',
-    width: 270,
-    height: 270,
-    borderRadius: 135,
-    borderWidth: 1.25,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(255, 255, 255, 0.14)',
-    top: -128,
-    right: -84,
-  },
-  canopyOrbitInner: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    borderWidth: 1,
-    borderColor: 'rgba(216, 255, 62, 0.14)',
-    bottom: -90,
-    left: -46,
-  },
-  canopyGlyphPi: {
-    position: 'absolute',
-    left: 18,
-    bottom: 12,
-    fontFamily: fonts.display,
-    fontSize: 24,
-    color: 'rgba(255, 255, 255, 0.11)',
-    transform: [{ rotate: '-12deg' }],
-  },
-  canopyGlyphRoot: {
-    position: 'absolute',
-    right: 122,
-    top: 42,
-    fontFamily: fonts.display,
-    fontSize: 22,
-    color: 'rgba(216, 255, 62, 0.2)',
-    transform: [{ rotate: '12deg' }],
-  },
-  canopyGlyphSum: {
-    position: 'absolute',
-    left: '44%',
-    bottom: 8,
-    fontFamily: fonts.display,
-    fontSize: 19,
-    color: 'rgba(67, 214, 230, 0.18)',
-    transform: [{ rotate: '-6deg' }],
   },
   canopyBottomRim: {
     position: 'absolute',

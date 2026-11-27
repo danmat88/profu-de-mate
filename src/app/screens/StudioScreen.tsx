@@ -42,6 +42,7 @@ const TAB_ORDER: Record<StudioTabId, 0 | 1 | 2> = {
 
 const MemoHomePane = memo(function MemoHomePane({
   active,
+  animateSkyDome,
   studyTrackLabel,
   studyTrackChosen,
   streakDays,
@@ -52,6 +53,7 @@ const MemoHomePane = memo(function MemoHomePane({
   onOpenNotebookTab,
 }: {
   active: boolean;
+  animateSkyDome: boolean;
   studyTrackLabel: string;
   studyTrackChosen: boolean;
   streakDays: number;
@@ -65,6 +67,7 @@ const MemoHomePane = memo(function MemoHomePane({
     <HomeScreen
       embedded
       active={active}
+      animateSkyDome={animateSkyDome}
       bottomClearance={8}
       studyTrackLabel={studyTrackLabel}
       studyTrackChosen={studyTrackChosen}
@@ -126,6 +129,9 @@ export function StudioScreen() {
   const [postOnboardingReveal, setPostOnboardingReveal] = useState<boolean>(
     () => hasConfirmedAgeEligibility(),
   );
+  const [openedFromOnboarding, setOpenedFromOnboarding] = useState(false);
+  const [onboardingFromReset, setOnboardingFromReset] = useState(false);
+  const initialAgeConfirmedRef = useRef(ageConsentConfirmed);
   const { toast, showToast } = useActionToast();
   const captureActionRef = useRef<(() => void) | null>(null);
   const railPosition = useRef(new Animated.Value(TAB_ORDER.solve)).current;
@@ -201,6 +207,7 @@ export function StudioScreen() {
     const confirmed = hasConfirmedAgeEligibility();
     setAgeConsentConfirmed(confirmed);
     if (!confirmed) {
+      if (initialAgeConfirmedRef.current) setOnboardingFromReset(true);
       setPostOnboardingReveal(false);
       activeTabRef.current = 'solve';
       setActiveTab('solve');
@@ -305,6 +312,8 @@ export function StudioScreen() {
     if (track) {
       setStudyTrack(track);
     }
+    initialAgeConfirmedRef.current = true;
+    setOpenedFromOnboarding(true);
     setPostOnboardingReveal(reducedMotion);
     setAgeConsentConfirmed(true);
   }, [reducedMotion]);
@@ -340,6 +349,7 @@ export function StudioScreen() {
       <WelcomeOnboardingScreen
         active={screenFocused && motionReady}
         ready={motionReady}
+        animateCanopy={onboardingFromReset}
         onConfirm={handleConfirmAgeEligibility}
         onOpenLegal={handleOpenLegalFromConsent}
       />
@@ -365,6 +375,7 @@ export function StudioScreen() {
           >
             <MemoHomePane
               active={screenFocused && settledTab === 'solve' && activeTab === 'solve'}
+              animateSkyDome={openedFromOnboarding}
               studyTrackLabel={trackShortLabel}
               studyTrackChosen={profile.hasChosenTrack}
               streakDays={streakDays}

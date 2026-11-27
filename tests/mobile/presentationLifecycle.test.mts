@@ -37,6 +37,16 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
     },
     'react-native-safe-area-context': {
       useSafeAreaFrame: () => ({ x: 0, y: 0, width: 360, height: 802 }),
+      useSafeAreaInsets: () => ({ top: 24, bottom: 16, left: 0, right: 0 }),
+    },
+    'react-native-svg': {
+      __esModule: true,
+      default: view,
+      Defs: view,
+      Path: view,
+      RadialGradient: view,
+      Rect: view,
+      Stop: view,
     },
     'expo-linear-gradient': { LinearGradient: view },
     'expo-splash-screen': {}, 'expo-status-bar': { StatusBar: () => null },
@@ -56,7 +66,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
   assert.ok(textMounts > 0);
   assert.match(ready, /data-typeface="BalsamiqSans_700Bold">Profu’/);
   assert.match(ready, /data-typeface="FiraSans_500Medium">Matematica, pas cu pas\./);
-  assert.match(ready, /data-typeface="FiraSans_600SemiBold">Verific contul și Caietul…/);
+  assert.doesNotMatch(ready, /Verific contul|%/);
 });
 
 test('all icon artwork and UI/document fonts must finish before visual preparation succeeds', async () => {

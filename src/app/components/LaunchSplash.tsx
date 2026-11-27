@@ -3,9 +3,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
-import { useSafeAreaFrame } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import {
-  cosinePulseRange,
   createNativeLoop,
   SILKY_EASE_IN_OUT,
   SILKY_EASE_OUT,
@@ -16,10 +16,8 @@ import {
 import { bundledImageSource } from '../../shared/services/bundledImages';
 import * as Haptics from '../../shared/services/haptics';
 import { colors, fonts, radii } from '../../shared/theme';
-import { ComicBackdrop } from '../../shared/ui/ComicBackdrop';
-import { MiniGlyph } from '../../shared/ui/MiniGlyph';
 import { Text } from '../../shared/ui/Typography';
-import { resolveSplashMood } from '../utils/splashMood';
+import { resolveSplashMood, type SplashTimeOfDay } from '../utils/splashMood';
 
 type Props = {
   ready: boolean;
@@ -32,7 +30,7 @@ type Props = {
   onFinish: () => void;
 };
 
-type VictorySparkSpec = {
+type CelebrationSparkSpec = {
   symbol: string;
   dx: number;
   dy: number;
@@ -41,129 +39,161 @@ type VictorySparkSpec = {
   size: number;
 };
 
-// 17-point sinusoidal tables from the unified nativeMotion engine so single-timing
-// Animated.loop calls execute natively via Android _startNativeLoop(-1).
+// Pure RenderThread sinusoidal float tables for the hero owl.
 const WAVE_INPUT = WAVE_INPUT_17;
-// Owl floats calmly between -7dp (peak) and +2.5dp (rest) with a charming gentle sway.
-const OWL_FLOAT_Y = sineWaveRange(-2.2, -4.8);
-const OWL_TILT_DEG = sineDegreeRange(2.2, 0.65);
-// Ground shadow responds in exact inverse phase: narrower/softer when owl rises, wider when owl lowers.
-const SHADOW_SCALE_X = sineWaveRange(0.96, 0.13);
-const SHADOW_OPACITY = sineWaveRange(0.14, 0.045);
-// Luminous spotlight halo and twinkling glints breathe calmly behind the character.
-const AURA_SCALE = cosinePulseRange(0.95, 1.04);
-const AURA_OPACITY = cosinePulseRange(0.78, 1.0);
-const SPARKLE_SCALE = cosinePulseRange(0.8, 1.14);
-const SPARKLE_OPACITY = cosinePulseRange(0.45, 1.0);
+const OWL_FLOAT_Y = sineWaveRange(-2.0, -4.2);
+const OWL_TILT_DEG = sineDegreeRange(1.9, 0.65);
 
-// Unhurried, breathable native progress glide duration.
-const PROGRESS_GLIDE_MS = 2_400;
-const PROGRESS_START = 0.06;
-const PROGRESS_GLIDE_CAP = 0.92;
+const RIBBON_START = 0.12;
+const RIBBON_GLIDE_CAP = 0.88;
+const RIBBON_GLIDE_MS = 1_900;
 
-const VICTORY_SPARKS: readonly VictorySparkSpec[] = [
-  { symbol: '✦', dx: -102, dy: -78, rotate: '-28deg', color: colors.violet, size: 20 },
-  { symbol: '+', dx: 104, dy: -70, rotate: '24deg', color: colors.cyan, size: 22 },
-  { symbol: '✦', dx: -114, dy: 22, rotate: '-18deg', color: colors.gold, size: 19 },
-  { symbol: '×', dx: 110, dy: 28, rotate: '30deg', color: colors.peach, size: 21 },
-  { symbol: '★', dx: 6, dy: -118, rotate: '16deg', color: colors.limeDeep, size: 18 },
-  { symbol: 'π', dx: -44, dy: -114, rotate: '-14deg', color: colors.violetBright, size: 18 },
+const CELEBRATION_SPARKS: readonly CelebrationSparkSpec[] = [
+  { symbol: '✦', dx: -92, dy: -66, rotate: '-26deg', color: colors.lime, size: 19 },
+  { symbol: '+', dx: 94, dy: -58, rotate: '24deg', color: colors.cyan, size: 21 },
+  { symbol: 'π', dx: -86, dy: 28, rotate: '-16deg', color: colors.paper, size: 18 },
+  { symbol: '★', dx: 88, dy: 30, rotate: '26deg', color: colors.gold, size: 18 },
+  { symbol: '√', dx: 4, dy: -102, rotate: '12deg', color: colors.limeBright, size: 18 },
 ];
 
-const CAPABILITY_ITEMS = [
-  { label: 'Poză', dot: colors.violet },
-  { label: 'Formulă', dot: colors.cyan },
-  { label: 'Pași clari', dot: colors.peach },
-] as const;
-
-const AMBIENT_MATH_WHISPERS = [
-  { symbol: 'π', top: '12%' as const, left: 26, rotate: '-14deg', size: 23, color: 'rgba(124, 60, 255, 0.13)' },
-  { symbol: '√', top: '15%' as const, right: 28, rotate: '12deg', size: 23, color: 'rgba(67, 214, 230, 0.24)' },
-  { symbol: '∑', bottom: '28%' as const, left: 22, rotate: '-10deg', size: 24, color: 'rgba(255, 141, 107, 0.19)' },
-  { symbol: '∞', bottom: '26%' as const, right: 24, rotate: '11deg', size: 25, color: 'rgba(124, 60, 255, 0.13)' },
-] as const;
+const MOOD_ACCENT: Record<SplashTimeOfDay, { topLeft: string; bottomRight: string }> = {
+  morning: { topLeft: '#FFD447', bottomRight: '#D8FF3E' },
+  day: { topLeft: '#43D6E6', bottomRight: '#D8FF3E' },
+  evening: { topLeft: '#FF8D6B', bottomRight: '#43D6E6' },
+};
 
 /**
- * Isolated progress header leaf whose smooth cubic-out counter mirrors the
- * native progress bar without ever re-rendering the floating mascot or backdrop.
+ * Single-pass static SVG studio atmosphere rendered once onto GPU texture:
+ * true multi-stop optical RadialGradients (zero hard circular edges) +
+ * razor-delicate mathematical coordinate grid and drafting crosshairs.
  */
-const SplashProgressHeader = memo(function SplashProgressHeader({
-  ready,
-  startupReady,
-  introStarted,
-  reducedMotion,
-  stageLabel,
+const SplashStudioAtmosphere = memo(function SplashStudioAtmosphere({
+  width,
+  height,
+  owlCenterY,
+  period,
 }: {
-  ready: boolean;
-  startupReady: boolean;
-  introStarted: boolean;
-  reducedMotion: boolean;
-  stageLabel: string;
+  width: number;
+  height: number;
+  owlCenterY: number;
+  period: SplashTimeOfDay;
 }) {
-  const [displayPercent, setDisplayPercent] = useState(reducedMotion ? 100 : Math.round(PROGRESS_START * 100));
-  const startedAtRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (ready || reducedMotion) {
-      setDisplayPercent(100);
-      return undefined;
+  const accent = MOOD_ACCENT[period];
+  const { gridPath, crosshairPath } = useMemo(() => {
+    const step = 36;
+    const cols = Math.ceil(width / step);
+    const rows = Math.ceil(height / step);
+    const offsetX = Math.round((width - cols * step) / 2);
+    const offsetY = Math.round((height - rows * step) / 2);
+    const lines: string[] = [];
+    for (let c = 0; c <= cols; c += 1) {
+      const x = offsetX + c * step;
+      lines.push(`M${x} 0V${height}`);
     }
-    if (!introStarted) return undefined;
-    if (startedAtRef.current === null) startedAtRef.current = Date.now();
+    for (let r = 0; r <= rows; r += 1) {
+      const y = offsetY + r * step;
+      lines.push(`M0 ${y}H${width}`);
+    }
 
-    const interval = setInterval(() => {
-      const elapsed = Math.max(0, Date.now() - (startedAtRef.current ?? Date.now()));
-      const t = Math.min(1, elapsed / PROGRESS_GLIDE_MS);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const target = Math.round((PROGRESS_START + (PROGRESS_GLIDE_CAP - PROGRESS_START) * eased) * 100);
-      setDisplayPercent((current) => (target > current ? target : current));
-    }, 45);
-
-    return () => clearInterval(interval);
-  }, [introStarted, ready, reducedMotion]);
+    // Subtle architectural drafting crosshairs framing the hero axis.
+    const marks: string[] = [];
+    const points = [
+      [Math.round(width * 0.16), Math.round(height * 0.2)],
+      [Math.round(width * 0.84), Math.round(height * 0.24)],
+      [Math.round(width * 0.14), Math.round(height * 0.72)],
+      [Math.round(width * 0.86), Math.round(height * 0.68)],
+    ];
+    for (const [px, py] of points) {
+      marks.push(`M${px - 5} ${py}H${px + 5}M${px} ${py - 5}V${py + 5}`);
+    }
+    return { gridPath: lines.join(''), crosshairPath: marks.join('') };
+  }, [height, width]);
 
   return (
-    <View style={styles.progressHeader}>
-      <View style={styles.stageLabelRow}>
-        <View
-          style={[
-            styles.stageDot,
-            startupReady && styles.stageDotMid,
-            ready && styles.stageDotReady,
-          ]}
-        />
-        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.84} style={styles.stageLabel}>
-          {stageLabel}
-        </Text>
-      </View>
-      <View collapsable={false} style={[styles.percentBadge, ready && styles.percentBadgeReady]}>
-        <Text maxFontSizeMultiplier={1.2} style={[styles.percentText, ready && styles.percentTextReady]}>
-          {ready ? 100 : displayPercent}%
-        </Text>
-      </View>
-    </View>
+    <Svg
+      pointerEvents="none"
+      width={width}
+      height={height}
+      style={StyleSheet.absoluteFill}
+    >
+      <Defs>
+        {/* True Gaussian-style optical spotlight behind Profu — zero visible circle edge */}
+        <RadialGradient
+          id="splashOwlGlow"
+          cx="50%"
+          cy={`${Math.round((owlCenterY / Math.max(1, height)) * 100)}%`}
+          rx="54%"
+          ry="34%"
+        >
+          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.26" />
+          <Stop offset="34%" stopColor="#D8FF3E" stopOpacity="0.14" />
+          <Stop offset="68%" stopColor="#9B58FF" stopOpacity="0.06" />
+          <Stop offset="100%" stopColor="#5218D2" stopOpacity="0" />
+        </RadialGradient>
+
+        {/* Time-of-day atmospheric studio key light (top-left) */}
+        <RadialGradient id="splashCornerTop" cx="8%" cy="6%" rx="58%" ry="38%">
+          <Stop offset="0%" stopColor={accent.topLeft} stopOpacity="0.22" />
+          <Stop offset="55%" stopColor={accent.topLeft} stopOpacity="0.06" />
+          <Stop offset="100%" stopColor={accent.topLeft} stopOpacity="0" />
+        </RadialGradient>
+
+        {/* Warm Electric-Lime rim light (bottom-right) */}
+        <RadialGradient id="splashCornerBottom" cx="92%" cy="88%" rx="56%" ry="36%">
+          <Stop offset="0%" stopColor={accent.bottomRight} stopOpacity="0.16" />
+          <Stop offset="52%" stopColor={accent.bottomRight} stopOpacity="0.05" />
+          <Stop offset="100%" stopColor={accent.bottomRight} stopOpacity="0" />
+        </RadialGradient>
+
+        {/* Soft floor light reflection beneath floating owl */}
+        <RadialGradient
+          id="splashOwlFloor"
+          cx="50%"
+          cy={`${Math.round(((owlCenterY + 96) / Math.max(1, height)) * 100)}%`}
+          rx="22%"
+          ry="2.2%"
+        >
+          <Stop offset="0%" stopColor="#1B064F" stopOpacity="0.34" />
+          <Stop offset="65%" stopColor="#1B064F" stopOpacity="0.1" />
+          <Stop offset="100%" stopColor="#1B064F" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+
+      <Rect x={0} y={0} width={width} height={height} fill="url(#splashCornerTop)" />
+      <Rect x={0} y={0} width={width} height={height} fill="url(#splashCornerBottom)" />
+      <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.052} fill="none" />
+      <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.28} fill="none" />
+      <Rect x={0} y={0} width={width} height={height} fill="url(#splashOwlGlow)" />
+      <Rect x={0} y={0} width={width} height={height} fill="url(#splashOwlFloor)" />
+    </Svg>
   );
 });
 
 /**
- * Unhurried, flagship character-spotlight launch splash sharing the exact warm
- * cream canvas of Android native splash and Home. Choreographs a calm layered
- * entrance (spotlight -> Pixar squash-and-stretch owl -> wordmark -> highlighter
- * -> greeting & formula spark -> liquid progress bar), a joyful 100% dual-ripple
- * particle celebration with subtle haptic pulse, and a graceful staggered
- * spatial baton-pass into Home — 100% on Android RenderThread (zero Reanimated).
+ * Flagship "Royal-Violet Studio Curtain" launch splash:
+ * - Opens seamlessly from Android's warm cream native splash (#FFF8EC) with zero flash.
+ * - Sweeps in a jewel Royal-Violet architectural math studio with true optical SVG
+ *   RadialGradients (zero stacked flat CSS circles), Pixar squash-and-stretch owl,
+ *   electric-lime marker wordmark, and a minimalist 4px shimmer ribbon (no fake %
+ *   counters or technical installer checklists).
+ * - Adapts cadence automatically: rich ~1.15s cinema showcase on first launch
+ *   (onboarding), crisp ~0.82s signature sting on daily returns.
+ * - Morphs on exit: the full-screen Royal-Violet stage physically pulls upward like
+ *   a curved studio curtain right into the top Royal-Violet canopy of Onboarding/Home
+ *   while Profu glides smoothly onto the top-right canopy perch — 100% pure native
+ *   driver on Android RenderThread (zero Reanimated).
  */
 export function LaunchSplash({
   ready,
   visualsReady,
   onboardingPending = false,
-  startupReady = false,
   reducedMotion,
   onIntroSettled,
   onRevealStart,
   onFinish,
 }: Props) {
   const { width, height } = useSafeAreaFrame();
+  const insets = useSafeAreaInsets();
   const [mood] = useState(() => {
     const now = new Date();
     return resolveSplashMood(now.getHours(), now.getSeconds() + now.getMinutes() * 7 + now.getDate() * 13);
@@ -174,26 +204,22 @@ export function LaunchSplash({
   const [introStarted, setIntroStarted] = useState(reducedMotion);
   const [introComplete, setIntroComplete] = useState(reducedMotion);
   const [passThrough, setPassThrough] = useState(false);
+  const [underlayCleared, setUnderlayCleared] = useState(reducedMotion);
 
   // Pure native-driver Animated values (100% Android RenderThread, 0 Reanimated worklets).
-  const auraEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const curtainEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const owlEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const greetingEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const copyEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const underlineReveal = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const formulaEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-  const progressEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const ribbonEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const floatPhase = useRef(new Animated.Value(0)).current;
-  const auraBreathPhase = useRef(new Animated.Value(0)).current;
-  const orbitPhase = useRef(new Animated.Value(0)).current;
+  const ribbonFill = useRef(new Animated.Value(reducedMotion ? 1 : RIBBON_START)).current;
+  const ribbonSheen = useRef(new Animated.Value(0)).current;
   const victoryBurst = useRef(new Animated.Value(0)).current;
   const owlCelebrate = useRef(new Animated.Value(0)).current;
-  const progressFill = useRef(new Animated.Value(reducedMotion ? 1 : PROGRESS_START)).current;
-  const barSheenPhase = useRef(new Animated.Value(0)).current;
-  const progressExit = useRef(new Animated.Value(0)).current;
   const chromeExit = useRef(new Animated.Value(0)).current;
+  const curtainExit = useRef(new Animated.Value(0)).current;
   const owlExit = useRef(new Animated.Value(0)).current;
-  const backdropOpacity = useRef(new Animated.Value(1)).current;
 
   const introSettledRef = useRef(onIntroSettled);
   const revealStartRef = useRef(onRevealStart);
@@ -201,22 +227,33 @@ export function LaunchSplash({
   const introNotified = useRef(false);
   const revealed = useRef(false);
   const finished = useRef(false);
-  const progressGlideStarted = useRef(false);
-  const progressCompleted = useRef(false);
+  const ribbonGlideStarted = useRef(false);
+  const ribbonCompleted = useRef(false);
   const victoryHapticFired = useRef(false);
   const ambientLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
 
   const handleSceneLayout = useCallback(() => setSceneReady(true), []);
+
+  // Deterministic viewport geometry matching both WelcomeOnboardingScreen & HomeSurface canopies.
   const compact = height < 720;
-  const owlSize = compact ? 186 : Math.min(234, Math.round(width * 0.57));
-  const orbitSize = owlSize + 60;
-  const innerOrbitSize = owlSize + 20;
-  // Deterministic geometry from frame width avoids mid-flight onLayout interpolation resets.
-  const trackOuterWidth = Math.round(Math.max(222, Math.min(width - 70, 296)));
-  const trackInnerWidth = Math.max(1, trackOuterWidth - 3);
-  // Spatial exit arc aimed right at the top-right Royal-Violet canopy mascot perch.
-  const owlExitTargetX = Math.round(Math.min(114, width * 0.27));
-  const owlExitTargetY = -Math.round(Math.min(198, height * 0.23));
+  const isVeryNarrow = width < 350;
+  const owlSize = compact ? 184 : Math.min(228, Math.round(width * 0.56));
+  const ribbonWidth = Math.round(Math.max(132, Math.min(width * 0.44, 180)));
+  const curtainHeight = Math.round(height + 38);
+  const owlCenterY = Math.round(height * 0.4);
+
+  const targetCanopyHeight = onboardingPending
+    ? Math.round(insets.top + (compact ? 142 : 168))
+    : Math.round(insets.top + (height - insets.top < 690 ? 83 + 68 : 110 + (isVeryNarrow ? 94 : 106)));
+  const curtainRetractY = -Math.max(120, curtainHeight - targetCanopyHeight);
+
+  // Target perch coordinates for the flying owl to land directly on the destination canopy's right mascot slot.
+  const owlExitTargetX = Math.round(Math.min(118, width * 0.29));
+  const owlExitTargetY = -Math.round(Math.max(145, owlCenterY - (insets.top + (onboardingPending ? 96 : 114))));
+
+  // Smart rhythm: cinema-rich on first launch (onboarding), blazing-fast sting on daily returns.
+  const introSettleMs = onboardingPending ? 880 : 560;
+  const celebrateBeatMs = onboardingPending ? 290 : 210;
 
   introSettledRef.current = onIntroSettled;
   revealStartRef.current = onRevealStart;
@@ -243,26 +280,11 @@ export function LaunchSplash({
     finishRef.current();
   }, [notifyIntroSettledOnce, notifyRevealOnce]);
 
-  const stageLabel = onboardingPending
-    ? (ready
-      ? 'Bun venit! Începem!'
-      : startupReady
-        ? 'Pregătesc ecranul de bun venit…'
-        : visualsReady
-          ? 'Pregătesc profilul tău…'
-          : 'Pregătesc culorile și formulele…')
-    : (ready
-      ? 'Gata! Începem!'
-      : startupReady
-        ? 'Așez tabla de lucru…'
-        : visualsReady
-          ? 'Verific contul și Caietul…'
-          : 'Pregătesc culorile și formulele…');
-
-  // Hide native splash once the warm canvas and owl artwork are painted, then play unhurried entrance.
+  // Hide Android native splash once the warm canvas and owl artwork are decoded, then play clean studio sting.
   useEffect(() => {
     if (!sceneReady || !imageReady || !visualsReady) return undefined;
     let active = true;
+    let underlayTimer: ReturnType<typeof setTimeout> | undefined;
     let introTimer: ReturnType<typeof setTimeout> | undefined;
     let ambientTimer: ReturnType<typeof setTimeout> | undefined;
     const oneShotAnims: Animated.CompositeAnimation[] = [];
@@ -286,60 +308,62 @@ export function LaunchSplash({
       anim.start();
     };
 
-    const startNativeLoop = (value: Animated.Value, duration: number) => {
-      const loop = createNativeLoop(value, duration);
-      loops.push(loop);
-      ambientLoopsRef.current.push(loop);
-      loop.start();
-    };
-
     const frame = requestAnimationFrame(() => {
       void SplashScreen.hideAsync().catch(() => undefined).then(() => {
         if (active) setNativeSplashHidden(true);
       });
       if (!active) return;
       setIntroStarted(true);
+
       if (reducedMotion) {
-        auraEnter.setValue(1);
+        curtainEnter.setValue(1);
         owlEnter.setValue(1);
-        greetingEnter.setValue(1);
         copyEnter.setValue(1);
         underlineReveal.setValue(1);
-        formulaEnter.setValue(1);
-        progressEnter.setValue(1);
+        ribbonEnter.setValue(1);
+        setUnderlayCleared(true);
         notifyIntroSettledOnce();
         return;
       }
 
-      // Unhurried, deliberate 6-layer cinema choreography so every element shines.
-      startTiming(auraEnter, 1, 780, 0);
-      startTiming(owlEnter, 1, 720, 120);
-      startTiming(copyEnter, 1, 620, 340);
-      startTiming(underlineReveal, 1, 520, 520, SILKY_EASE_OUT);
-      startTiming(greetingEnter, 1, 500, 600);
-      startTiming(formulaEnter, 1, 520, 660);
-      startTiming(progressEnter, 1, 520, 760);
+      // Crisp 4-beat studio logo sting: Royal-Violet stage -> Pixar owl -> wordmark -> Electric-Lime slash -> 4px ribbon.
+      startTiming(curtainEnter, 1, 300, 0);
+      startTiming(owlEnter, 1, 560, 60);
+      startTiming(copyEnter, 1, 460, 190);
+      startTiming(underlineReveal, 1, 420, 310);
+      startTiming(ribbonEnter, 1, 380, 380);
 
-      // Gentle pure-native RenderThread living loops engage smoothly as the owl settles.
+      // Quietly clear the warm-cream Frame-0 underlay once the Royal-Violet curtain fully covers the viewport.
+      underlayTimer = setTimeout(() => {
+        if (active) setUnderlayCleared(true);
+      }, 330);
+
+      // Gentle RenderThread living float engages smoothly after the owl settles.
       ambientTimer = setTimeout(() => {
         if (!active) return;
-        startNativeLoop(floatPhase, 3_400);
-        startNativeLoop(auraBreathPhase, 3_900);
-        startNativeLoop(orbitPhase, 38_000);
-      }, 720);
+        const loop = createNativeLoop(floatPhase, 3_400);
+        loops.push(loop);
+        ambientLoopsRef.current.push(loop);
+        loop.start();
+      }, 580);
 
-      // Mount Home behind the splash only after the unhurried entrance is completely settled.
+      // Mount destination screen behind the opaque Royal-Violet curtain right as the sting settles.
       introTimer = setTimeout(() => {
         if (active) notifyIntroSettledOnce();
-      }, 1_180);
+      }, introSettleMs);
     });
+
     const introFallback = setTimeout(() => {
-      if (active) notifyIntroSettledOnce();
-    }, 1_650);
+      if (active) {
+        setUnderlayCleared(true);
+        notifyIntroSettledOnce();
+      }
+    }, 1_400);
 
     return () => {
       active = false;
       cancelAnimationFrame(frame);
+      if (underlayTimer) clearTimeout(underlayTimer);
       if (introTimer) clearTimeout(introTimer);
       if (ambientTimer) clearTimeout(ambientTimer);
       clearTimeout(introFallback);
@@ -347,84 +371,78 @@ export function LaunchSplash({
       loops.forEach((loop) => loop.stop());
       ambientLoopsRef.current = [];
       floatPhase.stopAnimation();
-      auraBreathPhase.stopAnimation();
-      orbitPhase.stopAnimation();
     };
   }, [
-    auraBreathPhase,
-    auraEnter,
     copyEnter,
+    curtainEnter,
     floatPhase,
-    formulaEnter,
-    greetingEnter,
     imageReady,
+    introSettleMs,
     notifyIntroSettledOnce,
-    orbitPhase,
     owlEnter,
-    progressEnter,
     reducedMotion,
+    ribbonEnter,
     sceneReady,
     underlineReveal,
     visualsReady,
   ]);
 
-  // One uninterrupted native progress glide from 6% -> 92% (never stops/restarts mid-load).
+  // Smooth uninterrupted glide of the minimalist 4px shimmer ribbon while startup resolves.
   useEffect(() => {
     if (reducedMotion) {
-      progressFill.setValue(ready ? 1 : 0.85);
+      ribbonFill.setValue(ready ? 1 : 0.85);
       return undefined;
     }
-    if (!introStarted || progressGlideStarted.current || progressCompleted.current) return undefined;
-    progressGlideStarted.current = true;
-    Animated.timing(progressFill, {
-      toValue: PROGRESS_GLIDE_CAP,
-      duration: PROGRESS_GLIDE_MS,
+    if (!introStarted || ribbonGlideStarted.current || ribbonCompleted.current) return undefined;
+    ribbonGlideStarted.current = true;
+    Animated.timing(ribbonFill, {
+      toValue: RIBBON_GLIDE_CAP,
+      duration: RIBBON_GLIDE_MS,
       easing: SILKY_EASE_OUT,
       useNativeDriver: true,
     }).start();
     return undefined;
-  }, [introStarted, progressFill, ready, reducedMotion]);
+  }, [introStarted, ready, reducedMotion, ribbonFill]);
 
-  // Smooth unhurried completion glide to 100% once startup and navigation are ready.
   useEffect(() => {
-    if (!ready || progressCompleted.current) return undefined;
-    progressCompleted.current = true;
+    if (!ready || ribbonCompleted.current) return undefined;
+    ribbonCompleted.current = true;
     if (reducedMotion) {
-      progressFill.setValue(1);
+      ribbonFill.setValue(1);
       return undefined;
     }
-    const anim = Animated.timing(progressFill, {
+    const anim = Animated.timing(ribbonFill, {
       toValue: 1,
-      duration: 360,
+      duration: 240,
       easing: SILKY_EASE_OUT,
       useNativeDriver: true,
     });
     anim.start();
     return () => anim.stop();
-  }, [progressFill, ready, reducedMotion]);
+  }, [ready, reducedMotion, ribbonFill]);
 
-  // Continuous single-timing native shimmer wave gliding smoothly across the liquid bar.
   useEffect(() => {
     if (reducedMotion || !introStarted || ready) {
-      barSheenPhase.stopAnimation();
-      barSheenPhase.setValue(0);
+      ribbonSheen.stopAnimation();
+      ribbonSheen.setValue(0);
       return undefined;
     }
-    const sheenLoop = createNativeLoop(barSheenPhase, 1_450);
+    const sheenLoop = createNativeLoop(ribbonSheen, 1_300);
     sheenLoop.start();
     return () => {
       sheenLoop.stop();
-      barSheenPhase.stopAnimation();
+      ribbonSheen.stopAnimation();
     };
-  }, [barSheenPhase, introStarted, ready, reducedMotion]);
+  }, [introStarted, ready, reducedMotion, ribbonSheen]);
 
-  // Unhurried 100% celebration + calm staggered spatial handoff into Home.
+  // Celebratory spark hop + signature Curtain-Pull Morph right into the destination's Royal-Violet canopy.
   useEffect(() => {
     if (!ready || !introComplete || !nativeSplashHidden) return undefined;
     if (reducedMotion) {
       finishOnce();
       return undefined;
     }
+    setUnderlayCleared(true);
     let revealTimer: ReturnType<typeof setTimeout> | undefined;
     let passThroughTimer: ReturnType<typeof setTimeout> | undefined;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -444,60 +462,52 @@ export function LaunchSplash({
     owlCelebrate.setValue(0);
     startAnim(Animated.timing(victoryBurst, {
       toValue: 1,
-      duration: 680,
+      duration: 540,
       easing: SILKY_EASE_OUT,
       useNativeDriver: true,
     }));
     startAnim(Animated.timing(owlCelebrate, {
       toValue: 1,
-      duration: 420,
+      duration: 320,
       easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
     }));
 
     const beatTimer = setTimeout(() => {
-      // Quietly release splash idle loops right before the curtain opens so RenderThread stays 100% focused on the handoff.
+      // Release idle float right before the curtain morph so RenderThread stays locked at 60fps.
       ambientLoopsRef.current.forEach((loop) => loop.stop());
       ambientLoopsRef.current = [];
       floatPhase.stopAnimation();
-      auraBreathPhase.stopAnimation();
-      orbitPhase.stopAnimation();
 
-      // Unhurried cinema exit matching LaunchSplash intro: progress glides down -> copy dissolves -> owl arcs up-right -> canvas melts.
-      startAnim(Animated.timing(progressExit, {
+      // Wordmark & ribbon dissolve cleanly -> Royal-Violet curtain retracts UP into canopy -> owl glides onto perch.
+      startAnim(Animated.timing(chromeExit, {
         toValue: 1,
-        duration: 300,
+        duration: 240,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
-      startAnim(Animated.timing(chromeExit, {
+      startAnim(Animated.timing(curtainExit, {
         toValue: 1,
-        duration: 320,
-        delay: 50,
+        duration: 540,
+        delay: 30,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(owlExit, {
         toValue: 1,
         duration: 480,
-        delay: 80,
+        delay: 35,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
-      startAnim(Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 420,
-        delay: 200,
-        easing: SILKY_EASE_IN_OUT,
-        useNativeDriver: true,
-      }));
-      // Launch destination's unhurried pre-baked GPU choreography right as the cream veil turns translucent.
-      revealTimer = setTimeout(notifyRevealOnce, 220);
-      // Pass touches cleanly the instant the splash veil reaches opacity 0.
-      passThroughTimer = setTimeout(() => setPassThrough(true), 620);
-      // Unmount LaunchSplash strictly AFTER destination entrance finishes landing so zero view-teardown hitch interrupts motion.
-      exitTimer = setTimeout(finishOnce, 1_220);
-    }, 420);
+
+      // Trigger destination screen's card & mascot cascade right as the curtain lifts away from the cards.
+      revealTimer = setTimeout(notifyRevealOnce, 120);
+      // Hand touches cleanly to the destination screen once the curtain dissolves flush into its canopy.
+      passThroughTimer = setTimeout(() => setPassThrough(true), 560);
+      // Unmount LaunchSplash strictly after destination animations settle so zero view-teardown hitch occurs.
+      exitTimer = setTimeout(finishOnce, 1_120);
+    }, celebrateBeatMs);
 
     return () => {
       clearTimeout(beatTimer);
@@ -507,18 +517,16 @@ export function LaunchSplash({
       exitAnims.forEach((anim) => anim.stop());
     };
   }, [
-    auraBreathPhase,
-    backdropOpacity,
+    celebrateBeatMs,
     chromeExit,
+    curtainExit,
     finishOnce,
     floatPhase,
     introComplete,
     nativeSplashHidden,
     notifyRevealOnce,
-    orbitPhase,
     owlCelebrate,
     owlExit,
-    progressExit,
     ready,
     reducedMotion,
     victoryBurst,
@@ -531,25 +539,41 @@ export function LaunchSplash({
     return () => clearTimeout(hardDeadline);
   }, [finishOnce, imageReady, nativeSplashHidden, ready, sceneReady, visualsReady]);
 
-  // Strictly memoized interpolations keep Android Fabric native node graphs intact across renders.
-  const rootAnimated = useMemo(() => ({ opacity: backdropOpacity }), [backdropOpacity]);
-
-  const progressExitStyle = useMemo(() => ({
-    opacity: progressExit.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0],
+  // Strictly memoized Fabric-safe native interpolations.
+  const curtainEnterStyle = useMemo(() => ({
+    opacity: curtainEnter.interpolate({
+      inputRange: [0, 0.72, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
       {
-        translateY: progressExit.interpolate({
+        translateY: curtainEnter.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 18],
+          outputRange: [-24, 0],
           extrapolate: 'clamp',
         }),
       },
     ],
-  }), [progressExit]);
+  }), [curtainEnter]);
+
+  // Curtain pulls smoothly upward to exact targetCanopyHeight, then cross-dissolves flush into destination canopy.
+  const curtainMorphStyle = useMemo(() => ({
+    opacity: curtainExit.interpolate({
+      inputRange: [0, 0.78, 1],
+      outputRange: [1, 1, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: curtainExit.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, curtainRetractY],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [curtainExit, curtainRetractY]);
 
   const chromeExitStyle = useMemo(() => ({
     opacity: chromeExit.interpolate({
@@ -561,7 +585,7 @@ export function LaunchSplash({
       {
         translateY: chromeExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -10],
+          outputRange: [0, -18],
           extrapolate: 'clamp',
         }),
       },
@@ -571,7 +595,7 @@ export function LaunchSplash({
   const owlSpatialExitStyle = useMemo(() => ({
     opacity: owlExit.interpolate({
       inputRange: [0, 0.72, 1],
-      outputRange: [1, 0.68, 0],
+      outputRange: [1, 0.74, 0],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -592,204 +616,46 @@ export function LaunchSplash({
       {
         scale: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [1, 0.44],
+          outputRange: [1, 0.43],
           extrapolate: 'clamp',
         }),
       },
       {
         rotate: owlExit.interpolate({
           inputRange: [0, 0.45, 1],
-          outputRange: ['0deg', '-7deg', '5deg'],
+          outputRange: ['0deg', '-8deg', '4deg'],
           extrapolate: 'clamp',
         }),
       },
     ],
   }), [owlExit, owlExitTargetX, owlExitTargetY]);
 
-  const crownMistStyle = useMemo(() => ({
-    opacity: auraEnter.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 1],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        translateY: auraEnter.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-18, 0],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [auraEnter]);
-
-  const auraEnterStyle = useMemo(() => ({
-    opacity: auraEnter.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 1],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        scale: auraEnter.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.74, 1],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [auraEnter]);
-
-  const auraBreathStyle = useMemo(() => ({
-    opacity: auraBreathPhase.interpolate({
-      inputRange: WAVE_INPUT,
-      outputRange: AURA_OPACITY,
-    }),
-    transform: [
-      {
-        scale: auraBreathPhase.interpolate({
-          inputRange: WAVE_INPUT,
-          outputRange: AURA_SCALE,
-        }),
-      },
-    ],
-  }), [auraBreathPhase]);
-
-  const sparkleBreathStyle = useMemo(() => ({
-    opacity: auraBreathPhase.interpolate({
-      inputRange: WAVE_INPUT,
-      outputRange: SPARKLE_OPACITY,
-    }),
-    transform: [
-      {
-        scale: auraBreathPhase.interpolate({
-          inputRange: WAVE_INPUT,
-          outputRange: SPARKLE_SCALE,
-        }),
-      },
-    ],
-  }), [auraBreathPhase]);
-
-  const outerOrbitStyle = useMemo(() => ({
-    transform: [
-      {
-        rotate: orbitPhase.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['0deg', '360deg'],
-        }),
-      },
-    ],
-  }), [orbitPhase]);
-
-  const innerOrbitStyle = useMemo(() => ({
-    transform: [
-      {
-        rotate: orbitPhase.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['0deg', '-360deg'],
-        }),
-      },
-    ],
-  }), [orbitPhase]);
-
-  const primaryVictoryRippleStyle = useMemo(() => ({
-    opacity: victoryBurst.interpolate({
-      inputRange: [0, 0.14, 0.84, 1],
-      outputRange: [0, 0.78, 0.14, 0],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        scale: victoryBurst.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.74, 1.44],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [victoryBurst]);
-
-  const secondaryVictoryRippleStyle = useMemo(() => ({
-    opacity: victoryBurst.interpolate({
-      inputRange: [0, 0.14, 0.28, 0.9, 1],
-      outputRange: [0, 0, 0.45, 0.08, 0],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        scale: victoryBurst.interpolate({
-          inputRange: [0, 0.14, 1],
-          outputRange: [0.72, 0.72, 1.3],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [victoryBurst]);
-
-  const victorySparkStyles = useMemo(() => VICTORY_SPARKS.map((spark) => ({
-    opacity: victoryBurst.interpolate({
-      inputRange: [0, 0.14, 0.68, 1],
-      outputRange: [0, 1, 0.88, 0],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        translateX: victoryBurst.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, spark.dx],
-          extrapolate: 'clamp',
-        }),
-      },
-      {
-        translateY: victoryBurst.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, spark.dy],
-          extrapolate: 'clamp',
-        }),
-      },
-      {
-        scale: victoryBurst.interpolate({
-          inputRange: [0, 0.28, 1],
-          outputRange: [0.32, 1.18, 0.72],
-          extrapolate: 'clamp',
-        }),
-      },
-      {
-        rotate: victoryBurst.interpolate({
-          inputRange: [0, 1],
-          outputRange: ['0deg', spark.rotate],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  })), [victoryBurst]);
-
-  // Volume-preserving Pixar squash-and-stretch entrance for the floating owl.
+  // Volume-preserving Pixar squash-and-stretch entrance for the hero owl.
   const owlEnterStyle = useMemo(() => ({
     opacity: owlEnter.interpolate({
-      inputRange: [0, 0.42, 1],
+      inputRange: [0, 0.36, 1],
       outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         translateY: owlEnter.interpolate({
-          inputRange: [0, 0.56, 0.8, 1],
-          outputRange: [34, -5, 1.5, 0],
+          inputRange: [0, 0.54, 0.78, 1],
+          outputRange: [36, -6, 1.5, 0],
           extrapolate: 'clamp',
         }),
       },
       {
         scaleX: owlEnter.interpolate({
-          inputRange: [0, 0.52, 0.74, 0.88, 1],
-          outputRange: [0.78, 0.955, 1.045, 0.99, 1],
+          inputRange: [0, 0.5, 0.72, 0.88, 1],
+          outputRange: [0.76, 0.945, 1.055, 0.988, 1],
           extrapolate: 'clamp',
         }),
       },
       {
         scaleY: owlEnter.interpolate({
-          inputRange: [0, 0.52, 0.74, 0.88, 1],
-          outputRange: [0.84, 1.045, 0.96, 1.01, 1],
+          inputRange: [0, 0.5, 0.72, 0.88, 1],
+          outputRange: [0.84, 1.055, 0.95, 1.012, 1],
           extrapolate: 'clamp',
         }),
       },
@@ -817,14 +683,14 @@ export function LaunchSplash({
     transform: [
       {
         translateY: owlCelebrate.interpolate({
-          inputRange: [0, 0.46, 1],
-          outputRange: [0, -7, 0],
+          inputRange: [0, 0.45, 1],
+          outputRange: [0, -9, 0],
           extrapolate: 'clamp',
         }),
       },
       {
         scale: owlCelebrate.interpolate({
-          inputRange: [0, 0.46, 1],
+          inputRange: [0, 0.45, 1],
           outputRange: [1, 1.075, 1],
           extrapolate: 'clamp',
         }),
@@ -832,49 +698,47 @@ export function LaunchSplash({
     ],
   }), [owlCelebrate]);
 
-  const greetingPillStyle = useMemo(() => ({
-    opacity: greetingEnter.interpolate({
-      inputRange: [0, 0.7, 1],
-      outputRange: [0, 1, 1],
+  const sparkStyles = useMemo(() => CELEBRATION_SPARKS.map((spark) => ({
+    opacity: victoryBurst.interpolate({
+      inputRange: [0, 0.14, 0.66, 1],
+      outputRange: [0, 1, 0.86, 0],
       extrapolate: 'clamp',
     }),
     transform: [
       {
-        translateY: greetingEnter.interpolate({
+        translateX: victoryBurst.interpolate({
           inputRange: [0, 1],
-          outputRange: [10, 0],
+          outputRange: [0, spark.dx],
           extrapolate: 'clamp',
         }),
       },
       {
-        scale: greetingEnter.interpolate({
+        translateY: victoryBurst.interpolate({
           inputRange: [0, 1],
-          outputRange: [0.86, 1],
+          outputRange: [0, spark.dy],
           extrapolate: 'clamp',
         }),
       },
-      { rotate: '4deg' },
-    ],
-  }), [greetingEnter]);
-
-  const groundShadowStyle = useMemo(() => ({
-    opacity: floatPhase.interpolate({
-      inputRange: WAVE_INPUT,
-      outputRange: SHADOW_OPACITY,
-    }),
-    transform: [
       {
-        scaleX: floatPhase.interpolate({
-          inputRange: WAVE_INPUT,
-          outputRange: SHADOW_SCALE_X,
+        scale: victoryBurst.interpolate({
+          inputRange: [0, 0.28, 1],
+          outputRange: [0.3, 1.16, 0.7],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        rotate: victoryBurst.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', spark.rotate],
+          extrapolate: 'clamp',
         }),
       },
     ],
-  }), [floatPhase]);
+  })), [victoryBurst]);
 
   const copyEnterStyle = useMemo(() => ({
     opacity: copyEnter.interpolate({
-      inputRange: [0, 0.68, 1],
+      inputRange: [0, 0.65, 1],
       outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
@@ -882,14 +746,14 @@ export function LaunchSplash({
       {
         translateY: copyEnter.interpolate({
           inputRange: [0, 1],
-          outputRange: [18, 0],
+          outputRange: [16, 0],
           extrapolate: 'clamp',
         }),
       },
     ],
   }), [copyEnter]);
 
-  const underlineAnimated = useMemo(() => ({
+  const underlineStyle = useMemo(() => ({
     opacity: underlineReveal,
     transform: [
       {
@@ -899,397 +763,180 @@ export function LaunchSplash({
           extrapolate: 'clamp',
         }),
       },
-      { rotate: '-1.2deg' },
+      { rotate: '-1.4deg' },
     ],
   }), [underlineReveal]);
 
-  const formulaEnterStyle = useMemo(() => ({
-    opacity: formulaEnter.interpolate({
+  const ribbonEnterStyle = useMemo(() => ({
+    opacity: ribbonEnter.interpolate({
       inputRange: [0, 0.7, 1],
       outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
       {
-        translateY: formulaEnter.interpolate({
+        translateY: ribbonEnter.interpolate({
           inputRange: [0, 1],
-          outputRange: [12, 0],
-          extrapolate: 'clamp',
-        }),
-      },
-      {
-        scale: formulaEnter.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0.94, 1],
+          outputRange: [10, 0],
           extrapolate: 'clamp',
         }),
       },
     ],
-  }), [formulaEnter]);
+  }), [ribbonEnter]);
 
-  const progressEnterStyle = useMemo(() => ({
-    opacity: progressEnter.interpolate({
-      inputRange: [0, 0.68, 1],
-      outputRange: [0, 1, 1],
+  const ribbonFillStyle = useMemo(() => ({
+    transform: [
+      {
+        translateX: ribbonFill.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-ribbonWidth, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [ribbonFill, ribbonWidth]);
+
+  const ribbonSheenStyle = useMemo(() => ({
+    opacity: ribbonSheen.interpolate({
+      inputRange: [0, 0.16, 0.56, 0.72, 1],
+      outputRange: [0, 0.85, 0.85, 0, 0],
       extrapolate: 'clamp',
     }),
     transform: [
       {
-        translateY: progressEnter.interpolate({
-          inputRange: [0, 1],
-          outputRange: [14, 0],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [progressEnter]);
-
-  const fillTransformStyle = useMemo(() => ({
-    transform: [
-      {
-        translateX: progressFill.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-trackInnerWidth, 0],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [progressFill, trackInnerWidth]);
-
-  const barSheenStyle = useMemo(() => ({
-    opacity: barSheenPhase.interpolate({
-      inputRange: [0, 0.14, 0.56, 0.72, 1],
-      outputRange: [0, 0.62, 0.62, 0, 0],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        translateX: barSheenPhase.interpolate({
+        translateX: ribbonSheen.interpolate({
           inputRange: [0, 0.72, 1],
-          outputRange: [-54, trackInnerWidth + 54, trackInnerWidth + 54],
+          outputRange: [-44, ribbonWidth + 44, ribbonWidth + 44],
         }),
       },
       { skewX: '-22deg' },
     ],
-  }), [barSheenPhase, trackInnerWidth]);
-
-  const milestones = [
-    { key: 'visuals', label: 'Resurse', done: visualsReady },
-    { key: 'account', label: 'Cont', done: startupReady },
-    { key: 'board', label: onboardingPending ? 'Bun venit' : 'Tablă', done: ready },
-  ] as const;
+  }), [ribbonSheen, ribbonWidth]);
 
   return (
-    <Animated.View
+    <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       onLayout={handleSceneLayout}
       pointerEvents={passThrough ? 'none' : 'auto'}
-      style={[styles.root, rootAnimated]}
+      style={styles.root}
     >
-      <StatusBar style="dark" />
+      <StatusBar style={underlayCleared ? 'light' : 'dark'} />
 
-      {/* Mount custom-font text and backdrop symbols only after Font.loadAsync
-          has resolved so Android never caches a temporary fallback typeface. */}
-      {visualsReady ? (
-        <>
-          <ComicBackdrop />
+      {/* Warm cream Frame-0 underlay matching Android native splash seamlessly */}
+      {!underlayCleared ? <View pointerEvents="none" style={styles.nativeCanvasUnderlay} /> : null}
 
-          {/* Soft Royal-Violet ambient crown mist bridging Splash into the curved canopy below */}
-          <Animated.View pointerEvents="none" style={[styles.topCrownMist, crownMistStyle]}>
-            <Animated.View style={[StyleSheet.absoluteFill, chromeExitStyle]}>
-              <LinearGradient
-                colors={['rgba(124, 60, 255, 0.13)', 'rgba(124, 60, 255, 0.04)', 'rgba(255, 248, 236, 0)']}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-            </Animated.View>
-          </Animated.View>
+      {/* Full-bleed curved Royal-Violet Curtain that retracts upward into the destination canopy */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.curtainWrap,
+          { height: curtainHeight },
+          curtainMorphStyle,
+        ]}
+      >
+        <Animated.View style={[styles.curtainSurface, curtainEnterStyle]}>
+          <LinearGradient
+            colors={['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4']}
+            start={{ x: 0.08, y: 0 }}
+            end={{ x: 0.92, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          {visualsReady ? (
+            <SplashStudioAtmosphere
+              width={width}
+              height={curtainHeight}
+              owlCenterY={owlCenterY}
+              period={mood.period}
+            />
+          ) : null}
+          <View style={styles.curtainBottomRim} />
+        </Animated.View>
+      </Animated.View>
 
-          {/* Whisper-light peripheral math symbols giving subtle studio atmosphere */}
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, chromeExitStyle]}>
-            {AMBIENT_MATH_WHISPERS.map((item) => (
-              <Text
-                key={item.symbol}
-                accessible={false}
-                style={[
-                  styles.ambientSymbol,
-                  {
-                    top: 'top' in item ? item.top : undefined,
-                    bottom: 'bottom' in item ? item.bottom : undefined,
-                    left: 'left' in item ? item.left : undefined,
-                    right: 'right' in item ? item.right : undefined,
-                    color: item.color,
-                    fontSize: item.size,
-                    lineHeight: item.size + 4,
-                    transform: [{ rotate: item.rotate }],
-                  },
-                ]}
+      {/* Foreground hero stage: owl stays unclipped above the retracting curtain during flight */}
+      <View pointerEvents="none" style={[styles.stage, { paddingTop: insets.top + 16, paddingBottom: Math.max(insets.bottom, 22) + 18 }]}>
+        <View style={styles.topSpacer} />
+
+        <View style={styles.heroCluster}>
+          <View style={[styles.owlStage, { width: owlSize + 24, height: owlSize + 12 }]}>
+            {CELEBRATION_SPARKS.map((spark, index) => (
+              <Animated.View
+                key={`${spark.symbol}-${index}`}
+                style={[styles.sparkAnchor, sparkStyles[index]]}
               >
-                {item.symbol}
-              </Text>
-            ))}
-          </Animated.View>
-
-          <View style={[styles.stage, compact && styles.stageCompact]}>
-            <View style={styles.topSpacer} />
-
-            {/* Flagship free-floating character spotlight */}
-            <View style={styles.centerCluster}>
-              <View style={[styles.heroStage, { width: orbitSize + 18, height: orbitSize + 8 }]}>
-                {/* Time-aware radial studio spotlight, dual counter-rotating orbits & victory burst */}
-                <Animated.View pointerEvents="none" style={[styles.auraWrap, chromeExitStyle]}>
-                  <Animated.View style={[styles.auraWrap, auraEnterStyle]}>
-                    <Animated.View
-                      style={[
-                        styles.auraOuter,
-                        {
-                          width: orbitSize,
-                          height: orbitSize,
-                          borderRadius: orbitSize / 2,
-                          backgroundColor: mood.auraOuter,
-                        },
-                        auraBreathStyle,
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.auraMid,
-                          {
-                            width: Math.round(orbitSize * 0.78),
-                            height: Math.round(orbitSize * 0.78),
-                            borderRadius: Math.round(orbitSize * 0.39),
-                            backgroundColor: mood.auraMid,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.auraCore,
-                            {
-                              width: Math.round(orbitSize * 0.58),
-                              height: Math.round(orbitSize * 0.58),
-                              borderRadius: Math.round(orbitSize * 0.29),
-                            },
-                          ]}
-                        />
-                      </View>
-                    </Animated.View>
-
-                    {/* Outer clockwise orbit with jewel-glossed comic beads */}
-                    <Animated.View
-                      style={[
-                        styles.orbitRing,
-                        {
-                          width: orbitSize - 6,
-                          height: orbitSize - 6,
-                          borderRadius: (orbitSize - 6) / 2,
-                          borderColor: mood.orbitColor,
-                        },
-                        outerOrbitStyle,
-                      ]}
-                    >
-                      <View style={[styles.orbitBead, styles.orbitBeadLime]}>
-                        <View style={styles.orbitBeadShine} />
-                      </View>
-                      <View style={[styles.orbitBead, styles.orbitBeadCyan]}>
-                        <View style={styles.orbitBeadShine} />
-                      </View>
-                      <View style={[styles.orbitBeadSmall, styles.orbitBeadPeach]} />
-                    </Animated.View>
-
-                    {/* Delicate inner counter-rotating orbit with twinkling studio glints */}
-                    <Animated.View
-                      style={[
-                        styles.innerOrbitRing,
-                        { width: innerOrbitSize, height: innerOrbitSize, borderRadius: innerOrbitSize / 2 },
-                        innerOrbitStyle,
-                      ]}
-                    >
-                      <Animated.View style={[styles.orbitSparkleAnchor, styles.orbitSparkleTop, sparkleBreathStyle]}>
-                        <Text accessible={false} style={[styles.orbitSparkle, styles.orbitSparkleGold]}>✦</Text>
-                      </Animated.View>
-                      <Animated.View style={[styles.orbitSparkleAnchor, styles.orbitSparkleBottom, sparkleBreathStyle]}>
-                        <Text accessible={false} style={[styles.orbitSparkle, styles.orbitSparkleViolet]}>✦</Text>
-                      </Animated.View>
-                    </Animated.View>
-
-                    {/* Dual celebratory ripples + 6 math sparks bursting at 100% */}
-                    <Animated.View
-                      style={[
-                        styles.victoryRipplePrimary,
-                        { width: innerOrbitSize, height: innerOrbitSize, borderRadius: innerOrbitSize / 2 },
-                        primaryVictoryRippleStyle,
-                      ]}
-                    />
-                    <Animated.View
-                      style={[
-                        styles.victoryRippleSecondary,
-                        { width: innerOrbitSize, height: innerOrbitSize, borderRadius: innerOrbitSize / 2 },
-                        secondaryVictoryRippleStyle,
-                      ]}
-                    />
-                    {VICTORY_SPARKS.map((spark, index) => (
-                      <Animated.View
-                        key={`${spark.symbol}-${index}`}
-                        style={[styles.victorySparkAnchor, victorySparkStyles[index]]}
-                      >
-                        <Text
-                          accessible={false}
-                          style={[
-                            styles.victorySparkText,
-                            { color: spark.color, fontSize: spark.size, lineHeight: spark.size + 3 },
-                          ]}
-                        >
-                          {spark.symbol}
-                        </Text>
-                      </Animated.View>
-                    ))}
-                  </Animated.View>
-                </Animated.View>
-
-                {/* Airy time-of-day thought-greeting pill tucked cleanly near the top-right */}
-                <Animated.View pointerEvents="none" style={[styles.greetingAnchor, chromeExitStyle]}>
-                  <Animated.View style={greetingPillStyle}>
-                    <View
-                      collapsable={false}
-                      style={[styles.greetingPill, ready && styles.greetingPillReady]}
-                    >
-                      <View style={[styles.greetingDot, ready && styles.greetingDotReady]} />
-                      <Text maxFontSizeMultiplier={1.15} style={styles.greetingText}>
-                        {ready ? 'Gata!' : mood.greeting}
-                      </Text>
-                    </View>
-                    <View style={styles.greetingTrail}>
-                      <View style={[styles.greetingTrailDotLarge, ready && styles.greetingTrailDotReady]} />
-                      <View style={[styles.greetingTrailDotSmall, ready && styles.greetingTrailDotReady]} />
-                    </View>
-                  </Animated.View>
-                </Animated.View>
-
-                {/* Free-floating illustrated owl gliding spatially toward Home on exit */}
-                <Animated.View style={[styles.owlAnchor, owlSpatialExitStyle]}>
-                  <Animated.View style={owlEnterStyle}>
-                    <Animated.View style={owlCelebrateStyle}>
-                      <Animated.View style={owlFloatStyle}>
-                        <Image
-                          accessible={false}
-                          source={bundledImageSource(require('../../../assets/brand/splash_mark_v2.png'))}
-                          resizeMode="contain"
-                          fadeDuration={0}
-                          onLoad={() => setImageReady(true)}
-                          style={{ width: owlSize, height: owlSize }}
-                        />
-                      </Animated.View>
-                    </Animated.View>
-                  </Animated.View>
-                  <Animated.View pointerEvents="none" style={chromeExitStyle}>
-                    <Animated.View
-                      style={[
-                        styles.groundShadow,
-                        { width: Math.round(owlSize * 0.54) },
-                        groundShadowStyle,
-                      ]}
-                    />
-                  </Animated.View>
-                </Animated.View>
-              </View>
-
-              {/* Confident wordmark + unhurried rotating formula gem + feather-light capabilities */}
-              <Animated.View style={[styles.identityExitWrap, chromeExitStyle]}>
-                <Animated.View style={[styles.identityBlock, copyEnterStyle]}>
-                  <View style={styles.wordmarkWrap}>
-                    <Animated.View pointerEvents="none" style={[styles.markerHighlight, underlineAnimated]} />
-                    <Text
-                      maxFontSizeMultiplier={1.3}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.82}
-                      style={[styles.brand, compact && styles.brandCompact]}
-                    >
-                      Profu’ <Text style={styles.brandAccent}>de mate</Text>
-                    </Text>
-                  </View>
-                  <Text maxFontSizeMultiplier={1.3} style={styles.promise}>
-                    Matematica, pas cu pas.
+                {visualsReady ? (
+                  <Text
+                    accessible={false}
+                    style={[
+                      styles.sparkText,
+                      { color: spark.color, fontSize: spark.size, lineHeight: spark.size + 3 },
+                    ]}
+                  >
+                    {spark.symbol}
                   </Text>
-                </Animated.View>
-
-                {!compact ? (
-                  <Animated.View style={[styles.secondaryIdentity, formulaEnterStyle]}>
-                    <View collapsable={false} style={styles.formulaSparkPill}>
-                      <View style={styles.formulaSparkGem}>
-                        <Text accessible={false} style={styles.formulaSparkStar}>✦</Text>
-                      </View>
-                      <Text maxFontSizeMultiplier={1.15} style={styles.formulaSparkText}>
-                        {mood.formula}
-                      </Text>
-                    </View>
-
-                    <View style={styles.capabilityRow}>
-                      {CAPABILITY_ITEMS.map((item) => (
-                        <View key={item.label} style={styles.capabilityItem}>
-                          <View style={[styles.capabilityDot, { backgroundColor: item.dot }]} />
-                          <Text maxFontSizeMultiplier={1.15} style={styles.capabilityText}>
-                            {item.label}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </Animated.View>
                 ) : null}
               </Animated.View>
-            </View>
+            ))}
 
-            {/* Sleek floating liquid progress strip + whisper-light milestone dots */}
-            <Animated.View style={progressExitStyle}>
-              <Animated.View style={[styles.progressBlock, { width: trackOuterWidth }, progressEnterStyle]}>
-                <SplashProgressHeader
-                  ready={ready}
-                  startupReady={startupReady}
-                  introStarted={introStarted}
-                  reducedMotion={reducedMotion}
-                  stageLabel={stageLabel}
-                />
-
-                <View style={[styles.barGlowFrame, ready && styles.barGlowFrameReady, { width: trackOuterWidth + 6 }]}>
-                  <View style={[styles.barTrack, { width: trackOuterWidth }]}>
-                    <Animated.View style={[styles.barFill, ready && styles.barFillReady, fillTransformStyle]}>
-                      <LinearGradient
-                        colors={ready ? ['#ECFF7A', '#C8F624', '#33D48E'] : ['#A370FF', '#7C3CFF', '#5319DC']}
-                        start={{ x: 0, y: 0.5 }}
-                        end={{ x: 1, y: 0.5 }}
-                        style={StyleSheet.absoluteFill}
-                      />
-                      <View pointerEvents="none" style={styles.barFillHighlight} />
-                      <Animated.View pointerEvents="none" style={[styles.barSheen, barSheenStyle]} />
-                      <View pointerEvents="none" style={styles.barLeadingGlow} />
-                    </Animated.View>
-                  </View>
-                </View>
-
-                <View style={styles.milestonesRow}>
-                  {milestones.map((item) => (
-                    <View key={item.key} style={styles.milestoneItem}>
-                      <View style={[styles.milestoneDot, item.done && styles.milestoneDotDone]}>
-                        {item.done ? <MiniGlyph name="check" size={8} color={colors.ink} /> : null}
-                      </View>
-                      <Text
-                        maxFontSizeMultiplier={1.15}
-                        style={[styles.milestoneLabel, item.done && styles.milestoneLabelDone]}
-                      >
-                        {item.label}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
+            <Animated.View style={[styles.owlAnchor, owlSpatialExitStyle]}>
+              <Animated.View style={owlEnterStyle}>
+                <Animated.View style={owlCelebrateStyle}>
+                  <Animated.View style={owlFloatStyle}>
+                    <Image
+                      accessible={false}
+                      source={bundledImageSource(require('../../../assets/brand/splash_mark_v2.png'))}
+                      resizeMode="contain"
+                      fadeDuration={0}
+                      onLoad={() => setImageReady(true)}
+                      style={{ width: owlSize, height: owlSize }}
+                    />
+                  </Animated.View>
+                </Animated.View>
               </Animated.View>
             </Animated.View>
           </View>
-        </>
-      ) : null}
-    </Animated.View>
+
+          {/* Mount custom-font text strictly after Font.loadAsync resolves so Android never caches a fallback typeface */}
+          {visualsReady ? (
+            <Animated.View style={[styles.identityExitWrap, chromeExitStyle]}>
+              <Animated.View style={[styles.identityBlock, copyEnterStyle]}>
+                <View style={styles.wordmarkWrap}>
+                  <Animated.View pointerEvents="none" style={[styles.markerSlash, underlineStyle]} />
+                  <Text
+                    maxFontSizeMultiplier={1.28}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                    style={[styles.brand, compact && styles.brandCompact]}
+                  >
+                    Profu’ <Text style={styles.brandAccent}>de mate</Text>
+                  </Text>
+                </View>
+                <Text maxFontSizeMultiplier={1.25} style={styles.promise}>
+                  Matematica, pas cu pas.
+                </Text>
+              </Animated.View>
+            </Animated.View>
+          ) : null}
+        </View>
+
+        {/* Razor-thin 4px minimalist liquid shimmer ribbon — zero fake % or installer noise */}
+        <Animated.View style={[styles.ribbonExitWrap, chromeExitStyle]}>
+          <Animated.View style={[styles.ribbonTrack, { width: ribbonWidth }, ribbonEnterStyle]}>
+            <Animated.View style={[styles.ribbonFill, ribbonFillStyle]}>
+              <LinearGradient
+                colors={['#F2FF82', '#D8FF3E', '#57E49E']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <Animated.View style={[styles.ribbonSheen, ribbonSheenStyle]} />
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
+      </View>
+    </View>
   );
 }
 
@@ -1302,243 +949,70 @@ const styles = StyleSheet.create({
     left: 0,
     zIndex: 1000,
     overflow: 'hidden',
+  },
+  nativeCanvasUnderlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: colors.canvas,
   },
-  topCrownMist: {
+  curtainWrap: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 190,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
+    overflow: 'hidden',
   },
-  ambientSymbol: {
+  curtainSurface: {
+    flex: 1,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
+    overflow: 'hidden',
+  },
+  curtainBottomRim: {
     position: 'absolute',
-    fontFamily: fonts.display,
-    includeFontPadding: false,
+    left: 32,
+    right: 32,
+    bottom: 2,
+    height: 2,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   stage: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 28,
-    paddingTop: '10%',
-    paddingBottom: '10%',
-  },
-  stageCompact: {
-    paddingTop: '7%',
-    paddingBottom: '8%',
   },
   topSpacer: {
-    height: 10,
+    height: 16,
   },
-  centerCluster: {
+  heroCluster: {
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+    marginTop: -12,
   },
-
-  // Free-floating mascot spotlight stage
-  heroStage: {
+  owlStage: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
-  auraWrap: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  auraOuter: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  auraMid: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  auraCore: {
-    backgroundColor: 'rgba(255, 255, 255, 0.74)',
-  },
-  orbitRing: {
-    position: 'absolute',
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-  },
-  innerOrbitRing: {
-    position: 'absolute',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-  },
-  orbitBead: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.75,
-    borderColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orbitBeadShine: {
-    position: 'absolute',
-    top: 1.5,
-    left: 2,
-    width: 3.5,
-    height: 3.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.78)',
-  },
-  orbitBeadSmall: {
-    position: 'absolute',
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: colors.ink,
-  },
-  orbitBeadLime: {
-    top: -6,
-    left: '50%',
-    marginLeft: -5.5,
-    backgroundColor: colors.lime,
-  },
-  orbitBeadCyan: {
-    bottom: 24,
-    right: 12,
-    backgroundColor: colors.cyan,
-  },
-  orbitBeadPeach: {
-    bottom: 34,
-    left: 10,
-    backgroundColor: colors.peach,
-  },
-  orbitSparkleAnchor: {
-    position: 'absolute',
-  },
-  orbitSparkle: {
-    fontFamily: fonts.display,
-    fontSize: 15,
-    lineHeight: 18,
-    includeFontPadding: false,
-  },
-  orbitSparkleTop: {
-    top: 12,
-    left: 18,
-  },
-  orbitSparkleBottom: {
-    bottom: 14,
-    right: 18,
-  },
-  orbitSparkleGold: {
-    color: colors.gold,
-  },
-  orbitSparkleViolet: {
-    color: colors.violet,
-  },
-  victoryRipplePrimary: {
-    position: 'absolute',
-    borderWidth: 3.5,
-    borderColor: colors.lime,
-  },
-  victoryRippleSecondary: {
-    position: 'absolute',
-    borderWidth: 2,
-    borderColor: colors.violetBright,
-  },
-  victorySparkAnchor: {
-    position: 'absolute',
-  },
-  victorySparkText: {
-    fontFamily: fonts.display,
-    includeFontPadding: false,
-  },
-
-  // Airy thought-greeting pill tucked cleanly near the top-right
-  greetingAnchor: {
-    position: 'absolute',
-    top: 4,
-    right: -2,
-    zIndex: 8,
-  },
-  greetingPill: {
-    minHeight: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E2D6FA',
-    borderBottomColor: '#CDBAF6',
-    backgroundColor: colors.paper,
-    elevation: 2,
-  },
-  greetingPillReady: {
-    borderColor: colors.ink,
-    borderBottomColor: '#7EA508',
-    backgroundColor: colors.lime,
-  },
-  greetingDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: colors.violet,
-  },
-  greetingDotReady: {
-    backgroundColor: colors.ink,
-  },
-  greetingText: {
-    fontFamily: fonts.display,
-    fontSize: 12.5,
-    lineHeight: 15,
-    color: colors.ink,
-    includeFontPadding: false,
-  },
-  greetingTrail: {
-    marginTop: 3,
-    marginLeft: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  greetingTrailDotLarge: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    borderWidth: 1.2,
-    borderColor: '#D6C6F7',
-    backgroundColor: colors.paper,
-  },
-  greetingTrailDotSmall: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#D6C6F7',
-    marginTop: 4,
-  },
-  greetingTrailDotReady: {
-    borderColor: colors.ink,
-    backgroundColor: colors.lime,
-  },
-
   owlAnchor: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  groundShadow: {
-    height: 14,
-    marginTop: -6,
-    borderRadius: 999,
-    backgroundColor: colors.violetDeep,
+  sparkAnchor: {
+    position: 'absolute',
   },
-
-  // Confident wordmark + formula gem lockup
+  sparkText: {
+    fontFamily: fonts.display,
+    includeFontPadding: false,
+  },
   identityExitWrap: {
     width: '100%',
     alignItems: 'center',
@@ -1554,268 +1028,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
   },
-  markerHighlight: {
+  markerSlash: {
     position: 'absolute',
     right: 4,
-    bottom: 5,
-    width: '55%',
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.lime,
+    bottom: 3,
+    width: '54%',
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: 'rgba(216, 255, 62, 0.28)',
     transformOrigin: 'left',
   },
   brand: {
     fontFamily: fonts.display,
-    color: colors.ink,
-    fontSize: 45,
-    lineHeight: 52,
-    letterSpacing: -0.6,
+    color: colors.paper,
+    fontSize: 44,
+    lineHeight: 50,
+    letterSpacing: -0.5,
     textAlign: 'center',
     includeFontPadding: false,
+    textShadowColor: 'rgba(22, 5, 74, 0.34)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   brandCompact: {
-    fontSize: 39,
-    lineHeight: 45,
+    fontSize: 38,
+    lineHeight: 44,
   },
   brandAccent: {
-    color: colors.violet,
+    color: colors.lime,
   },
   promise: {
-    marginTop: 5,
+    marginTop: 6,
     fontFamily: fonts.bodyMedium,
-    color: colors.inkSoft,
-    fontSize: 16,
-    lineHeight: 22,
-    letterSpacing: 0.1,
+    color: 'rgba(244, 238, 255, 0.9)',
+    fontSize: 15.5,
+    lineHeight: 21,
+    letterSpacing: 0.15,
     textAlign: 'center',
     includeFontPadding: false,
   },
-  secondaryIdentity: {
-    alignItems: 'center',
-  },
-  formulaSparkPill: {
-    marginTop: 13,
-    minHeight: 32,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingLeft: 5,
-    paddingRight: 13,
-    paddingVertical: 4,
-    borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
-  },
-  formulaSparkGem: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.violetSoft,
+  ribbonExitWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    height: 16,
   },
-  formulaSparkStar: {
-    fontFamily: fonts.display,
-    fontSize: 10.5,
-    lineHeight: 13,
-    color: colors.violet,
-    includeFontPadding: false,
-  },
-  formulaSparkText: {
-    fontFamily: fonts.display,
-    fontSize: 13,
-    lineHeight: 16,
-    color: colors.violetDeep,
-    letterSpacing: 0.2,
-    includeFontPadding: false,
-  },
-  capabilityRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  capabilityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  capabilityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  capabilityText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 12,
-    lineHeight: 15,
-    color: colors.inkMuted,
-    includeFontPadding: false,
-  },
-
-  // Sleek modern floating liquid progress bar
-  progressBlock: {
-    gap: 9,
-    alignItems: 'center',
-  },
-  progressHeader: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-    paddingHorizontal: 2,
-  },
-  stageLabelRow: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stageDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.violet,
-  },
-  stageDotMid: {
-    backgroundColor: colors.cyan,
-  },
-  stageDotReady: {
-    backgroundColor: colors.mint,
-  },
-  stageLabel: {
-    flex: 1,
-    fontFamily: fonts.bodyBold,
-    color: colors.inkSoft,
-    fontSize: 13,
-    lineHeight: 17,
-    includeFontPadding: false,
-  },
-  percentBadge: {
-    minWidth: 44,
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
+  ribbonTrack: {
+    height: 4,
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
-    backgroundColor: colors.violetSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  percentBadgeReady: {
-    borderColor: '#E8FF78',
-    borderBottomColor: '#8BB509',
-    backgroundColor: colors.lime,
-  },
-  percentText: {
-    fontFamily: fonts.display,
-    color: colors.violetDeep,
-    fontSize: 12,
-    lineHeight: 15,
-    fontVariant: ['tabular-nums'],
-    includeFontPadding: false,
-  },
-  percentTextReady: {
-    color: colors.ink,
-  },
-  barGlowFrame: {
-    padding: 3,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(124, 60, 255, 0.09)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  barGlowFrameReady: {
-    backgroundColor: 'rgba(185, 242, 29, 0.28)',
-  },
-  barTrack: {
-    height: 14,
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: '#DFD2FA',
-    backgroundColor: '#EFE6FF',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
     overflow: 'hidden',
-    justifyContent: 'center',
   },
-  barFill: {
+  ribbonFill: {
     width: '100%',
     height: '100%',
     borderRadius: radii.pill,
-    backgroundColor: colors.violet,
     overflow: 'hidden',
   },
-  barFillReady: {
-    backgroundColor: colors.mint,
-  },
-  barFillHighlight: {
-    position: 'absolute',
-    top: 1.5,
-    left: 6,
-    right: 6,
-    height: 3.5,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.44)',
-  },
-  barSheen: {
+  ribbonSheen: {
     position: 'absolute',
     top: -4,
     bottom: -4,
-    width: 48,
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  barLeadingGlow: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    right: 0,
-    width: 14,
-    borderRadius: radii.pill,
-    backgroundColor: 'rgba(255, 255, 255, 0.52)',
-  },
-  milestonesRow: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingTop: 2,
-  },
-  milestoneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5.5,
-  },
-  milestoneDot: {
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    borderWidth: 1.2,
-    borderColor: '#D6C6F7',
-    backgroundColor: '#F4EEFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  milestoneDotDone: {
-    borderColor: '#8BB509',
-    backgroundColor: colors.lime,
-  },
-  milestoneLabel: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 11.2,
-    lineHeight: 14,
-    color: colors.inkMuted,
-    includeFontPadding: false,
-  },
-  milestoneLabelDone: {
-    fontFamily: fonts.bodyBold,
-    color: colors.ink,
+    width: 42,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
   },
 });

@@ -62,7 +62,7 @@ test('launch preparation includes all shared icons and branding', () => {
   assert.match(assetsSource, /prepareBundledImages\(criticalAssetModules\)/);
 });
 
-test('React splash restores the branded comic scene on Home’s canvas with a bounded handoff', () => {
+test('React splash restores the Royal-Violet curtain studio with true SVG radial light and a bounded morph handoff', () => {
   assert.doesNotMatch(splashSource, /imageFallback/);
   assert.doesNotMatch(splashSource, /react-native-reanimated/);
   assert.match(splashSource, /if \(!sceneReady \|\| !imageReady \|\| !visualsReady\) return/);
@@ -70,11 +70,11 @@ test('React splash restores the branded comic scene on Home’s canvas with a bo
   assert.match(splashSource, /const hardDeadline = setTimeout\(finishOnce, 2_500\)/);
   assert.match(splashSource, /assets\/brand\/splash_mark_v2\.png/);
   assert.match(splashSource, /backgroundColor: colors\.canvas/);
-  assert.match(splashSource, /<ComicBackdrop \/>/);
-  assert.match(splashSource, /const SplashProgressHeader = memo\(/);
-  assert.match(splashSource, /translateX: progressFill\.interpolate\(/);
+  assert.match(splashSource, /RadialGradient/);
+  assert.match(splashSource, /translateX: ribbonFill\.interpolate\(/);
+  assert.match(splashSource, /curtainRetractY/);
   assert.doesNotMatch(splashSource, /Animated\.loop\(\s*Animated\.sequence/);
-  assert.doesNotMatch(splashSource, /setBarWidth/);
+  assert.doesNotMatch(splashSource, /setBarWidth|displayPercent/);
   assert.match(splashSource, /useNativeDriver: true/);
   assert.match(splashSource, /notifyIntroSettledOnce\(\)/);
   assert.match(splashSource, /notifyRevealOnce\(\)/);
@@ -90,7 +90,7 @@ test('native splash hands off only after the branded scene and image are painted
   assert.match(splashSource, /onLayout=\{handleSceneLayout\}/);
   assert.match(splashSource, /if \(!sceneReady \|\| !imageReady \|\| !visualsReady\) return/);
   assert.match(splashSource, /SplashScreen\.hideAsync\(\)/);
-  assert.match(splashSource, /Animated\.timing\(backdropOpacity,/);
+  assert.match(splashSource, /Animated\.timing\(curtainExit,/);
 });
 
 test('Home fills the safe-area viewport without a scrolling container', () => {
