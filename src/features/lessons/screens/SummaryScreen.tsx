@@ -28,6 +28,7 @@ import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { ConfettiBurst } from '../../../shared/ui/ConfettiBurst';
 import { IconButton } from '../../../shared/ui/IconButton';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -437,11 +438,10 @@ export function SummaryScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowTop} />
-        <View pointerEvents="none" style={styles.canopyGlowLime} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyGlyphStar}>★</Text>
-        <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
+        <RoyalHeroCanopyBackdrop
+          showGradient={false}
+          bottomRightAccent={isPositive ? '#D8FF3E' : '#FFD447'}
+        />
 
         <View style={[styles.heroRow, { paddingHorizontal: gutter }, isShort && styles.heroRowShort]}>
           <Animated.View style={[styles.celebration, isShort && styles.celebrationShort, { transform: [{ scale: heroPop }] }]}>

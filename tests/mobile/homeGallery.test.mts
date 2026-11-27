@@ -75,6 +75,7 @@ function surfaceFixture() {
     'src/shared/ui/RoyalHeroCanopyBackdrop.tsx': {
       ROYAL_HERO_GRADIENT: ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'],
       RoyalHeroCanopyBackdrop: 'RoyalHeroCanopyBackdrop',
+      StudioCardBackdrop: 'StudioCardBackdrop',
     },
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },
@@ -262,6 +263,7 @@ function statefulSurfaceFixture(initialHeight = 802) {
     'src/shared/ui/RoyalHeroCanopyBackdrop.tsx': {
       ROYAL_HERO_GRADIENT: ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'],
       RoyalHeroCanopyBackdrop: 'RoyalHeroCanopyBackdrop',
+      StudioCardBackdrop: 'StudioCardBackdrop',
     },
     'src/shared/ui/SegmentedToggle.tsx': { SegmentedToggle: 'SegmentedToggle' },
     'src/shared/ui/SpeechBubble.tsx': { SpeechBubble: 'SpeechBubble' },

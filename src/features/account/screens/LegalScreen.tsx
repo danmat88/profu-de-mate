@@ -14,6 +14,7 @@ import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { TabPanel } from '../../../shared/ui/TabPanel';
 import { Text } from '../../../shared/ui/Typography';
 
@@ -85,10 +86,7 @@ export function LegalScreen({ navigation }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowCyan} />
-        <View pointerEvents="none" style={styles.canopyGlowLime} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyGlyphStar}>✦</Text>
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.canopyRow}>

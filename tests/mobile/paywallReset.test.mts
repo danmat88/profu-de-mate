@@ -71,6 +71,7 @@ function render(contextAccess: CommercialAccess | null, loading: boolean, source
     'src/shared/ui/Mascot.tsx': { Mascot: 'Mascot' },
     'src/shared/ui/MiniGlyph.tsx': { MiniGlyph: 'MiniGlyph' },
     'src/shared/ui/PlayfulLoader.tsx': { PlayfulLoader: 'PlayfulLoader' },
+    'src/shared/ui/RoyalHeroCanopyBackdrop.tsx': { RoyalHeroCanopyBackdrop: 'RoyalHeroCanopyBackdrop' },
     'src/shared/ui/SpotlightAura.tsx': { SpotlightAura: 'SpotlightAura' },
     'src/features/access/components/QuotaResetTimer.tsx': { QuotaResetTimer: 'QuotaResetTimer' },
     'src/features/account/components/GoogleAccountButton.tsx': { GoogleAccountButton: 'GoogleAccountButton' },

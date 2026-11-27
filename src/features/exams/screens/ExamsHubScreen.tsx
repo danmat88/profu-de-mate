@@ -23,6 +23,7 @@ import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { useStudyProfile } from '../../study/services/studyStorage';
@@ -181,11 +182,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowLeft} />
-        <View pointerEvents="none" style={styles.canopyGlowRight} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyGlyphSum}>∑</Text>
-        <Text accessible={false} style={styles.canopyStar}>✦</Text>
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.canopyHeaderRow}>

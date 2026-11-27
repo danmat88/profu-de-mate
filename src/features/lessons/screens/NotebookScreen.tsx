@@ -33,6 +33,7 @@ import { AppIcon, type AppIconName } from '../../../shared/ui/AppIcon';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot, mascotAssets } from '../../../shared/ui/Mascot';
@@ -1159,18 +1160,10 @@ export function NotebookScreen({
           end={{ x: 0.92, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowRight} />
-        <View
-          pointerEvents="none"
-          style={[
-            styles.canopyGlowAccent,
-            section === 'formulas' && styles.canopyGlowGold,
-            section === 'mistakes' && styles.canopyGlowPeach,
-          ]}
+        <RoyalHeroCanopyBackdrop
+          showGradient={false}
+          bottomRightAccent={section === 'formulas' ? '#FFD447' : section === 'mistakes' ? '#FF8D6B' : '#D8FF3E'}
         />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyStar}>✦</Text>
-        <Text accessible={false} style={styles.canopyGlyph}>π</Text>
 
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.canopyRow}>

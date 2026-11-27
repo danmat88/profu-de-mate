@@ -28,6 +28,7 @@ import {
   type MathReadingScale,
 } from '../../../shared/storage/localPreferences';
 import { colors, fonts, radii } from '../../../shared/theme';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import type { ExamResultItemSummary, RootStackParamList } from '../../../shared/types';
 import { AiBlockingOverlay } from '../../../shared/ui/AiBlockingOverlay';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -778,9 +779,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
           end={{ x: 0.95, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowCyan} />
-        <View pointerEvents="none" style={styles.canopyGlowLime} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.topBar, { paddingHorizontal: gutter }]}>
           <Pressable

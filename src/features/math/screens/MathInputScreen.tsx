@@ -17,6 +17,7 @@ import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { Text } from '../../../shared/ui/Typography';
 import { commercialGateFromError, isTemporaryCommercialLimit, preflightAnalysisAccess } from '../../access/services/commercial';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
@@ -375,8 +376,10 @@ export function MathInputScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlow} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <RoyalHeroCanopyBackdrop
+          showGradient={false}
+          bottomRightAccent={isCheck ? '#FFD447' : '#D8FF3E'}
+        />
 
         <View style={[styles.header, { paddingHorizontal: gutter }, compact && styles.headerCompact]}>
           <IconButton

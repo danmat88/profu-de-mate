@@ -22,6 +22,7 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useScreenMotionActive, useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii } from '../../../shared/theme';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import type { RootStackParamList } from '../../../shared/types';
 import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -259,11 +260,7 @@ export function FormulasScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowCyan} />
-        <View pointerEvents="none" style={styles.canopyGlowRight} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
-        <Text accessible={false} style={styles.canopyGlyphRoot}>√</Text>
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.canopyRow}>

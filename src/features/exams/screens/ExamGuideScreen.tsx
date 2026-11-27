@@ -22,6 +22,7 @@ import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -258,11 +259,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
           end={{ x: 0.95, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlow} />
-        <View pointerEvents="none" style={styles.canopyGlowLime} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyGlyphSum}>∑</Text>
-        <Text accessible={false} style={styles.canopyGlyphStar}>★</Text>
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.canopyRow}>

@@ -6,39 +6,49 @@ import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 export const ROYAL_HERO_GRADIENT = ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'] as const;
 
 type Props = {
-  width: number;
-  height: number;
-  /** Render the base 4-stop Royal-Violet gradient (can be omitted when parent animates its own gradient blend). */
+  /** Optional explicit width/height for pixel-locked canopies (Splash, Onboarding, Home). Omit to auto-fill any dynamic canopy. */
+  width?: number;
+  height?: number;
+  /** Optional custom gradient stops when a screen has its own signature mood (StudyHub, Notebook, Paywall Max, etc.). */
+  colors?: readonly [string, string, ...string[]];
+  /** Render the gradient layer (set false when parent animates its own cross-fading gradients). */
   showGradient?: boolean;
   /** Subtle corner atmospheric light tint matching the studio lighting palette. */
   topLeftAccent?: string;
   bottomRightAccent?: string;
   /** Optional center spotlight coordinates (used by LaunchSplash behind the owl). */
   spotlightCenterY?: number;
+  /** Render the fine architectural math coordinate grid + crosshairs. */
+  showGrid?: boolean;
   /** Show subtle luminous bottom highlight rim along the curved canopy arch. */
   showBottomRim?: boolean;
 };
 
 /**
  * Unified Royal-Violet Hero Canopy backdrop shared identically across
- * LaunchSplash's retracting curtain, WelcomeOnboardingScreen's hero canopy,
- * and HomeSurface's sky dome — pure static SVG optical RadialGradients + fine
- * architectural math grid with zero flat CSS circles and zero per-frame work.
+ * LaunchSplash's retracting curtain, WelcomeOnboardingScreen, HomeSurface,
+ * and every hero canopy across the app — pure static SVG optical
+ * RadialGradients + fine architectural math grid with zero flat CSS circles
+ * and zero per-frame animation overhead.
  */
 export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
   width,
   height,
+  colors = ROYAL_HERO_GRADIENT,
   showGradient = true,
   topLeftAccent = '#43D6E6',
   bottomRightAccent = '#D8FF3E',
   spotlightCenterY,
+  showGrid = true,
   showBottomRim = true,
 }: Props) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const safeWidth = Math.max(1, Math.round(width));
-  const safeHeight = Math.max(1, Math.round(height));
+  const responsive = width === undefined || height === undefined;
+  const safeWidth = Math.max(1, Math.round(width ?? 360));
+  const safeHeight = Math.max(1, Math.round(height ?? 220));
 
   const { gridPath, crosshairPath } = useMemo(() => {
+    if (!showGrid) return { gridPath: '', crosshairPath: '' };
     const step = 36;
     const cols = Math.ceil(safeWidth / step);
     const rows = Math.ceil(safeHeight / step);
@@ -70,7 +80,7 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
     }
 
     return { gridPath: lines.join(''), crosshairPath: marks.join('') };
-  }, [safeHeight, safeWidth]);
+  }, [safeHeight, safeWidth, showGrid]);
 
   const topId = `rhTop_${uid}`;
   const bottomId = `rhBot_${uid}`;
@@ -87,7 +97,7 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {showGradient ? (
         <LinearGradient
-          colors={ROYAL_HERO_GRADIENT}
+          colors={colors}
           start={{ x: 0.08, y: 0 }}
           end={{ x: 0.92, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -96,8 +106,10 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
 
       <Svg
         pointerEvents="none"
-        width={safeWidth}
-        height={safeHeight}
+        width={responsive ? '100%' : safeWidth}
+        height={responsive ? '100%' : safeHeight}
+        viewBox={`0 0 ${safeWidth} ${safeHeight}`}
+        preserveAspectRatio={responsive ? 'xMidYMid slice' : undefined}
         style={StyleSheet.absoluteFill}
       >
         <Defs>
@@ -132,8 +144,12 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
 
         <Rect x={0} y={0} width={safeWidth} height={safeHeight} fill={`url(#${topId})`} />
         <Rect x={0} y={0} width={safeWidth} height={safeHeight} fill={`url(#${bottomId})`} />
-        <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.055} fill="none" />
-        <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.3} fill="none" />
+        {showGrid ? (
+          <>
+            <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.055} fill="none" />
+            <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.3} fill="none" />
+          </>
+        ) : null}
         {spotlightCenterY !== undefined ? (
           <>
             <Rect x={0} y={0} width={safeWidth} height={safeHeight} fill={`url(#${spotId})`} />
@@ -143,6 +159,65 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
       </Svg>
 
       {showBottomRim ? <View style={styles.bottomRim} /> : null}
+    </View>
+  );
+});
+
+/**
+ * Whisper-delicate pearl studio backdrop for Home's main scanner stage card:
+ * smooth optical SVG radial glow + faint notebook math grid echoing the Hero
+ * Canopy above with zero flat CSS circles and zero visual clutter.
+ */
+export const StudioCardBackdrop = memo(function StudioCardBackdrop({
+  checkTheme = false,
+}: {
+  checkTheme?: boolean;
+}) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const cornerId = `scCor_${uid}`;
+  const bottomId = `scBot_${uid}`;
+  const primary = checkTheme ? '#FF8D6B' : '#7C3CFF';
+  const secondary = checkTheme ? '#FFD447' : '#D8FF3E';
+  const gridStroke = checkTheme ? '#C42064' : '#6A2CEB';
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <LinearGradient
+        colors={checkTheme ? ['#FFFFFF', '#FFF9FA', '#FFF1F5'] : ['#FFFFFF', '#FCF9FF', '#F5EFFF']}
+        start={{ x: 0.1, y: 0 }}
+        end={{ x: 0.9, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Svg
+        pointerEvents="none"
+        width="100%"
+        height="100%"
+        viewBox="0 0 360 220"
+        preserveAspectRatio="xMidYMid slice"
+        style={StyleSheet.absoluteFill}
+      >
+        <Defs>
+          <RadialGradient id={cornerId} cx="94%" cy="10%" rx="52%" ry="56%">
+            <Stop offset="0%" stopColor={primary} stopOpacity="0.11" />
+            <Stop offset="58%" stopColor={primary} stopOpacity="0.03" />
+            <Stop offset="100%" stopColor={primary} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id={bottomId} cx="8%" cy="94%" rx="48%" ry="52%">
+            <Stop offset="0%" stopColor={secondary} stopOpacity={checkTheme ? '0.18' : '0.24'} />
+            <Stop offset="55%" stopColor={secondary} stopOpacity="0.05" />
+            <Stop offset="100%" stopColor={secondary} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width="360" height="220" fill={`url(#${cornerId})`} />
+        <Rect x="0" y="0" width="360" height="220" fill={`url(#${bottomId})`} />
+        <Path
+          d="M36 0V220M72 0V220M108 0V220M144 0V220M180 0V220M216 0V220M252 0V220M288 0V220M324 0V220M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360"
+          stroke={gridStroke}
+          strokeWidth={0.75}
+          strokeOpacity={0.042}
+          fill="none"
+        />
+      </Svg>
     </View>
   );
 });

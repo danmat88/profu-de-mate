@@ -23,6 +23,7 @@ import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -227,11 +228,7 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowCyan} />
-        <View pointerEvents="none" style={styles.canopyGlowRight} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
-        <Text accessible={false} style={styles.canopyGlyphPi}>π</Text>
-        <Text accessible={false} style={styles.canopyGlyphRoot}>√</Text>
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.canopyRow}>

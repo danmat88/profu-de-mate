@@ -23,7 +23,7 @@ import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { ROYAL_HERO_GRADIENT, RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
+import { ROYAL_HERO_GRADIENT, RoyalHeroCanopyBackdrop, StudioCardBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SegmentedToggle, type SegmentedOption } from '../../../shared/ui/SegmentedToggle';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
 import { SpotlightAura, type SpotlightAuraTone } from '../../../shared/ui/SpotlightAura';
@@ -866,63 +866,8 @@ export const HomeSurface = memo(function HomeSurface({
               ]}
             >
               <View style={[styles.cameraStage, isCheckTheme && styles.cameraStageCheck, compact && styles.cameraStageCompact]}>
+                <StudioCardBackdrop checkTheme={isCheckTheme} />
                 <View pointerEvents="none" style={styles.studioTopGloss} />
-                <View pointerEvents="none" style={[styles.studioTintCorner, isCheckTheme && styles.studioTintCornerCheck]} />
-                <View pointerEvents="none" style={[styles.studioTintBottom, isCheckTheme && styles.studioTintBottomCheck]} />
-                {!compact ? (
-                  <View pointerEvents="none" style={styles.studioDotGrid}>
-                    <View style={styles.studioDotRow}>
-                      <View style={styles.studioDot} />
-                      <View style={styles.studioDot} />
-                      <View style={styles.studioDot} />
-                    </View>
-                    <View style={styles.studioDotRow}>
-                      <View style={styles.studioDot} />
-                      <View style={styles.studioDot} />
-                      <View style={styles.studioDot} />
-                    </View>
-                  </View>
-                ) : null}
-                <Text accessible={false} style={[styles.stageWatermark, isCheckTheme && styles.stageWatermarkCheck]}>
-                  {isSolve ? 'π' : '✓'}
-                </Text>
-
-                <View style={[styles.stageTopRow, compact && styles.stageTopRowCompact]}>
-                  <View
-                    collapsable={false}
-                    style={[
-                      styles.stageStatusPill,
-                      hasPendingAnalysis && styles.stageStatusPillPending,
-                      isCheckTheme && styles.stageStatusPillCheck,
-                    ]}
-                  >
-                    <Animated.View style={sparkStyle}>
-                      <Text
-                        accessible={false}
-                        style={[
-                          styles.stageSpark,
-                          { color: hasPendingAnalysis ? colors.limeDeep : isCheckTheme ? colors.peachDeep : colors.violet },
-                        ]}
-                      >
-                        ✦
-                      </Text>
-                    </Animated.View>
-                    <Text
-                      maxFontSizeMultiplier={1.15}
-                      style={[
-                        styles.stageStatusLabel,
-                        hasPendingAnalysis && styles.stageStatusLabelPending,
-                        isCheckTheme && styles.stageStatusLabelCheck,
-                      ]}
-                    >
-                      {hasPendingAnalysis
-                        ? 'ANALIZĂ ÎN CURS'
-                        : isSolve
-                          ? 'MOD FOTO'
-                          : 'MOD VERIFICARE'}
-                    </Text>
-                  </View>
-                </View>
 
                 <View style={[styles.stageContent, compact && styles.stageContentCompact]}>
                   <Pressable
@@ -978,7 +923,7 @@ export const HomeSurface = memo(function HomeSurface({
                       <Animated.View pointerEvents="none" style={[styles.focusMedallion, compact && styles.focusMedallionCompact, medallionAnimated]}>
                         <AppIcon
                           name={isWrittenPending ? 'practice' : isSolve ? 'scan' : 'verify'}
-                          size={compact ? 38 : isVeryNarrow ? 48 : 54}
+                          size={compact ? 38 : isVeryNarrow ? 48 : 56}
                         />
                       </Animated.View>
 
@@ -995,6 +940,37 @@ export const HomeSurface = memo(function HomeSurface({
                   </Pressable>
 
                   <View style={styles.stageCopy}>
+                    <View style={styles.stageEyebrowRow}>
+                      <Animated.View style={sparkStyle}>
+                        <View
+                          style={[
+                            styles.stageEyebrowDot,
+                            {
+                              backgroundColor: hasPendingAnalysis
+                                ? colors.limeDeep
+                                : isCheckTheme
+                                  ? colors.peachDeep
+                                  : colors.violet,
+                            },
+                          ]}
+                        />
+                      </Animated.View>
+                      <Text
+                        maxFontSizeMultiplier={1.12}
+                        numberOfLines={1}
+                        style={[
+                          styles.stageEyebrowText,
+                          hasPendingAnalysis && styles.stageEyebrowPending,
+                          !hasPendingAnalysis && isCheckTheme && styles.stageEyebrowCheck,
+                        ]}
+                      >
+                        {hasPendingAnalysis
+                          ? 'ANALIZĂ ÎN CURS'
+                          : isSolve
+                            ? 'SCANNER AI · PAS CU PAS'
+                            : 'VERIFICARE AI · PAȘII TĂI'}
+                      </Text>
+                    </View>
                     <Text
                       maxFontSizeMultiplier={1.3}
                       numberOfLines={2}
@@ -1018,31 +994,9 @@ export const HomeSurface = memo(function HomeSurface({
                           ? (isSolve ? 'Exercițiul scris se rezolvă în fundal.' : 'Rezolvarea scrisă se verifică în fundal.')
                           : (isSolve ? 'Fotografia ta se analizează în fundal.' : 'Rezolvarea fotografiată se verifică în fundal.'))
                         : isSolve
-                          ? 'Încadrezi enunțul și primești pașii clari.'
-                          : 'Vezi ce ai făcut bine și ce corectezi.'}
+                          ? 'Încadrezi enunțul și primești rezolvarea clară.'
+                          : 'Vezi exact ce e bine și unde corectezi.'}
                     </Text>
-                    {!compact ? (
-                      <View style={styles.featurePillsRow}>
-                        <View style={[styles.featurePill, hasPendingAnalysis && styles.featurePillPending, !hasPendingAnalysis && isCheckTheme && styles.featurePillCheck]}>
-                          <Text maxFontSizeMultiplier={1.1} style={[styles.featurePillText, hasPendingAnalysis && styles.featurePillTextPending, !hasPendingAnalysis && isCheckTheme && styles.featurePillTextCheck]}>
-                            {hasPendingAnalysis
-                              ? (isWrittenPending ? '✦ Exercițiu scris' : '✦ Fotografie')
-                              : isSolve
-                                ? '✦ Pas cu pas'
-                                : '✦ Corectare'}
-                          </Text>
-                        </View>
-                        <View style={[styles.featurePill, isCheckTheme && styles.featurePillCheck]}>
-                          <Text maxFontSizeMultiplier={1.1} style={[styles.featurePillText, isCheckTheme && styles.featurePillTextCheck]}>
-                            {hasPendingAnalysis
-                              ? (isSolve ? '✦ Mod Rezolvă' : '✦ Mod Verifică')
-                              : isSolve
-                                ? '✦ Clar'
-                                : '✦ Indicii'}
-                          </Text>
-                        </View>
-                      </View>
-                    ) : null}
                   </View>
                 </View>
 
@@ -1706,103 +1660,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.96)',
     zIndex: 2,
   },
-  studioTintCorner: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    top: -90,
-    right: -70,
-    backgroundColor: 'rgba(124, 60, 255, 0.065)',
-  },
-  studioTintCornerCheck: {
-    backgroundColor: 'rgba(255, 141, 107, 0.09)',
-  },
-  studioTintBottom: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    bottom: -70,
-    left: -55,
-    backgroundColor: 'rgba(216, 255, 62, 0.12)',
-  },
-  studioTintBottomCheck: {
-    backgroundColor: 'rgba(255, 212, 71, 0.12)',
-  },
-  studioDotGrid: {
-    position: 'absolute',
-    top: 48,
-    right: 18,
-    gap: 7,
-  },
-  studioDotRow: {
-    flexDirection: 'row',
-    gap: 7,
-  },
-  studioDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(124, 60, 255, 0.12)',
-  },
-  stageWatermark: {
-    position: 'absolute',
-    right: 14,
-    bottom: 64,
-    fontFamily: fonts.display,
-    fontSize: 74,
-    lineHeight: 78,
-    color: 'rgba(124, 60, 255, 0.055)',
-    transform: [{ rotate: '12deg' }],
-  },
-  stageWatermarkCheck: {
-    color: 'rgba(229, 61, 120, 0.06)',
-  },
-  stageTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    zIndex: 2,
-  },
-  stageTopRowCompact: { marginBottom: 2 },
-  stageStatusPill: {
+  stageEyebrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 11,
-    paddingVertical: 4.5,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: '#E1D3FE',
-    backgroundColor: '#F4EEFF',
+    marginBottom: 4,
   },
-  stageStatusPillCheck: {
-    borderColor: '#FBC7D7',
-    backgroundColor: '#FFF0F4',
+  stageEyebrowDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
-  stageStatusPillPending: {
-    borderColor: '#CBEB70',
-    backgroundColor: '#F2FFD0',
-  },
-  stageStatusLabel: {
+  stageEyebrowText: {
     fontFamily: fonts.bodyBold,
     fontSize: 10,
-    letterSpacing: 0.85,
+    lineHeight: 13,
+    letterSpacing: 0.9,
     color: colors.violetDeep,
     includeFontPadding: false,
   },
-  stageStatusLabelCheck: {
+  stageEyebrowCheck: {
     color: '#A51E5B',
   },
-  stageStatusLabelPending: {
+  stageEyebrowPending: {
     color: colors.limeDeep,
-  },
-  stageSpark: {
-    fontFamily: fonts.display,
-    fontSize: 13,
-    lineHeight: 15,
   },
 
   // Horizontal optical viewfinder pod + crisp editorial lockup
@@ -1943,41 +1824,6 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   stageNoteCompact: { marginTop: 2, fontSize: 11.5, lineHeight: 15 },
-  featurePillsRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  featurePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 3.5,
-    borderRadius: radii.pill,
-    backgroundColor: '#F4EEFF',
-    borderWidth: 1,
-    borderColor: '#E5D8FE',
-  },
-  featurePillCheck: {
-    backgroundColor: '#FFF2ED',
-    borderColor: '#FFD3C4',
-  },
-  featurePillPending: {
-    backgroundColor: '#F2FFD0',
-    borderColor: '#CBEB70',
-  },
-  featurePillText: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 10.5,
-    lineHeight: 13,
-    color: colors.violetDeep,
-    includeFontPadding: false,
-  },
-  featurePillTextCheck: {
-    color: colors.peachDeep,
-  },
-  featurePillTextPending: {
-    color: colors.limeDeep,
-  },
 
   stageCtaWrap: { zIndex: 3 },
   captureCta: {

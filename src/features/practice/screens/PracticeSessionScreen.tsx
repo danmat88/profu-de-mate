@@ -22,6 +22,7 @@ import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { useTransitionSettled } from '../../../shared/hooks/useTransitionSettled';
 import { SILKY_EASE_OUT } from '../../../shared/motion/nativeMotion';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { initializeVerifiedFirebaseServices } from '../../../shared/services/firebase';
 import * as Haptics from '../../../shared/services/haptics';
 import {
@@ -712,8 +713,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowTop} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <RoyalHeroCanopyBackdrop showGradient={false} />
 
         <View style={[styles.topBar, { paddingHorizontal: gutter }]}>
           <Pressable

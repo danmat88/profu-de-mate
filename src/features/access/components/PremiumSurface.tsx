@@ -14,6 +14,7 @@ import { ComicButton } from '../../../shared/ui/ComicButton';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { Text } from '../../../shared/ui/Typography';
 import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { packagesForTier, type PremiumOffer } from '../services/purchases';
@@ -313,9 +314,11 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlowCyan} />
-        <View pointerEvents="none" style={styles.canopyGlowLime} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <RoyalHeroCanopyBackdrop
+          showGradient={false}
+          topLeftAccent={viewingMax || maxActive ? '#FFD447' : '#43D6E6'}
+          bottomRightAccent={viewingMax || maxActive ? '#FFE57F' : '#D8FF3E'}
+        />
 
         <View style={[styles.header, { paddingHorizontal: gutter }]}>
           <View style={styles.brandRow}>

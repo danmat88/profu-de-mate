@@ -28,6 +28,7 @@ import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar
 import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { LiquidProgressBar } from '../../../shared/ui/LiquidProgressBar';
+import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -780,8 +781,10 @@ export function LessonScreen({ navigation, route }: Props) {
           end={{ x: 0.94, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.canopyGlow} />
-        <View pointerEvents="none" style={styles.canopyOrbitArc} />
+        <RoyalHeroCanopyBackdrop
+          showGradient={false}
+          bottomRightAccent={isCheck ? '#FFD447' : '#D8FF3E'}
+        />
 
         <View style={[styles.canopyInner, { paddingHorizontal: gutter }]}>
           <View style={styles.canopyRow}>
