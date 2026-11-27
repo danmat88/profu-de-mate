@@ -741,8 +741,8 @@ export const HomeSurface = memo(function HomeSurface({
         >
           <Enter
             ready={motionReady}
-            delay={250}
-            duration={200}
+            delay={200}
+            duration={180}
             distance={0}
             scaleFrom={1}
             preRasterize
@@ -985,9 +985,9 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={340}
-            duration={440}
-            distance={14}
+            delay={290}
+            duration={380}
+            distance={12}
             scaleFrom={0.97}
             preRasterize
             style={[styles.tutorRow, compact && styles.tutorRowCompact]}
@@ -1027,8 +1027,8 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={120}
-            duration={460}
+            delay={95}
+            duration={420}
             distance={16}
             scaleFrom={0.96}
             preRasterize
@@ -1047,8 +1047,8 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={175}
-            duration={480}
+            delay={145}
+            duration={440}
             distance={20}
             scaleFrom={0.955}
             preRasterize
@@ -1579,8 +1579,8 @@ export const HomeSurface = memo(function HomeSurface({
             {embedded && (onQuickPractice || showTrackSetupBanner) ? (
               <Enter
                 ready={motionReady}
-                delay={235}
-                duration={480}
+                delay={200}
+                duration={440}
                 distance={16}
                 scaleFrom={0.965}
                 preRasterize

@@ -9,7 +9,6 @@ import { useResponsiveLayout } from '../../shared/hooks/useResponsiveLayout';
 import { computeHeroGeometry } from '../../shared/layout/heroGeometry';
 import {
   createNativeLoop,
-  SILKY_EASE_IN_OUT,
   SILKY_EASE_OUT,
   sineDegreeRange,
   sineWaveRange,
@@ -445,45 +444,48 @@ export function LaunchSplash({
       floatPhase.stopAnimation();
       floatPhase.setValue(0);
 
+      const curtainLiftEase = Easing.bezier(0.32, 0, 0.16, 1);
+
       startAnim(Animated.timing(chromeExit, {
         toValue: 1,
-        duration: 200,
-        easing: SILKY_EASE_IN_OUT,
+        duration: 230,
+        easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(curtainExit, {
         toValue: 1,
-        duration: 500,
-        delay: 20,
-        easing: SILKY_EASE_IN_OUT,
+        duration: 480,
+        delay: 0,
+        easing: curtainLiftEase,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(owlExit, {
         toValue: 1,
-        duration: 500,
-        delay: 20,
-        easing: SILKY_EASE_IN_OUT,
+        duration: 480,
+        delay: 0,
+        easing: curtainLiftEase,
         useNativeDriver: true,
       }));
 
-      // Trigger Home card cascade right as the opaque curtain sweeps past the workspace.
-      revealTimer = setTimeout(notifyRevealOnce, 150);
+      // Trigger Home card cascade right as the rising opaque curtain clears the lower workspace.
+      revealTimer = setTimeout(notifyRevealOnce, 100);
 
-      // Dissolve LaunchSplash ONLY AFTER both the opaque curtain and flying owl
-      // have landed pixel-for-pixel onto Home's skyDome and stationary logo badge.
+      // Staged invisible handoff strictly AFTER curtain & owl dock pixel-for-pixel:
+      // 0..0.70 fades curtainWrap (1->0) while owlDockWrap stays 100% opaque (zero purple bleed);
+      // 0.70..1.0 dissolves owlDockWrap directly onto the already-solid Home logo badge.
       handoffTimer = setTimeout(() => {
         startAnim(Animated.timing(handoffFade, {
           toValue: 1,
-          duration: 140,
-          easing: SILKY_EASE_OUT,
+          duration: 165,
+          easing: Easing.linear,
           useNativeDriver: true,
         }));
-      }, 525);
+      }, 485);
 
       // Hand touches cleanly to the destination screen right as docking completes.
-      passThroughTimer = setTimeout(() => setPassThrough(true), 540);
+      passThroughTimer = setTimeout(() => setPassThrough(true), 500);
       // Unmount LaunchSplash strictly after handoff fade & destination cascade settle.
-      exitTimer = setTimeout(finishOnce, 960);
+      exitTimer = setTimeout(finishOnce, 760);
     }, celebrateBeatMs);
 
     return () => {
@@ -557,23 +559,28 @@ export function LaunchSplash({
   }), [chromeExit, lightReveal]);
 
   // Curtain stays 100% OPAQUE during its entire upward retraction so Home's skyDome
-  // never shows through as a double arch, then fades invisibly via handoffFade after landing.
-  const curtainMorphStyle = useMemo(() => ({
-    opacity: handoffFade.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        translateY: curtainExit.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, curtainRetractY],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  }), [curtainExit, curtainRetractY, handoffFade]);
+  // never shows through as a double arch. Immediate initial arch lift clears the bottom
+  // overhang right as splash chrome dissolves (zero empty-purple pause), then fades first
+  // during handoffFade (0 -> 0.7) while owlDockWrap remains 100% opaque above it.
+  const curtainMorphStyle = useMemo(() => {
+    const immediateArchLift = -Math.min(Math.abs(curtainRetractY) * 0.28, hero.canopyRadius + 52);
+    return {
+      opacity: handoffFade.interpolate({
+        inputRange: [0, 0.7, 1],
+        outputRange: [1, 0, 0],
+        extrapolate: 'clamp',
+      }),
+      transform: [
+        {
+          translateY: curtainExit.interpolate({
+            inputRange: [0, 0.14, 0.56, 1],
+            outputRange: [0, immediateArchLift, curtainRetractY * 0.68, curtainRetractY],
+            extrapolate: 'clamp',
+          }),
+        },
+      ],
+    };
+  }, [curtainExit, curtainRetractY, handoffFade, hero.canopyRadius]);
 
   // Bottom targetCanopyHeight slice inside the retracting curtain cross-blends smoothly into
   // a bit-for-bit twin of HomeSurface's skyDome so touchdown has zero color or grid jump.
@@ -630,11 +637,13 @@ export function LaunchSplash({
   }), [chromeExit, lightReveal, owlEnter]);
 
   // Smooth 5-point parabolic docking arc into the exact top-left circular header badge.
-  // Stays 100% opaque until touchdown, then dissolves invisibly via handoffFade.
+  // Stays 100% opaque through touchdown AND through curtainWrap's fade (handoffFade 0->0.7)
+  // so zero purple can bleed through the white + Electric-Lime medallion, then dissolves
+  // invisibly onto the identical already-visible Home logo badge (0.7->1.0).
   const owlDockFlightStyle = useMemo(() => ({
     opacity: handoffFade.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0],
+      inputRange: [0, 0.7, 1],
+      outputRange: [1, 1, 0],
       extrapolate: 'clamp',
     }),
     transform: [
