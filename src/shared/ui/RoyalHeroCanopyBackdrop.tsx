@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useId, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 export const ROYAL_HERO_GRADIENT = ['#9B58FF', '#732CF4', '#5218D2', '#3B0EA4'] as const;
 
@@ -18,7 +18,7 @@ type Props = {
   bottomRightAccent?: string;
   /** Optional center spotlight coordinates (used by LaunchSplash behind the owl). */
   spotlightCenterY?: number;
-  /** Render the fine architectural math coordinate grid + crosshairs. */
+  /** Render the fine architectural math coordinate grid, crosshairs, and delicate glowing sine curve. */
   showGrid?: boolean;
   /** Show subtle luminous bottom highlight rim along the curved canopy arch. */
   showBottomRim?: boolean;
@@ -28,8 +28,8 @@ type Props = {
  * Unified Royal-Violet Hero Canopy backdrop shared identically across
  * LaunchSplash's retracting curtain, WelcomeOnboardingScreen, HomeSurface,
  * and every hero canopy across the app — pure static SVG optical
- * RadialGradients + fine architectural math grid with zero flat CSS circles
- * and zero per-frame animation overhead.
+ * RadialGradients + architectural math coordinate grid + delicate luminous
+ * mathematical wave curve with zero flat CSS circles and zero per-frame work.
  */
 export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
   width,
@@ -47,8 +47,8 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
   const safeWidth = Math.max(1, Math.round(width ?? 360));
   const safeHeight = Math.max(1, Math.round(height ?? 220));
 
-  const { gridPath, crosshairPath } = useMemo(() => {
-    if (!showGrid) return { gridPath: '', crosshairPath: '' };
+  const { gridPath, crosshairPath, mathCurvePath } = useMemo(() => {
+    if (!showGrid) return { gridPath: '', crosshairPath: '', mathCurvePath: '' };
     const step = 36;
     const cols = Math.ceil(safeWidth / step);
     const rows = Math.ceil(safeHeight / step);
@@ -79,13 +79,21 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
       marks.push(`M${px - 4.5} ${py}H${px + 4.5}M${px} ${py - 4.5}V${py + 4.5}`);
     }
 
-    return { gridPath: lines.join(''), crosshairPath: marks.join('') };
+    const baseY = safeHeight > 420 ? Math.round(safeHeight * 0.56) : Math.round(safeHeight * 0.74);
+    const amp = safeHeight > 420 ? 44 : 22;
+    const q1 = Math.round(safeWidth * 0.28);
+    const mid = Math.round(safeWidth * 0.54);
+    const q3 = Math.round(safeWidth * 0.8);
+    const curve = `M-8 ${baseY + Math.round(amp * 0.45)} Q${q1} ${baseY - amp} ${mid} ${baseY + Math.round(amp * 0.12)} T${safeWidth + 10} ${baseY - Math.round(amp * 0.55)} M-8 ${baseY + Math.round(amp * 0.72)} Q${q3} ${baseY + Math.round(amp * 0.35)} ${safeWidth + 10} ${baseY - Math.round(amp * 0.15)}`;
+
+    return { gridPath: lines.join(''), crosshairPath: marks.join(''), mathCurvePath: curve };
   }, [safeHeight, safeWidth, showGrid]);
 
   const topId = `rhTop_${uid}`;
   const bottomId = `rhBot_${uid}`;
   const spotId = `rhSpot_${uid}`;
   const floorId = `rhFloor_${uid}`;
+  const curveId = `rhCur_${uid}`;
   const spotCyPercent = spotlightCenterY !== undefined
     ? `${Math.round((spotlightCenterY / safeHeight) * 100)}%`
     : '50%';
@@ -114,16 +122,23 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
       >
         <Defs>
           <RadialGradient id={topId} cx="8%" cy="8%" rx="58%" ry="64%">
-            <Stop offset="0%" stopColor={topLeftAccent} stopOpacity="0.24" />
-            <Stop offset="55%" stopColor={topLeftAccent} stopOpacity="0.065" />
+            <Stop offset="0%" stopColor={topLeftAccent} stopOpacity="0.26" />
+            <Stop offset="55%" stopColor={topLeftAccent} stopOpacity="0.07" />
             <Stop offset="100%" stopColor={topLeftAccent} stopOpacity="0" />
           </RadialGradient>
 
           <RadialGradient id={bottomId} cx="92%" cy="92%" rx="56%" ry="62%">
-            <Stop offset="0%" stopColor={bottomRightAccent} stopOpacity="0.2" />
-            <Stop offset="52%" stopColor={bottomRightAccent} stopOpacity="0.055" />
+            <Stop offset="0%" stopColor={bottomRightAccent} stopOpacity="0.22" />
+            <Stop offset="52%" stopColor={bottomRightAccent} stopOpacity="0.06" />
             <Stop offset="100%" stopColor={bottomRightAccent} stopOpacity="0" />
           </RadialGradient>
+
+          <SvgLinearGradient id={curveId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor={topLeftAccent} stopOpacity="0" />
+            <Stop offset="32%" stopColor={topLeftAccent} stopOpacity="0.24" />
+            <Stop offset="70%" stopColor={bottomRightAccent} stopOpacity="0.3" />
+            <Stop offset="100%" stopColor={bottomRightAccent} stopOpacity="0" />
+          </SvgLinearGradient>
 
           {spotlightCenterY !== undefined ? (
             <>
@@ -146,8 +161,9 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
         <Rect x={0} y={0} width={safeWidth} height={safeHeight} fill={`url(#${bottomId})`} />
         {showGrid ? (
           <>
-            <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.055} fill="none" />
-            <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.3} fill="none" />
+            <Path d={gridPath} stroke="#FFFFFF" strokeWidth={0.75} strokeOpacity={0.062} fill="none" />
+            <Path d={mathCurvePath} stroke={`url(#${curveId})`} strokeWidth={1.35} fill="none" />
+            <Path d={crosshairPath} stroke="#D8FF3E" strokeWidth={1.15} strokeOpacity={0.34} fill="none" />
           </>
         ) : null}
         {spotlightCenterY !== undefined ? (
@@ -164,9 +180,9 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
 });
 
 /**
- * Whisper-delicate pearl studio backdrop for Home's main scanner stage card:
- * smooth optical SVG radial glow + faint notebook math grid echoing the Hero
- * Canopy above with zero flat CSS circles and zero visual clutter.
+ * Flagship Obsidian-Violet (Solve) / Deep Berry-Plum (Check) optical scanner
+ * stage backdrop for Home's centerpiece AI Camera Portal: rich luminous glass,
+ * crisp optical SVG radial spotlights, drafting grid, and glowing wave curve.
  */
 export const StudioCardBackdrop = memo(function StudioCardBackdrop({
   checkTheme = false,
@@ -174,47 +190,59 @@ export const StudioCardBackdrop = memo(function StudioCardBackdrop({
   checkTheme?: boolean;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const cornerId = `scCor_${uid}`;
-  const bottomId = `scBot_${uid}`;
-  const primary = checkTheme ? '#FF8D6B' : '#7C3CFF';
-  const secondary = checkTheme ? '#FFD447' : '#D8FF3E';
-  const gridStroke = checkTheme ? '#C42064' : '#6A2CEB';
+  const topGlowId = `scTop_${uid}`;
+  const limeGlowId = `scLim_${uid}`;
+  const curveId = `scCur_${uid}`;
+  const topTint = checkTheme ? '#FF7B95' : '#8F50FF';
+  const rimTint = checkTheme ? '#FFD447' : '#D8FF3E';
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LinearGradient
-        colors={checkTheme ? ['#FFFFFF', '#FFF9FA', '#FFF1F5'] : ['#FFFFFF', '#FCF9FF', '#F5EFFF']}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
+        colors={checkTheme ? ['#5E123B', '#3B0A29', '#220519'] : ['#341684', '#210C5B', '#13063B']}
+        start={{ x: 0.08, y: 0 }}
+        end={{ x: 0.92, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
       <Svg
         pointerEvents="none"
         width="100%"
         height="100%"
-        viewBox="0 0 360 220"
+        viewBox="0 0 360 240"
         preserveAspectRatio="xMidYMid slice"
         style={StyleSheet.absoluteFill}
       >
         <Defs>
-          <RadialGradient id={cornerId} cx="94%" cy="10%" rx="52%" ry="56%">
-            <Stop offset="0%" stopColor={primary} stopOpacity="0.11" />
-            <Stop offset="58%" stopColor={primary} stopOpacity="0.03" />
-            <Stop offset="100%" stopColor={primary} stopOpacity="0" />
+          <RadialGradient id={topGlowId} cx="16%" cy="18%" rx="56%" ry="56%">
+            <Stop offset="0%" stopColor={topTint} stopOpacity="0.45" />
+            <Stop offset="55%" stopColor={topTint} stopOpacity="0.13" />
+            <Stop offset="100%" stopColor={topTint} stopOpacity="0" />
           </RadialGradient>
-          <RadialGradient id={bottomId} cx="8%" cy="94%" rx="48%" ry="52%">
-            <Stop offset="0%" stopColor={secondary} stopOpacity={checkTheme ? '0.18' : '0.24'} />
-            <Stop offset="55%" stopColor={secondary} stopOpacity="0.05" />
-            <Stop offset="100%" stopColor={secondary} stopOpacity="0" />
+          <RadialGradient id={limeGlowId} cx="88%" cy="86%" rx="50%" ry="46%">
+            <Stop offset="0%" stopColor={rimTint} stopOpacity="0.24" />
+            <Stop offset="55%" stopColor={rimTint} stopOpacity="0.06" />
+            <Stop offset="100%" stopColor={rimTint} stopOpacity="0" />
           </RadialGradient>
+          <SvgLinearGradient id={curveId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <Stop offset="0%" stopColor="#43D6E6" stopOpacity="0" />
+            <Stop offset="34%" stopColor="#43D6E6" stopOpacity="0.24" />
+            <Stop offset="72%" stopColor={rimTint} stopOpacity="0.28" />
+            <Stop offset="100%" stopColor={rimTint} stopOpacity="0" />
+          </SvgLinearGradient>
         </Defs>
-        <Rect x="0" y="0" width="360" height="220" fill={`url(#${cornerId})`} />
-        <Rect x="0" y="0" width="360" height="220" fill={`url(#${bottomId})`} />
+        <Rect x="0" y="0" width="360" height="240" fill={`url(#${topGlowId})`} />
+        <Rect x="0" y="0" width="360" height="240" fill={`url(#${limeGlowId})`} />
         <Path
-          d="M36 0V220M72 0V220M108 0V220M144 0V220M180 0V220M216 0V220M252 0V220M288 0V220M324 0V220M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360"
-          stroke={gridStroke}
+          d="M36 0V240M72 0V240M108 0V240M144 0V240M180 0V240M216 0V240M252 0V240M288 0V240M324 0V240M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360M0 216H360"
+          stroke="#FFFFFF"
           strokeWidth={0.75}
-          strokeOpacity={0.042}
+          strokeOpacity={0.055}
+          fill="none"
+        />
+        <Path
+          d="M-6 138 Q92 88 186 124 T368 96"
+          stroke={`url(#${curveId})`}
+          strokeWidth={1.3}
           fill="none"
         />
       </Svg>

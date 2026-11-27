@@ -462,7 +462,7 @@ export const StudioTabBar = memo(function StudioTabBar({
           style={styles.pillIsland}
         >
           <LinearGradient
-            colors={['#8E4BFF', '#6722EE', '#4611BA']}
+            colors={['#3A198E', '#240D61', '#160640']}
             start={{ x: 0.05, y: 0 }}
             end={{ x: 0.95, y: 1 }}
             style={StyleSheet.absoluteFill}
@@ -553,20 +553,20 @@ const styles = StyleSheet.create({
     height: PILL_HEIGHT,
     padding: 5.5,
     borderRadius: 32,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
-    borderBottomColor: '#360E91',
-    backgroundColor: colors.violet,
+    borderWidth: 1.5,
+    borderBottomWidth: 4.5,
+    borderColor: 'rgba(186, 152, 255, 0.36)',
+    borderBottomColor: '#0A0322',
+    backgroundColor: '#1E0B52',
     flexDirection: 'row',
     alignItems: 'stretch',
     gap: 5,
     overflow: 'hidden',
     position: 'relative',
-    shadowColor: '#4112B5',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.24,
-    shadowRadius: 14,
+    shadowColor: '#250976',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
   },
   pillAmbientGlow: {
     position: 'absolute',
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     top: -42,
     right: -12,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+    backgroundColor: 'rgba(216, 255, 62, 0.16)',
   },
   pillIslandShine: {
     position: 'absolute',
@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     right: 26,
     height: 1.5,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.44)',
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   tabButton: {
     minWidth: 0,

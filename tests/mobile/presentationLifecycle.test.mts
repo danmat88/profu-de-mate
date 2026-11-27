@@ -44,6 +44,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
       __esModule: true,
       default: view,
       Defs: view,
+      LinearGradient: view,
       Path: view,
       RadialGradient: view,
       Rect: view,

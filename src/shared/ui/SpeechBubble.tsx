@@ -84,10 +84,7 @@ export function SpeechBubble({
   const cardInner = isSky && !isSkyError ? (
     <View style={styles.skyCopy}>
       {!compact ? (
-        <View style={styles.skyTagPill}>
-          <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} />
-          <Text maxFontSizeMultiplier={1.1} style={styles.skyTagText}>PROFU’</Text>
-        </View>
+        <View style={[styles.skyAccentDash, { backgroundColor: skyDotColor }]} />
       ) : null}
       <View style={styles.skyTitleRow}>
         {compact ? <View style={[styles.skyDot, { backgroundColor: skyDotColor }]} /> : null}
@@ -198,25 +195,11 @@ const styles = StyleSheet.create({
     minWidth: 0,
     alignItems: 'flex-start',
   },
-  skyTagPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5.5,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    marginBottom: 4,
+  skyAccentDash: {
+    width: 26,
+    height: 3.5,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.24)',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-  },
-  skyTagText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.paper,
-    fontSize: 9.5,
-    letterSpacing: 1.0,
-    lineHeight: 11.5,
-    includeFontPadding: false,
+    marginBottom: 6,
   },
   skyTitleRow: {
     flexDirection: 'row',
@@ -235,12 +218,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
     fontFamily: fonts.display,
     color: colors.paper,
-    fontSize: 23.5,
-    lineHeight: 27,
-    letterSpacing: -0.35,
-    textShadowColor: 'rgba(24, 6, 68, 0.24)',
+    fontSize: 24.5,
+    lineHeight: 28,
+    letterSpacing: -0.4,
+    textShadowColor: 'rgba(24, 6, 68, 0.28)',
     textShadowOffset: { width: 0, height: 1.5 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
   },
   skyTitleCompact: {
     fontSize: 17.5,

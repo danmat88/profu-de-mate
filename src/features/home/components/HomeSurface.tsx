@@ -73,8 +73,10 @@ const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode
   {
     value: 'solve',
     label: 'Rezolvă',
+    subtitle: 'Pas cu pas',
     icon: 'camera',
     activeFill: colors.violet,
+    activeGradient: ['#8E49FF', '#6520EC', '#4410B4'],
     activeText: colors.paper,
     dotFill: colors.lime,
     dotText: colors.ink,
@@ -82,11 +84,13 @@ const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode
   {
     value: 'check',
     label: 'Verifică',
+    subtitle: 'Corectează pașii',
     icon: 'verify',
-    activeFill: colors.peach,
-    activeText: colors.ink,
-    dotFill: colors.ink,
-    dotText: colors.paper,
+    activeFill: '#E63876',
+    activeGradient: ['#FF7B63', '#E63876', '#B5175B'],
+    activeText: colors.paper,
+    dotFill: colors.gold,
+    dotText: colors.ink,
   },
 ];
 
@@ -657,6 +661,12 @@ export const HomeSurface = memo(function HomeSurface({
     ? `${savedLessonsCount} ${savedLessonsCount === 1 ? 'lecție' : 'lecții'}`
     : null;
   const showTrackSetupBanner = !studyTrackChosen && wrongCount === 0 && !hasPendingAnalysis && Boolean(onChooseStudyTrack || onStudy);
+  const trackPillLabel = !studyTrackChosen
+    ? 'Alege clasa'
+    : studyTrackLabel
+      ? (streakDays > 0 && !isVeryNarrow ? `${studyTrackLabel} · ${streakDays}z` : studyTrackLabel)
+      : (streakDays > 0 ? `Serie · ${streakDays} ${streakDays === 1 ? 'zi' : 'zile'}` : 'Clasa ta');
+  const handleTrackPillPress = onChooseStudyTrack ?? onStudy ?? triggerTutorFromHeader;
 
   const hardwareEntranceLayer = !ambientReady && !reducedMotion;
 
@@ -698,17 +708,53 @@ export const HomeSurface = memo(function HomeSurface({
                   style={[styles.logoImage, (compact || isVeryNarrow) && styles.logoImageCompact]}
                 />
               </PressableScale>
-              <View style={styles.brandWordWrap}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={
+                  !studyTrackChosen
+                    ? 'Alege clasa sau examenul pentru a personaliza aplicația'
+                    : studyTrackLabel
+                      ? `Nivel activ: ${studyTrackLabel}. Schimbă nivelul`
+                      : 'Deschide nivelul de studiu'
+                }
+                pressedScale={0.95}
+                haptic="selection"
+                onPress={handleTrackPillPress}
+                style={styles.trackPillWrap}
+                contentStyle={[
+                  styles.trackPill,
+                  !studyTrackChosen && styles.trackPillSetup,
+                  (compact || isVeryNarrow) && styles.trackPillCompact,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.trackPillDot,
+                    !studyTrackChosen
+                      ? styles.trackPillDotSetup
+                      : isCheckTheme && styles.trackPillDotCheck,
+                  ]}
+                />
                 <Text
-                  maxFontSizeMultiplier={1.3}
+                  maxFontSizeMultiplier={1.2}
                   numberOfLines={1}
                   adjustsFontSizeToFit
-                  minimumFontScale={0.68}
-                  style={[styles.brand, (compact || isVeryNarrow) && styles.brandCompact]}
+                  minimumFontScale={0.78}
+                  style={[
+                    styles.trackPillText,
+                    !studyTrackChosen && styles.trackPillTextSetup,
+                    (compact || isVeryNarrow) && styles.trackPillTextCompact,
+                  ]}
                 >
-                  Profu’ <Text style={[styles.brandAccent, isCheckTheme && styles.brandAccentCheck]}>de mate</Text>
+                  {trackPillLabel}
                 </Text>
-              </View>
+                <Text
+                  accessible={false}
+                  style={[styles.trackPillChevron, !studyTrackChosen && styles.trackPillChevronSetup]}
+                >
+                  ▾
+                </Text>
+              </PressableScale>
             </View>
 
             <PressableScale
@@ -868,6 +914,75 @@ export const HomeSurface = memo(function HomeSurface({
               <View style={[styles.cameraStage, isCheckTheme && styles.cameraStageCheck, compact && styles.cameraStageCompact]}>
                 <StudioCardBackdrop checkTheme={isCheckTheme} />
                 <View pointerEvents="none" style={styles.studioTopGloss} />
+                <View pointerEvents="none" style={[styles.hudCorner, styles.hudCornerTL, isCheckTheme && styles.hudCornerCheck]} />
+                <View pointerEvents="none" style={[styles.hudCorner, styles.hudCornerTR, isCheckTheme && styles.hudCornerCheck]} />
+
+                <View style={[styles.stageHudBar, compact && styles.stageHudBarCompact]}>
+                  <View
+                    style={[
+                      styles.stageEyebrowPill,
+                      hasPendingAnalysis && styles.stageEyebrowPillPending,
+                      !hasPendingAnalysis && isCheckTheme && styles.stageEyebrowPillCheck,
+                    ]}
+                  >
+                    <Animated.View style={sparkStyle}>
+                      <View
+                        style={[
+                          styles.stageEyebrowDot,
+                          {
+                            backgroundColor: hasPendingAnalysis
+                              ? '#7CFFC4'
+                              : isCheckTheme
+                                ? '#FFD95A'
+                                : colors.lime,
+                          },
+                        ]}
+                      />
+                    </Animated.View>
+                    <Text
+                      maxFontSizeMultiplier={1.12}
+                      numberOfLines={1}
+                      style={[
+                        styles.stageEyebrowText,
+                        hasPendingAnalysis && styles.stageEyebrowPending,
+                        !hasPendingAnalysis && isCheckTheme && styles.stageEyebrowCheck,
+                      ]}
+                    >
+                      {hasPendingAnalysis
+                        ? 'ANALIZĂ ÎN CURS'
+                        : isSolve
+                          ? 'SCANNER AI · PAS CU PAS'
+                          : 'VERIFICARE AI · PAȘII TĂI'}
+                    </Text>
+                  </View>
+
+                  {!isVeryNarrow ? (
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        styles.hudFormulaChip,
+                        isCheckTheme && styles.hudFormulaChipCheck,
+                        hasPendingAnalysis && styles.hudFormulaChipPending,
+                      ]}
+                    >
+                      <Text
+                        maxFontSizeMultiplier={1.1}
+                        numberOfLines={1}
+                        style={[
+                          styles.hudFormulaChipText,
+                          isCheckTheme && styles.hudFormulaChipTextCheck,
+                          hasPendingAnalysis && styles.hudFormulaChipTextPending,
+                        ]}
+                      >
+                        {hasPendingAnalysis
+                          ? 'ACTIV'
+                          : isSolve
+                            ? 'x² − 5x + 6 = 0'
+                            : '2x + 3 = 11 ✓'}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
 
                 <View style={[styles.stageContent, compact && styles.stageContentCompact]}>
                   <Pressable
@@ -887,7 +1002,7 @@ export const HomeSurface = memo(function HomeSurface({
                       style={[
                         styles.focusLensHalo,
                         compact && styles.focusLensHaloCompact,
-                        { borderColor: isCheckTheme ? '#FF9278' : colors.lime },
+                        { borderColor: isCheckTheme ? colors.gold : colors.lime },
                         lensHaloStyle,
                       ]}
                     />
@@ -899,14 +1014,14 @@ export const HomeSurface = memo(function HomeSurface({
                       ]}
                     >
                       <LinearGradient
-                        colors={['#9B58FF', '#6B24F0', '#4110B3']}
+                        colors={['#6E2BF6', '#4514BD', '#1F0860']}
                         start={{ x: 0.1, y: 0 }}
                         end={{ x: 0.9, y: 1 }}
                         style={styles.fill}
                       />
                       <Animated.View pointerEvents="none" style={[styles.fill, checkGradientStyle]}>
                         <LinearGradient
-                          colors={['#FF8260', '#E83E78', '#9D1856']}
+                          colors={['#DF3B7B', '#9D1856', '#510930']}
                           start={{ x: 0.1, y: 0 }}
                           end={{ x: 0.9, y: 1 }}
                           style={styles.fill}
@@ -923,7 +1038,7 @@ export const HomeSurface = memo(function HomeSurface({
                       <Animated.View pointerEvents="none" style={[styles.focusMedallion, compact && styles.focusMedallionCompact, medallionAnimated]}>
                         <AppIcon
                           name={isWrittenPending ? 'practice' : isSolve ? 'scan' : 'verify'}
-                          size={compact ? 38 : isVeryNarrow ? 48 : 56}
+                          size={compact ? 35 : isVeryNarrow ? 44 : 50}
                         />
                       </Animated.View>
 
@@ -931,7 +1046,7 @@ export const HomeSurface = memo(function HomeSurface({
                         <View
                           style={[
                             styles.scanBeamHalo,
-                            { backgroundColor: isCheckTheme ? 'rgba(255,212,71,0.38)' : 'rgba(216,255,62,0.38)' },
+                            { backgroundColor: isCheckTheme ? 'rgba(255,212,71,0.44)' : 'rgba(216,255,62,0.44)' },
                           ]}
                         />
                         <View style={[styles.scanBeam, { backgroundColor: cornerColor }]} />
@@ -940,37 +1055,6 @@ export const HomeSurface = memo(function HomeSurface({
                   </Pressable>
 
                   <View style={styles.stageCopy}>
-                    <View style={styles.stageEyebrowRow}>
-                      <Animated.View style={sparkStyle}>
-                        <View
-                          style={[
-                            styles.stageEyebrowDot,
-                            {
-                              backgroundColor: hasPendingAnalysis
-                                ? colors.limeDeep
-                                : isCheckTheme
-                                  ? colors.peachDeep
-                                  : colors.violet,
-                            },
-                          ]}
-                        />
-                      </Animated.View>
-                      <Text
-                        maxFontSizeMultiplier={1.12}
-                        numberOfLines={1}
-                        style={[
-                          styles.stageEyebrowText,
-                          hasPendingAnalysis && styles.stageEyebrowPending,
-                          !hasPendingAnalysis && isCheckTheme && styles.stageEyebrowCheck,
-                        ]}
-                      >
-                        {hasPendingAnalysis
-                          ? 'ANALIZĂ ÎN CURS'
-                          : isSolve
-                            ? 'SCANNER AI · PAS CU PAS'
-                            : 'VERIFICARE AI · PAȘII TĂI'}
-                      </Text>
-                    </View>
                     <Text
                       maxFontSizeMultiplier={1.3}
                       numberOfLines={2}
@@ -987,7 +1071,7 @@ export const HomeSurface = memo(function HomeSurface({
                     <Text
                       maxFontSizeMultiplier={1.3}
                       numberOfLines={2}
-                      style={[styles.stageNote, compact && styles.stageNoteCompact]}
+                      style={[styles.stageNote, isCheckTheme && styles.stageNoteCheck, compact && styles.stageNoteCompact]}
                     >
                       {hasPendingAnalysis
                         ? (isWrittenPending
@@ -1022,7 +1106,7 @@ export const HomeSurface = memo(function HomeSurface({
                     ]}
                   >
                     <LinearGradient
-                      colors={isCheckTheme ? ['#FFE28A', '#FFD066', '#F4B72E'] : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                      colors={isCheckTheme ? ['#FFE896', '#FFD25A', '#F4B426'] : ['#F3FF88', '#D8FF3E', '#B8EC0E']}
                       start={{ x: 0.08, y: 0 }}
                       end={{ x: 0.92, y: 1 }}
                       style={styles.fill}
@@ -1030,7 +1114,7 @@ export const HomeSurface = memo(function HomeSurface({
                     <View pointerEvents="none" style={styles.ctaTopGloss} />
                     <Animated.View pointerEvents="none" style={[styles.ctaSweep, ctaSheenStyle]} />
                     <View style={[styles.captureIconBadge, compact && styles.captureIconBadgeCompact]}>
-                      <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 26 : 31} />
+                      <AppIcon name={hasPendingAnalysis ? 'scan' : 'camera'} size={compact ? 25 : 30} />
                     </View>
                     <Text
                       maxFontSizeMultiplier={1.3}
@@ -1042,7 +1126,7 @@ export const HomeSurface = memo(function HomeSurface({
                       {hasPendingAnalysis ? 'Revino la analiză' : 'Deschide camera'}
                     </Text>
                     <Animated.View style={[styles.captureArrow, compact && styles.captureArrowCompact, arrowStyle]}>
-                      <MiniGlyph name="next" size={compact ? 16 : 18} color={colors.paper} />
+                      <MiniGlyph name="next" size={compact ? 15 : 17} color={colors.paper} />
                     </Animated.View>
                   </PressableScale>
                 </View>
@@ -1050,290 +1134,72 @@ export const HomeSurface = memo(function HomeSurface({
             </Animated.View>
           </Enter>
 
-          <View style={[styles.lowerStack, compact && styles.lowerStackCompact]}>
-            {hasPendingAnalysis ? (
-              <Enter
-                ready={motionReady}
-                delay={410}
-                duration={500}
-                distance={16}
-                scaleFrom={0.96}
-                preRasterize
-                hardwareLayer={hardwareEntranceLayer}
-                style={[styles.inputPairRow, compact && styles.inputPairRowCompact]}
-              >
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel="Anulează analiza în curs și începe altă problemă"
-                  disabled={galleryBusy}
-                  dimWhenDisabled={false}
-                  pressedScale={0.96}
-                  haptic="light"
-                  onPress={onDiscardPending}
-                  style={styles.inputPairWrap}
-                  contentStyle={[
-                    styles.secondaryTile,
-                    styles.discardTile,
-                    compact && styles.secondaryTileCompact,
-                  ]}
+          <View style={[styles.bentoDeck, compact && styles.bentoDeckCompact]}>
+            <View style={[styles.bentoRow, compact && styles.bentoRowCompact]}>
+              {/* Left Tall Featured Bento Card: Daily Quest / Mistakes / Track Setup (or Caiet when standalone) */}
+              {embedded && (onQuickPractice || showTrackSetupBanner) ? (
+                <Enter
+                  ready={motionReady}
+                  delay={410}
+                  duration={500}
+                  distance={16}
+                  scaleFrom={0.96}
+                  preRasterize
+                  hardwareLayer={hardwareEntranceLayer}
+                  style={styles.bentoLeftCol}
                 >
-                  <View style={[styles.tileIconBadge, styles.discardIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    <MiniGlyph name="close" size={compact || isVeryNarrow ? 16 : 19} color={colors.berryDeep} />
-                  </View>
-                  <View style={styles.tileCopy}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, styles.discardTitle, compact && styles.tileTitleCompact]}>
-                      Anulează
-                    </Text>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                        Începe altă problemă
-                      </Text>
-                    ) : null}
-                  </View>
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={['#FFF8F6', '#FFE5E0']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.fill, styles.behind]}
-                  />
-                  <View pointerEvents="none" style={styles.cardTopGloss} />
-                </PressableScale>
-
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
-                  disabled={galleryBusy}
-                  dimWhenDisabled={false}
-                  pressedScale={0.96}
-                  haptic="light"
-                  onPress={onNotebook}
-                  style={styles.inputPairWrap}
-                  contentStyle={[
-                    styles.secondaryTile,
-                    styles.galleryTile,
-                    compact && styles.secondaryTileCompact,
-                  ]}
-                >
-                  <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    <AppIcon name="notebook" size={compact || isVeryNarrow ? 25 : 31} />
-                  </View>
-                  <View style={styles.tileCopy}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
-                      Caiet
-                    </Text>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                        {savedCountLabel ?? 'Lecții salvate'}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={['#F5FEFF', '#DCF7FE']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.fill, styles.behind]}
-                  />
-                  <View pointerEvents="none" style={styles.cardTopGloss} />
-                </PressableScale>
-              </Enter>
-            ) : (
-              <Enter
-                ready={motionReady}
-                delay={410}
-                duration={500}
-                distance={16}
-                scaleFrom={0.96}
-                preRasterize
-                hardwareLayer={hardwareEntranceLayer}
-                style={[styles.inputPairRow, compact && styles.inputPairRowCompact]}
-              >
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel="Alege o fotografie din galerie"
-                  accessibilityState={{ disabled: galleryBusy, busy: galleryBusy }}
-                  disabled={galleryBusy}
-                  dimWhenDisabled={false}
-                  pressedScale={0.96}
-                  haptic="light"
-                  onPress={onGallery}
-                  style={styles.inputPairWrap}
-                  contentStyle={[
-                    styles.secondaryTile,
-                    styles.galleryTile,
-                    compact && styles.secondaryTileCompact,
-                  ]}
-                >
-                  <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    {galleryBusy ? (
-                      <PlayfulLoader micro />
-                    ) : (
-                      <AppIcon name="gallery" size={compact || isVeryNarrow ? 26 : 34} />
-                    )}
-                  </View>
-                  <View style={styles.tileCopy}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
-                      Galerie
-                    </Text>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                        {isSolve ? 'Din telefon' : 'Poză cu pașii'}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={['#F5FEFF', '#DCF7FE']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.fill, styles.behind]}
-                  />
-                  <View pointerEvents="none" style={styles.cardTopGloss} />
-                </PressableScale>
-
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel="Scrie o problemă sau o rezolvare"
-                  accessibilityState={{ disabled: galleryBusy }}
-                  disabled={galleryBusy}
-                  dimWhenDisabled={false}
-                  pressedScale={0.96}
-                  haptic="light"
-                  onPress={onMath}
-                  style={styles.inputPairWrap}
-                  contentStyle={[
-                    styles.secondaryTile,
-                    styles.mathTile,
-                    compact && styles.secondaryTileCompact,
-                  ]}
-                >
-                  <View style={[styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
-                    <AppIcon name="practice" size={compact || isVeryNarrow ? 26 : 34} />
-                  </View>
-                  <View style={styles.tileCopy}>
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
-                      Scrie
-                    </Text>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                        {isSolve ? 'Fără poză' : 'Soluția ta'}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={['#FFFDF2', '#FFF1BE']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.fill, styles.behind]}
-                  />
-                  <View pointerEvents="none" style={styles.cardTopGloss} />
-                </PressableScale>
-              </Enter>
-            )}
-
-            {embedded && (onQuickPractice || showTrackSetupBanner) ? (
-              <Enter
-                ready={motionReady}
-                delay={470}
-                duration={480}
-                distance={14}
-                scaleFrom={0.97}
-                preRasterize
-                hardwareLayer={hardwareEntranceLayer}
-              >
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    showTrackSetupBanner
-                      ? 'Alege nivelul de studiu pentru a personaliza aplicația'
-                      : wrongCount > 0
-                        ? (wrongCount === 1 ? 'Reia exercițiul greșit' : `Reia cele ${wrongCount} exerciții greșite`)
-                        : 'Începe un antrenament fulger de 5 minute'
-                  }
-                  accessibilityState={{ disabled: galleryBusy }}
-                  disabled={galleryBusy}
-                  dimWhenDisabled={false}
-                  pressedScale={0.975}
-                  haptic="medium"
-                  onPress={showTrackSetupBanner ? (onChooseStudyTrack ?? onStudy) : onQuickPractice}
-                  contentStyle={[
-                    styles.practiceBanner,
-                    showTrackSetupBanner
-                      ? styles.practiceBannerSetup
-                      : wrongCount > 0
-                        ? styles.practiceBannerMistakes
-                        : styles.practiceBannerQuiz,
-                    compact && styles.practiceBannerCompact,
-                  ]}
-                >
-                  <LinearGradient
-                    pointerEvents="none"
-                    colors={
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={
                       showTrackSetupBanner
-                        ? ['#FFFDF0', '#FFF0B5']
+                        ? 'Alege nivelul de studiu pentru a personaliza aplicația'
                         : wrongCount > 0
-                          ? ['#FFF9F6', '#FFE7DD']
-                          : ['#FCF9FF', '#EFE3FF']
+                          ? (wrongCount === 1 ? 'Reia exercițiul greșit' : `Reia cele ${wrongCount} exerciții greșite`)
+                          : 'Începe un antrenament fulger de 5 minute'
                     }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.fill}
-                  />
-                  <View pointerEvents="none" style={styles.cardTopGloss} />
-                  <View
-                    style={[
-                      styles.practiceSpine,
+                    accessibilityState={{ disabled: galleryBusy }}
+                    disabled={galleryBusy}
+                    dimWhenDisabled={false}
+                    pressedScale={0.965}
+                    haptic="medium"
+                    onPress={showTrackSetupBanner ? (onChooseStudyTrack ?? onStudy) : onQuickPractice}
+                    style={styles.bentoCardFill}
+                    contentStyle={[
+                      styles.bentoFeatureCard,
                       showTrackSetupBanner
-                        ? styles.practiceSpineSetup
-                        : wrongCount > 0 && styles.practiceSpineMistakes,
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.practiceIconBadge,
-                      showTrackSetupBanner
-                        ? styles.setupIconBadge
+                        ? styles.bentoFeatureSetup
                         : wrongCount > 0
-                          ? styles.mistakesIconBadge
-                          : styles.quizIconBadge,
-                      compact && styles.practiceIconBadgeCompact,
+                          ? styles.bentoFeatureMistakes
+                          : styles.bentoFeatureQuiz,
+                      compact && styles.bentoFeatureCompact,
                     ]}
                   >
-                    <AppIcon name={showTrackSetupBanner ? 'class' : wrongCount > 0 ? 'retake' : 'streak'} size={compact ? 25 : 32} />
-                  </View>
-                  <View style={styles.practiceCopy}>
-                    <View style={styles.practiceHeaderRow}>
-                      <Text
-                        maxFontSizeMultiplier={1.25}
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.85}
-                        style={[
-                          styles.practiceTitle,
-                          showTrackSetupBanner
-                            ? styles.setupTitle
-                            : wrongCount > 0 && styles.mistakesTitle,
-                          compact && styles.practiceTitleCompact,
-                        ]}
-                      >
-                        {showTrackSetupBanner
-                          ? 'Alege clasa sau examenul'
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={
+                        showTrackSetupBanner
+                          ? ['#FFFDF4', '#FFF2C4', '#FFE38A']
                           : wrongCount > 0
-                            ? 'Repetă greșelile'
-                            : 'Antrenament fulger'}
-                      </Text>
+                            ? ['#FFF9F7', '#FFE8DE', '#FFD4C4']
+                            : ['#FFFFFF', '#F3EAFF', '#E5D3FF']
+                      }
+                      start={{ x: 0.08, y: 0 }}
+                      end={{ x: 0.92, y: 1 }}
+                      style={[styles.fill, styles.behind]}
+                    />
+                    <View pointerEvents="none" style={styles.cardTopGloss} />
+
+                    <View style={styles.bentoFeatureTopRow}>
                       {showTrackSetupBanner ? (
                         <View collapsable={false} style={styles.practiceBadgeSetup}>
                           <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeSetupText}>
-                            Start
+                            Începe
                           </Text>
                         </View>
                       ) : wrongCount > 0 ? (
                         <View collapsable={false} style={styles.practiceBadgeMistakes}>
                           <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeMistakesText}>
-                            {wrongCount}
+                            {wrongCount} {wrongCount === 1 ? 'greșeală' : 'greșeli'}
                           </Text>
                         </View>
                       ) : (
@@ -1343,97 +1209,354 @@ export const HomeSurface = memo(function HomeSurface({
                           </Text>
                         </View>
                       )}
+                      <View
+                        style={[
+                          styles.bentoCircleArrow,
+                          showTrackSetupBanner
+                            ? styles.bentoCircleArrowSetup
+                            : wrongCount > 0 && styles.bentoCircleArrowMistakes,
+                          compact && styles.bentoCircleArrowCompact,
+                        ]}
+                      >
+                        <MiniGlyph
+                          name="next"
+                          size={compact ? 12 : 14}
+                          color={showTrackSetupBanner ? '#8A5600' : wrongCount > 0 ? colors.peachDeep : colors.violetDeep}
+                        />
+                      </View>
                     </View>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.practiceNote}>
-                        {showTrackSetupBanner
-                          ? 'Personalizează formulele, testele și simulările'
-                          : wrongCount > 0
-                            ? 'Reia rapid exercițiile greșite la practică'
-                            : studyTrackLabel
-                              ? `5 exerciții rapide · ${studyTrackLabel}`
-                              : '5 exerciții rapide pentru ritm zilnic'}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View
-                    style={[
-                      styles.practiceArrow,
-                      showTrackSetupBanner
-                        ? styles.practiceArrowSetup
-                        : wrongCount > 0 && styles.practiceArrowMistakes,
-                      compact && styles.practiceArrowCompact,
-                    ]}
-                  >
-                    <MiniGlyph
-                      name="next"
-                      size={compact ? 15 : 17}
-                      color={showTrackSetupBanner ? '#8A5600' : wrongCount > 0 ? colors.peachDeep : colors.violetDeep}
-                    />
-                  </View>
-                </PressableScale>
-              </Enter>
-            ) : null}
 
-            {!embedded ? (
-              <Enter ready={motionReady} delay={250} distance={12} scaleFrom={0.97} style={styles.notebookGroup}>
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
-                  pressedScale={0.975}
-                  haptic="selection"
-                  onPress={onNotebook}
-                  contentStyle={[styles.notebookShelf, compact && styles.notebookShelfCompact]}
-                >
-                  <View style={styles.notebookSpine} />
-                  <View style={[styles.notebookIcon, compact && styles.notebookIconCompact]}>
-                    <AppIcon name="notebook" size={compact ? 32 : 38} />
-                  </View>
-                  <View style={styles.notebookCopy}>
-                    <View style={styles.notebookHeaderRow}>
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.notebookTitle, compact && styles.notebookTitleCompact]}>
-                        Caietul meu
+                    <View
+                      style={[
+                        styles.bentoFeaturePedestal,
+                        showTrackSetupBanner
+                          ? styles.setupIconBadge
+                          : wrongCount > 0
+                            ? styles.mistakesIconBadge
+                            : styles.quizIconBadge,
+                        compact && styles.bentoFeaturePedestalCompact,
+                      ]}
+                    >
+                      <AppIcon name={showTrackSetupBanner ? 'class' : wrongCount > 0 ? 'retake' : 'streak'} size={compact ? 26 : 36} />
+                    </View>
+
+                    <View style={styles.bentoFeatureCopy}>
+                      <Text
+                        maxFontSizeMultiplier={1.25}
+                        numberOfLines={2}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.82}
+                        style={[
+                          styles.bentoFeatureTitle,
+                          showTrackSetupBanner
+                            ? styles.setupTitle
+                            : wrongCount > 0 && styles.mistakesTitle,
+                          compact && styles.bentoFeatureTitleCompact,
+                        ]}
+                      >
+                        {showTrackSetupBanner
+                          ? 'Alege clasa'
+                          : wrongCount > 0
+                            ? 'Repetă greșelile'
+                            : 'Antrenament fulger'}
                       </Text>
-                      {savedCountLabel ? (
-                        <View collapsable={false} style={styles.countBadge}>
-                          <Text maxFontSizeMultiplier={1.1} style={styles.countBadgeText}>{savedCountLabel}</Text>
-                        </View>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.bentoFeatureNote}>
+                          {showTrackSetupBanner
+                            ? 'EN & BAC pe nivelul tău'
+                            : wrongCount > 0
+                              ? 'Reia rapid la practică'
+                              : '5 exerciții de ritm'}
+                        </Text>
                       ) : null}
                     </View>
-                    {!compact ? (
-                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.notebookNote}>
-                        {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate, disponibile și offline'}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View style={[styles.notebookArrow, compact && styles.notebookArrowCompact]}>
-                    <MiniGlyph name="next" size={compact ? 17 : 19} color={colors.violetDeep} />
-                  </View>
-                </PressableScale>
-
-                {showGuide && !compact && !hasPendingAnalysis ? (
-                  <View
-                    accessible
-                    accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
-                    style={styles.guidePill}
+                  </PressableScale>
+                </Enter>
+              ) : (
+                <Enter
+                  ready={motionReady}
+                  delay={410}
+                  duration={500}
+                  distance={16}
+                  scaleFrom={0.96}
+                  preRasterize
+                  hardwareLayer={hardwareEntranceLayer}
+                  style={styles.bentoLeftCol}
+                >
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
+                    pressedScale={0.965}
+                    haptic="selection"
+                    onPress={onNotebook}
+                    style={styles.bentoCardFill}
+                    contentStyle={[
+                      styles.bentoFeatureCard,
+                      styles.bentoFeatureQuiz,
+                      compact && styles.bentoFeatureCompact,
+                    ]}
                   >
-                    <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.guideText}>
-                      ✦  Fotografiezi  →  Înțelegi  →  Salvezi
-                    </Text>
-                    {onDismissGuide ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Ascunde ghidul"
-                        hitSlop={10}
-                        onPress={onDismissGuide}
-                        style={styles.guideDismiss}
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['#FFFFFF', '#F3EAFF', '#E5D3FF']}
+                      start={{ x: 0.08, y: 0 }}
+                      end={{ x: 0.92, y: 1 }}
+                      style={[styles.fill, styles.behind]}
+                    />
+                    <View pointerEvents="none" style={styles.cardTopGloss} />
+
+                    <View style={styles.bentoFeatureTopRow}>
+                      <View collapsable={false} style={styles.practiceBadgeStreak}>
+                        <Text maxFontSizeMultiplier={1.05} style={styles.practiceBadgeStreakText}>
+                          {savedCountLabel ?? 'Offline'}
+                        </Text>
+                      </View>
+                      <View style={[styles.bentoCircleArrow, compact && styles.bentoCircleArrowCompact]}>
+                        <MiniGlyph name="next" size={compact ? 12 : 14} color={colors.violetDeep} />
+                      </View>
+                    </View>
+
+                    <View style={[styles.bentoFeaturePedestal, styles.quizIconBadge, compact && styles.bentoFeaturePedestalCompact]}>
+                      <AppIcon name="notebook" size={compact ? 26 : 36} />
+                    </View>
+
+                    <View style={styles.bentoFeatureCopy}>
+                      <Text
+                        maxFontSizeMultiplier={1.25}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.82}
+                        style={[styles.bentoFeatureTitle, compact && styles.bentoFeatureTitleCompact]}
                       >
-                        <MiniGlyph name="close" size={14} color={colors.violetDeep} />
-                      </Pressable>
-                    ) : null}
-                  </View>
+                        Caietul meu
+                      </Text>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.bentoFeatureNote}>
+                          {latestLessonTitle ? latestLessonTitle : 'Lecțiile tale salvate'}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </PressableScale>
+                </Enter>
+              )}
+
+              {/* Right Stacked Studio Action Duo: Galerie + Scrie (or Anulează + Caiet when pending) */}
+              {hasPendingAnalysis ? (
+                <Enter
+                  ready={motionReady}
+                  delay={450}
+                  duration={500}
+                  distance={16}
+                  scaleFrom={0.96}
+                  preRasterize
+                  hardwareLayer={hardwareEntranceLayer}
+                  style={[styles.bentoRightCol, compact && styles.bentoRightColCompact]}
+                >
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel="Anulează analiza în curs și începe altă problemă"
+                    disabled={galleryBusy}
+                    dimWhenDisabled={false}
+                    pressedScale={0.96}
+                    haptic="light"
+                    onPress={onDiscardPending}
+                    style={styles.bentoStackWrap}
+                    contentStyle={[
+                      styles.secondaryTile,
+                      styles.discardTile,
+                      compact && styles.secondaryTileCompact,
+                    ]}
+                  >
+                    <View style={[styles.tileIconBadge, styles.discardIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                      <MiniGlyph name="close" size={compact || isVeryNarrow ? 16 : 19} color={colors.berryDeep} />
+                    </View>
+                    <View style={styles.tileCopy}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, styles.discardTitle, compact && styles.tileTitleCompact]}>
+                        Anulează
+                      </Text>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
+                          Începe alta
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.tileArrowOrb, styles.tileArrowDiscard, compact && styles.tileArrowOrbCompact]}>
+                      <MiniGlyph name="next" size={compact ? 12 : 13} color={colors.berryDeep} />
+                    </View>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['#FFF9F7', '#FFE5E0']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.fill, styles.behind]}
+                    />
+                    <View pointerEvents="none" style={styles.cardTopGloss} />
+                  </PressableScale>
+
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={savedCountLabel ? `Deschide caietul cu ${savedCountLabel} salvate` : 'Deschide caietul cu lecții salvate'}
+                    disabled={galleryBusy}
+                    dimWhenDisabled={false}
+                    pressedScale={0.96}
+                    haptic="light"
+                    onPress={onNotebook}
+                    style={styles.bentoStackWrap}
+                    contentStyle={[
+                      styles.secondaryTile,
+                      styles.galleryTile,
+                      compact && styles.secondaryTileCompact,
+                    ]}
+                  >
+                    <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                      <AppIcon name="notebook" size={compact || isVeryNarrow ? 24 : 30} />
+                    </View>
+                    <View style={styles.tileCopy}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
+                        Caiet
+                      </Text>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
+                          {savedCountLabel ?? 'Lecții salvate'}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.tileArrowOrb, styles.tileArrowGallery, compact && styles.tileArrowOrbCompact]}>
+                      <MiniGlyph name="next" size={compact ? 12 : 13} color="#0E7C94" />
+                    </View>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['#F8FEFF', '#DDF7FE']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.fill, styles.behind]}
+                    />
+                    <View pointerEvents="none" style={styles.cardTopGloss} />
+                  </PressableScale>
+                </Enter>
+              ) : (
+                <Enter
+                  ready={motionReady}
+                  delay={450}
+                  duration={500}
+                  distance={16}
+                  scaleFrom={0.96}
+                  preRasterize
+                  hardwareLayer={hardwareEntranceLayer}
+                  style={[styles.bentoRightCol, compact && styles.bentoRightColCompact]}
+                >
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel="Alege o fotografie din galerie"
+                    accessibilityState={{ disabled: galleryBusy, busy: galleryBusy }}
+                    disabled={galleryBusy}
+                    dimWhenDisabled={false}
+                    pressedScale={0.96}
+                    haptic="light"
+                    onPress={onGallery}
+                    style={styles.bentoStackWrap}
+                    contentStyle={[
+                      styles.secondaryTile,
+                      styles.galleryTile,
+                      compact && styles.secondaryTileCompact,
+                    ]}
+                  >
+                    <View style={[styles.tileIconBadge, styles.galleryIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                      {galleryBusy ? (
+                        <PlayfulLoader micro />
+                      ) : (
+                        <AppIcon name="gallery" size={compact || isVeryNarrow ? 25 : 32} />
+                      )}
+                    </View>
+                    <View style={styles.tileCopy}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
+                        Galerie
+                      </Text>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
+                          {isSolve ? 'Din telefon' : 'Poză cu pașii'}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.tileArrowOrb, styles.tileArrowGallery, compact && styles.tileArrowOrbCompact]}>
+                      <MiniGlyph name="next" size={compact ? 12 : 13} color="#0E7C94" />
+                    </View>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['#F8FEFF', '#DDF7FE', '#CAF0FC']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.fill, styles.behind]}
+                    />
+                    <View pointerEvents="none" style={styles.cardTopGloss} />
+                  </PressableScale>
+
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel="Scrie o problemă sau o rezolvare"
+                    accessibilityState={{ disabled: galleryBusy }}
+                    disabled={galleryBusy}
+                    dimWhenDisabled={false}
+                    pressedScale={0.96}
+                    haptic="light"
+                    onPress={onMath}
+                    style={styles.bentoStackWrap}
+                    contentStyle={[
+                      styles.secondaryTile,
+                      styles.mathTile,
+                      compact && styles.secondaryTileCompact,
+                    ]}
+                  >
+                    <View style={[styles.tileIconBadge, styles.mathIconBadge, (compact || isVeryNarrow) && styles.tileIconBadgeCompact]}>
+                      <AppIcon name="practice" size={compact || isVeryNarrow ? 25 : 32} />
+                    </View>
+                    <View style={styles.tileCopy}>
+                      <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={[styles.tileTitle, compact && styles.tileTitleCompact]}>
+                        Scrie
+                      </Text>
+                      {!compact ? (
+                        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
+                          {isSolve ? 'Tastatură mate' : 'Soluția ta'}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.tileArrowOrb, styles.tileArrowMath, compact && styles.tileArrowOrbCompact]}>
+                      <MiniGlyph name="next" size={compact ? 12 : 13} color="#966500" />
+                    </View>
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={['#FFFDF5', '#FFF2C6', '#FFE79A']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.fill, styles.behind]}
+                    />
+                    <View pointerEvents="none" style={styles.cardTopGloss} />
+                  </PressableScale>
+                </Enter>
+              )}
+            </View>
+
+            {!embedded && showGuide && !compact && !hasPendingAnalysis ? (
+              <View
+                accessible
+                accessibilityLabel="Cum funcționează: fotografiezi, înțelegi și salvezi lecția"
+                style={styles.guidePill}
+              >
+                <Text maxFontSizeMultiplier={1.3} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} style={styles.guideText}>
+                  ✦  Fotografiezi  →  Înțelegi  →  Salvezi
+                </Text>
+                {onDismissGuide ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Ascunde ghidul"
+                    hitSlop={10}
+                    onPress={onDismissGuide}
+                    style={styles.guideDismiss}
+                  >
+                    <MiniGlyph name="close" size={14} color={colors.violetDeep} />
+                  </Pressable>
                 ) : null}
-              </Enter>
+              </View>
             ) : null}
           </View>
         </View>
@@ -1515,20 +1638,67 @@ const styles = StyleSheet.create({
   logoCompact: { width: 35, height: 35, borderRadius: 17.5, borderWidth: 2, borderBottomWidth: 2.5 },
   logoImage: { width: 35, height: 35 },
   logoImageCompact: { width: 28, height: 28 },
-  brandWordWrap: { flex: 1, minWidth: 0, justifyContent: 'center' },
-  brand: {
-    fontFamily: fonts.display,
-    color: colors.paper,
-    fontSize: 23,
-    lineHeight: 27,
-    letterSpacing: -0.35,
-    textShadowColor: 'rgba(24, 6, 68, 0.28)',
-    textShadowOffset: { width: 0, height: 1.5 },
-    textShadowRadius: 3,
+  trackPillWrap: { flexShrink: 1, minWidth: 0 },
+  trackPill: {
+    height: 36,
+    borderRadius: radii.pill,
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 11,
   },
-  brandAccent: { color: colors.lime },
-  brandAccentCheck: { color: '#FFE169' },
-  brandCompact: { fontSize: 18, lineHeight: 22 },
+  trackPillSetup: {
+    backgroundColor: 'rgba(255, 212, 71, 0.22)',
+    borderColor: 'rgba(255, 224, 112, 0.56)',
+  },
+  trackPillCompact: {
+    height: 32,
+    paddingHorizontal: 9,
+    gap: 5,
+  },
+  trackPillDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: colors.lime,
+    flexShrink: 0,
+  },
+  trackPillDotCheck: {
+    backgroundColor: '#FFE169',
+  },
+  trackPillDotSetup: {
+    backgroundColor: '#FFD84D',
+  },
+  trackPillText: {
+    flexShrink: 1,
+    fontFamily: fonts.bodyBold,
+    color: colors.paper,
+    fontSize: 12.5,
+    lineHeight: 15,
+    letterSpacing: -0.1,
+    includeFontPadding: false,
+  },
+  trackPillTextSetup: {
+    color: '#FFF6D1',
+  },
+  trackPillTextCompact: {
+    fontSize: 11,
+    lineHeight: 13.5,
+  },
+  trackPillChevron: {
+    fontFamily: fonts.bodyBold,
+    color: 'rgba(255, 255, 255, 0.82)',
+    fontSize: 11,
+    lineHeight: 13,
+    includeFontPadding: false,
+    flexShrink: 0,
+  },
+  trackPillChevronSetup: {
+    color: '#FFE37A',
+  },
 
   allowanceWrap: { marginLeft: 8 },
   allowanceWrapNarrow: { marginLeft: 6 },
@@ -1627,90 +1797,159 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
 
-  // Sculpted pure-white 3D optical studio card
-  cameraStageEnter: { flex: 1, minHeight: 0, width: '100%', zIndex: 3 },
-  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: 32, shadowColor: '#4B1FB8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.13, shadowRadius: 16 },
-  cameraStageShadowCheck: { shadowColor: '#B5265D' },
+  // Dark-Jewel Obsidian-Violet (Solve) / Deep Berry-Plum (Check) Optical AI Camera Studio
+  cameraStageEnter: { flex: 1.08, minHeight: 0, width: '100%', zIndex: 3 },
+  cameraStageShadow: { flex: 1, minHeight: 0, width: '100%', borderRadius: 30, shadowColor: '#250976', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.24, shadowRadius: 18 },
+  cameraStageShadowCheck: { shadowColor: '#6D0D3B' },
   cameraStage: {
     flex: 1,
     minHeight: 0,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderBottomWidth: 5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D2C0F8',
-    borderRadius: 32,
-    backgroundColor: '#FFFFFF',
+    borderColor: 'rgba(186, 152, 255, 0.36)',
+    borderBottomColor: '#0A0424',
+    borderRadius: 30,
+    backgroundColor: '#1B0B4E',
     justifyContent: 'space-between',
-    padding: 15,
+    padding: 14,
+    gap: 8,
     position: 'relative',
   },
   cameraStageCheck: {
-    borderColor: '#FBD2DF',
-    borderBottomColor: '#EEADC2',
+    borderColor: 'rgba(255, 168, 194, 0.36)',
+    borderBottomColor: '#15031B',
+    backgroundColor: '#2E0822',
   },
-  cameraStageCompact: { padding: 11 },
+  cameraStageCompact: { padding: 10, gap: 5 },
   studioTopGloss: {
     position: 'absolute',
     top: 1,
     left: 28,
     right: 28,
-    height: 2,
+    height: 1.5,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
     zIndex: 2,
   },
-  stageEyebrowRow: {
+  hudCorner: {
+    position: 'absolute',
+    width: 11,
+    height: 11,
+    borderColor: 'rgba(216, 255, 62, 0.26)',
+    zIndex: 2,
+  },
+  hudCornerCheck: {
+    borderColor: 'rgba(255, 212, 71, 0.28)',
+  },
+  hudCornerTL: { top: 10, left: 12, borderTopWidth: 1.5, borderLeftWidth: 1.5, borderTopLeftRadius: 4 },
+  hudCornerTR: { top: 10, right: 12, borderTopWidth: 1.5, borderRightWidth: 1.5, borderTopRightRadius: 4 },
+  stageHudBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    zIndex: 2,
+  },
+  stageHudBarCompact: {
+    gap: 6,
+  },
+  stageEyebrowPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    paddingHorizontal: 8.5,
+    paddingVertical: 3.5,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(216, 255, 62, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(216, 255, 62, 0.34)',
+    flexShrink: 1,
+  },
+  stageEyebrowPillCheck: {
+    backgroundColor: 'rgba(255, 212, 71, 0.14)',
+    borderColor: 'rgba(255, 212, 71, 0.36)',
+  },
+  stageEyebrowPillPending: {
+    backgroundColor: 'rgba(124, 255, 196, 0.14)',
+    borderColor: 'rgba(124, 255, 196, 0.36)',
   },
   stageEyebrowDot: {
-    width: 7,
-    height: 7,
+    width: 6.5,
+    height: 6.5,
     borderRadius: 3.5,
   },
   stageEyebrowText: {
     fontFamily: fonts.bodyBold,
-    fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 0.9,
-    color: colors.violetDeep,
+    fontSize: 9.5,
+    lineHeight: 12,
+    letterSpacing: 0.8,
+    color: '#E6FF78',
     includeFontPadding: false,
   },
   stageEyebrowCheck: {
-    color: '#A51E5B',
+    color: '#FFE278',
   },
   stageEyebrowPending: {
-    color: colors.limeDeep,
+    color: '#9CFFD2',
+  },
+  hudFormulaChip: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    flexShrink: 0,
+  },
+  hudFormulaChipCheck: {
+    backgroundColor: 'rgba(255, 232, 240, 0.1)',
+    borderColor: 'rgba(255, 194, 214, 0.22)',
+  },
+  hudFormulaChipPending: {
+    backgroundColor: 'rgba(67, 214, 230, 0.16)',
+    borderColor: 'rgba(67, 214, 230, 0.38)',
+  },
+  hudFormulaChipText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 10.5,
+    lineHeight: 13,
+    letterSpacing: 0.2,
+    color: 'rgba(255, 255, 255, 0.92)',
+    includeFontPadding: false,
+  },
+  hudFormulaChipTextCheck: {
+    color: '#FFE799',
+  },
+  hudFormulaChipTextPending: {
+    color: '#9DF4FF',
   },
 
-  // Horizontal optical viewfinder pod + crisp editorial lockup
+  // Horizontal optical viewfinder pod + luminous white editorial lockup
   stageContent: {
     flex: 1,
     minHeight: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: 15,
+    gap: 14,
     paddingHorizontal: 2,
     zIndex: 2,
   },
   stageContentCompact: {
-    gap: 12,
+    gap: 11,
     paddingHorizontal: 1,
   },
   lensPodWrap: {
-    width: 104,
-    height: 104,
+    width: 94,
+    height: 94,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     flexShrink: 0,
   },
-  lensPodWrapNarrow: { width: 92, height: 92 },
-  lensPodWrapCompact: { width: 70, height: 70 },
+  lensPodWrapNarrow: { width: 82, height: 82 },
+  lensPodWrapCompact: { width: 64, height: 64 },
   focusFramePressed: { transform: [{ scale: 0.93 }] },
   focusLensHalo: {
     position: 'absolute',
@@ -1718,34 +1957,34 @@ const styles = StyleSheet.create({
     right: -6,
     bottom: -6,
     left: -6,
-    borderRadius: 34,
-    borderWidth: 2.2,
+    borderRadius: 32,
+    borderWidth: 2,
   },
   focusLensHaloCompact: {
     top: -4,
     right: -4,
     bottom: -4,
     left: -4,
-    borderRadius: 24,
+    borderRadius: 22,
   },
   lensPod: {
     width: '100%',
     height: '100%',
-    borderRadius: 28,
+    borderRadius: 26,
     borderWidth: 1.5,
     borderBottomWidth: 4,
-    borderColor: 'rgba(255, 255, 255, 0.34)',
-    borderBottomColor: '#310B8C',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomColor: '#12043A',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
   },
   lensPodCheck: {
-    borderBottomColor: '#7C1342',
+    borderBottomColor: '#36061F',
   },
   lensPodCompact: {
-    borderRadius: 21,
+    borderRadius: 19,
     borderBottomWidth: 3,
   },
   lensPodGloss: {
@@ -1753,40 +1992,40 @@ const styles = StyleSheet.create({
     top: -18,
     left: -10,
     right: -10,
-    height: 44,
-    borderRadius: 30,
+    height: 40,
+    borderRadius: 28,
     backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
   lensLiveDot: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 6,
-    height: 6,
+    top: 11,
+    right: 11,
+    width: 5.5,
+    height: 5.5,
     borderRadius: 3,
     zIndex: 4,
   },
   corner: {
     position: 'absolute',
-    width: 15,
-    height: 15,
+    width: 14,
+    height: 14,
     zIndex: 3,
   },
-  cornerTL: { top: 9, left: 9, borderTopWidth: 2.8, borderLeftWidth: 2.8, borderTopLeftRadius: 6 },
-  cornerTR: { top: 9, right: 9, borderTopWidth: 2.8, borderRightWidth: 2.8, borderTopRightRadius: 6 },
-  cornerBL: { bottom: 9, left: 9, borderBottomWidth: 2.8, borderLeftWidth: 2.8, borderBottomLeftRadius: 6 },
-  cornerBR: { bottom: 9, right: 9, borderBottomWidth: 2.8, borderRightWidth: 2.8, borderBottomRightRadius: 6 },
+  cornerTL: { top: 8, left: 8, borderTopWidth: 2.6, borderLeftWidth: 2.6, borderTopLeftRadius: 6 },
+  cornerTR: { top: 8, right: 8, borderTopWidth: 2.6, borderRightWidth: 2.6, borderTopRightRadius: 6 },
+  cornerBL: { bottom: 8, left: 8, borderBottomWidth: 2.6, borderLeftWidth: 2.6, borderBottomLeftRadius: 6 },
+  cornerBR: { bottom: 8, right: 8, borderBottomWidth: 2.6, borderRightWidth: 2.6, borderBottomRightRadius: 6 },
   focusMedallion: {
-    width: 70,
-    height: 70,
-    borderRadius: 22,
+    width: 62,
+    height: 62,
+    borderRadius: 19,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.96)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  focusMedallionCompact: { width: 48, height: 48, borderRadius: 15 },
+  focusMedallionCompact: { width: 44, height: 44, borderRadius: 14 },
   scanBeamWrap: {
     position: 'absolute',
     left: 10,
@@ -1807,45 +2046,51 @@ const styles = StyleSheet.create({
   stageCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
   stageTitle: {
     fontFamily: fonts.display,
-    color: colors.ink,
+    color: '#FFFFFF',
     fontSize: 22.5,
     lineHeight: 25.5,
     letterSpacing: -0.35,
     textAlign: 'left',
+    textShadowColor: 'rgba(8, 2, 28, 0.46)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 4,
   },
   stageTitleNarrow: { fontSize: 19.5, lineHeight: 22.5 },
-  stageTitleCompact: { fontSize: 17.5, lineHeight: 20.5 },
+  stageTitleCompact: { fontSize: 17, lineHeight: 20 },
   stageNote: {
     marginTop: 4,
     fontFamily: fonts.bodyMedium,
-    color: colors.inkSoft,
+    color: 'rgba(235, 228, 255, 0.86)',
     fontSize: 12.5,
     lineHeight: 16.5,
     textAlign: 'left',
+  },
+  stageNoteCheck: {
+    color: 'rgba(255, 232, 240, 0.88)',
   },
   stageNoteCompact: { marginTop: 2, fontSize: 11.5, lineHeight: 15 },
 
   stageCtaWrap: { zIndex: 3 },
   captureCta: {
-    height: 55,
+    height: 52,
     borderRadius: radii.pill,
     borderWidth: 1.4,
-    borderColor: '#EEFF96',
+    borderColor: '#F6FFB5',
     borderBottomWidth: 4.5,
-    borderBottomColor: '#8CB600',
+    borderBottomColor: '#7EA600',
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 9,
-    gap: 11,
+    paddingHorizontal: 8,
+    gap: 10,
     overflow: 'hidden',
     position: 'relative',
   },
-  captureCtaCompact: { height: 45, paddingHorizontal: 8, gap: 8 },
+  captureCtaCompact: { height: 43, paddingHorizontal: 7, gap: 8 },
   captureCtaCheck: {
-    backgroundColor: '#FFD066',
-    borderColor: '#FFE8A8',
-    borderBottomColor: '#C98E10',
+    backgroundColor: '#FFD25A',
+    borderColor: '#FFF0B8',
+    borderBottomColor: '#BA800B',
   },
   ctaTopGloss: {
     position: 'absolute',
@@ -1866,9 +2111,9 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   captureIconBadge: {
-    width: 37,
-    height: 37,
-    borderRadius: 18.5,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.paper,
     borderWidth: 1.2,
     borderColor: 'rgba(86, 120, 0, 0.16)',
@@ -1876,26 +2121,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 2,
   },
-  captureIconBadgeCompact: { width: 31, height: 31, borderRadius: 15.5 },
-  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19, lineHeight: 22, zIndex: 2 },
-  captureCtaTextCompact: { fontSize: 16.5, lineHeight: 20 },
+  captureIconBadgeCompact: { width: 30, height: 30, borderRadius: 15 },
+  captureCtaText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 21.5, zIndex: 2 },
+  captureCtaTextCompact: { fontSize: 16, lineHeight: 19 },
   captureArrow: {
-    width: 35,
-    height: 35,
-    borderRadius: 17.5,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: colors.ink,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
-  captureArrowCompact: { width: 29, height: 29, borderRadius: 14.5 },
+  captureArrowCompact: { width: 28, height: 28, borderRadius: 14 },
 
-  // 2-tier lower deck: paired solve/check input cards + separate full-width practice banner
-  lowerStack: { flexShrink: 0, gap: 9, zIndex: 3 },
-  lowerStackCompact: { gap: 6 },
-  inputPairRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10 },
-  inputPairRowCompact: { gap: 8 },
-  inputPairWrap: { flex: 1, minWidth: 0 },
+  // Flagship Asymmetrical 2-Column Bento Deck (zero scroll)
+  bentoDeck: { flex: 0.92, minHeight: 0, gap: 8, zIndex: 3 },
+  bentoDeckCompact: { flex: 0.86, gap: 6 },
+  bentoRow: { flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'stretch', gap: 10 },
+  bentoRowCompact: { gap: 8 },
+  bentoLeftCol: { flex: 0.92, minWidth: 0, minHeight: 0 },
+  bentoRightCol: { flex: 1.08, minWidth: 0, minHeight: 0, gap: 9 },
+  bentoRightColCompact: { gap: 6 },
+  bentoCardFill: { flex: 1, minHeight: 0 },
+  bentoStackWrap: { flex: 1, minHeight: 0 },
   cardTopGloss: {
     position: 'absolute',
     top: 1,
@@ -1903,45 +2152,133 @@ const styles = StyleSheet.create({
     right: 16,
     height: 1.5,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     zIndex: 1,
   },
 
-  secondaryTile: {
-    height: 60,
-    borderRadius: 21,
+  // Left Tall Vertical Bento Card (Antrenament fulger / Repetă greșelile / Alege clasa / Caiet)
+  bentoFeatureCard: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 24,
     borderWidth: 1.4,
-    borderBottomWidth: 4,
+    borderBottomWidth: 4.5,
+    padding: 12,
+    justifyContent: 'space-between',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  bentoFeatureCompact: {
+    borderRadius: 18,
+    borderBottomWidth: 3.5,
+    padding: 9,
+  },
+  bentoFeatureQuiz: {
+    backgroundColor: '#F3EAFF',
+    borderColor: '#D6BEFF',
+    borderBottomColor: '#AE86FF',
+  },
+  bentoFeatureSetup: {
+    backgroundColor: '#FFF7D6',
+    borderColor: '#EFCE5C',
+    borderBottomColor: '#D0A216',
+  },
+  bentoFeatureMistakes: {
+    backgroundColor: '#FFF1EB',
+    borderColor: '#FFBCA6',
+    borderBottomColor: '#EC8F70',
+  },
+  bentoFeatureTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+    zIndex: 2,
+  },
+  bentoCircleArrow: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: '#DFD0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  bentoCircleArrowSetup: { borderColor: '#F0D576' },
+  bentoCircleArrowMistakes: { borderColor: '#FFD1C2' },
+  bentoCircleArrowCompact: { width: 22, height: 22, borderRadius: 11 },
+  bentoFeaturePedestal: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    zIndex: 2,
+    shadowColor: '#5B25DC',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  bentoFeaturePedestalCompact: { width: 38, height: 38, borderRadius: 13 },
+  bentoFeatureCopy: { zIndex: 2, alignItems: 'flex-start' },
+  bentoFeatureTitle: {
+    fontFamily: fonts.display,
+    color: colors.ink,
+    fontSize: 17.5,
+    lineHeight: 20,
+    letterSpacing: -0.25,
+  },
+  bentoFeatureTitleCompact: { fontSize: 14.5, lineHeight: 17 },
+  bentoFeatureNote: {
+    marginTop: 2,
+    fontFamily: fonts.bodyMedium,
+    color: colors.inkSoft,
+    fontSize: 11.5,
+    lineHeight: 14,
+  },
+
+  // Right Stacked Bento Action Cards (Galerie + Scrie / Anulează + Caiet)
+  secondaryTile: {
+    flex: 1,
+    minHeight: 0,
+    borderRadius: 22,
+    borderWidth: 1.4,
+    borderBottomWidth: 4.5,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
   },
-  secondaryTileCompact: { height: 46, borderRadius: 16, borderBottomWidth: 3, paddingHorizontal: 8, gap: 7 },
+  secondaryTileCompact: { borderRadius: 17, borderBottomWidth: 3.5, paddingHorizontal: 8, gap: 7 },
   galleryTile: {
-    backgroundColor: '#EBFBFF',
-    borderColor: '#9EE8F7',
-    borderBottomColor: '#5BC9DE',
+    backgroundColor: '#E8FAFF',
+    borderColor: '#9CE7F7',
+    borderBottomColor: '#54C5DD',
   },
   mathTile: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#F8DC82',
-    borderBottomColor: '#E5B72F',
+    backgroundColor: '#FFF9E3',
+    borderColor: '#F7D97A',
+    borderBottomColor: '#E2B224',
   },
   discardTile: {
-    backgroundColor: '#FFF4F2',
-    borderColor: '#FFC4BA',
-    borderBottomColor: '#EE8F82',
+    backgroundColor: '#FFF2F0',
+    borderColor: '#FFC2B8',
+    borderBottomColor: '#EC8A7C',
   },
   tileIconBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 15,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
+    borderWidth: 1.3,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1952,83 +2289,33 @@ const styles = StyleSheet.create({
   mathIconBadge: { borderColor: '#FAE5A2' },
   discardIconBadge: { borderColor: '#FFD0C8' },
   tileCopy: { flex: 1, minWidth: 0, zIndex: 2 },
-  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20 },
+  tileTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17, lineHeight: 20, letterSpacing: -0.2 },
   discardTitle: { color: colors.berryDeep },
   tileTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
-  tileNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
-
-  // Dedicated full-width practice / mistake-review action banner
-  practiceBanner: {
-    minHeight: 58,
-    borderRadius: 21,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingLeft: 12,
-    paddingRight: 11,
-    gap: 10,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  practiceBannerCompact: { minHeight: 46, borderRadius: 16, borderBottomWidth: 3, paddingVertical: 6, paddingLeft: 10, paddingRight: 9, gap: 8 },
-  practiceBannerQuiz: {
-    backgroundColor: '#F4EEFF',
-    borderColor: '#D6BEFF',
-    borderBottomColor: '#B18CFF',
-  },
-  practiceBannerSetup: {
-    backgroundColor: '#FFF9DC',
-    borderColor: '#ECCB5B',
-    borderBottomColor: '#D0A51E',
-  },
-  practiceBannerMistakes: {
-    backgroundColor: '#FFF2EC',
-    borderColor: '#FFC0AB',
-    borderBottomColor: '#EE9579',
-  },
-  practiceSpine: {
-    position: 'absolute',
-    left: 0,
-    top: 11,
-    bottom: 11,
-    width: 4.5,
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-    backgroundColor: colors.violet,
-    zIndex: 2,
-  },
-  practiceSpineSetup: {
-    backgroundColor: '#D49600',
-  },
-  practiceSpineMistakes: {
-    backgroundColor: colors.peachDeep,
-  },
-  practiceIconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
+  tileNote: { marginTop: 1.5, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14 },
+  tileArrowOrb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
     zIndex: 2,
   },
-  practiceIconBadgeCompact: { width: 32, height: 32, borderRadius: 11 },
+  tileArrowOrbCompact: { width: 22, height: 22, borderRadius: 11 },
+  tileArrowGallery: { borderColor: '#AEE8F7' },
+  tileArrowMath: { borderColor: '#F5DB84' },
+  tileArrowDiscard: { borderColor: '#FFC9C0' },
+
   quizIconBadge: { borderColor: '#DFD0FF' },
   setupIconBadge: { borderColor: '#F0D576' },
   mistakesIconBadge: { borderColor: '#FFD3C4' },
-  practiceCopy: { flex: 1, minWidth: 0, zIndex: 2 },
-  practiceHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  practiceTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16.5, lineHeight: 19.5, flexShrink: 1 },
-  practiceTitleCompact: { fontSize: 14.5, lineHeight: 17.5 },
   setupTitle: { color: '#5F3B00' },
   mistakesTitle: { color: colors.peachDeep },
-  practiceNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 11.5, lineHeight: 14.5 },
   practiceBadgeSetup: {
-    height: 18,
+    height: 20,
     paddingHorizontal: 8,
     borderRadius: radii.pill,
     backgroundColor: '#FFD84D',
@@ -2045,9 +2332,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   practiceBadgeMistakes: {
-    minWidth: 20,
-    height: 18,
-    paddingHorizontal: 6,
+    minWidth: 22,
+    height: 20,
+    paddingHorizontal: 7,
     borderRadius: radii.pill,
     backgroundColor: colors.rose,
     alignItems: 'center',
@@ -2061,10 +2348,12 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   practiceBadgeStreak: {
-    height: 18,
-    paddingHorizontal: 7,
+    height: 20,
+    paddingHorizontal: 8,
     borderRadius: radii.pill,
     backgroundColor: colors.lime,
+    borderWidth: 1,
+    borderColor: '#B5DF18',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2075,94 +2364,6 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     includeFontPadding: false,
   },
-  practiceArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DFD0FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    zIndex: 2,
-  },
-  practiceArrowSetup: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#F0D576',
-  },
-  practiceArrowMistakes: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFD3C4',
-  },
-  practiceArrowCompact: { width: 26, height: 26, borderRadius: 13 },
-
-  notebookGroup: { gap: 7 },
-  notebookShelf: {
-    minHeight: 62,
-    borderRadius: 22,
-    borderWidth: 1.2,
-    borderBottomWidth: 3.5,
-    borderColor: '#E4D8FA',
-    borderBottomColor: '#D1BFF5',
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 13,
-    gap: 11,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  notebookShelfCompact: { minHeight: 50, borderRadius: 17, paddingVertical: 7, paddingHorizontal: 10, gap: 9 },
-  notebookSpine: {
-    position: 'absolute',
-    left: 0,
-    top: 12,
-    bottom: 12,
-    width: 4,
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-    backgroundColor: colors.violet,
-  },
-  notebookIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    backgroundColor: '#F2EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  notebookIconCompact: { width: 36, height: 36, borderRadius: 12 },
-  notebookCopy: { flex: 1, minWidth: 0 },
-  notebookHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  notebookTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5, lineHeight: 21, flexShrink: 1 },
-  notebookTitleCompact: { fontSize: 15.5, lineHeight: 19 },
-  countBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-    backgroundColor: colors.limeSoft,
-  },
-  countBadgeText: {
-    fontFamily: fonts.bodyBold,
-    color: colors.limeDeep,
-    fontSize: 10.5,
-    lineHeight: 13,
-    includeFontPadding: false,
-  },
-  notebookNote: { marginTop: 1, fontFamily: fonts.bodyMedium, color: colors.inkSoft, fontSize: 12, lineHeight: 15.5 },
-  notebookArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F2EAFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  notebookArrowCompact: { width: 26, height: 26, borderRadius: 13 },
 
   guidePill: {
     minHeight: 34,
