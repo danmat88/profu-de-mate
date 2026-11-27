@@ -119,7 +119,7 @@ export async function generateAiPracticeExercise(
   const callable = httpsCallable<WireRequest, WireResponse>(
     functions,
     'generatePracticeExercise',
-    { timeout: 65_000 },
+    { timeout: 85_000 },
   );
 
   const response = await callable({

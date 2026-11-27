@@ -19,32 +19,42 @@ export async function cropCapturedImage(image: CapturedImage, crop: CropRect): P
   const width = Math.min(Math.max(1, Math.round(crop.width)), image.width - originX);
   const height = Math.min(Math.max(1, Math.round(crop.height)), image.height - originY);
   const context = ImageManipulator.manipulate(image.uri);
+  let rendered: Awaited<ReturnType<typeof context.renderAsync>> | null = null;
+  try {
+    context.crop({ originX, originY, width, height });
+    const longestEdge = Math.max(width, height);
+    if (longestEdge > MAX_IMAGE_EDGE) {
+      if (width >= height) context.resize({ width: MAX_IMAGE_EDGE, height: null });
+      else context.resize({ width: null, height: MAX_IMAGE_EDGE });
+    }
+    rendered = await context.renderAsync();
+    const result = await rendered.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
+    const uri = await storeTemporaryCapturedImage(result.uri);
 
-  context.crop({ originX, originY, width, height });
-  const longestEdge = Math.max(width, height);
-  if (longestEdge > MAX_IMAGE_EDGE) {
-    if (width >= height) context.resize({ width: MAX_IMAGE_EDGE, height: null });
-    else context.resize({ width: null, height: MAX_IMAGE_EDGE });
+    return { uri, width: result.width, height: result.height, source: image.source };
+  } finally {
+    rendered?.release();
+    context.release();
   }
-  const rendered = await context.renderAsync();
-  const result = await rendered.saveAsync({ compress: JPEG_QUALITY, format: SaveFormat.JPEG });
-  const uri = await storeTemporaryCapturedImage(result.uri);
-
-  return { uri, width: result.width, height: result.height, source: image.source };
 }
 
 export async function rotateCapturedImage(image: CapturedImage): Promise<CapturedImage> {
   const context = ImageManipulator.manipulate(image.uri);
+  let rendered: Awaited<ReturnType<typeof context.renderAsync>> | null = null;
+  try {
+    context.rotate(90);
+    const longestEdge = Math.max(image.width, image.height);
+    if (longestEdge > MAX_IMAGE_EDGE) {
+      if (image.width >= image.height) context.resize({ width: null, height: MAX_IMAGE_EDGE });
+      else context.resize({ width: MAX_IMAGE_EDGE, height: null });
+    }
+    rendered = await context.renderAsync();
+    const result = await rendered.saveAsync({ compress: EDIT_QUALITY, format: SaveFormat.JPEG });
+    const uri = await storeTemporaryCapturedImage(result.uri);
 
-  context.rotate(90);
-  const longestEdge = Math.max(image.width, image.height);
-  if (longestEdge > MAX_IMAGE_EDGE) {
-    if (image.width >= image.height) context.resize({ width: null, height: MAX_IMAGE_EDGE });
-    else context.resize({ width: MAX_IMAGE_EDGE, height: null });
+    return { uri, width: result.width, height: result.height, source: image.source };
+  } finally {
+    rendered?.release();
+    context.release();
   }
-  const rendered = await context.renderAsync();
-  const result = await rendered.saveAsync({ compress: EDIT_QUALITY, format: SaveFormat.JPEG });
-  const uri = await storeTemporaryCapturedImage(result.uri);
-
-  return { uri, width: result.width, height: result.height, source: image.source };
 }

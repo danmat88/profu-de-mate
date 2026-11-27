@@ -7,7 +7,11 @@ import { connectWithGoogle, disconnectGoogleAccount, getCommercialAccess } from 
 import { preparePlayIntegrity } from '../../../shared/services/deviceIntegrity';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import { deleteAllUserData, type DataDeletionResult } from '../../account/services/dataManagement';
-import { firebaseUserSessionKey, resetFirebaseInitialization } from '../../../shared/services/firebase';
+import {
+  firebaseUserSessionKey,
+  isTerminalSessionRecoveryInFlight,
+  resetFirebaseInitialization,
+} from '../../../shared/services/firebase';
 import { clearFavoriteLessonsCache, prewarmFavoriteLessonsCache } from '../../lessons/services/lessons';
 import { clearExamLocalState } from '../../exams/services/examStorage';
 import { clearPracticeLocalState } from '../../practice/services/practiceStorage';
@@ -156,6 +160,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
         // one synchronous turn so React renders the transition atomically.
         syncAuthUiState(getAuth(getApp()).currentUser);
         applyServerAccess(next);
+        retryStudyProgressSyncIfNeeded();
         return next;
       })
       .catch((error) => {
@@ -177,7 +182,6 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   }, [applyServerAccess, markStartupReady, syncAuthUiState]);
 
   const refreshIfStale = useCallback((): Promise<CommercialAccess | null> => {
-    if (initiallyOffline && !accessRef.current) return Promise.resolve(null);
     if (!shouldAutomaticallyRefreshCommercialAccess({
       now: Date.now(),
       lastSuccessfulRefreshAt: lastSuccessfulRefreshAt.current,
@@ -187,7 +191,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
       return Promise.resolve(accessRef.current);
     }
     return refresh();
-  }, [initiallyOffline, refresh]);
+  }, [refresh]);
 
   useEffect(() => {
     const monitor = createCommercialExpiryMonitor({
@@ -212,6 +216,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
   useEffect(() => onIdTokenChanged(getAuth(getApp()), (user) => {
     const nextSessionKey = firebaseUserSessionKey(user);
     if (nextSessionKey === observedSessionKey.current) return;
+    const previousSessionKey = observedSessionKey.current;
     const previousUserId = observedUserId.current;
     observedSessionKey.current = nextSessionKey;
     observedUserId.current = user?.uid;
@@ -223,6 +228,17 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
     if (identityTransitionActive.current) {
       // An explicit connect/disconnect/delete transition is in flight and will
       // commit identity, session key and server access atomically once ready.
+      return;
+    }
+    if (typeof isTerminalSessionRecoveryInFlight === 'function' && isTerminalSessionRecoveryInFlight()) {
+      // Terminal Firebase auth rotation handles local wipe and replacement
+      // session creation internally; do not abort it mid-rotation.
+      return;
+    }
+    if (previousSessionKey === null && refreshInFlight.current !== null && user?.isAnonymous) {
+      // Our active refresh() just bootstrapped a replacement guest session after
+      // sign-out/deletion; let that refresh commit identity and access atomically
+      // instead of aborting itself and starting a duplicate request.
       return;
     }
     if (previousUserId && previousUserId !== user?.uid) {
@@ -301,7 +317,12 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
 
     const operation = connectWithGoogle()
       .then(async (user) => {
-        if (!user) return null;
+        if (!user) {
+          if (!accessRef.current && !refreshInFlight.current) {
+            void refresh();
+          }
+          return null;
+        }
         const next = await refresh();
         if (!next) {
           const current = getAuth(getApp()).currentUser ?? user;
@@ -327,6 +348,8 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
             recordDiagnosticError('google_connect', error);
             return next;
           }
+        } else if (!accessRef.current && !refreshInFlight.current) {
+          void refresh();
         }
         throw error;
       })
@@ -365,9 +388,9 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
           return settled.value;
         }
         const current = getAuth(getApp()).currentUser ?? user;
-        if (!current || firebaseUserSessionKey(current) !== previousSessionKey) {
+        if (!accessRef.current && (!current || firebaseUserSessionKey(current) !== previousSessionKey)) {
           syncAuthUiState(current);
-          clearAccessForIdentityChange(settled.done ? 'unavailable' : 'resolving');
+          clearAccessForIdentityChange(refreshInFlight.current ? 'resolving' : 'unavailable');
         }
         return null;
       })
@@ -379,6 +402,8 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
             syncAuthUiState(getAuth(getApp()).currentUser);
             clearAccessForIdentityChange('unavailable');
           }
+        } else if (!accessRef.current && !refreshInFlight.current) {
+          void refresh();
         }
         throw error;
       })
@@ -427,6 +452,8 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
             syncAuthUiState(getAuth(getApp()).currentUser);
             clearAccessForIdentityChange('unavailable');
           }
+        } else if (!accessRef.current && !refreshInFlight.current) {
+          void refresh();
         }
         throw error;
       })

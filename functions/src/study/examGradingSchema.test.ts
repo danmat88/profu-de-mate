@@ -7,7 +7,7 @@ import {
   normalizeRawExamGrading,
   parseGradeExamSolutionRequest,
 } from './examGradingSchema.js';
-import { buildExamGradingPrompt, gradeExamSolutionWithAi } from './examGradingService.js';
+import { buildExamGradingPrompt, ExamGradingProviderError, gradeExamSolutionWithAi } from './examGradingService.js';
 
 const validToken = 'b'.repeat(64);
 const validRequestId = 'analysis-abcd1234-efgh5678';
@@ -171,4 +171,113 @@ test('gradeExamSolutionWithAi sends high-detail image via OpenAI Responses API w
   assert.equal(imagePart.type, 'input_image');
   assert.equal(imagePart.detail, 'high');
   assert.equal(imagePart.image_url, `data:image/jpeg;base64,${sampleBase64}`);
+});
+
+test('exam grading normalization enforces rubric maxPoints/length, rejects invalid status, and Max retries incomplete outputs', async () => {
+  const rubric = [
+    { step: 'Etapa 1', points: 3 },
+    { step: 'Etapa 2', points: 2 },
+  ];
+  // AI understates maxPoints (1 instead of 3) and hallucinates a 3rd extra criterion
+  const normalized = normalizeRawExamGrading({
+    status: 'graded',
+    awardedPoints: 8,
+    verdict: 'complete',
+    summary: 'Rezolvare corectă.',
+    criteriaScores: [
+      { step: 'Etapa 1', awardedPoints: 3, maxPoints: 1, comment: 'Corect.' },
+      { step: 'Etapa 2', awardedPoints: 2, maxPoints: 2, comment: 'Corect.' },
+      { step: 'Extra halucinat', awardedPoints: 3, maxPoints: 3, comment: 'Bonus fals.' },
+    ],
+    improvementTip: 'Bine lucrat!',
+  }, { maxPoints: 5, rubricCriteria: rubric });
+  const parsed = examGradingResultSchema.parse(normalized);
+  assert.equal(parsed.criteriaScores.length, 2, 'extra hallucinated criteria must be sliced to rubric length');
+  assert.equal(parsed.criteriaScores[0].awardedPoints, 3, 'authoritative rubric maxPoints must prevent downward truncation');
+
+  // Missing/unknown status must NOT default to 'graded'
+  const invalidStatus = normalizeRawExamGrading({
+    status: 'weird_status',
+    awardedPoints: 0,
+    verdict: 'needs_work',
+    summary: 'Invalid payload.',
+    criteriaScores: [],
+    improvementTip: 'Încearcă din nou.',
+  }, { maxPoints: 5, rubricCriteria: rubric });
+  assert.equal(examGradingResultSchema.safeParse(invalidStatus).success, false);
+
+  // Max tier allocates 6144 tokens and retries once with effort=low on incomplete output
+  const attempts: Array<{ effort: string; maxTokens: number }> = [];
+  const retryClient = {
+    responses: {
+      create: async (request: any) => {
+        attempts.push({ effort: request.reasoning.effort, maxTokens: request.max_output_tokens });
+        if (attempts.length === 1) {
+          return { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output_text: '' };
+        }
+        return {
+          status: 'completed',
+          output_text: JSON.stringify({
+            status: 'graded',
+            awardedPoints: 5,
+            verdict: 'complete',
+            summary: 'Rezolvare completă.',
+            criteriaScores: [
+              { step: 'Etapa 1', awardedPoints: 3, maxPoints: 3, comment: 'Corect.' },
+              { step: 'Etapa 2', awardedPoints: 2, maxPoints: 2, comment: 'Corect.' },
+            ],
+            improvementTip: 'Foarte bine!',
+          }),
+        };
+      },
+    },
+  } as unknown as OpenAI;
+
+  const retried = await gradeExamSolutionWithAi({
+    apiKey: 'test-key',
+    model: 'gpt-6-luna',
+    reasoningEffort: 'medium',
+    client: retryClient,
+    beforeGenerate: async () => undefined,
+    request: {
+      examId: 'bac_m1',
+      itemTitle: 'S.III · 1',
+      maxPoints: 5,
+      problemText: 'Calculați derivata și monotonia funcției f(x) = x^2 - 2x.',
+      rubricCriteria: rubric,
+      imageBase64: sampleBase64,
+      mimeType: 'image/jpeg',
+      requestId: validRequestId,
+      installationToken: validToken,
+    },
+  });
+  assert.equal(retried.awardedPoints, 5);
+  assert.deepEqual(attempts, [
+    { effort: 'medium', maxTokens: 6144 },
+    { effort: 'low', maxTokens: 4096 },
+  ]);
+
+  // Permanent failure throws ExamGradingProviderError (plain Error, triggers circuit breaker)
+  const emptyClient = {
+    responses: { create: async () => ({ status: 'completed', output_text: '' }) },
+  } as unknown as OpenAI;
+  await assert.rejects(
+    gradeExamSolutionWithAi({
+      apiKey: 'test-key',
+      client: emptyClient,
+      beforeGenerate: async () => undefined,
+      request: {
+        examId: 'en',
+        itemTitle: 'S.III · 1',
+        maxPoints: 5,
+        problemText: 'Problemă de test pentru circuit breaker.',
+        rubricCriteria: rubric,
+        imageBase64: sampleBase64,
+        mimeType: 'image/jpeg',
+        requestId: validRequestId,
+        installationToken: validToken,
+      },
+    }),
+    (error: unknown) => error instanceof ExamGradingProviderError,
+  );
 });

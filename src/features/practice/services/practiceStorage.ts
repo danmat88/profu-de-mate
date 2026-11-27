@@ -179,11 +179,13 @@ export function recordPracticeAnswer(
     : correct
       ? current.wrongQuestionIds.filter((id) => id !== questionId)
       : [questionId, ...current.wrongQuestionIds.filter((id) => id !== questionId)];
-  const nextMastered = !isCurated || !correct
+  const nextMastered = !isCurated
     ? current.masteredQuestionIds
-    : current.masteredQuestionIds.includes(questionId)
-      ? current.masteredQuestionIds
-      : [...current.masteredQuestionIds, questionId];
+    : correct
+      ? current.masteredQuestionIds.includes(questionId)
+        ? current.masteredQuestionIds
+        : [...current.masteredQuestionIds, questionId]
+      : current.masteredQuestionIds.filter((id) => id !== questionId);
 
   const todayKey = getLocalDateKey();
   const streak = computeNextStreak(current.streakDays, current.lastPracticeDateKey, todayKey);

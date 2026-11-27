@@ -120,20 +120,27 @@ export function normalizeRawExamGrading(
 ): unknown {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
   const record = raw as Record<string, unknown>;
-  const rawStatus = typeof record.status === 'string' ? record.status.trim().toLowerCase() : 'graded';
+  const rawStatus = typeof record.status === 'string' ? record.status.trim().toLowerCase() : undefined;
+  // Never default a missing or unknown status to 'graded' (which would charge
+  // quota on malformed model outputs); let strict Zod validation reject it.
   const status = rawStatus === 'graded' || rawStatus === 'unclear' || rawStatus === 'not_math'
     ? rawStatus
-    : 'graded';
+    : record.status;
   const rawVerdict = typeof record.verdict === 'string' ? record.verdict.trim().toLowerCase() : 'partial';
   const verdict = rawVerdict === 'complete' || rawVerdict === 'partial' || rawVerdict === 'needs_work'
     ? rawVerdict
     : 'partial';
 
+  const criteriaLimit = request.rubricCriteria.length > 0
+    ? Math.min(12, request.rubricCriteria.length)
+    : 12;
   const criteriaScores = Array.isArray(record.criteriaScores)
-    ? record.criteriaScores.slice(0, 12).map((item, idx) => {
+    ? record.criteriaScores.slice(0, criteriaLimit).map((item, idx) => {
       const entry = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
       const expected = request.rubricCriteria[idx];
-      const maxPoints = coerceBoundedInt(entry.maxPoints, 1, 30, expected?.points ?? 5);
+      // Use the request's authoritative rubric maxPoints before clamping
+      // awardedPoints so AI understating a step max never truncates the score.
+      const maxPoints = expected?.points ?? coerceBoundedInt(entry.maxPoints, 1, 30, 5);
       const awardedPoints = coerceBoundedInt(entry.awardedPoints, 0, maxPoints, 0);
       return {
         step: clampGradingString(entry.step, 260, expected?.step ?? `Etapa ${idx + 1}`),
@@ -243,7 +250,10 @@ export function normalizeExamGradingResult(
     };
   }
 
-  const clampedCriteria = raw.criteriaScores.map((item, idx) => {
+  const criteriaLimit = request.rubricCriteria.length > 0
+    ? Math.min(12, request.rubricCriteria.length)
+    : raw.criteriaScores.length;
+  const clampedCriteria = raw.criteriaScores.slice(0, criteriaLimit).map((item, idx) => {
     const expectedMax = request.rubricCriteria[idx]?.points ?? item.maxPoints;
     const safeMax = Math.max(1, Math.min(request.maxPoints, expectedMax));
     const safeAwarded = Math.max(0, Math.min(safeMax, item.awardedPoints));

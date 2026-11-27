@@ -158,31 +158,52 @@ function simplifyIntRadical(n: bigint): { out: bigint; inside: bigint } | null {
   return { out, inside: rem };
 }
 
-function isTerminatingDecimal(d: bigint): boolean {
+function terminatingDecimalLength(d: bigint): number | null {
   let rem = d;
-  while (rem % 2n === 0n) rem /= 2n;
-  while (rem % 5n === 0n) rem /= 5n;
-  return rem === 1n;
+  let pow2 = 0;
+  let pow5 = 0;
+  while (rem % 2n === 0n) {
+    rem /= 2n;
+    pow2 += 1;
+  }
+  while (rem % 5n === 0n) {
+    rem /= 5n;
+    pow5 += 1;
+  }
+  return rem === 1n ? Math.max(pow2, pow5) : null;
+}
+
+function formatExactTerminatingDecimal(q: Frac, decimals: number): string {
+  const negative = q.n < 0n;
+  const absN = negative ? -q.n : q.n;
+  const scale = 10n ** BigInt(decimals);
+  const scaled = (absN * scale) / q.d;
+  const intPart = scaled / scale;
+  const fracPart = (scaled % scale).toString().padStart(decimals, '0').replace(/0+$/, '');
+  const body = fracPart.length > 0 ? `${intPart.toString()},${fracPart}` : intPart.toString();
+  return negative && body !== '0' ? `−${body}` : body;
 }
 
 function formatNumberRo(value: number, maxDecimals = 4): string {
   if (!Number.isFinite(value)) return '';
-  const cleaned = Math.abs(value) < 1e-12 ? 0 : value;
-  const negative = cleaned < 0;
-  const abs = Math.abs(cleaned);
+  if (value === 0 || Object.is(value, -0)) return '0';
+  const negative = value < 0;
+  const abs = Math.abs(value);
+  const minFixed = 10 ** (-maxDecimals);
 
-  if (abs >= 1e12 || (abs > 0 && abs < 1e-6)) {
+  if (abs >= 1e12 || (abs > 0 && abs < minFixed)) {
     const exp = abs.toExponential(3).replace('.', ',');
     return negative ? `−${exp}` : exp;
   }
 
   const roundedInt = Math.round(abs);
-  if (Math.abs(abs - roundedInt) < 1e-10) {
+  if (roundedInt !== 0 && Math.abs(abs - roundedInt) < 1e-10 * roundedInt) {
     return negative ? `−${roundedInt}` : `${roundedInt}`;
   }
 
   const fixed = abs.toFixed(maxDecimals).replace(/0+$/, '').replace(/\.$/, '');
   const formatted = fixed.replace('.', ',');
+  if (formatted === '0') return '0';
   return negative ? `−${formatted}` : formatted;
 }
 
@@ -195,11 +216,14 @@ function formatFrac(q: Frac): string {
 
 function formatFracDecimalNote(q: Frac): string | undefined {
   if (q.d === 1n) return undefined;
+  const termLen = terminatingDecimalLength(q.d);
+  if (termLen !== null && termLen <= 6) {
+    return `= ${formatExactTerminatingDecimal(q, termLen)}`;
+  }
   const val = fracToNumber(q);
   if (!Number.isFinite(val)) return undefined;
-  const approx = !isTerminatingDecimal(q.d);
-  const str = formatNumberRo(val, approx ? 4 : 6);
-  return approx ? `≈ ${str}` : `= ${str}`;
+  const str = formatNumberRo(val, 4);
+  return str ? `≈ ${str}` : undefined;
 }
 
 function formatRadicalPrimary(q: Frac, rad: bigint): string {
@@ -312,10 +336,14 @@ function mulExact(a: ExactVal, b: ExactVal): ExactVal | null {
 }
 
 function divExact(a: ExactVal, b: ExactVal): ExactVal | null {
-  const bNum = valToNumber(b);
-  if ((b.kind === 'rat' && b.q.n === 0n) || Math.abs(bNum) < 1e-15) {
+  if (b.kind !== 'float') {
+    if (b.q.n === 0n) {
+      throw new MathDomainError('Împărțire la 0 nedefinită');
+    }
+  } else if (Math.abs(b.v) < 1e-15) {
     throw new MathDomainError('Împărțire la 0 nedefinită');
   }
+  const bNum = valToNumber(b);
   if (a.kind === 'rat' && a.q.n === 0n) return { kind: 'rat', q: ZERO };
   if (a.kind === 'rat' && b.kind === 'rat') {
     const q = divFrac(a.q, b.q);
@@ -358,27 +386,33 @@ function divExact(a: ExactVal, b: ExactVal): ExactVal | null {
 }
 
 function sqrtExact(a: ExactVal): ExactVal | null {
-  const num = valToNumber(a);
-  if (num < -1e-12) {
-    throw new MathDomainError('Radical din număr negativ nu există în ℝ');
-  }
-  if (Math.abs(num) < 1e-12) return { kind: 'rat', q: ZERO };
-  if (a.kind === 'rat') {
-    const exact = exactSqrtFrac(a.q);
-    if (exact) return { kind: 'rat', q: exact };
-    // Simplify √(n/d) = √(n*d) / d
-    const prod = a.q.n * a.q.d;
-    const simp = simplifyIntRadical(prod);
-    if (simp) {
-      const coeff = makeFrac(simp.out, a.q.d);
-      if (coeff) {
-        return simp.inside === 1n
-          ? { kind: 'rat', q: coeff }
-          : { kind: 'rad', q: coeff, rad: simp.inside };
+  if (a.kind !== 'float') {
+    if (a.q.n < 0n) {
+      throw new MathDomainError('Radical din număr negativ nu există în ℝ');
+    }
+    if (a.q.n === 0n) return { kind: 'rat', q: ZERO };
+    if (a.kind === 'rat') {
+      const exact = exactSqrtFrac(a.q);
+      if (exact) return { kind: 'rat', q: exact };
+      // Simplify √(n/d) = √(n*d) / d
+      const prod = a.q.n * a.q.d;
+      const simp = simplifyIntRadical(prod);
+      if (simp) {
+        const coeff = makeFrac(simp.out, a.q.d);
+        if (coeff) {
+          return simp.inside === 1n
+            ? { kind: 'rat', q: coeff }
+            : { kind: 'rad', q: coeff, rad: simp.inside };
+        }
       }
     }
+    return toFloatVal(Math.sqrt(valToNumber(a)));
   }
-  return toFloatVal(Math.sqrt(num));
+  if (a.v < -1e-12) {
+    throw new MathDomainError('Radical din număr negativ nu există în ℝ');
+  }
+  if (Math.abs(a.v) < 1e-12) return { kind: 'rat', q: ZERO };
+  return toFloatVal(Math.sqrt(a.v));
 }
 
 function powExact(base: ExactVal, exp: ExactVal): ExactVal | null {
@@ -694,7 +728,8 @@ function evalPolyNodes(nodes: MathNode[], variable: 'x' | 'y' | 'z'): Poly | nul
         const val = powFracInt(base.c, e);
         return val ? polyConst(val) : null;
       }
-      if (e === 0) return polyConst(ONE);
+      // Delegate (expr)^0 to AI so domain exclusions (base ≠ 0) are never lost.
+      if (e === 0) return null;
       if (e === 1) return base;
       if (e === 2) return mulPoly(base, base);
       return null;
@@ -838,14 +873,36 @@ function flipRelation(op: Exclude<RelationOp, '='>): Exclude<RelationOp, '='> {
   }
 }
 
-function compareNumbers(a: number, b: number, op: RelationOp): boolean {
-  const eps = 1e-10;
+function compareFracs(a: Frac, b: Frac): -1 | 0 | 1 {
+  const left = a.n * b.d;
+  const right = b.n * a.d;
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function compareExactOrder(a: ExactVal, b: ExactVal): -1 | 0 | 1 {
+  if (a.kind === 'rat' && b.kind === 'rat') return compareFracs(a.q, b.q);
+  if (a.kind === 'rad' && b.kind === 'rad' && a.rad === b.rad) return compareFracs(a.q, b.q);
+  if (a.kind === 'pi' && b.kind === 'pi') return compareFracs(a.q, b.q);
+  if (a.kind !== 'float' && b.kind === 'rat' && b.q.n === 0n) {
+    return a.q.n < 0n ? -1 : a.q.n > 0n ? 1 : 0;
+  }
+  if (b.kind !== 'float' && a.kind === 'rat' && a.q.n === 0n) {
+    return b.q.n > 0n ? -1 : b.q.n < 0n ? 1 : 0;
+  }
+  const aNum = valToNumber(a);
+  const bNum = valToNumber(b);
+  const eps = 1e-10 * Math.max(1, Math.abs(aNum), Math.abs(bNum));
+  if (Math.abs(aNum - bNum) <= eps) return 0;
+  return aNum < bNum ? -1 : 1;
+}
+
+function orderMatchesRelation(order: -1 | 0 | 1, op: RelationOp): boolean {
   switch (op) {
-    case '=': return Math.abs(a - b) <= eps;
-    case '<': return a < b - eps;
-    case '>': return a > b + eps;
-    case 'le': return a <= b + eps;
-    case 'ge': return a >= b - eps;
+    case '=': return order === 0;
+    case '<': return order < 0;
+    case '>': return order > 0;
+    case 'le': return order <= 0;
+    case 'ge': return order >= 0;
   }
 }
 
@@ -914,10 +971,9 @@ export function evaluateInstantMath(document: MathDocument): InstantMathResult |
         const left = evalConstantNodes(relation.left);
         const right = evalConstantNodes(relation.right);
         if (!left || !right) return null;
-        const lNum = valToNumber(left);
-        const rNum = valToNumber(right);
-        const holds = compareNumbers(lNum, rNum, relation.op);
-        const actualRel = Math.abs(lNum - rNum) <= 1e-10 ? '=' : lNum < rNum ? '<' : '>';
+        const order = compareExactOrder(left, right);
+        const holds = orderMatchesRelation(order, relation.op);
+        const actualRel = order === 0 ? '=' : order < 0 ? '<' : '>';
         const sym = holds ? formatRelationSymbol(relation.op) : (relation.op === '=' ? '≠' : actualRel);
         const lStr = formatShortExactVal(left);
         const rStr = formatShortExactVal(right);
@@ -997,7 +1053,7 @@ export function evaluateInstantMath(document: MathDocument): InstantMathResult |
           const r1 = num1 ? divFrac(num1, twoA) : null;
           const r2 = num2 ? divFrac(num2, twoA) : null;
           if (!r1 || !r2) return null;
-          const sorted = fracToNumber(r1) <= fracToNumber(r2) ? [r1, r2] : [r2, r1];
+          const sorted = compareFracs(r1, r2) <= 0 ? [r1, r2] : [r2, r1];
           return {
             kind: 'equation',
             badge: 'SOLUȚII INSTANT',
@@ -1006,12 +1062,15 @@ export function evaluateInstantMath(document: MathDocument): InstantMathResult |
           };
         }
 
-        // Irrational real roots -> show clean decimal approximation + exact Δ
+        // Irrational real roots -> Citardauq's formula avoids catastrophic cancellation
+        // when b² >> 4ac (e.g. x² + 10⁸x + 1 = 0).
         const aNum = fracToNumber(diff.a);
         const bNum = fracToNumber(diff.b);
+        const cNum = fracToNumber(diff.c);
         const dSqrt = Math.sqrt(fracToNumber(delta));
-        const x1 = (-bNum - dSqrt) / (2 * aNum);
-        const x2 = (-bNum + dSqrt) / (2 * aNum);
+        const q = -0.5 * (bNum + (bNum >= 0 ? dSqrt : -dSqrt));
+        const x1 = q !== 0 ? q / aNum : (-bNum - dSqrt) / (2 * aNum);
+        const x2 = q !== 0 ? cNum / q : (-bNum + dSqrt) / (2 * aNum);
         const [lo, hi] = x1 <= x2 ? [x1, x2] : [x2, x1];
         return {
           kind: 'equation',
@@ -1024,7 +1083,8 @@ export function evaluateInstantMath(document: MathDocument): InstantMathResult |
       // Linear inequality: B·v + C (op) 0
       if (diff.a.n !== 0n) return null;
       if (diff.b.n === 0n) {
-        const holds = compareNumbers(fracToNumber(diff.c), 0, relation.op);
+        const order: -1 | 0 | 1 = diff.c.n < 0n ? -1 : diff.c.n > 0n ? 1 : 0;
+        const holds = orderMatchesRelation(order, relation.op);
         return {
           kind: 'inequality',
           badge: 'INECUAȚIE',

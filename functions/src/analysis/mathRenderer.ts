@@ -65,6 +65,11 @@ function initializeMathJax(): Promise<MathJaxApi> {
         blacker: 11,
       },
     });
+  }).catch((error: unknown) => {
+    // Never poison the Cloud Run instance with a permanently rejected singleton
+    // after a transient cold-start failure.
+    mathJaxReady = null;
+    throw error;
   });
   return mathJaxReady;
 }

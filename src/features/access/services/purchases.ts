@@ -10,6 +10,7 @@ import Purchases, {
 } from 'react-native-purchases';
 import type { CommercialAccess } from '../../../shared/types';
 import { writeCachedCommercialAccess } from './commercialAccessCache';
+import { getInstallationToken } from '../../../shared/services/installationIdentity';
 import { initializeVerifiedFirebaseServices } from '../../../shared/services/firebase';
 import { assertSessionActive, captureSession, type ActiveSession } from '../../../shared/services/sessionGuard';
 import { withDeadline } from '../../../shared/utils/latestTask';
@@ -231,9 +232,11 @@ export async function getPremiumOffer(options: { purchaseUserId?: string; force?
 
 async function syncServerPremium(session: ActiveSession): Promise<CommercialAccess> {
   assertSessionActive(session);
+  const installationToken = await getInstallationToken().catch(() => undefined);
+  assertSessionActive(session);
   const functions = getFunctions(getApp(), 'europe-west1');
-  const sync = httpsCallable<Record<string, never>, CommercialAccess>(functions, 'syncPremiumAccess', { timeout: 30_000 });
-  const access = (await sync({})).data;
+  const sync = httpsCallable<{ installationToken?: string }, CommercialAccess>(functions, 'syncPremiumAccess', { timeout: 30_000 });
+  const access = (await sync(installationToken ? { installationToken } : {})).data;
   assertSessionActive(session);
   await writeCachedCommercialAccess(access, session.sessionKey);
   assertSessionActive(session);

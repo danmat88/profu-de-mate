@@ -322,10 +322,23 @@ export function prepareNativeMathSvg(rawSvg: string, color: string): string {
   // 1. Collect path definitions from <defs>...</defs> (present in server-rendered AI SVGs).
   let svg = expandSvgDefs(trimmed);
 
-  // 2. Drop zero-width strokes completely so Skia renders pure crisp filled glyphs.
+  // 2. Replace currentColor with explicit hex while preserving stroke color on
+  // the root <g> (with stroke-width="0") so stroked descendants like \boxed
+  // <rect fill="none" stroke-width="67"/> and \hline <line class="mjx-solid"/>
+  // inherit the visible stroke color instead of disappearing.
   svg = svg
-    .replace(/stroke="currentColor"\s+fill="currentColor"\s+stroke-width="0"/g, `stroke="none" fill="${color}"`)
     .replace(/currentColor/g, color)
+    .replace(/<line\b([^>]*?)\/?\s*>/g, (_full, attrs: string) => {
+      const hasStroke = /\bstroke="/.test(attrs);
+      const hasStrokeWidth = /\bstroke-width="/.test(attrs);
+      const isDashed = /\bmjx-dashed\b/.test(attrs);
+      const hasDashArray = /\bstroke-dasharray="/.test(attrs);
+      let nextAttrs = attrs.trim();
+      if (!hasStroke) nextAttrs += ` stroke="${color}"`;
+      if (!hasStrokeWidth) nextAttrs += ' stroke-width="40"';
+      if (isDashed && !hasDashArray) nextAttrs += ' stroke-dasharray="40,40"';
+      return `<line ${nextAttrs}/>`;
+    })
     .replace(/font-family="serif"/g, 'font-family="FiraSans_500Medium"');
 
   // 3. Ensure root <svg> scales cleanly to its layout box without cropping.

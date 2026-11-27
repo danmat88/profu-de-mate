@@ -555,6 +555,11 @@ test('practiceStorage merge commits when wrongQuestionIds changes content at ide
   });
   assert.deepEqual(Array.from(storage.getPracticeState().wrongQuestionIds), ['q2']);
   assert.deepEqual(Array.from(storage.getPracticeState().masteredQuestionIds), ['q1']);
+
+  // Answering a previously mastered question wrong again removes it from mastered so sync preserves it in wrongQuestionIds.
+  storage.recordPracticeAnswer('q1', false, true);
+  assert.equal(storage.getPracticeState().masteredQuestionIds.includes('q1'), false);
+  assert.equal(storage.getPracticeState().wrongQuestionIds.includes('q1'), true);
 });
 
 test('examStorage merges cloud simulations by id, sorts newest first, rejects invalid entries, and caps at 24', () => {
@@ -646,4 +651,115 @@ test('Caiet, Studio, Home, and CommercialContext stay wired for instant live ide
   assert.match(contextSource, /clearStudyLocalState\(\)/);
   assert.match(contextSource, /clearPracticeLocalState\(\)/);
   assert.match(contextSource, /clearExamLocalState\(\)/);
+});
+
+test('Caiet subscription without prior prewarm survives preserveActiveSession cache clear cleanly', async () => {
+  const googleUser: MockUser = {
+    uid: 'google-offline-start',
+    isAnonymous: false,
+    providerData: [{ providerId: 'google.com' }],
+  };
+  const authState: { currentUser: MockUser | null } = { currentUser: googleUser };
+  let snapshotCalls = 0;
+  let unsubCalls = 0;
+  let latestSnapshotCb!: (snap: any) => void;
+
+  const load = serviceLoader({
+    '@react-native-firebase/app': { getApp: () => ({}) },
+    '@react-native-firebase/auth': { getAuth: () => authState },
+    '@react-native-firebase/firestore': {
+      collection() {},
+      getFirestore() {},
+      orderBy() {},
+      query() {},
+      where() {},
+      onSnapshot: (_q: unknown, cb: (snap: any) => void) => {
+        snapshotCalls += 1;
+        latestSnapshotCb = cb;
+        return () => { unsubCalls += 1; };
+      },
+    },
+    'src/shared/services/firebase.ts': {
+      initializeFirebaseServices: async () => authState.currentUser,
+      firebaseUserSessionKey: (u: MockUser | null) => (u ? `${u.uid}|google` : null),
+    },
+    'src/features/math/utils/mathContent.ts': { isMathAnalysis: () => true },
+  });
+
+  const lessons = load('src/features/lessons/services/lessons.ts');
+  const deliveries: number[] = [];
+  const stop = await lessons.subscribeToFavoriteLessons(
+    (list: unknown[]) => deliveries.push(list.length),
+    assert.fail,
+  );
+  assert.equal(snapshotCalls, 1);
+
+  lessons.clearFavoriteLessonsCache({ preserveActiveSession: true });
+  assert.equal(unsubCalls, 0);
+
+  const doc1 = { id: 'merged-1', data: () => ({ isFavorite: true, expiresAt: { toMillis: () => Date.now() + 400 * 86400000 } }) };
+  latestSnapshotCb({ docs: [doc1], docChanges: () => [{ type: 'added', doc: doc1 }] });
+  assert.deepEqual(deliveries, [1]);
+  stop();
+  lessons.clearFavoriteLessonsCache();
+  assert.equal(unsubCalls, 1);
+});
+
+test('transient deadline-exceeded merge errors retain pending Google merge tickets in SecureStore', async () => {
+  const googleUser: MockUser = {
+    uid: 'google-merge-retry',
+    isAnonymous: false,
+    providerData: [{ providerId: 'google.com' }],
+  };
+  const authState: { currentUser: MockUser | null } = { currentUser: googleUser };
+  const ticket = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const disk = new Map<string, string>([[
+    'commercial.pending-google-merges.v2',
+    JSON.stringify([{ ticket, sourceUserId: 'guest-src', targetUserId: googleUser.uid, createdAt: Date.now() }]),
+  ]]);
+  let mergeError: any = Object.assign(new Error('timeout'), { code: 'functions/deadline-exceeded' });
+
+  const load = serviceLoader({
+    '@react-native-firebase/app': { getApp: () => ({}) },
+    '@react-native-firebase/auth': { getAuth: () => authState },
+    '@react-native-firebase/functions': {
+      getFunctions: () => ({}),
+      httpsCallable: (_f: unknown, name: string) => async () => {
+        if (name === 'completeAccountMergeWithGoogle') throw mergeError;
+        return { data: { identity: 'google', tier: 'free', limit: 5, used: 0, remaining: 5, canAnalyze: true, reason: 'available', resetAt: null, purchaseUserId: 'g_' + 'a'.repeat(64), allowances: { welcome: 5, freeDaily: 5, premiumDaily: 50, maxDaily: 150 }, premium: { active: false, tier: null, productId: null, expiresAt: null }, deviceRecall: { shouldVerify: false, verified: false } } };
+      },
+    },
+    'expo-secure-store': {
+      getItemAsync: async (key: string) => disk.get(key) ?? null,
+      setItemAsync: async (key: string, value: string) => { disk.set(key, value); },
+      deleteItemAsync: async (key: string) => { disk.delete(key); },
+    },
+    'src/features/access/services/commercialAccessCache.ts': { writeCachedCommercialAccess: async () => {} },
+    'src/shared/services/deviceIntegrity.ts': {},
+    'src/shared/services/firebase.ts': {
+      firebaseUserSessionKey: (u: MockUser | null) => (u ? `${u.uid}|google` : null),
+      initializeVerifiedFirebaseServices: async () => authState.currentUser,
+      recoverFirebaseSessionAfterCallableFailure: async () => null,
+      resetFirebaseInitialization() {},
+    },
+    'src/shared/services/installationIdentity.ts': { getInstallationToken: async () => 'a'.repeat(64) },
+    'src/features/lessons/services/lessons.ts': { clearFavoriteLessonsCache() {} },
+    'src/features/exams/services/examStorage.ts': { clearExamLocalState() {} },
+    'src/features/practice/services/practiceStorage.ts': { clearPracticeLocalState() {} },
+    'src/features/study/services/studyStorage.ts': { clearStudyLocalState() {} },
+    'src/features/study/services/studySync.ts': { flushStudyProgressSync: async () => {}, refreshStudyProgressFromCloud() {}, stopStudyProgressSync() {} },
+    'src/features/access/services/purchases.ts': { initializePurchases: async () => true },
+    'src/shared/services/diagnostics.ts': { recordDiagnosticError() {} },
+    'src/features/analysis/services/pendingAnalysis.ts': {},
+    'src/features/math/services/mathDraft.ts': {},
+  });
+
+  const commercial = load('src/features/access/services/commercial.ts');
+  await commercial.getCommercialAccess();
+  assert.deepEqual(Array.from(await commercial.pendingGoogleMergeTickets(googleUser.uid)), [ticket]);
+
+  // Explicit backend ticket_expired detail DOES prune the expired ticket.
+  mergeError = Object.assign(new Error('expired'), { code: 'functions/deadline-exceeded', details: { mergeReason: 'ticket_expired' } });
+  await commercial.getCommercialAccess();
+  assert.deepEqual(Array.from(await commercial.pendingGoogleMergeTickets(googleUser.uid)), []);
 });

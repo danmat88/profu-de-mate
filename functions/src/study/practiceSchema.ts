@@ -134,16 +134,21 @@ export const aiPracticeExerciseJsonSchema = {
 
 export function sanitizePracticeLatex(raw: string): string {
   let latex = raw.trim();
-  // Unwrap accidental math delimiters if the model included them inside a math block.
+  // Unwrap accidental outer math delimiters only when they wrap the entire
+  // expression (never strip multi-span expressions like "$x=2$ sau $x=-2$").
   for (let i = 0; i < 2; i += 1) {
     if (latex.startsWith('$$') && latex.endsWith('$$') && latex.length > 4) {
-      latex = latex.slice(2, -2).trim();
+      const inner = latex.slice(2, -2);
+      if (!inner.includes('$')) latex = inner.trim();
     } else if (latex.startsWith('$') && latex.endsWith('$') && latex.length > 2) {
-      latex = latex.slice(1, -1).trim();
+      const inner = latex.slice(1, -1);
+      if (!inner.includes('$')) latex = inner.trim();
     } else if (latex.startsWith('\\[') && latex.endsWith('\\]') && latex.length > 4) {
-      latex = latex.slice(2, -2).trim();
+      const inner = latex.slice(2, -2);
+      if (!inner.includes('\\[') && !inner.includes('\\]')) latex = inner.trim();
     } else if (latex.startsWith('\\(') && latex.endsWith('\\)') && latex.length > 4) {
-      latex = latex.slice(2, -2).trim();
+      const inner = latex.slice(2, -2);
+      if (!inner.includes('\\(') && !inner.includes('\\)')) latex = inner.trim();
     }
   }
 
@@ -242,9 +247,13 @@ function normalizeChoiceValue(raw: unknown): string {
   let value = raw.replace(/\s+/g, ' ').trim();
   // Strip accidental "A) ", "b. ", "C: " prefixes if present.
   value = value.replace(/^[A-Da-d]\s*[).:]\s+/, '').trim();
-  // Strip wrapping single-$ if it wraps simple text/numbers without TeX macros.
+  // Strip wrapping single-$ only when it wraps one complete span with no
+  // interior $ delimiters or TeX macros.
   if (value.startsWith('$') && value.endsWith('$') && value.length > 2 && !value.includes('\\')) {
-    value = value.slice(1, -1).trim();
+    const inner = value.slice(1, -1);
+    if (!inner.includes('$')) {
+      value = inner.trim();
+    }
   }
   return clampString(value, 120);
 }

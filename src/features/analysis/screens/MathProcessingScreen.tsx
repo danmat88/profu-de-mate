@@ -34,7 +34,7 @@ import { serializeMathDocument } from '../../math/utils/mathEditor';
 import { recordDailyStudyActivity } from '../../practice/services/practiceStorage';
 import { AnalysisActivity } from '../components/AnalysisActivity';
 import { analyzeOrResumeWrittenMath } from '../services/mathAnalysis';
-import { clearPendingAnalysis } from '../services/pendingAnalysis';
+import { clearPendingAnalysis, savePendingWrittenMath } from '../services/pendingAnalysis';
 import { friendlyWrittenMathError } from '../utils/writtenMathErrors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MathProcessing'>;
@@ -167,6 +167,7 @@ export function MathProcessingScreen({ route, navigation }: Props) {
     let mounted = true;
     let session: ReturnType<typeof captureSession>;
     try { session = captureSession(userId); } catch { setState({ kind: 'error', message: 'Contul s-a schimbat. Revino acasă și reia problema.' }); return; }
+    savePendingWrittenMath(mode, math, requestId, userId);
     const active = () => { if (!mounted) return false; try { assertSessionActive(session); return true; } catch { return false; } };
     setState({ kind: 'working' });
     setSlow(false);

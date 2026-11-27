@@ -48,12 +48,16 @@ export function createMathProvider(
             },
           ];
 
+      const effectiveEffort = request.kind === 'repair' ? 'low' : reasoningEffort;
+      const effectiveMaxTokens = effectiveEffort === 'medium'
+        ? Math.max(context.maxOutputTokens, 12_288)
+        : context.maxOutputTokens;
       const response = await resolvedClient.responses.create({
         model: resolvedModel,
         store: false,
         input: [{ role: 'user', content }],
-        reasoning: { effort: request.kind === 'repair' ? 'low' : reasoningEffort },
-        max_output_tokens: context.maxOutputTokens,
+        reasoning: { effort: effectiveEffort },
+        max_output_tokens: effectiveMaxTokens,
         text: {
           format: {
             type: 'json_schema',
@@ -63,6 +67,10 @@ export function createMathProvider(
           },
         },
       }, { timeout: context.timeoutMs, signal: context.signal, maxRetries: 0 });
+      if (response.status === 'incomplete') {
+        const reason = response.incomplete_details?.reason ?? 'unknown';
+        throw new Error(`Provider response was incomplete (${reason}).`);
+      }
       return response.output_text;
     },
   };

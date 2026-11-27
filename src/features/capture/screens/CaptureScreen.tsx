@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, AppState, BackHandler, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
@@ -28,6 +28,7 @@ import {
   WAVE_INPUT_17,
 } from '../../../shared/motion/nativeMotion';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
+import { deleteTransientCapturedSource } from '../services/temporaryImages';
 import { colors, fonts } from '../../../shared/theme';
 import type { CaptureSource, RootStackParamList } from '../../../shared/types';
 
@@ -57,10 +58,11 @@ export function CaptureScreen({ navigation, route }: Props) {
   const stableInsets = cameraViewport.insets;
   const { gutter, isNarrow, isVeryShort, isShort, isCompact } = stableLayout;
   const reducedMotion = useReducedMotion();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
   const [transitionSettled, setTransitionSettled] = useState(reducedMotion);
   const [flash, setFlash] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [finderAreaSize, setFinderAreaSize] = useState({ width: 0, height: 0 });
   const [finderHeight, setFinderHeight] = useState(isShort ? 250 : 280);
   const [isFocused, setIsFocused] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
@@ -140,6 +142,17 @@ export function CaptureScreen({ navigation, route }: Props) {
       unsubscribe();
     };
   }, [navigation]);
+
+  useEffect(() => {
+    if (!isFocused || permission?.granted) return undefined;
+    let previous = AppState.currentState;
+    const subscription = AppState.addEventListener('change', (next) => {
+      const returning = (previous === 'background' || previous === 'inactive') && next === 'active';
+      previous = next;
+      if (returning) void getPermission().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [getPermission, isFocused, permission?.granted]);
 
   useEffect(() => {
     if (transitionSettled || !isFocused) return undefined;
@@ -251,15 +264,32 @@ export function CaptureScreen({ navigation, route }: Props) {
       Haptics.impact(Haptics.ImpactFeedbackStyle.Medium);
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.9, skipProcessing: false, shutterSound: true });
       if (!focusedRef.current) {
+        if (photo?.uri) deleteTransientCapturedSource(photo.uri);
         capturing.current = false;
         setWorking(false);
         return;
+      }
+      if (
+        !photo?.uri
+        || !Number.isFinite(photo.width)
+        || photo.width <= 0
+        || !Number.isFinite(photo.height)
+        || photo.height <= 0
+      ) {
+        if (photo?.uri) deleteTransientCapturedSource(photo.uri);
+        throw new Error('Fotografia capturată nu are dimensiuni valide.');
       }
       try {
         await cameraRef.current.pausePreview();
         previewPaused.current = true;
       } catch {
         previewPaused.current = false;
+      }
+      if (!focusedRef.current) {
+        deleteTransientCapturedSource(photo.uri);
+        capturing.current = false;
+        setWorking(false);
+        return;
       }
       capturing.current = false;
       acceptImage(photo, 'camera');
@@ -394,6 +424,15 @@ export function CaptureScreen({ navigation, route }: Props) {
     [helpPop],
   );
 
+  const finderBoxDimensions = useMemo(() => {
+    const ratio = isCheck ? 1.08 : 4 / 3;
+    const availW = Math.max(0, finderAreaSize.width - (gutter + 6) * 2);
+    const availH = finderAreaSize.height;
+    if (availW <= 0 || availH <= 0) return null;
+    const width = Math.min(availW, availH * ratio);
+    return { width, height: width / ratio };
+  }, [finderAreaSize.height, finderAreaSize.width, gutter, isCheck]);
+
   return (
     <View style={styles.safe}>
       <StatusBar style="light" />
@@ -464,13 +503,28 @@ export function CaptureScreen({ navigation, route }: Props) {
       {permission?.granted ? (
         <View
           pointerEvents="box-none"
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setFinderAreaSize((current) => (
+              Math.abs(current.width - width) < 0.5 && Math.abs(current.height - height) < 0.5
+                ? current
+                : { width, height }
+            ));
+          }}
           style={[styles.finderArea, {
             top: topSpace + (isVeryShort ? 74 : 88),
             bottom: bottomSpace + (isCompact ? 164 : 182),
             paddingHorizontal: gutter + 6,
           }]}
         >
-          <View onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)} style={[styles.finder, isCheck && styles.finderCheck]}>
+          <View
+            onLayout={(event) => setFinderHeight(event.nativeEvent.layout.height)}
+            style={[
+              styles.finder,
+              isCheck && styles.finderCheck,
+              finderBoxDimensions ? { width: finderBoxDimensions.width, height: finderBoxDimensions.height } : null,
+            ]}
+          >
             <Animated.View
               pointerEvents="none"
               style={[styles.scanBeamWrap, scanBeamStyle]}
@@ -669,6 +723,8 @@ const styles = StyleSheet.create({
   finderArea: { position: 'absolute', zIndex: 4, left: 0, right: 0, alignItems: 'center', justifyContent: 'center' },
   finder: {
     width: '100%',
+    maxWidth: '100%',
+    maxHeight: '100%',
     aspectRatio: 4 / 3,
     borderRadius: 26,
     borderWidth: 1,

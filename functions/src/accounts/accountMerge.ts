@@ -9,7 +9,12 @@ import {
   Timestamp,
 } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { bucharestQuotaWindow, COMMERCIAL_PROFILE_RETENTION_MS, getCommercialConfig } from '../access/commercialAccess.js';
+import {
+  bucharestQuotaWindow,
+  COMMERCIAL_PROFILE_RETENTION_MS,
+  getCommercialConfig,
+  reconcileStaleAnalysisReservations,
+} from '../access/commercialAccess.js';
 import { assertUserActive, finishAccountDeletion } from './userLifecycle.js';
 import { analysisRequestState } from '../analysis/analysisRequests.js';
 import { isCommercialPrincipalId } from '../access/commercialIdentity.js';
@@ -34,6 +39,7 @@ export type StoredExamRecord = {
   grade: number | null;
   elapsedSeconds: number;
   subjectPoints: { s1: number; s2: number; s3: number };
+  pauseCount?: number;
 };
 
 function clampFinite(value: unknown, min: number, max: number): number | null {
@@ -63,6 +69,7 @@ function sanitizeExamRecord(value: unknown): StoredExamRecord | null {
   const s1 = rawSubjects ? clampFinite(rawSubjects.s1, 0, 100) : null;
   const s2 = rawSubjects ? clampFinite(rawSubjects.s2, 0, 100) : null;
   const s3 = rawSubjects ? clampFinite(rawSubjects.s3, 0, 100) : null;
+  const rawPauseCount = raw.pauseCount === undefined ? undefined : clampFinite(raw.pauseCount, 0, 500);
 
   if (
     !id || id.length > 64
@@ -88,6 +95,7 @@ function sanitizeExamRecord(value: unknown): StoredExamRecord | null {
     grade,
     elapsedSeconds: Math.round(elapsedSeconds),
     subjectPoints: { s1, s2, s3 },
+    ...(rawPauseCount !== undefined && rawPauseCount !== null ? { pauseCount: Math.round(rawPauseCount) } : {}),
   };
 }
 
@@ -324,6 +332,9 @@ async function mergeStudyProgress(db: Firestore, sourceUserId: string, targetUse
       examRecords,
       updatedAt: FieldValue.serverTimestamp(),
     });
+    // Atomically remove source summary in the same transaction so a retry after
+    // a later failure cannot double-count cumulative practice totals.
+    transaction.delete(sourceRef);
   });
 }
 
@@ -390,11 +401,14 @@ export async function completeAccountMerge(args: {
   const keepsSameUser = sourceUserId === args.targetUserId;
   const expiresAt = ticket?.expiresAt instanceof Timestamp ? ticket.expiresAt.toMillis() : 0;
   if (ticket?.state === 'issued' && expiresAt < now) {
-    throw new HttpsError('deadline-exceeded', 'Conectarea a expirat. Încearcă din nou.');
+    throw new HttpsError('deadline-exceeded', 'Conectarea a expirat. Încearcă din nou.', { mergeReason: 'ticket_expired' });
   }
   if (ticket?.state === 'completed' && ticket?.targetUserId !== args.targetUserId) {
     throw new HttpsError('permission-denied', 'Această legătură a fost deja folosită.');
   }
+
+  // Reconcile any stale guest reservations before locking & merging usage.
+  await reconcileStaleAnalysisReservations(args.db, sourcePrincipalId, now).catch(() => 0);
 
   const alreadyCompleted = await args.db.runTransaction(async (transaction) => {
     await assertUserActive(transaction, args.db, args.targetUserId);
@@ -408,12 +422,27 @@ export async function completeAccountMerge(args: {
       return true;
     }
     if (data?.state !== 'issued' && data?.state !== 'merging') throw new HttpsError('failed-precondition', 'Legătura nu este activă.');
-    if (data.state === 'issued' && (!(data.expiresAt instanceof Timestamp) || data.expiresAt.toMillis() < now)) throw new HttpsError('deadline-exceeded', 'Conectarea a expirat.');
+    if (data.state === 'issued' && (!(data.expiresAt instanceof Timestamp) || data.expiresAt.toMillis() < now)) {
+      throw new HttpsError('deadline-exceeded', 'Conectarea a expirat.', { mergeReason: 'ticket_expired' });
+    }
     if (data?.state === 'merging' && data?.targetUserId !== args.targetUserId) {
       throw new HttpsError('aborted', 'Conturile sunt deja în curs de conectare.');
     }
-    const analyses = await transaction.get(args.db.collection('_analysisRequests').where('userId', '==', sourceUserId).where('state', '==', 'processing'));
-    if (analyses.docs.some((doc) => analysisRequestState(doc.data(), now) === 'processing')) throw new HttpsError('aborted', 'Așteaptă finalizarea analizei înainte să conectezi contul.');
+    const [analyses, activeReservations] = await Promise.all([
+      transaction.get(args.db.collection('_analysisRequests').where('userId', '==', sourceUserId).where('state', '==', 'processing')),
+      transaction.get(args.db.collection('_commercialReservations').where('userId', '==', sourceUserId).where('state', '==', 'reserved')),
+    ]);
+    if (analyses.docs.some((doc) => analysisRequestState(doc.data(), now) === 'processing')) {
+      throw new HttpsError('aborted', 'Așteaptă finalizarea analizei înainte să conectezi contul.');
+    }
+    const FRESH_RESERVATION_MS = 5 * 60 * 1000;
+    const hasFreshReservation = activeReservations.docs.some((doc) => {
+      const reservedAt = doc.data()?.reservedAt;
+      return reservedAt instanceof Timestamp && now - reservedAt.toMillis() < FRESH_RESERVATION_MS;
+    });
+    if (hasFreshReservation) {
+      throw new HttpsError('aborted', 'Așteaptă finalizarea acțiunii AI înainte să conectezi contul.');
+    }
     if (!keepsSameUser) {
       const markerRef = args.db.collection('_accountLifecycle').doc(sourceUserId);
       const marker = await transaction.get(markerRef);
@@ -468,48 +497,59 @@ export async function completeAccountMerge(args: {
     const entitlementData = targetEntitlement.data();
     const entitlementExpiry = entitlementData?.expiresAt instanceof Timestamp ? entitlementData.expiresAt.toMillis() : null;
     const premiumActive = entitlementData?.active === true && (entitlementExpiry === null || entitlementExpiry > now);
-    const isMax = premiumActive
-      && (entitlementData?.planTier === 'max' || entitlementData?.entitlementId === commercialConfig.maxEntitlementId);
-    const dailyLimit = isMax
-      ? commercialConfig.maxDailyLimit
-      : premiumActive
-        ? commercialConfig.premiumDailyLimit
-        : commercialConfig.freeDailyLimit;
-    const targetUsed = numeric(targetDaily.data()?.requests);
 
-    const sourceDailyData = sourceDaily.data();
-    const sourceDailyRequestIds = stringArray(sourceDailyData?.requestIds);
-    const sourceDailyTransferHashes = transferHashes(sourceDailyData?.transferHashes);
-    const sourceDailyRetainedRequests = Math.max(0, numeric(sourceDailyData?.requests) - sourceDailyRequestIds.length);
+    // Paid Pro/Max allowances are strictly account-bound and must never be
+    // reduced by anonymous or shared-device usage from the same phone.
+    if (!premiumActive) {
+      const dailyLimit = commercialConfig.freeDailyLimit;
+      const targetUsed = numeric(targetDaily.data()?.requests);
 
-    const legacySameDay = sourceProfile.data()?.welcomeTodayDay === window.day;
-    const legacyRequestIds = legacySameDay ? stringArray(sourceProfile.data()?.welcomeTodayRequestIds) : [];
-    const legacyTransferHashes = legacySameDay ? transferHashes(sourceProfile.data()?.welcomeTodayTransferHashes) : [];
-    const legacyRetainedRequests = legacySameDay ? numeric(sourceProfile.data()?.welcomeTodayRetainedRequests) : 0;
+      const sourceDailyData = sourceDaily.data();
+      // When another Google account also spent free requests on this shared
+      // phone (`hasNonGuestUsage === true`), transfer only genuine guest
+      // requests into this target's cloud counter so User A's usage cannot
+      // poison User B on User B's other devices. (Shared-device anti-abuse
+      // stays enforced locally via `deviceDaily`.)
+      const sharedWithGoogle = sourceDailyData?.hasNonGuestUsage === true;
+      const sourceDailyRequestIds = sharedWithGoogle
+        ? stringArray(sourceDailyData?.guestRequestIds)
+        : stringArray(sourceDailyData?.requestIds);
+      const sourceDailyTransferHashes = sharedWithGoogle
+        ? []
+        : transferHashes(sourceDailyData?.transferHashes);
+      const sourceDailyRetainedRequests = sharedWithGoogle
+        ? 0
+        : Math.max(0, numeric(sourceDailyData?.requests) - sourceDailyRequestIds.length);
 
-    const sourceTodayRequestIds = [...new Set([...sourceDailyRequestIds, ...legacyRequestIds])];
-    const sourceTodayTransferHashes = [...new Set([...sourceDailyTransferHashes, ...legacyTransferHashes])];
-    const sourceTodayRetainedRequests = Math.max(sourceDailyRetainedRequests, legacyRetainedRequests);
-    const merged = mergeConsumedUsage(
-      targetUsed,
-      targetDaily.data()?.requestIds,
-      targetDaily.data()?.transferHashes,
-      sourceTodayRequestIds,
-      sourceTodayRetainedRequests,
-      sourceTodayTransferHashes,
-      sourcePrincipalId,
-      dailyLimit,
-    );
+      const legacySameDay = sourceProfile.data()?.welcomeTodayDay === window.day;
+      const legacyRequestIds = legacySameDay ? stringArray(sourceProfile.data()?.welcomeTodayRequestIds) : [];
+      const legacyTransferHashes = legacySameDay ? transferHashes(sourceProfile.data()?.welcomeTodayTransferHashes) : [];
+      const legacyRetainedRequests = legacySameDay ? numeric(sourceProfile.data()?.welcomeTodayRetainedRequests) : 0;
 
-    transaction.set(targetDailyRef, {
-      principalId: args.targetPrincipalId,
-      day: window.day,
-      requests: merged.used,
-      requestIds: merged.requestIds,
-      transferHashes: merged.transferHashes,
-      updatedAt: FieldValue.serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(now + 35 * 24 * 60 * 60 * 1000),
-    }, { merge: true });
+      const sourceTodayRequestIds = [...new Set([...sourceDailyRequestIds, ...legacyRequestIds])];
+      const sourceTodayTransferHashes = [...new Set([...sourceDailyTransferHashes, ...legacyTransferHashes])];
+      const sourceTodayRetainedRequests = Math.max(sourceDailyRetainedRequests, legacyRetainedRequests);
+      const merged = mergeConsumedUsage(
+        targetUsed,
+        targetDaily.data()?.requestIds,
+        targetDaily.data()?.transferHashes,
+        sourceTodayRequestIds,
+        sourceTodayRetainedRequests,
+        sourceTodayTransferHashes,
+        sourcePrincipalId,
+        dailyLimit,
+      );
+
+      transaction.set(targetDailyRef, {
+        principalId: args.targetPrincipalId,
+        day: window.day,
+        requests: merged.used,
+        requestIds: merged.requestIds,
+        transferHashes: merged.transferHashes,
+        updatedAt: FieldValue.serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(now + 35 * 24 * 60 * 60 * 1000),
+      }, { merge: true });
+    }
     transaction.set(targetProfileRef, {
       userId: args.targetUserId,
       principalId: args.targetPrincipalId,

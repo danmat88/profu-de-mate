@@ -512,6 +512,13 @@ test('native Skia math engine compiles every inline $...$ expression, expands se
   assert.match(expanded, /<path d="M0 0L100 100" transform="translate\(10,0\)"\/>/);
   assert.match(expanded, /fill="#1C1233"/);
 
+  // Boxed formulas (\boxed) and array rules (\hline) keep visible stroke & inline line stroke-width.
+  const boxedSvg = '<svg viewBox="0 0 100 100"><g stroke="currentColor" fill="currentColor" stroke-width="0"><rect fill="none" stroke-width="67"/><line class="mjx-solid" x1="0" y1="50" x2="100" y2="50"/></g></svg>';
+  const preparedBoxed = prepareNativeMathSvg(boxedSvg, '#1C1233');
+  assert.equal(preparedBoxed.includes('stroke="none"'), false);
+  assert.match(preparedBoxed, /stroke="#1C1233" fill="#1C1233" stroke-width="0"/);
+  assert.match(preparedBoxed, /<line class="mjx-solid"[^>]*stroke="#1C1233" stroke-width="40"\/>/);
+
   const flatServer = flattenNativeMathSvg(serverSvg);
   assert.ok(flatServer, 'server MathJax SVG trebuie aplatizat într-un singur <Path>');
   assert.equal(flatServer.viewBox, '0 -700 1000 900');

@@ -21,11 +21,13 @@ export function ReviewScreen({ navigation, route }: Props) {
   const [accessError, setAccessError] = useState<string | null>(null);
   const [preflighting, setPreflighting] = useState(false);
   const continueLocked = useRef(false);
+  const preflightInFlightRef = useRef(false);
   const focusedRef = useRef(true);
 
   useFocusEffect(useCallback(() => {
     focusedRef.current = true;
     continueLocked.current = false;
+    preflightInFlightRef.current = false;
     setPreflighting(false);
     return () => {
       focusedRef.current = false;
@@ -43,16 +45,21 @@ export function ReviewScreen({ navigation, route }: Props) {
   }, [preflighting]);
 
   useEffect(() => navigation.addListener('beforeRemove', (event) => {
-    if (continueLocked.current && event.data.action.type !== 'RESET') {
+    if (preflightInFlightRef.current && event.data.action.type !== 'RESET') {
       event.preventDefault();
       return;
     }
     const pending = getPreparedPendingAnalysis();
-    if (
-      pending?.schemaVersion === 2
-      && (pending.image.uri === route.params.image.uri || pending.image.uri === currentImage.uri)
-    ) {
+    const pendingMatchesImage = pending?.schemaVersion === 2
+      && (pending.image.uri === route.params.image.uri || pending.image.uri === currentImage.uri);
+    const preserveBackgroundAnalysis = pendingMatchesImage
+      && (event.data.action.type === 'RESET' || !focusedRef.current);
+    if (pendingMatchesImage && !preserveBackgroundAnalysis) {
       clearPendingAnalysis(pending.requestId);
+    }
+    if (preserveBackgroundAnalysis && pending?.schemaVersion === 2) {
+      deleteCapturedImageFiles([route.params.image.uri, currentImage.uri], [pending.image.uri]);
+      return;
     }
     deleteCapturedImageFiles([route.params.image.uri, currentImage.uri]);
   }), [currentImage.uri, navigation, route.params.image.uri]);
@@ -61,6 +68,7 @@ export function ReviewScreen({ navigation, route }: Props) {
     if (continueLocked.current) return;
 
     continueLocked.current = true;
+    preflightInFlightRef.current = true;
     setPreflighting(true);
     setAccessError(null);
     const requestId = createAnalysisRequestId();
@@ -71,6 +79,7 @@ export function ReviewScreen({ navigation, route }: Props) {
       assertSessionActive(session);
       if (!focusedRef.current) {
         continueLocked.current = false;
+        preflightInFlightRef.current = false;
         setPreflighting(false);
         return false;
       }
@@ -81,6 +90,8 @@ export function ReviewScreen({ navigation, route }: Props) {
         return editedImage;
       });
       savePendingAnalysis(route.params.mode, editedImage, requestId, session.userId);
+      preflightInFlightRef.current = false;
+      continueLocked.current = false;
       setPreflighting(false);
       beginAppTransition();
       navigation.navigate('Processing', {
@@ -92,6 +103,7 @@ export function ReviewScreen({ navigation, route }: Props) {
       });
       return true;
     } catch (error) {
+      preflightInFlightRef.current = false;
       if (!focusedRef.current) {
         continueLocked.current = false;
         setPreflighting(false);

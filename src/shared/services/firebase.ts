@@ -9,6 +9,10 @@ import { getAuth, getIdToken, signInAnonymously, signOut, type User } from '@rea
 import { authSessionIdentityKey } from './authSessionIdentity';
 import { isTerminalAuthSessionError, isUnauthenticatedCallableError } from './firebaseAuthRecovery';
 import { SessionChangedError } from './sessionGuard';
+import { withDeadline } from '../utils/latestTask';
+
+const AUTH_OPERATION_TIMEOUT_MS = 10_000;
+const APP_CHECK_ATTEMPT_TIMEOUT_MS = 8_000;
 
 let initialization: Promise<User> | null = null;
 let appCheckVerification: Promise<void> | null = null;
@@ -16,6 +20,16 @@ let authVerification: { sessionKey: string; promise: Promise<User> } | null = nu
 let appCheckInstance: AppCheck | null = null;
 let initializationGeneration = 0;
 let locallyDeletedUserId: string | null = null;
+let terminalSessionRecoveryActive = false;
+let terminalSessionCleanup: (() => void) | null = null;
+
+export function registerTerminalSessionCleanup(handler: () => void): void {
+  terminalSessionCleanup = handler;
+}
+
+export function isTerminalSessionRecoveryInFlight(): boolean {
+  return terminalSessionRecoveryActive;
+}
 
 function assertInitializationCurrent(generation: number): void {
   if (generation !== initializationGeneration) throw new SessionChangedError();
@@ -55,7 +69,7 @@ async function currentOrAnonymousUser(): Promise<User> {
   // protected operation needs one. A forced token refresh here would turn
   // every cold start into an unnecessary network dependency.
   if (current) return current;
-  return (await signInAnonymously(auth)).user;
+  return (await withDeadline(signInAnonymously(auth), AUTH_OPERATION_TIMEOUT_MS, 'Autentificarea anonimă a expirat.')).user;
 }
 
 async function replaceTerminalFirebaseSession(expectedSessionKey: string, generation = initializationGeneration): Promise<User> {
@@ -68,13 +82,27 @@ async function replaceTerminalFirebaseSession(expectedSessionKey: string, genera
   // out while recovering an older request.
   if (active && activeSessionKey !== expectedSessionKey) return active;
 
-  if (active) await signOut(auth).catch(() => undefined);
-  assertInitializationCurrent(generation);
-  const replacement = (await signInAnonymously(auth)).user;
-  assertInitializationCurrent(generation);
-  initialization = Promise.resolve(replacement);
-  authVerification = null;
-  return replacement;
+  terminalSessionRecoveryActive = true;
+  try {
+    if (active) await signOut(auth).catch(() => undefined);
+    assertInitializationCurrent(generation);
+    try {
+      terminalSessionCleanup?.();
+    } catch {
+      // Local cache wipe is best-effort during terminal auth rotation.
+    }
+    const replacement = (await withDeadline(
+      signInAnonymously(auth),
+      AUTH_OPERATION_TIMEOUT_MS,
+      'Autentificarea anonimă a expirat.',
+    )).user;
+    assertInitializationCurrent(generation);
+    initialization = Promise.resolve(replacement);
+    authVerification = null;
+    return replacement;
+  } finally {
+    terminalSessionRecoveryActive = false;
+  }
 }
 
 async function verifyServerAuthSession(user: User): Promise<User> {
@@ -83,7 +111,7 @@ async function verifyServerAuthSession(user: User): Promise<User> {
   if (!sessionKey) return currentOrAnonymousUser();
   if (authVerification?.sessionKey === sessionKey) return authVerification.promise;
 
-  const promise = getIdToken(user, true)
+  const promise = withDeadline(getIdToken(user, true), AUTH_OPERATION_TIMEOUT_MS, 'Verificarea sesiunii a expirat.')
     .then(() => {
       assertInitializationCurrent(generation);
       const active = getAuth(getApp()).currentUser;
@@ -123,7 +151,11 @@ async function ensureAppCheckReady(appCheck: AppCheck): Promise<void> {
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
 
     try {
-      const { token } = await getAppCheckToken(appCheck, delay > 0);
+      const { token } = await withDeadline(
+        getAppCheckToken(appCheck, delay > 0),
+        APP_CHECK_ATTEMPT_TIMEOUT_MS,
+        'Verificarea App Check a expirat.',
+      );
       if (isJwt(token)) return;
       lastError = new Error('Firebase App Check returned a malformed token.');
     } catch (error) {

@@ -136,7 +136,7 @@ function RadicalNode({ fontSize, children }: { fontSize: number; children: React
           const next = Math.round(event.nativeEvent.layout.height);
           if (next > 0 && Math.abs(next - measured) >= 2) setMeasured(next);
         }}
-        style={styles.radicand}
+        style={[styles.radicand, { minHeight }]}
       >
         {children}
       </View>
@@ -437,6 +437,7 @@ const RepeatEditorKey = memo(function RepeatEditorKey({
 }: KeyProps) {
   const holdDelay = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const repeatedRef = useRef(false);
   const latestPress = useRef(onPress);
 
   useEffect(() => {
@@ -469,8 +470,10 @@ const RepeatEditorKey = memo(function RepeatEditorKey({
       onPressIn={() => {
         if (disabled) return;
         stopRepeat();
+        repeatedRef.current = false;
         holdDelay.current = setTimeout(() => {
           holdInterval.current = setInterval(() => {
+            repeatedRef.current = true;
             Haptics.selection();
             latestPress.current();
           }, 80);
@@ -478,6 +481,10 @@ const RepeatEditorKey = memo(function RepeatEditorKey({
       }}
       onPressOut={stopRepeat}
       onPress={() => {
+        if (repeatedRef.current) {
+          repeatedRef.current = false;
+          return;
+        }
         Haptics.selection();
         onPress();
       }}
@@ -758,6 +765,12 @@ export function MathEditor({
   };
 
   const isEmpty = state.document.nodes.length === 0;
+
+  useEffect(() => {
+    if (!isEmpty) return;
+    hViewport.current.offset = 0;
+    vViewport.current.offset = 0;
+  }, [isEmpty]);
   const inSlot = state.cursor.path.length > 0;
   const breadcrumb = useMemo(
     () => getCursorBreadcrumb(state.document, state.cursor),
@@ -1506,7 +1519,7 @@ const styles = StyleSheet.create({
   fractionLineNested: { height: 1.75, backgroundColor: colors.violetDeep, marginVertical: 1.5 },
   power: { flexDirection: 'row', alignItems: 'flex-start' },
   powerExponent: { marginLeft: 1 },
-  root: { flexDirection: 'row', alignItems: 'stretch', paddingVertical: 1 },
+  root: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 1 },
   radicand: {
     borderTopWidth: 2,
     borderColor: colors.ink,

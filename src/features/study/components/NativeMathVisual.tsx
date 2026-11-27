@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -28,6 +28,7 @@ import type {
 } from '../../../shared/types';
 import { Text } from '../../../shared/ui/Typography';
 import { NativeMathFormula } from '../../math/components/NativeMathFormula';
+import { formatReadableMathFallback } from '../../math/utils/latexReadable';
 import { getRenderedStudyMath } from '../data/renderedMath.generated';
 import { StudyInlineText } from './StudyInlineText';
 
@@ -77,8 +78,13 @@ function NativeGeometryDiagram({ visual }: { visual: GeometryVisual }) {
   const H = 200;
   const padX = 28;
   const padY = 22;
-  const mapX = (x: number) => padX + (x / 100) * (W - padX * 2);
-  const mapY = (y: number) => padY + (y / 100) * (H - padY * 2);
+  // Single uniform scale preserves exact Euclidean proportions so points on
+  // circles, perpendiculars, and right angles match visually without stretch.
+  const unitScale = Math.min(W - padX * 2, H - padY * 2) / 100;
+  const offsetX = (W - 100 * unitScale) / 2;
+  const offsetY = (H - 100 * unitScale) / 2;
+  const mapX = (x: number) => offsetX + x * unitScale;
+  const mapY = (y: number) => offsetY + y * unitScale;
   const pointById = new Map(visual.points.map((p) => [p.id, p]));
 
   return (
@@ -105,8 +111,8 @@ function NativeGeometryDiagram({ visual }: { visual: GeometryVisual }) {
 
         {visual.circles.map((circle, idx) => {
           const center = pointById.get(circle.center);
-          if (!center) return null;
-          const r = (circle.radius / 100) * Math.min(W - padX * 2, H - padY * 2);
+          if (!center || !Number.isFinite(circle.radius) || circle.radius <= 0) return null;
+          const r = circle.radius * unitScale;
           return (
             <Circle
               key={`circ-${idx}`}
@@ -167,6 +173,12 @@ function NativeGeometryDiagram({ visual }: { visual: GeometryVisual }) {
 }
 
 function NativeGraphDiagram({ visual }: { visual: GraphVisual }) {
+  const spanX = visual.xMax - visual.xMin;
+  const spanY = visual.yMax - visual.yMin;
+  if (!Number.isFinite(spanX) || spanX <= 0 || !Number.isFinite(spanY) || spanY <= 0) {
+    return null;
+  }
+
   const W = 320;
   const H = 208;
   const padL = 34;
@@ -175,8 +187,8 @@ function NativeGraphDiagram({ visual }: { visual: GraphVisual }) {
   const padB = 28;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
-  const mapX = (x: number) => padL + ((x - visual.xMin) / (visual.xMax - visual.xMin)) * plotW;
-  const mapY = (y: number) => padT + ((visual.yMax - y) / (visual.yMax - visual.yMin)) * plotH;
+  const mapX = (x: number) => padL + ((x - visual.xMin) / spanX) * plotW;
+  const mapY = (y: number) => padT + ((visual.yMax - y) / spanY) * plotH;
 
   const xTicks = finiteTicks(visual.xMin, visual.xMax, visual.xStep, 8);
   const yTicks = finiteTicks(visual.yMin, visual.yMax, visual.yStep, 8);
@@ -237,7 +249,9 @@ function NativeGraphDiagram({ visual }: { visual: GraphVisual }) {
         <SvgText x={axisX + 6} y={padT + 8} fill="#5C4D7A" fontSize={11} fontWeight="700">y</SvgText>
 
         {visual.series.map((series, idx) => {
-          const pointsStr = series.points
+          const validPoints = series.points.filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y));
+          if (validPoints.length === 0) return null;
+          const pointsStr = validPoints
             .map((pt) => `${mapX(pt.x).toFixed(1)},${mapY(pt.y).toFixed(1)}`)
             .join(' ');
           const stroke = PALETTE[series.color];
@@ -251,17 +265,6 @@ function NativeGraphDiagram({ visual }: { visual: GraphVisual }) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              {series.points.filter((_, i) => i === Math.floor(series.points.length / 2)).map((pt, pIdx) => (
-                <Circle
-                  key={`vtx-${pIdx}`}
-                  cx={mapX(pt.x)}
-                  cy={mapY(pt.y)}
-                  r={4.6}
-                  fill={colors.lime}
-                  stroke={colors.ink}
-                  strokeWidth={2}
-                />
-              ))}
             </G>
           );
         })}
@@ -271,11 +274,14 @@ function NativeGraphDiagram({ visual }: { visual: GraphVisual }) {
 }
 
 function NativeNumberLineDiagram({ visual }: { visual: NumberLineVisual }) {
+  const span = visual.max - visual.min;
+  if (!Number.isFinite(span) || span <= 0) return null;
+
   const W = 320;
   const H = 84;
   const padX = 24;
   const lineY = 44;
-  const mapX = (v: number) => padX + ((v - visual.min) / (visual.max - visual.min)) * (W - padX * 2);
+  const mapX = (v: number) => padX + ((v - visual.min) / span) * (W - padX * 2);
   const ticks = finiteTicks(visual.min, visual.max, visual.step, 9);
 
   return (
@@ -355,6 +361,38 @@ function NativeTableDiagram({ visual, scale = 1 }: { visual: TableVisual; scale?
   const canScrollRight = hasOverflow && scrollState.x < maxScroll - 6;
   const canScrollLeft = hasOverflow && scrollState.x > 6;
 
+  const columnWidths = useMemo(() => {
+    const colCount = Math.max(
+      visual.headers.length,
+      ...visual.rows.map((row) => row.cells.length),
+    );
+    const widths: number[] = [];
+    for (let cIdx = 0; cIdx < colCount; cIdx += 1) {
+      const minW = cIdx === 0 ? 74 : 68;
+      let maxW = minW;
+      const headerText = visual.headers[cIdx] ?? '';
+      const plainHeaderLen = headerText.replace(/\$[^$]*\$/g, 'XXXX').length;
+      maxW = Math.max(maxW, Math.ceil(plainHeaderLen * 7.8 * scale) + 18);
+      for (const row of visual.rows) {
+        const cell = row.cells[cIdx];
+        if (!cell) continue;
+        const compiled = 'rendered' in cell && cell.rendered
+          ? cell.rendered
+          : cell.latex
+            ? getRenderedStudyMath(cell.latex, 'inline')
+            : undefined;
+        if (compiled) {
+          maxW = Math.max(maxW, Math.ceil(Math.min(112, compiled.widthEx * 6.4 * scale)) + 18);
+        } else {
+          const fallbackText = cell.text || (cell.latex ? formatReadableMathFallback(cell.latex) : cell.spoken || '');
+          maxW = Math.max(maxW, Math.ceil(fallbackText.length * 7.6 * scale) + 18);
+        }
+      }
+      widths.push(Math.min(144, Math.max(minW, maxW)));
+    }
+    return widths;
+  }, [scale, visual.headers, visual.rows]);
+
   return (
     <View style={styles.tableOuter}>
       <View style={styles.tableStage} onLayout={handleLayout}>
@@ -368,18 +406,21 @@ function NativeTableDiagram({ visual, scale = 1 }: { visual: TableVisual; scale?
         >
           <View style={styles.tableBox}>
             <View style={styles.tableHeaderRow}>
-              {visual.headers.map((header, idx) => (
-                <View key={`th-${idx}`} style={[styles.tableCell, idx === 0 && styles.tableFirstCol]}>
-                  <StudyInlineText
-                    text={header}
-                    scale={scale * 0.92}
-                    align="center"
-                    color={colors.violetDeep}
-                    textStyle={styles.tableHeaderText}
-                    maxMathWidth={82}
-                  />
-                </View>
-              ))}
+              {visual.headers.map((header, idx) => {
+                const colWidth = columnWidths[idx] ?? 74;
+                return (
+                  <View key={`th-${idx}`} style={[styles.tableCell, idx === 0 && styles.tableFirstCol, { width: colWidth }]}>
+                    <StudyInlineText
+                      text={header}
+                      scale={scale * 0.92}
+                      align="center"
+                      color={colors.violetDeep}
+                      textStyle={styles.tableHeaderText}
+                      maxMathWidth={Math.max(48, colWidth - 16)}
+                    />
+                  </View>
+                );
+              })}
             </View>
             {visual.rows.map((row, rIdx) => (
               <View
@@ -387,29 +428,32 @@ function NativeTableDiagram({ visual, scale = 1 }: { visual: TableVisual; scale?
                 style={[styles.tableRow, rIdx % 2 === 1 && styles.tableRowAlt]}
               >
                 {row.cells.map((cell, cIdx) => {
+                  const colWidth = columnWidths[cIdx] ?? 74;
                   const compiled = 'rendered' in cell && cell.rendered
                     ? cell.rendered
                     : cell.latex
                       ? getRenderedStudyMath(cell.latex, 'inline')
                       : undefined;
+                  const fallbackText = cell.text
+                    || (cell.latex ? formatReadableMathFallback(cell.latex) : cell.spoken || '');
                   return (
-                    <View key={`td-${rIdx}-${cIdx}`} style={[styles.tableCell, cIdx === 0 && styles.tableFirstCol]}>
+                    <View key={`td-${rIdx}-${cIdx}`} style={[styles.tableCell, cIdx === 0 && styles.tableFirstCol, { width: colWidth }]}>
                       {compiled ? (
                         <NativeMathFormula
                           rendered={compiled}
                           size="inline"
                           scale={scale * 0.95}
                           color={cIdx === 0 ? colors.violetDeep : colors.ink}
-                          maxWidth={82}
+                          maxWidth={Math.max(48, colWidth - 16)}
                         />
                       ) : (
                         <StudyInlineText
-                          text={cell.text || ''}
+                          text={fallbackText}
                           scale={scale * 0.92}
                           align="center"
                           color={cIdx === 0 ? colors.violetDeep : colors.ink}
                           textStyle={cIdx === 0 ? styles.tableFirstColText : styles.tableCellText}
-                          maxMathWidth={82}
+                          maxMathWidth={Math.max(48, colWidth - 16)}
                         />
                       )}
                     </View>

@@ -47,6 +47,7 @@ function harness(overrides: Record<string, (...args: any[]) => unknown> = {}) {
       STORE_REPLACEMENT_MODE: { WITH_TIME_PRORATION: 'WITH_TIME_PRORATION' },
     },
     'src/shared/services/firebase.ts': { initializeVerifiedFirebaseServices: async () => auth.currentUser },
+    'src/shared/services/installationIdentity.ts': { getInstallationToken: async () => 'a'.repeat(64) },
     'src/features/access/services/commercialAccessCache.ts': { writeCachedCommercialAccess: async (_access: unknown, sessionKey: string) => { calls.push({ name: 'cache', value: sessionKey }); } },
   }, {
     process: { env: { EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY: 'goog_test_public' } },

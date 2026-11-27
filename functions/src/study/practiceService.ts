@@ -1,5 +1,4 @@
 import type OpenAI from 'openai';
-import { HttpsError } from 'firebase-functions/v2/https';
 import { renderLatex, type RenderedMath } from '../analysis/mathRenderer.js';
 import { createOpenAiClient, resolveOpenAiRuntimeConfig } from '../infrastructure/openAiClient.js';
 import { buildPracticePrompt, buildPracticeRepairPrompt } from './practicePrompt.js';
@@ -37,12 +36,26 @@ export type RenderedAiPracticeExercise = {
 
 export type PracticeRejectionEvent = {
   attempt: number;
-  stage: 'empty' | 'json' | 'schema' | 'render';
+  stage: 'empty' | 'incomplete' | 'json' | 'schema' | 'render';
   issues: { code: string; path: string }[];
 };
 
-const PRACTICE_MAX_OUTPUT_TOKENS = 4096;
-const PRACTICE_CALL_TIMEOUT_MS = 40_000;
+export class PracticeProviderError extends Error {
+  readonly httpCode: 'unavailable' | 'internal';
+  readonly userMessage: string;
+
+  constructor(httpCode: 'unavailable' | 'internal', userMessage: string, detail?: string) {
+    super(detail ?? userMessage);
+    this.name = 'PracticeProviderError';
+    this.httpCode = httpCode;
+    this.userMessage = userMessage;
+  }
+}
+
+const PRACTICE_LOW_MAX_OUTPUT_TOKENS = 4096;
+const PRACTICE_MEDIUM_MAX_OUTPUT_TOKENS = 7168;
+const PRACTICE_CALL_TIMEOUT_MS = 38_000;
+const PRACTICE_PIPELINE_TIMEOUT_MS = 65_000;
 const INLINE_MATH_SPLIT = /\$\$([^$]+?)\$\$|\$([^$\n]+?)\$|\\\(([\s\S]+?)\\\)|\\\[([\s\S]+?)\\\]/g;
 const CHOICE_NEEDS_MATHJAX = /(?:\$|\\(?:frac|dfrac|tfrac|sqrt|begin|det|mathbb|mathrm|mathcal|operatorname|cdot|times|pm|le|ge|ne|infty|pi|Delta|sin|cos|ln|log|int|sum|lim)\b|\^|_)/;
 
@@ -184,17 +197,27 @@ export async function generateRenderedPracticeExercise(params: {
   const promptText = buildPracticePrompt(params.request);
 
   let nextContent: Array<{ type: 'input_text'; text: string }> = [{ type: 'input_text', text: promptText }];
-  let lastStage: 'empty' | 'json' | 'schema' = 'empty';
+  let lastStage: 'empty' | 'incomplete' | 'json' | 'schema' = 'empty';
+  const deadline = Date.now() + PRACTICE_PIPELINE_TIMEOUT_MS;
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs < 5_000) {
+      throw new PracticeProviderError('unavailable', 'Generarea durează prea mult acum. Încearcă din nou.', 'practice_deadline_exceeded');
+    }
+    const attemptEffort = attempt === 1 ? reasoningEffort : 'low';
+    const maxOutputTokens = attemptEffort === 'medium'
+      ? PRACTICE_MEDIUM_MAX_OUTPUT_TOKENS
+      : PRACTICE_LOW_MAX_OUTPUT_TOKENS;
+
     await params.beforeGenerate();
 
     const response = await client.responses.create({
       model,
       store: false,
       input: [{ role: 'user', content: nextContent }],
-      reasoning: { effort: attempt === 1 ? reasoningEffort : 'low' },
-      max_output_tokens: PRACTICE_MAX_OUTPUT_TOKENS,
+      reasoning: { effort: attemptEffort },
+      max_output_tokens: maxOutputTokens,
       text: {
         format: {
           type: 'json_schema',
@@ -203,14 +226,16 @@ export async function generateRenderedPracticeExercise(params: {
           schema: aiPracticeExerciseJsonSchema as unknown as Record<string, unknown>,
         },
       },
-    }, { timeout: PRACTICE_CALL_TIMEOUT_MS, maxRetries: 0 });
+    }, { timeout: Math.min(PRACTICE_CALL_TIMEOUT_MS, remainingMs), maxRetries: 0 });
 
+    const incomplete = response.status === 'incomplete';
     const rawText = response.output_text?.trim();
-    if (!rawText) {
-      lastStage = 'empty';
-      params.onRejected?.({ attempt, stage: 'empty', issues: [] });
-      if (attempt < 2) continue;
-      throw new HttpsError('unavailable', 'Nu am primit un exercițiu valid. Încearcă din nou.');
+    if (incomplete || !rawText) {
+      const reason = response.incomplete_details?.reason ?? (incomplete ? 'incomplete' : 'empty');
+      lastStage = incomplete ? 'incomplete' : 'empty';
+      params.onRejected?.({ attempt, stage: lastStage, issues: [{ code: String(reason), path: '' }] });
+      if (attempt < 2 && deadline - Date.now() >= 12_000) continue;
+      throw new PracticeProviderError('unavailable', 'Nu am primit un exercițiu valid. Încearcă din nou.', `practice_${reason}`);
     }
 
     const result = parseCandidateExercise(rawText);
@@ -235,7 +260,7 @@ export async function generateRenderedPracticeExercise(params: {
   }
 
   if (lastStage === 'json') {
-    throw new HttpsError('internal', 'Exercițiul generat nu a putut fi citit. Încearcă din nou.');
+    throw new PracticeProviderError('internal', 'Exercițiul generat nu a putut fi citit. Încearcă din nou.', 'practice_invalid_json');
   }
-  throw new HttpsError('internal', 'Exercițiul generat nu a trecut verificarea matematică. Încearcă din nou.');
+  throw new PracticeProviderError('internal', 'Exercițiul generat nu a trecut verificarea matematică. Încearcă din nou.', 'practice_schema_invalid');
 }

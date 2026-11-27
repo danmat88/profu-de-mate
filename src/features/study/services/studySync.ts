@@ -57,6 +57,7 @@ let lastPushedSignature = '';
 let activeSyncUid: string | null = null;
 let pullState: PullState = 'idle';
 let dirtyWhilePulling = false;
+let repullRequested = false;
 let applyingRemoteMerge = false;
 let syncGeneration = 0;
 let unsubStudy: (() => void) | null = null;
@@ -84,13 +85,15 @@ function buildPayload(): StudyProgressPayload {
   const examHistory = getExamHistory();
   const safeAnswered = Math.min(1_000_000, Math.max(0, Math.floor(practice.totalAnswered)));
   const safeCorrect = Math.min(safeAnswered, Math.max(0, Math.floor(practice.totalCorrect)));
+  const mastered = [...practice.masteredQuestionIds].slice(0, 250);
+  const masteredSet = new Set(mastered);
   return {
     track: study.track,
     hasChosenTrack: study.hasChosenTrack,
     favoriteFormulaIds: [...study.favoriteFormulaIds].slice(0, 100),
     exploredFormulaIds: [...study.exploredFormulaIds].slice(0, 120),
-    masteredQuestionIds: [...practice.masteredQuestionIds].slice(0, 250),
-    wrongQuestionIds: [...practice.wrongQuestionIds].slice(0, 120),
+    masteredQuestionIds: mastered,
+    wrongQuestionIds: [...practice.wrongQuestionIds].filter((id) => !masteredSet.has(id)).slice(0, 120),
     streakDays: Math.min(3650, Math.max(0, Math.floor(practice.streakDays))),
     lastPracticeDateKey: practice.lastPracticeDateKey,
     sessionsCompleted: Math.min(100_000, Math.max(0, Math.floor(practice.sessionsCompleted))),
@@ -197,6 +200,11 @@ function pullAndSync(uid: string, generation: number): void {
         }
       }
       if (generation !== syncGeneration || activeSyncUid !== uid) return;
+      if (repullRequested) {
+        repullRequested = false;
+        pullAndSync(uid, generation);
+        return;
+      }
       pullState = 'ready';
       const localPayload = buildPayload();
       const localSignature = JSON.stringify(localPayload);
@@ -216,6 +224,11 @@ function pullAndSync(uid: string, generation: number): void {
       }
     } catch {
       if (generation === syncGeneration && activeSyncUid === uid) {
+        if (repullRequested) {
+          repullRequested = false;
+          pullAndSync(uid, generation);
+          return;
+        }
         pullState = 'failed';
       }
     }
@@ -256,14 +269,27 @@ export async function flushStudyProgressSync(timeoutMs = 1_200): Promise<void> {
  * background retry of pending Google account merges completes).
  */
 export function refreshStudyProgressFromCloud(): void {
-  if (!activeSyncUid || pullState === 'pulling') return;
+  if (!activeSyncUid) return;
+  if (pullState === 'pulling') {
+    repullRequested = true;
+    return;
+  }
   pullAndSync(activeSyncUid, syncGeneration);
 }
 
-/** Retries the initial cloud pull when returning online/foreground after an offline failure. */
+/** Retries the initial cloud pull or pending dirty pushes when returning online/foreground. */
 export function retryStudyProgressSyncIfNeeded(): void {
-  if (!activeSyncUid || pullState !== 'failed') return;
-  pullAndSync(activeSyncUid, syncGeneration);
+  if (!activeSyncUid) return;
+  if (pullState === 'failed') {
+    pullAndSync(activeSyncUid, syncGeneration);
+    return;
+  }
+  if (pullState === 'ready' && !pushTimer) {
+    const signature = JSON.stringify(buildPayload());
+    if (signature !== lastPushedSignature) {
+      schedulePush(activeSyncUid, syncGeneration);
+    }
+  }
 }
 
 /**
@@ -275,6 +301,7 @@ export function stopStudyProgressSync(): void {
   activeSyncUid = null;
   pullState = 'idle';
   dirtyWhilePulling = false;
+  repullRequested = false;
   lastPushedSignature = '';
   if (pushTimer) {
     clearTimeout(pushTimer);

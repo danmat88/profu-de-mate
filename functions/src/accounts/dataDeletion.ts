@@ -42,40 +42,42 @@ export async function removeOrRetainCommercialUsage(
 
   const window = bucharestQuotaWindow(now);
   const currentDocumentId = `${principal.principalId}_${window.day}`;
-  const batch = db.batch();
-  snapshot.docs.forEach((document) => {
-    if (document.id === currentDocumentId) {
-      // Replace the complete document rather than merging fields. This is a
-      // deliberate data-minimization boundary: legacy identifiers and future
-      // metadata cannot survive account deletion by accident, while preserving
-      // today's count (for both account and device principals) until midnight.
-      const existingHashes = transferHashes(document.data().transferHashes);
-      const requestIds = Array.isArray(document.data().requestIds)
-        ? document.data().requestIds.filter((value: unknown): value is string => typeof value === 'string')
-        : [];
-      const retainedTransferHashes = [...new Set([
-        ...existingHashes,
-        ...requestIds.map(transferHash),
-      ])].slice(-200);
-      const count = retainedRequestCount(document.data().requests);
-      if (count === 0 && retainedTransferHashes.length === 0) {
+  for (let offset = 0; offset < snapshot.docs.length; offset += PROFILE_BATCH_SIZE) {
+    const batch = db.batch();
+    snapshot.docs.slice(offset, offset + PROFILE_BATCH_SIZE).forEach((document) => {
+      if (document.id === currentDocumentId) {
+        // Replace the complete document rather than merging fields. This is a
+        // deliberate data-minimization boundary: legacy identifiers and future
+        // metadata cannot survive account deletion by accident, while preserving
+        // today's count (for both account and device principals) until midnight.
+        const existingHashes = transferHashes(document.data().transferHashes);
+        const requestIds = Array.isArray(document.data().requestIds)
+          ? document.data().requestIds.filter((value: unknown): value is string => typeof value === 'string')
+          : [];
+        const retainedTransferHashes = [...new Set([
+          ...existingHashes,
+          ...requestIds.map(transferHash),
+        ])].slice(-200);
+        const count = retainedRequestCount(document.data().requests);
+        if (count === 0 && retainedTransferHashes.length === 0) {
+          batch.delete(document.ref);
+          return;
+        }
+        batch.set(document.ref, {
+          principalId: principal.principalId,
+          day: window.day,
+          requests: count,
+          ...(retainedTransferHashes.length > 0 ? { transferHashes: retainedTransferHashes } : {}),
+          retainedFor: 'quota-abuse-prevention',
+          updatedAt: FieldValue.serverTimestamp(),
+          expiresAt: Timestamp.fromMillis(Date.parse(window.resetAt)),
+        });
+      } else {
         batch.delete(document.ref);
-        return;
       }
-      batch.set(document.ref, {
-        principalId: principal.principalId,
-        day: window.day,
-        requests: count,
-        ...(retainedTransferHashes.length > 0 ? { transferHashes: retainedTransferHashes } : {}),
-        retainedFor: 'quota-abuse-prevention',
-        updatedAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.parse(window.resetAt)),
-      });
-    } else {
-      batch.delete(document.ref);
-    }
-  });
-  await batch.commit();
+    });
+    await batch.commit();
+  }
 }
 
 /**

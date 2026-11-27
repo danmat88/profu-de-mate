@@ -82,10 +82,11 @@ export function savePendingAnalysis(mode: FlowMode, image: CapturedImage, reques
     requestId,
     createdAt: Date.now(),
   };
-  revision += 1;
-  preparedSnapshot = pending;
+  if (!isPendingAnalysis(pending)) return false;
   try {
     getPendingFile().write(JSON.stringify(pending));
+    revision += 1;
+    preparedSnapshot = pending;
     return true;
   } catch {
     return false;

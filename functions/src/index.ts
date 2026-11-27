@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { deleteQueryInBatches } from './infrastructure/cleanup.js';
 import { createMathProvider } from './analysis/aiProvider.js';
 import { getApps, initializeApp } from 'firebase-admin/app';
@@ -51,9 +52,9 @@ import { deferUnsafeRevenueCatDeletions, requestRevenueCatDeletionReview } from 
 import { getAIAnalysisConfig } from './infrastructure/runtimeConfig.js';
 import { parseAnalysisStatusRequest, parseAnalyzeRequest } from './analysis/validation.js';
 import { parseGeneratePracticeRequest } from './study/practiceSchema.js';
-import { generateRenderedPracticeExercise } from './study/practiceService.js';
+import { generateRenderedPracticeExercise, PracticeProviderError } from './study/practiceService.js';
 import { parseGradeExamSolutionRequest } from './study/examGradingSchema.js';
-import { gradeExamSolutionWithAi } from './study/examGradingService.js';
+import { ExamGradingProviderError, gradeExamSolutionWithAi } from './study/examGradingService.js';
 
 if (getApps().length === 0) initializeApp();
 
@@ -130,7 +131,30 @@ async function removePendingMergeSourcesForDeletion(
     return true;
   });
 
+  const deletableSourceIds = new Set<string>();
+  const protectedSourceIds = new Set<string>();
   await Promise.all([...sourceUserIds].map(async (sourceUserId) => {
+    try {
+      const userRecord = await getAuth().getUser(sourceUserId);
+      // Never delete a source UID that was already linked to Google or another
+      // non-anonymous provider (e.g., via linkWithCredential before a failed merge).
+      if (userRecord.providerData.length > 0) {
+        protectedSourceIds.add(sourceUserId);
+        logger.warn('Skipped pending merge source deletion for non-anonymous account');
+        return;
+      }
+      deletableSourceIds.add(sourceUserId);
+    } catch (error: unknown) {
+      const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+      if (code === 'auth/user-not-found') {
+        deletableSourceIds.add(sourceUserId);
+        return;
+      }
+      throw error;
+    }
+  }));
+
+  await Promise.all([...deletableSourceIds].map(async (sourceUserId) => {
     await beginAccountDeletion(db, sourceUserId);
     await Promise.all([
       db.recursiveDelete(db.collection('users').doc(sourceUserId)),
@@ -147,9 +171,16 @@ async function removePendingMergeSourcesForDeletion(
     await finishAccountDeletion(db, sourceUserId);
   }));
 
-  if (ownedTickets.length > 0) {
+  const deletableTickets = ownedTickets.filter((ticket) => {
+    const sourceId = ticket.data()?.sourceUserId;
+    if (typeof sourceId === 'string' && protectedSourceIds.has(sourceId)) {
+      return ticket.data()?.targetUserId === currentUserId;
+    }
+    return true;
+  });
+  if (deletableTickets.length > 0) {
     const batch = db.batch();
-    ownedTickets.forEach((ticket) => batch.delete(ticket.ref));
+    deletableTickets.forEach((ticket) => batch.delete(ticket.ref));
     await batch.commit();
   }
 }
@@ -173,6 +204,9 @@ export const analyzeMathImage = onCall({
   const claim = await claimAnalysisRequest(db, request.auth.uid, input);
   if (claim.response) return claim.response;
 
+  let commercialPrincipal: CommercialPrincipal | null = null;
+  let quotaReserved = false;
+
   try {
     const aiConfig = await getAIAnalysisConfig(db);
     if (!aiConfig.enabled) {
@@ -183,7 +217,7 @@ export const analyzeMathImage = onCall({
     }
 
     const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
-    const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
+    commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
     const reservedAccess = await reserveAnalysisQuota(
       db,
       request.auth.uid,
@@ -192,6 +226,7 @@ export const analyzeMathImage = onCall({
       Date.now(),
       installationPrincipal,
     );
+    quotaReserved = true;
     const reasoningEffort = reservedAccess.premium.tier === 'max' ? 'medium' : 'low';
     const provider = createMathProvider(openAiApiKey.value(), undefined, undefined, reasoningEffort);
     let result: RenderedMathAnalysis;
@@ -227,25 +262,34 @@ export const analyzeMathImage = onCall({
       : null;
 
     const response: CachedResponse = { lessonId: lessonRef?.id ?? null, result };
-    await settleAnalysisQuota(db, commercialPrincipal.principalId, input.requestId, result.status === 'ready', (transaction) => {
-      if (lessonRef) {
-        transaction.set(lessonRef, {
-          ...result,
-          model: provider.model,
-          isFavorite: false,
-          expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
-          createdAt: FieldValue.serverTimestamp(),
+    await settleAnalysisQuota(
+      db,
+      commercialPrincipal.principalId,
+      input.requestId,
+      result.status === 'ready',
+      (transaction) => {
+        if (lessonRef) {
+          transaction.set(lessonRef, {
+            ...result,
+            model: provider.model,
+            isFavorite: false,
+            expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+        transaction.set(requestRef, {
+          userId: request.auth!.uid,
+          state: 'completed',
+          response,
           updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
-      transaction.set(requestRef, {
-        userId: request.auth!.uid,
-        state: 'completed',
-        response,
-        updatedAt: FieldValue.serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
-      }, { merge: true });
-    }, undefined, (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId));
+          expiresAt: Timestamp.fromMillis(Date.now() + REQUEST_CACHE_MS),
+        }, { merge: true });
+      },
+      undefined,
+      (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId),
+      { expectedUserId: request.auth.uid },
+    );
 
     logger.info('Math problem analyzed', {
       inputKind: input.kind ?? 'image',
@@ -256,13 +300,16 @@ export const analyzeMathImage = onCall({
 
     return response;
   } catch (error) {
-    await refundAnalysisQuota(
-      db,
-      requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken).principalId,
-      input.requestId,
-      undefined,
-      (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId),
-    ).catch(() => undefined);
+    if (quotaReserved && commercialPrincipal) {
+      await refundAnalysisQuota(
+        db,
+        commercialPrincipal.principalId,
+        input.requestId,
+        undefined,
+        (transaction) => assertAnalysisLease(transaction, db, request.auth!.uid, input.requestId, claim.leaseId),
+        { expectedUserId: request.auth.uid },
+      ).catch(() => undefined);
+    }
     await failAnalysisRequest(db, request.auth.uid, input.requestId, claim.leaseId).catch(() => undefined);
     if (error instanceof HttpsError) throw error;
     logger.error('Math analysis failed', safeErrorDescriptor(error));
@@ -309,6 +356,8 @@ export const generatePracticeExercise = onCall({
   const input = parseGeneratePracticeRequest(request.data);
   const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
   const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
+  const reservationKey = `practice_${input.requestId}`;
+  const leaseId = randomUUID();
   let quotaReserved = false;
 
   try {
@@ -326,10 +375,11 @@ export const generatePracticeExercise = onCall({
     const reservedAccess = await reserveAnalysisQuota(
       db,
       request.auth.uid,
-      input.requestId,
+      reservationKey,
       commercialPrincipal,
       Date.now(),
       installationPrincipal,
+      { allowExistingReserved: false, leaseId },
     );
     quotaReserved = true;
 
@@ -356,10 +406,22 @@ export const generatePracticeExercise = onCall({
       providerCircuit.recordSuccess();
     } catch (error) {
       if (!(error instanceof HttpsError)) providerCircuit.recordFailure();
+      if (error instanceof PracticeProviderError) {
+        throw new HttpsError(error.httpCode, error.userMessage);
+      }
       throw error;
     }
 
-    await settleAnalysisQuota(db, commercialPrincipal.principalId, input.requestId, true, () => undefined);
+    await settleAnalysisQuota(
+      db,
+      commercialPrincipal.principalId,
+      reservationKey,
+      true,
+      () => undefined,
+      undefined,
+      undefined,
+      { expectedUserId: request.auth.uid, expectedLeaseId: leaseId },
+    );
     logger.info('Practice AI exercise generated', {
       track: input.track,
       category: input.category,
@@ -368,7 +430,14 @@ export const generatePracticeExercise = onCall({
     return { exercise };
   } catch (error) {
     if (quotaReserved) {
-      await refundAnalysisQuota(db, commercialPrincipal.principalId, input.requestId).catch(() => undefined);
+      await refundAnalysisQuota(
+        db,
+        commercialPrincipal.principalId,
+        reservationKey,
+        undefined,
+        undefined,
+        { expectedUserId: request.auth.uid, expectedLeaseId: leaseId },
+      ).catch(() => undefined);
     }
     if (error instanceof HttpsError) throw error;
     logger.error('Practice AI exercise failed', safeErrorDescriptor(error));
@@ -393,6 +462,8 @@ export const gradeExamSolution = onCall({
   const input = parseGradeExamSolutionRequest(request.data);
   const installationPrincipal = installationPrincipalId(input.installationToken, commercialIdentityHmacKey.value());
   const commercialPrincipal = requestCommercialPrincipal(request.auth.token, request.auth.uid, input.installationToken);
+  const reservationKey = `grade_${input.requestId}`;
+  const leaseId = randomUUID();
   let quotaReserved = false;
 
   try {
@@ -410,10 +481,11 @@ export const gradeExamSolution = onCall({
     const reservedAccess = await reserveAnalysisQuota(
       db,
       request.auth.uid,
-      input.requestId,
+      reservationKey,
       commercialPrincipal,
       Date.now(),
       installationPrincipal,
+      { allowExistingReserved: false, leaseId },
     );
     quotaReserved = true;
 
@@ -438,15 +510,21 @@ export const gradeExamSolution = onCall({
       providerCircuit.recordSuccess();
     } catch (error) {
       if (!(error instanceof HttpsError)) providerCircuit.recordFailure();
+      if (error instanceof ExamGradingProviderError) {
+        throw new HttpsError(error.httpCode, error.userMessage);
+      }
       throw error;
     }
 
     await settleAnalysisQuota(
       db,
       commercialPrincipal.principalId,
-      input.requestId,
+      reservationKey,
       grading.status === 'graded',
       () => undefined,
+      undefined,
+      undefined,
+      { expectedUserId: request.auth.uid, expectedLeaseId: leaseId },
     );
     logger.info('Exam solution graded', {
       examId: input.examId,
@@ -457,7 +535,14 @@ export const gradeExamSolution = onCall({
     return { grading };
   } catch (error) {
     if (quotaReserved) {
-      await refundAnalysisQuota(db, commercialPrincipal.principalId, input.requestId).catch(() => undefined);
+      await refundAnalysisQuota(
+        db,
+        commercialPrincipal.principalId,
+        reservationKey,
+        undefined,
+        undefined,
+        { expectedUserId: request.auth.uid, expectedLeaseId: leaseId },
+      ).catch(() => undefined);
     }
     if (error instanceof HttpsError) throw error;
     logger.error('Exam solution grading failed', safeErrorDescriptor(error));
@@ -641,6 +726,15 @@ export const syncPremiumAccess = revenueCatSecrets ? onCall({
   }
   const config = await getCommercialConfig(db);
   const principal = requestCommercialPrincipal(request.auth.token, request.auth.uid);
+  const rawInstallToken = request.data && typeof request.data === 'object'
+    ? (request.data as { installationToken?: unknown }).installationToken
+    : undefined;
+  const installationPrincipal = validInstallationToken(rawInstallToken)
+    ? installationPrincipalId(rawInstallToken, commercialIdentityHmacKey.value())
+    : undefined;
+  if (installationPrincipal) {
+    await bindInstallationToAccount(db, installationPrincipal, principal.principalId, request.auth.uid);
+  }
   await syncRevenueCatEntitlement({
     db,
     appUserId: principal.principalId,
@@ -650,7 +744,7 @@ export const syncPremiumAccess = revenueCatSecrets ? onCall({
     source: 'callable',
     userId: request.auth.uid,
   });
-  return readCommercialAccess(db, request.auth.uid, principal);
+  return readCommercialAccess(db, request.auth.uid, principal, Date.now(), installationPrincipal);
 }) : undefined;
 
 export const revenueCatWebhook = revenueCatSecrets ? onRequest({

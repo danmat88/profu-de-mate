@@ -118,8 +118,14 @@ test('Processing releases its managed photo when the flow abandons it', () => {
   assert.match(retakeAction, /deleteTemporaryCapturedImages\(\[route\.params\.image\.uri\]\)/);
 });
 
-test('leaving Review deletes the currently managed image', () => {
-  assert.match(reviewSource, /addListener\('beforeRemove'[\s\S]*deleteCapturedImageFiles\(\[route\.params\.image\.uri, currentImage\.uri\]\)/);
+test('leaving Review deletes the currently managed image while preserving backgrounded pending analysis and unblocking Lesson back', () => {
+  assert.match(reviewSource, /addListener\('beforeRemove'[\s\S]*preflightInFlightRef\.current && event\.data\.action\.type !== 'RESET'/);
+  assert.match(reviewSource, /preserveBackgroundAnalysis[\s\S]*deleteCapturedImageFiles\(\[route\.params\.image\.uri, currentImage\.uri\], \[pending\.image\.uri\]\)/);
+  assert.match(reviewSource, /deleteCapturedImageFiles\(\[route\.params\.image\.uri, currentImage\.uri\]\)/);
+  assert.match(cropSource, /getPreparedPendingAnalysis\(\)[\s\S]*keepUris/);
+  assert.match(imagePipelineSource, /rendered\?\.release\(\)[\s\S]*context\.release\(\)/);
+  assert.match(captureSource, /useCameraPermissions\(\)[\s\S]*AppState\.addEventListener/);
+  assert.match(captureSource, /deleteTransientCapturedSource\(photo\.uri\)/);
 });
 
 test('camera and gallery open the crop workspace directly with one final confirmation', () => {

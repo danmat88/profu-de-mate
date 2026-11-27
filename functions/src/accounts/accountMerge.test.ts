@@ -73,6 +73,7 @@ test('merges exam simulation records across guest and Google accounts without du
     grade: 9.2,
     elapsedSeconds: 5100,
     subjectPoints: { s1: 30, s2: 27, s3: 25 },
+    pauseCount: 0,
   };
   const guestNewer = {
     ...base,
@@ -80,13 +81,16 @@ test('merges exam simulation records across guest and Google accounts without du
     completedAt: '2026-11-25T08:30:00.000Z',
     awardedPoints: 88,
     grade: 8.8,
+    pauseCount: 2,
   };
   const merged = mergeExamRecords(
     [base, { id: 'bad', examId: 'unknown', awardedPoints: 500 }],
     [base, guestNewer],
   );
   assert.deepEqual(merged.map((item) => item.id), ['exam-guest', 'exam-1']);
+  assert.equal(merged[0].pauseCount, 2);
   assert.equal(merged[1].grade, 9.2);
+  assert.equal(merged[1].pauseCount, 0);
 
   const many = Array.from({ length: 30 }, (_, index) => ({
     ...base,

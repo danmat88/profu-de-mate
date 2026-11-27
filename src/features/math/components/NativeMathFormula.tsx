@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -110,11 +110,21 @@ export const NativeMathFormula = memo(function NativeMathFormula({
     [maxWidth, rendered, scale, size],
   );
 
+  const scrollRef = useRef<ScrollView>(null);
   const [scrollState, setScrollState] = useState({
     x: 0,
     viewportWidth: maxWidth ?? 260,
-    contentWidth: dims.width + 28,
+    contentWidth: dims.width + 30,
   });
+
+  useEffect(() => {
+    setScrollState((prev) => ({
+      x: 0,
+      viewportWidth: maxWidth ?? prev.viewportWidth,
+      contentWidth: dims.width + 30,
+    }));
+    scrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, [dims.needsHorizontalScroll, dims.width, maxWidth, rendered.svg]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const nextViewport = Math.round(event.nativeEvent.layout.width);
@@ -198,6 +208,7 @@ export const NativeMathFormula = memo(function NativeMathFormula({
       <View style={styles.scrollOuter}>
         <View style={styles.scrollStage} onLayout={handleLayout}>
           <ScrollView
+            ref={scrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             bounces={false}

@@ -11,6 +11,7 @@ import {
 } from './practiceSchema.js';
 import {
   generateRenderedPracticeExercise,
+  PracticeProviderError,
   renderAiPracticeExercise,
 } from './practiceService.js';
 
@@ -259,4 +260,47 @@ test('sanitizePracticeLatex and renderAiPracticeExercise compile inline math, ma
 
   // Hints with inline math compile into renderedHint RichContent blocks.
   assert.ok(rendered.renderedHint && rendered.renderedHint.some((b) => b.type === 'math'));
+});
+
+test('multi-span inline math choices preserve interior $ delimiters and Max tier scales token budget + throws circuit-breaker errors', async () => {
+  assert.equal(sanitizePracticeLatex('$x = 2$ sau $x = -2$'), '$x = 2$ sau $x = -2$');
+  const normalized = normalizeRawPracticeExercise({
+    title: 'Ecuație cu modul',
+    prompt: [{ type: 'text', text: 'Rezolvă |x| = 2', latex: '', spoken: '' }],
+    choices: ['$x = 2$ sau $x = -2$', '$x = 2$', '$x = -2$', '$x = 0$'],
+    correctIndex: 0,
+    hint: 'Există două soluții opuse.',
+    explanation: [{ type: 'text', text: 'x = 2 sau x = -2.', latex: '', spoken: '' }],
+  }) as { choices: string[] };
+  assert.equal(normalized.choices[0], '$x = 2$ sau $x = -2$');
+  assert.equal(normalized.choices[1], 'x = 2');
+
+  const capturedTokens: number[] = [];
+  const incompleteClient = {
+    responses: {
+      create: async (request: any) => {
+        capturedTokens.push(request.max_output_tokens);
+        return { status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, output_text: '' };
+      },
+    },
+  } as unknown as OpenAI;
+
+  await assert.rejects(
+    generateRenderedPracticeExercise({
+      apiKey: 'test-key',
+      reasoningEffort: 'medium',
+      request: {
+        track: 'bac_m1',
+        category: 'analysis',
+        difficulty: 'exam',
+        requestId: validRequestId,
+        installationToken: validToken,
+      },
+      beforeGenerate: async () => undefined,
+      client: incompleteClient,
+    }),
+    (error: unknown) => error instanceof PracticeProviderError,
+  );
+  assert.equal(capturedTokens[0], 7168, 'Max tier attempt 1 must scale max_output_tokens for medium reasoning');
+  assert.equal(capturedTokens[1], 4096, 'fallback attempt 2 uses low effort token budget');
 });

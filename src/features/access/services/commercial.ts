@@ -50,11 +50,16 @@ type PendingMerge = { ticket: string; sourceUserId: string; targetUserId?: strin
 
 let googleConfigured = false;
 let mergeResume: Promise<void> | null = null;
-let accessRequest: { sessionKey: string | null; promise: Promise<CommercialAccess> } | null = null;
+let accessRequest: { sessionKey: string | null; generation: number; promise: Promise<CommercialAccess> } | null = null;
 const PENDING_MERGES_KEY = 'commercial.pending-google-merges.v2';
 const LEGACY_PENDING_MERGE_KEY = 'commercial.pending-google-merge.v1';
 const MERGE_TICKET_CLIENT_LIFETIME_MS = 6 * 24 * 60 * 60 * 1000;
+const INLINE_MERGE_WAIT_MS = 3_500;
 const MAX_PENDING_MERGES = 5;
+
+export function resetCommercialAccessRequest(): void {
+  accessRequest = null;
+}
 
 export class CommercialGateError extends Error {
   readonly reason: string;
@@ -172,11 +177,34 @@ export async function pendingGoogleMergeTickets(userId: string): Promise<string[
 
 function terminalMergeError(error: unknown): boolean {
   const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+  const details = error && typeof error === 'object' ? (error as { details?: unknown }).details : undefined;
+  const mergeReason = details && typeof details === 'object'
+    ? (details as { mergeReason?: unknown }).mergeReason
+    : undefined;
+  // Never treat generic `functions/deadline-exceeded` as terminal: client and
+  // server network timeouts share that code, while an expired merge ticket is
+  // explicitly tagged by the backend (`mergeReason: 'ticket_expired'`).
+  if (code === 'functions/deadline-exceeded') {
+    return mergeReason === 'ticket_expired';
+  }
   return code === 'functions/permission-denied'
     || code === 'functions/failed-precondition'
     || code === 'functions/invalid-argument'
-    || code === 'functions/deadline-exceeded'
     || code === 'functions/not-found';
+}
+
+async function waitBriefly(promise: Promise<void>, timeoutMs: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      promise,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 async function resumePendingMergeWithoutBlocking(user: User): Promise<void> {
@@ -261,7 +289,7 @@ async function requestCommercialAccess(allowSessionRecovery: boolean): Promise<C
   const requestedSessionKey = firebaseUserSessionKey(user);
   if (!requestedSessionKey) throw new StaleCommercialSessionError();
   const session = captureSession(user.uid);
-  await resumePendingMergeWithoutBlocking(user);
+  await waitBriefly(resumePendingMergeWithoutBlocking(user), INLINE_MERGE_WAIT_MS);
   const requestStartedAt = Date.now();
   assertSessionActive(session);
   const callable = httpsCallable<{ installationToken: string }, CommercialAccess>(functionsInstance(), 'getCommercialAccess', { timeout: 12_000 });
@@ -299,11 +327,14 @@ async function requestCommercialAccess(allowSessionRecovery: boolean): Promise<C
 
 export function getCommercialAccess(): Promise<CommercialAccess> {
   const sessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
-  if (accessRequest?.sessionKey === sessionKey) return accessRequest.promise;
+  const generation = currentSessionGeneration();
+  if (accessRequest?.sessionKey === sessionKey && accessRequest.generation === generation) {
+    return accessRequest.promise;
+  }
   const promise = requestCommercialAccess(true).finally(() => {
     if (accessRequest?.promise === promise) accessRequest = null;
   });
-  accessRequest = { sessionKey, promise };
+  accessRequest = { sessionKey, generation, promise };
   return promise;
 }
 
@@ -415,7 +446,7 @@ async function waitForFirebaseCurrentUser(
       resolve(resolvedUser);
     };
     const timer = setTimeout(() => {
-      finish(auth.currentUser ?? null);
+      finish(matches(auth.currentUser) ? auth.currentUser : null);
     }, timeoutMs);
     unsubscribe = onIdTokenChanged(auth, (user) => {
       if (matches(user)) finish(user);
@@ -510,6 +541,13 @@ export async function connectWithGoogle(): Promise<User | null> {
   stopStudyProgressSync();
   clearFavoriteLessonsCache();
   if (sourceUser.uid !== targetUser.uid) {
+    // Switching from a guest UID to an existing Google UID: flush already ran
+    // above, so clear guest-only local files (including track choice and exam
+    // draft) before the Google account hydrates from its authoritative cloud
+    // progress and backend-merged records.
+    clearStudyLocalState();
+    clearPracticeLocalState();
+    clearExamLocalState();
     discardPendingAnalysis();
     clearMathDrafts();
   }

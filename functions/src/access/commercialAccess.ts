@@ -81,6 +81,7 @@ export const DEFAULT_COMMERCIAL_CONFIG: CommercialConfig = {
 type ReservationScope = 'welcome' | 'daily';
 type ReservationData = {
   userId?: unknown;
+  leaseId?: unknown;
   budgetVersion?: unknown;
   state?: unknown;
   scope?: unknown;
@@ -161,21 +162,41 @@ export async function bindInstallationToAccount(
     throw new HttpsError('failed-precondition', 'Identitatea comercială nu este validă.');
   }
   const profileRef = db.collection('_commercialUsers').doc(installationPrincipalId);
+  const accountProfileRef = db.collection('_commercialUsers').doc(accountPrincipalId);
   await db.runTransaction(async (transaction) => {
     await assertUserActive(transaction, db, accountUserId);
-    const current = await transaction.get(profileRef);
-    if (current.data()?.linkedAccountPrincipalId === accountPrincipalId
+    const [current, accountProfile] = await Promise.all([
+      transaction.get(profileRef),
+      transaction.get(accountProfileRef),
+    ]);
+    const expiresAt = Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS);
+    const installUnchanged = current.data()?.linkedAccountPrincipalId === accountPrincipalId
       && current.data()?.linkedAccountUserId === accountUserId
-      && current.data()?.welcomeLocked === undefined) return;
-    transaction.set(profileRef, {
-      principalId: installationPrincipalId,
-      welcomeLocked: FieldValue.delete(),
-      linkedAccountPrincipalId: accountPrincipalId,
-      linkedAccountUserId: accountUserId,
-      linkedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(now + COMMERCIAL_PROFILE_RETENTION_MS),
-    }, { merge: true });
+      && current.data()?.welcomeLocked === undefined;
+    const accountProfileReady = accountProfile.exists
+      && accountProfile.data()?.userId === accountUserId
+      && accountProfile.data()?.principalId === accountPrincipalId;
+    if (!installUnchanged) {
+      transaction.set(profileRef, {
+        principalId: installationPrincipalId,
+        welcomeLocked: FieldValue.delete(),
+        linkedAccountPrincipalId: accountPrincipalId,
+        linkedAccountUserId: accountUserId,
+        linkedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        expiresAt,
+      }, { merge: true });
+    }
+    if (!accountProfileReady) {
+      // Ensure `_commercialUsers/{g_xxx}` exists even before the first AI
+      // analysis so RevenueCat webhooks always resolve this Google account.
+      transaction.set(accountProfileRef, {
+        userId: accountUserId,
+        principalId: accountPrincipalId,
+        updatedAt: FieldValue.serverTimestamp(),
+        expiresAt,
+      }, { merge: true });
+    }
   });
 }
 
@@ -437,6 +458,7 @@ export async function reserveAnalysisQuota(
   principal: CommercialPrincipal,
   now = Date.now(),
   devicePrincipalId?: string,
+  options?: { allowExistingReserved?: boolean; leaseId?: string },
 ): Promise<CommercialAccess> {
   const config = await getCommercialConfig(db, now);
   const window = bucharestQuotaWindow(now);
@@ -475,10 +497,14 @@ export async function reserveAnalysisQuota(
     });
 
     if (reservation?.state === 'reserved') {
+      if (options?.allowExistingReserved === false) {
+        throw new HttpsError('aborted', 'Cererea este deja în curs de procesare.');
+      }
       // A legitimate retry takes ownership of the existing quota lease. This
       // prevents stale-reservation recovery from refunding a retry that is
       // currently talking to the provider.
       transaction.update(refs.reservation, {
+        ...(options?.leaseId ? { leaseId: options.leaseId } : {}),
         reservedAt: Timestamp.fromMillis(now),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -515,17 +541,23 @@ export async function reserveAnalysisQuota(
     const dailyIds = stringArray(daily, 'requestIds');
     const nextDailyUsed = dailyUsed + 1;
     const maxTrackedIds = Math.max(config.premiumDailyLimit, config.maxDailyLimit);
-    transaction.set(refs.daily, {
+    const dailyWrite: DocumentData = {
       principalId: principal.principalId,
       day: window.day,
       requests: nextDailyUsed,
       requestIds: [...dailyIds.filter((value) => value !== requestId), requestId].slice(-maxTrackedIds),
       updatedAt: FieldValue.serverTimestamp(),
       expiresAt,
-    }, { merge: true });
+    };
+    if (principal.identity === 'anonymous') {
+      const guestIds = stringArray(daily, 'guestRequestIds');
+      dailyWrite.guestRequestIds = [...guestIds.filter((value) => value !== requestId), requestId].slice(-maxTrackedIds);
+    }
+    transaction.set(refs.daily, dailyWrite, { merge: true });
 
     let nextDeviceUsed = nextDailyUsed;
-    if (refs.deviceDaily && refs.devicePrincipalId) {
+    const trackDeviceCounter = Boolean(refs.deviceDaily && refs.devicePrincipalId && access.tier !== 'premium');
+    if (trackDeviceCounter && refs.deviceDaily && refs.devicePrincipalId) {
       const deviceUsed = numeric(deviceDaily, 'requests');
       const deviceIds = stringArray(deviceDaily, 'requestIds');
       nextDeviceUsed = deviceUsed + 1;
@@ -534,6 +566,7 @@ export async function reserveAnalysisQuota(
         day: window.day,
         requests: nextDeviceUsed,
         requestIds: [...deviceIds.filter((value) => value !== requestId), requestId].slice(-maxTrackedIds),
+        hasNonGuestUsage: true,
         updatedAt: FieldValue.serverTimestamp(),
         expiresAt,
       }, { merge: true });
@@ -542,9 +575,10 @@ export async function reserveAnalysisQuota(
     transaction.set(refs.profile, profileWrite, { merge: true });
     transaction.set(refs.reservation, {
       userId,
+      ...(options?.leaseId ? { leaseId: options.leaseId } : {}),
       requestId,
       principalId: principal.principalId,
-      ...(refs.devicePrincipalId ? { devicePrincipalId: refs.devicePrincipalId } : {}),
+      ...(trackDeviceCounter && refs.devicePrincipalId ? { devicePrincipalId: refs.devicePrincipalId } : {}),
       day: window.day,
       scope,
       tier: access.tier,
@@ -624,6 +658,9 @@ function applyCounterRefund(
     [counter.requestIdsKey]: ids.filter((value) => value !== requestId),
     updatedAt: FieldValue.serverTimestamp(),
   };
+  if (Array.isArray(data?.guestRequestIds)) {
+    update.guestRequestIds = stringArray(data, 'guestRequestIds').filter((value) => value !== requestId);
+  }
   if (reservation.scope === 'welcome' && data?.welcomeTodayDay === reservation.day) {
     update.welcomeTodayRequestIds = stringArray(data, 'welcomeTodayRequestIds').filter((value) => value !== requestId);
   }
@@ -639,6 +676,7 @@ export async function settleAnalysisQuota(
   addResultWrites: (transaction: Transaction) => void,
   onlyIfReservedBefore?: number,
   beforeSettle?: (transaction: Transaction) => Promise<void>,
+  ownership?: { expectedUserId?: string; expectedLeaseId?: string },
 ): Promise<boolean> {
   const reservationRef = db.collection('_commercialReservations').doc(`${principalId}_${requestId}`);
   return db.runTransaction(async (transaction) => {
@@ -649,6 +687,12 @@ export async function settleAnalysisQuota(
     }
     if (typeof reservation.userId !== 'string') {
       throw new HttpsError('failed-precondition', 'Identitatea rezervării pentru analiză lipsește.');
+    }
+    if (ownership?.expectedUserId !== undefined && reservation.userId !== ownership.expectedUserId) {
+      throw new HttpsError('permission-denied', 'Rezervarea aparține altei sesiuni.');
+    }
+    if (ownership?.expectedLeaseId !== undefined && reservation.leaseId !== ownership.expectedLeaseId) {
+      throw new HttpsError('aborted', 'Rezervarea aparține altei cereri active.');
     }
     await assertUserActive(transaction, db, reservation.userId);
     await beforeSettle?.(transaction);
@@ -716,8 +760,24 @@ export async function refundAnalysisQuota(
   requestId: string,
   onlyIfReservedBefore?: number,
   beforeSettle?: (transaction: Transaction) => Promise<void>,
+  ownership?: { expectedUserId?: string; expectedLeaseId?: string },
 ): Promise<boolean> {
-  return settleAnalysisQuota(db, principalId, requestId, false, () => undefined, onlyIfReservedBefore, beforeSettle);
+  return settleAnalysisQuota(
+    db,
+    principalId,
+    requestId,
+    false,
+    () => undefined,
+    onlyIfReservedBefore,
+    beforeSettle,
+    ownership,
+  );
+}
+
+function isAccountInactiveError(error: unknown): boolean {
+  if (!(error instanceof HttpsError) || error.code !== 'failed-precondition') return false;
+  const details = error.details;
+  return Boolean(details && typeof details === 'object' && (details as { reason?: unknown }).reason === 'account-inactive');
 }
 
 /**
@@ -740,10 +800,31 @@ export async function reconcileStaleAnalysisReservations(
     .orderBy('reservedAt', 'asc')
     .limit(20)
     .get();
-  const results = await Promise.all(snapshot.docs.map(async (document) => {
+  let refundedCount = 0;
+  // Process sequentially to avoid write contention on the same-day usage doc
+  // and isolate orphaned inactive-user records from blocking healthy slots.
+  for (const document of snapshot.docs) {
     const requestId = document.data().requestId;
-    if (typeof requestId !== 'string') return false;
-    return refundAnalysisQuota(db, principalId, requestId, staleBeforeMs);
-  }));
-  return results.filter(Boolean).length;
+    if (typeof requestId !== 'string') continue;
+    try {
+      const refunded = await refundAnalysisQuota(db, principalId, requestId, staleBeforeMs);
+      if (refunded) refundedCount += 1;
+    } catch (error) {
+      if (isAccountInactiveError(error)) {
+        await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(document.ref);
+          const data = current.data() as ReservationData | undefined;
+          const reservedAt = timestampMillis(data?.reservedAt);
+          if (data?.state === 'reserved' && reservedAt !== null && reservedAt <= staleBeforeMs) {
+            transaction.update(document.ref, {
+              state: 'abandoned',
+              settledAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          }
+        }).catch(() => undefined);
+      }
+    }
+  }
+  return refundedCount;
 }

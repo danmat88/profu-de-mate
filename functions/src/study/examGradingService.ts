@@ -1,5 +1,4 @@
 import type OpenAI from 'openai';
-import { HttpsError } from 'firebase-functions/v2/https';
 import { createOpenAiClient, resolveOpenAiRuntimeConfig } from '../infrastructure/openAiClient.js';
 import {
   examGradingResultJsonSchema,
@@ -11,6 +10,23 @@ import {
   type GradeExamSolutionRequest,
 } from './examGradingSchema.js';
 import { extractJsonPayload, summarizePracticeValidationIssues } from './practiceSchema.js';
+
+const GRADING_PIPELINE_TIMEOUT_MS = 75_000;
+const GRADING_LOW_MAX_TOKENS = 3200;
+const GRADING_MEDIUM_MAX_TOKENS = 6144;
+const GRADING_FALLBACK_MAX_TOKENS = 4096;
+
+export class ExamGradingProviderError extends Error {
+  readonly httpCode: 'unavailable' | 'internal';
+  readonly userMessage: string;
+
+  constructor(httpCode: 'unavailable' | 'internal', userMessage: string, detail?: string) {
+    super(detail ?? userMessage);
+    this.name = 'ExamGradingProviderError';
+    this.httpCode = httpCode;
+    this.userMessage = userMessage;
+  }
+}
 
 const EXAM_NAMES: Record<ExamId, string> = {
   en: 'Evaluarea Națională (clasa a VIII-a)',
@@ -49,67 +65,91 @@ export async function gradeExamSolutionWithAi(params: {
   apiKey: string;
   request: GradeExamSolutionRequest;
   beforeGenerate: () => Promise<void>;
-  onRejected?: (event: { stage: 'empty' | 'json' | 'schema'; issues: { code: string; path: string }[] }) => void;
+  onRejected?: (event: { stage: 'empty' | 'incomplete' | 'json' | 'schema'; issues: { code: string; path: string }[] }) => void;
   client?: OpenAI;
   model?: string;
   reasoningEffort?: 'low' | 'medium';
 }): Promise<ExamGradingResult> {
   const runtime = resolveOpenAiRuntimeConfig();
   const model = params.model ?? runtime.model;
-  const reasoningEffort = params.reasoningEffort ?? 'low';
+  const requestedEffort = params.reasoningEffort ?? 'low';
   const client = params.client ?? createOpenAiClient(params.apiKey, runtime);
   const promptText = buildExamGradingPrompt(params.request);
+  const deadline = Date.now() + GRADING_PIPELINE_TIMEOUT_MS;
+  const maxAttempts = requestedEffort === 'medium' ? 2 : 1;
 
-  await params.beforeGenerate();
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs < 5_000) {
+      throw new ExamGradingProviderError('unavailable', 'Corectarea durează prea mult acum. Încearcă din nou.', 'grading_deadline_exceeded');
+    }
 
-  const response = await client.responses.create({
-    model,
-    store: false,
-    input: [
-      {
-        role: 'user',
-        content: [
-          { type: 'input_text', text: promptText },
-          {
-            type: 'input_image',
-            image_url: `data:${params.request.mimeType};base64,${params.request.imageBase64}`,
-            detail: 'high',
-          },
-        ],
+    const attemptEffort = attempt === 1 ? requestedEffort : 'low';
+    const maxOutputTokens = attempt === 1
+      ? (requestedEffort === 'medium' ? GRADING_MEDIUM_MAX_TOKENS : GRADING_LOW_MAX_TOKENS)
+      : GRADING_FALLBACK_MAX_TOKENS;
+
+    await params.beforeGenerate();
+
+    const response = await client.responses.create({
+      model,
+      store: false,
+      input: [
+        {
+          role: 'user',
+          content: [
+            { type: 'input_text', text: promptText },
+            {
+              type: 'input_image',
+              image_url: `data:${params.request.mimeType};base64,${params.request.imageBase64}`,
+              detail: 'high',
+            },
+          ],
+        },
+      ],
+      reasoning: { effort: attemptEffort },
+      max_output_tokens: maxOutputTokens,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'exam_grading_result',
+          strict: true,
+          schema: examGradingResultJsonSchema as unknown as Record<string, unknown>,
+        },
       },
-    ],
-    reasoning: { effort: reasoningEffort },
-    max_output_tokens: 3200,
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'exam_grading_result',
-        strict: true,
-        schema: examGradingResultJsonSchema as unknown as Record<string, unknown>,
-      },
-    },
-  }, { timeout: 75_000, maxRetries: 0 });
+    }, { timeout: Math.min(75_000, remainingMs), maxRetries: 0 });
 
-  const rawText = response.output_text?.trim();
-  if (!rawText) {
-    params.onRejected?.({ stage: 'empty', issues: [] });
-    throw new HttpsError('unavailable', 'Nu am primit evaluarea baremului. Încearcă din nou.');
+    const incomplete = response.status === 'incomplete';
+    const rawText = response.output_text?.trim();
+    if (incomplete || !rawText) {
+      const reason = response.incomplete_details?.reason ?? (incomplete ? 'incomplete' : 'empty');
+      params.onRejected?.({
+        stage: incomplete ? 'incomplete' : 'empty',
+        issues: [{ code: String(reason), path: '' }],
+      });
+      if (attempt < maxAttempts && deadline - Date.now() >= 15_000) {
+        continue;
+      }
+      throw new ExamGradingProviderError('unavailable', 'Nu am primit evaluarea baremului. Încearcă din nou.', `exam_grading_${reason}`);
+    }
+
+    let rawJson: unknown;
+    try {
+      rawJson = JSON.parse(extractJsonPayload(rawText));
+    } catch {
+      params.onRejected?.({ stage: 'json', issues: [{ code: 'invalid_json', path: '' }] });
+      throw new ExamGradingProviderError('internal', 'Evaluarea baremului nu a putut fi citită. Încearcă din nou.', 'exam_grading_invalid_json');
+    }
+
+    const normalizedRaw = normalizeRawExamGrading(rawJson, params.request);
+    const parsed = examGradingResultSchema.safeParse(normalizedRaw);
+    if (!parsed.success) {
+      params.onRejected?.({ stage: 'schema', issues: summarizePracticeValidationIssues(parsed.error) });
+      throw new ExamGradingProviderError('internal', 'Evaluarea baremului nu a trecut validarea. Încearcă din nou.', 'exam_grading_schema_invalid');
+    }
+
+    return normalizeExamGradingResult(parsed.data, params.request);
   }
 
-  let rawJson: unknown;
-  try {
-    rawJson = JSON.parse(extractJsonPayload(rawText));
-  } catch {
-    params.onRejected?.({ stage: 'json', issues: [{ code: 'invalid_json', path: '' }] });
-    throw new HttpsError('internal', 'Evaluarea baremului nu a putut fi citită. Încearcă din nou.');
-  }
-
-  const normalizedRaw = normalizeRawExamGrading(rawJson, params.request);
-  const parsed = examGradingResultSchema.safeParse(normalizedRaw);
-  if (!parsed.success) {
-    params.onRejected?.({ stage: 'schema', issues: summarizePracticeValidationIssues(parsed.error) });
-    throw new HttpsError('internal', 'Evaluarea baremului nu a trecut validarea. Încearcă din nou.');
-  }
-
-  return normalizeExamGradingResult(parsed.data, params.request);
+  throw new ExamGradingProviderError('unavailable', 'Nu am primit evaluarea baremului. Încearcă din nou.');
 }

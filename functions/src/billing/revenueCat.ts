@@ -154,6 +154,14 @@ export async function syncRevenueCatEntitlement(args: {
     if (deletion.exists || (typeof profileUid === 'string' && profileUid !== expectedUid)
       || (args.source === 'webhook' && profileUid !== expectedUid)) return inactive;
     await assertUserActive(transaction, args.db, expectedUid);
+    // Keep `_commercialUsers/{g_xxx}` present and fresh across direct
+    // purchases and annual renewals so future webhooks never miss this account.
+    transaction.set(profileRef, {
+      userId: expectedUid,
+      principalId: args.appUserId,
+      updatedAt: FieldValue.serverTimestamp(),
+      expiresAt: Timestamp.fromMillis(now + ENTITLEMENT_RETENTION_MS),
+    }, { merge: true });
     transaction.set(args.db.collection('_commercialEntitlements').doc(args.appUserId), {
       principalId: args.appUserId,
       entitlementId: entitlement.entitlementId,

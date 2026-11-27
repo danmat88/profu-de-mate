@@ -16,6 +16,7 @@ import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { cropCapturedImage, rotateCapturedImage } from '../services/imagePipeline';
 import { deleteCapturedImageFiles, isManagedTemporaryImage } from '../services/temporaryImages';
+import { getPreparedPendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { colors, fonts } from '../../../shared/theme';
 import type { CapturedImage, FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
@@ -107,6 +108,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   const reducedMotion = useReducedMotion();
   const cropRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const initializedCropFor = useRef<string | null>(null);
+  const previousImageRectRef = useRef<Rect>({ x: 0, y: 0, width: 0, height: 0 });
   const operationLocked = useRef(false);
   const originalImage = useRef(image);
   const workingImageRef = useRef(image);
@@ -128,7 +130,14 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   const startY = useSharedValue(0);
   const startWidth = useSharedValue(0);
   const startHeight = useSharedValue(0);
-  const interacting = useSharedValue(0);
+  const panStartX = useSharedValue(0);
+  const panStartY = useSharedValue(0);
+  const pinchStartX = useSharedValue(0);
+  const pinchStartY = useSharedValue(0);
+  const pinchStartWidth = useSharedValue(0);
+  const pinchStartHeight = useSharedValue(0);
+  const pinchActive = useSharedValue(0);
+  const activeGestures = useSharedValue(0);
   const frameEntrance = useSharedValue(1);
   const isInitialImage = useRef(true);
 
@@ -155,20 +164,48 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   }, [workingImage]);
 
   useEffect(() => () => {
+    const activePending = getPreparedPendingAnalysis();
+    const keepUris = activePending?.schemaVersion === 2 ? [activePending.image.uri] : [];
     deleteCapturedImageFiles([
       originalImage.current.uri,
       workingImageRef.current.uri,
       preparedSubmission.current?.image.uri,
-    ]);
+    ], keepUris);
     preparedSubmission.current = null;
   }, []);
 
   useEffect(() => {
     if (imageRect.width <= 0 || imageRect.height <= 0) return;
     const imageKey = `${workingImage.uri}:${workingImage.width}x${workingImage.height}`;
-    if (initializedCropFor.current === imageKey) return;
+    if (initializedCropFor.current === imageKey) {
+      const prevRect = previousImageRectRef.current;
+      if (
+        prevRect.width > 0
+        && prevRect.height > 0
+        && (Math.abs(prevRect.width - imageRect.width) > 0.5 || Math.abs(prevRect.height - imageRect.height) > 0.5)
+      ) {
+        const scaleX = imageRect.width / prevRect.width;
+        const scaleY = imageRect.height / prevRect.height;
+        const minW = Math.min(MIN_CROP_SIZE, imageRect.width);
+        const minH = Math.min(MIN_CROP_SIZE, imageRect.height);
+        const current = cropRef.current;
+        const nextWidth = clamp(current.width * scaleX, minW, imageRect.width);
+        const nextHeight = clamp(current.height * scaleY, minH, imageRect.height);
+        const nextX = clamp(current.x * scaleX, 0, Math.max(0, imageRect.width - nextWidth));
+        const nextY = clamp(current.y * scaleY, 0, Math.max(0, imageRect.height - nextHeight));
+        const rescaled = { x: nextX, y: nextY, width: nextWidth, height: nextHeight };
+        cropRef.current = rescaled;
+        cropX.set(rescaled.x);
+        cropY.set(rescaled.y);
+        cropWidth.set(rescaled.width);
+        cropHeight.set(rescaled.height);
+        previousImageRectRef.current = imageRect;
+      }
+      return;
+    }
     const initial = getInitialCrop(imageRect);
     initializedCropFor.current = imageKey;
+    previousImageRectRef.current = imageRect;
     cropRef.current = initial;
     cropX.set(initial.x);
     cropY.set(initial.y);
@@ -195,23 +232,23 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
   }));
 
   const gridStyle = useAnimatedStyle(() => ({
-    opacity: withTiming(interacting.get() ? 0.72 : 0.2, { duration: 110 }),
+    opacity: withTiming(activeGestures.get() > 0 ? 0.72 : 0.2, { duration: 110 }),
   }));
 
   const gestures = useMemo(() => {
-    const beginGesture = () => {
+    const beginHandleGesture = () => {
       'worklet';
       startX.set(cropX.get());
       startY.set(cropY.get());
       startWidth.set(cropWidth.get());
       startHeight.set(cropHeight.get());
-      interacting.set(1);
+      activeGestures.set(activeGestures.get() + 1);
       scheduleOnRN(hapticTick);
     };
 
     const finishGesture = () => {
       'worklet';
-      interacting.set(0);
+      activeGestures.set(Math.max(0, activeGestures.get() - 1));
       scheduleOnRN(commitCrop, cropX.get(), cropY.get(), cropWidth.get(), cropHeight.get());
     };
 
@@ -219,41 +256,61 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
       .enabled(!busy)
       .maxPointers(1)
       .minDistance(1)
-      .onBegin(beginGesture)
+      .onBegin(() => {
+        panStartX.set(cropX.get());
+        panStartY.set(cropY.get());
+        activeGestures.set(activeGestures.get() + 1);
+        scheduleOnRN(hapticTick);
+      })
       .onUpdate((event) => {
-        cropX.set(clampOnUI(startX.get() + event.translationX, 0, imageRect.width - cropWidth.get()));
-        cropY.set(clampOnUI(startY.get() + event.translationY, 0, imageRect.height - cropHeight.get()));
+        if (pinchActive.get() > 0) return;
+        cropX.set(clampOnUI(panStartX.get() + event.translationX, 0, Math.max(0, imageRect.width - cropWidth.get())));
+        cropY.set(clampOnUI(panStartY.get() + event.translationY, 0, Math.max(0, imageRect.height - cropHeight.get())));
       })
       .onFinalize(finishGesture);
 
     const pinch = Gesture.Pinch()
       .enabled(!busy)
-      .onBegin(beginGesture)
+      .onBegin(() => {
+        pinchActive.set(1);
+        pinchStartX.set(cropX.get());
+        pinchStartY.set(cropY.get());
+        pinchStartWidth.set(cropWidth.get());
+        pinchStartHeight.set(cropHeight.get());
+        activeGestures.set(activeGestures.get() + 1);
+        scheduleOnRN(hapticTick);
+      })
       .onUpdate((event) => {
+        const baseW = pinchStartWidth.get();
+        const baseH = pinchStartHeight.get();
+        if (baseW <= 0 || baseH <= 0) return;
         const minimumScale = Math.max(
-          Math.min(MIN_CROP_SIZE, imageRect.width) / startWidth.get(),
-          Math.min(MIN_CROP_SIZE, imageRect.height) / startHeight.get(),
+          Math.min(MIN_CROP_SIZE, imageRect.width) / baseW,
+          Math.min(MIN_CROP_SIZE, imageRect.height) / baseH,
         );
         const maximumScale = Math.min(
-          imageRect.width / startWidth.get(),
-          imageRect.height / startHeight.get(),
+          imageRect.width / baseW,
+          imageRect.height / baseH,
         );
-        const nextScale = clampOnUI(event.scale, minimumScale, maximumScale);
-        const nextWidth = startWidth.get() * nextScale;
-        const nextHeight = startHeight.get() * nextScale;
-        const centerX = startX.get() + startWidth.get() / 2;
-        const centerY = startY.get() + startHeight.get() / 2;
+        const nextScale = clampOnUI(event.scale, minimumScale, Math.max(minimumScale, maximumScale));
+        const nextWidth = baseW * nextScale;
+        const nextHeight = baseH * nextScale;
+        const centerX = pinchStartX.get() + baseW / 2;
+        const centerY = pinchStartY.get() + baseH / 2;
         cropWidth.set(nextWidth);
         cropHeight.set(nextHeight);
-        cropX.set(clampOnUI(centerX - nextWidth / 2, 0, imageRect.width - nextWidth));
-        cropY.set(clampOnUI(centerY - nextHeight / 2, 0, imageRect.height - nextHeight));
+        cropX.set(clampOnUI(centerX - nextWidth / 2, 0, Math.max(0, imageRect.width - nextWidth)));
+        cropY.set(clampOnUI(centerY - nextHeight / 2, 0, Math.max(0, imageRect.height - nextHeight)));
       })
-      .onFinalize(finishGesture);
+      .onFinalize(() => {
+        pinchActive.set(0);
+        finishGesture();
+      });
 
     const createHandle = (kind: GestureKind) => Gesture.Pan()
       .enabled(!busy)
       .minDistance(0)
-      .onBegin(beginGesture)
+      .onBegin(beginHandleGesture)
       .onUpdate((event) => {
         let left = startX.get();
         let top = startY.get();
@@ -289,7 +346,7 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
       bottomLeft: createHandle('bottomLeft'),
       bottomRight: createHandle('bottomRight'),
     };
-  }, [busy, commitCrop, cropHeight, cropWidth, cropX, cropY, hapticTick, imageRect.height, imageRect.width, interacting, startHeight, startWidth, startX, startY]);
+  }, [activeGestures, busy, commitCrop, cropHeight, cropWidth, cropX, cropY, hapticTick, imageRect.height, imageRect.width, panStartX, panStartY, pinchActive, pinchStartHeight, pinchStartWidth, pinchStartX, pinchStartY, startHeight, startWidth, startX, startY]);
 
   const setCropFromJS = useCallback((next: Rect, animated = false) => {
     cropRef.current = next;

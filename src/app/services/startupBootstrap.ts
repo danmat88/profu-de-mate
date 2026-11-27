@@ -19,6 +19,7 @@ type Dependencies = {
   loadAccess: () => Promise<CommercialAccess>;
   loadPendingAnalysis: () => Promise<PendingAnalysis | null>;
   currentSession: () => Session | null;
+  onTimeout?: () => void;
   now?: () => number;
 };
 
@@ -73,7 +74,11 @@ export function createStartupLoader(dependencies: Dependencies, timeoutMs = 15_0
       };
     });
     const operation = withDeadline(work, timeoutMs, 'Application preparation timed out.')
-      .catch((error: unknown) => { throw error instanceof StartupError ? error : new StartupError('timeout', error); })
+      .catch((error: unknown) => {
+        if (error instanceof StartupError) throw error;
+        dependencies.onTimeout?.();
+        throw new StartupError('timeout', error);
+      })
       .finally(() => { if (pending === operation) pending = null; });
     pending = operation;
     return operation;

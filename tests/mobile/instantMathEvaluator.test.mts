@@ -108,3 +108,39 @@ test('handles domain errors gracefully and returns null silently for bare, incom
   // Huge power -> silent null, zero hang
   assert.equal(evaluateInstantMath(doc(pow([s('9')], [s('9'), s('9'), s('9')]))), null);
 });
+
+test('preserves exact rational comparisons, micro-value domain rules, clean decimals, and Citardauq quadratic stability', () => {
+  const tenPow = (negExp: string): MathNode => pow([s('1'), s('0')], [s('-'), ...negExp.split('').map((c) => s(c as MathSymbol))]);
+
+  // Exact BigInt comparison: 10^(-11) = 0 is Fals, 10^(-11) > 0 is Adevărat
+  assert.equal(evaluateInstantMath(doc(tenPow('11'), s('='), s('0')))?.primary, 'Fals');
+  assert.equal(evaluateInstantMath(doc(tenPow('11'), s('>'), s('0')))?.primary, 'Adevărat');
+  assert.equal(evaluateInstantMath(doc(s('x'), s('+'), tenPow('11'), s('>'), s('x')))?.primary, 'Orice x ∈ ℝ');
+
+  // Exact divExact / sqrtExact: 1 ÷ 10^(-16) is 10^16 (not div-by-0), √(-10^(-13)) warns, √(10^(-14)) = 1/10000000
+  assert.equal(evaluateInstantMath(doc(s('1'), s('div'), tenPow('16')))?.primary, '= 10000000000000000');
+  assert.equal(evaluateInstantMath(doc(root(s('-'), tenPow('13'))))?.kind, 'warning');
+  assert.equal(evaluateInstantMath(doc(root(tenPow('14'))))?.primary, '= 1/10000000');
+
+  // Terminating decimal length: 1/8 is exact (= 0,125), 1/128 (7 decimals) uses ≈, negative micro-values never print −0
+  assert.equal(evaluateInstantMath(doc(frac([s('1')], [s('8')])))?.secondary, '= 0,125');
+  assert.match(evaluateInstantMath(doc(frac([s('1')], [s('1'), s('2'), s('8')])))?.secondary ?? '', /^≈ /);
+  const negMicro = evaluateInstantMath(doc(s('-'), frac([s('1')], [s('3'), s('0'), s('0'), s('0'), s('0')])));
+  assert.ok(negMicro?.secondary && !negMicro.secondary.endsWith('−0'), `unexpected negative zero: ${negMicro?.secondary}`);
+
+  // Polynomial 0^0 domain exclusion delegates (x - 3)^0 = 1 to AI instead of falsely claiming Orice x ∈ ℝ
+  assert.equal(evaluateInstantMath(doc(pow([grp(s('x'), s('-'), s('3'))], [s('0')]), s('='), s('1'))), null);
+
+  // Citardauq stability: x² + 100000000x + 1 = 0 has smaller root -1.000e-8 (not -7.451e-9)
+  const stiffQuad = evaluateInstantMath(doc(
+    pow([s('x')], [s('2')]),
+    s('+'),
+    s('1'), s('0'), s('0'), s('0'), s('0'), s('0'), s('0'), s('0'), s('0'),
+    s('x'),
+    s('+'),
+    s('1'),
+    s('='),
+    s('0'),
+  ));
+  assert.match(stiffQuad?.primary ?? '', /−1,000e-8/);
+});

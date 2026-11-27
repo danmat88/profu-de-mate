@@ -10,6 +10,7 @@ type LessonErrorListener = (error: Error) => void;
 let favoriteLessonsCache: StoredLesson[] | undefined;
 let favoriteLessonsCacheSessionKey: string | null = null;
 let favoriteLessonsPrewarm: Promise<void> | null = null;
+let warmAttachPromise: Promise<void> | null = null;
 let warmUnsubscribe: (() => void) | undefined;
 let warmSessionKey: string | null = null;
 let warming = false;
@@ -19,6 +20,7 @@ const cacheListeners = new Set<() => void>();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SAVED_RETENTION_MS = 400 * DAY_MS;
 const RETENTION_REFRESH_WINDOW_MS = 399 * DAY_MS;
+const OFFLINE_FAVORITE_WRITE_TIMEOUT_MS = 1_800;
 const retentionRefreshes = new Map<string, number>();
 
 function notifyCacheListeners(): void {
@@ -52,6 +54,7 @@ export function clearFavoriteLessonsCache(options?: { preserveActiveSession?: bo
   warmUnsubscribe?.();
   warmUnsubscribe = undefined;
   warmSessionKey = null;
+  warmAttachPromise = null;
   warmSubscribers.clear();
   warming = false;
   favoriteLessonsCache = undefined;
@@ -153,6 +156,10 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
   warmSessionKey = currentSessionKey;
   const generation = cacheGeneration;
 
+  let resolveAttached!: () => void;
+  const attachPromise = new Promise<void>((resolve) => { resolveAttached = resolve; });
+  warmAttachPromise = attachPromise;
+
   const operation = new Promise<void>((resolve) => {
     let settled = false;
     let failed = false;
@@ -160,6 +167,7 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      resolveAttached();
       resolve();
     };
     const timeout = setTimeout(finish, 3_500);
@@ -177,6 +185,7 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
           warmUnsubscribe?.();
           warmUnsubscribe = undefined;
           warmSessionKey = null;
+          warmAttachPromise = null;
           warmSubscribers.clear();
           warming = false;
         }
@@ -187,16 +196,24 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
       const activeSessionKey = firebaseUserSessionKey(getAuth(getApp()).currentUser);
       if (generation !== cacheGeneration || failed || activeSessionKey !== currentSessionKey) {
         stop();
+        if (generation === cacheGeneration) {
+          warming = false;
+          if (warmSessionKey === currentSessionKey) warmSessionKey = null;
+          if (warmAttachPromise === attachPromise) warmAttachPromise = null;
+        }
+        resolveAttached();
         return;
       }
       warming = false;
       // Keep this listener alive so saving a lesson warms the next visit too.
       warmUnsubscribe = stop;
       warmSessionKey = activeSessionKey;
+      resolveAttached();
     }).catch((error: unknown) => {
       const subscribers = [...warmSubscribers];
       if (generation === cacheGeneration) {
         warmSessionKey = null;
+        warmAttachPromise = null;
         warmSubscribers.clear();
         warming = false;
       }
@@ -213,31 +230,57 @@ export function prewarmFavoriteLessonsCache(): Promise<void> {
 }
 
 export async function subscribeToFavoriteLessons(onChange: LessonListener, onError: (error: Error) => void): Promise<() => void> {
-  const generation = cacheGeneration;
   const user = await initializeFirebaseServices();
   const sessionKey = firebaseUserSessionKey(user);
   if (!sessionKey) throw new Error('Sesiunea Caietului nu este disponibilă.');
-  // Reuse the already-running or in-flight session-scoped prewarm listener
-  // instead of opening a duplicate Firestore snapshot & re-validating every doc.
-  if ((warmUnsubscribe || warming) && warmSessionKey === sessionKey && generation === cacheGeneration) {
-    const subscriber = { onChange, onError };
-    warmSubscribers.add(subscriber);
-    if (favoriteLessonsCache !== undefined && favoriteLessonsCacheSessionKey === sessionKey) {
-      onChange(favoriteLessonsCache);
-    }
-    return () => {
-      warmSubscribers.delete(subscriber);
-    };
+  if (firebaseUserSessionKey(getAuth(getApp()).currentUser) !== sessionKey) {
+    return () => {};
   }
-  return openDirectFavoriteLessonsSubscription(generation, onChange, onError);
+
+  // Always attach through the single session-scoped warm listener so background
+  // merges (`clearFavoriteLessonsCache({ preserveActiveSession: true })`) never
+  // orphan or leak direct Firestore snapshots.
+  if (warmSessionKey && warmSessionKey !== sessionKey) {
+    clearFavoriteLessonsCache();
+  }
+  if (!warmUnsubscribe && !warming) {
+    void prewarmFavoriteLessonsCache();
+  }
+  const subscriber = { onChange, onError };
+  warmSubscribers.add(subscriber);
+  if (warmAttachPromise && warmSessionKey === sessionKey) {
+    await warmAttachPromise;
+  }
+  if (favoriteLessonsCache !== undefined && favoriteLessonsCacheSessionKey === sessionKey) {
+    onChange(favoriteLessonsCache);
+  }
+  return () => {
+    warmSubscribers.delete(subscriber);
+  };
 }
 
 export async function setLessonFavorite(lessonId: string, isFavorite: boolean): Promise<void> {
   const user = await initializeFirebaseServices();
   const db = getFirestore(getApp());
-  await updateDoc(doc(db, 'users', user.uid, 'lessons', lessonId), {
+  const writePromise = updateDoc(doc(db, 'users', user.uid, 'lessons', lessonId), {
     isFavorite,
     expiresAt: Timestamp.fromMillis(Date.now() + (isFavorite ? SAVED_RETENTION_MS : 7 * DAY_MS)),
     updatedAt: serverTimestamp(),
   });
+  // Firestore offline persistence updates local cache and live snapshots
+  // immediately, while updateDoc's Promise stays pending until the device
+  // regains network. Bound the wait so offline favorite/remove actions never
+  // freeze the confirmation modal, while still surfacing immediate errors.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      writePromise,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, OFFLINE_FAVORITE_WRITE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    void writePromise.catch(() => undefined);
+  }
 }

@@ -41,7 +41,17 @@ import { PracticeSummaryScreen } from '../features/practice/screens/PracticeSumm
 import { SummaryScreen } from '../features/lessons/screens/SummaryScreen';
 import { StudioScreen } from './screens/StudioScreen';
 import { recordDiagnosticError } from '../shared/services/diagnostics';
-import { getPreparedPendingAnalysis } from '../features/analysis/services/pendingAnalysis';
+import { clearCachedCommercialAccess } from '../features/access/services/commercialAccessCache';
+import { resetCommercialAccessRequest } from '../features/access/services/commercial';
+import { resetPurchasesForSignedOutUser } from '../features/access/services/purchases';
+import { discardPendingAnalysis, getPreparedPendingAnalysis } from '../features/analysis/services/pendingAnalysis';
+import { clearExamLocalState } from '../features/exams/services/examStorage';
+import { clearFavoriteLessonsCache } from '../features/lessons/services/lessons';
+import { clearMathDrafts } from '../features/math/services/mathDraft';
+import { clearPracticeLocalState } from '../features/practice/services/practiceStorage';
+import { clearStudyLocalState } from '../features/study/services/studyStorage';
+import { stopStudyProgressSync } from '../features/study/services/studySync';
+import { registerTerminalSessionCleanup, resetFirebaseInitialization } from '../shared/services/firebase';
 import { preloadCriticalAppAssets } from './services/startupAssets';
 import { StartupError, type StartupSnapshot } from './services/startupBootstrap';
 import { currentStartupSession, prepareApplication } from './services/applicationStartup';
@@ -63,6 +73,18 @@ function isDarkSystemBarRoute(routeName: string | undefined): boolean {
 enableFreeze(true);
 SplashScreen.setOptions({ duration: 0, fade: false });
 void SplashScreen.preventAutoHideAsync();
+
+registerTerminalSessionCleanup(() => {
+  stopStudyProgressSync();
+  clearStudyLocalState();
+  clearPracticeLocalState();
+  clearExamLocalState();
+  clearFavoriteLessonsCache();
+  discardPendingAnalysis();
+  clearMathDrafts();
+  void clearCachedCommercialAccess();
+  void resetPurchasesForSignedOutUser();
+});
 
 type AppStartup = (StartupSnapshot & { offline: false }) | {
   offline: true; initialAccess: null; pendingAnalysis: null; verifiedAt: 0; sessionKey: string;
@@ -121,14 +143,16 @@ const AppExperience = memo(function AppExperience({ startup, interactive, reveal
       endAppTransition();
     },
   }), []);
+  const [navReady, setNavReady] = useState(false);
   const handleNavigationReady = useCallback(() => {
+    setNavReady(true);
     requestAnimationFrame(() => requestAnimationFrame(onReady));
   }, [onReady]);
 
   useEffect(() => {
     if (previousSessionKey.current === authSessionKey) return;
+    if (!navReady || !navigationRef.isReady()) return;
     previousSessionKey.current = authSessionKey;
-    if (!navigationRef.isReady()) return;
     const rootState = navigationRef.getRootState();
     const routes = rootState?.routes ?? [];
     const currentRoute = routes[rootState?.index ?? routes.length - 1]?.name as keyof RootStackParamList | undefined;
@@ -140,7 +164,7 @@ const AppExperience = memo(function AppExperience({ startup, interactive, reveal
     if (nextState) {
       navigationRef.resetRoot(nextState);
     }
-  }, [authSessionKey, navigationRef]);
+  }, [authSessionKey, navReady, navigationRef]);
 
   return (
     <View style={styles.app}>
@@ -268,6 +292,8 @@ function AppRoot() {
 
   const retryStartup = () => {
     if (retrying || openingNotebook) return;
+    resetFirebaseInitialization();
+    resetCommercialAccessRequest();
     setRetrying(true);
     setAttempt(value => value + 1);
   };

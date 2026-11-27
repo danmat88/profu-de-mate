@@ -410,10 +410,10 @@ const CORE_FORMULAS: readonly FormulaEntry[] = [
         kind: 'geometry',
         title: 'Triunghiul dreptunghic $ABC$ ($\\widehat{A} = 90^\\circ$, $AD \\perp BC$)',
         points: [
-          { id: 'A', label: 'A', x: 38.8, y: 22.2 },
-          { id: 'B', label: 'B', x: 10, y: 84 },
-          { id: 'C', label: 'C', x: 90, y: 84 },
-          { id: 'D', label: 'D', x: 38.8, y: 84 },
+          { id: 'A', label: 'A', x: 38.8, y: 37.6 },
+          { id: 'B', label: 'B', x: 10, y: 76 },
+          { id: 'C', label: 'C', x: 90, y: 76 },
+          { id: 'D', label: 'D', x: 38.8, y: 76 },
         ],
         segments: [
           { from: 'A', to: 'B', style: 'solid', color: 'violet' },
