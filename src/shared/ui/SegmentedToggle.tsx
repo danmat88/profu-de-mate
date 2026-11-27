@@ -37,8 +37,8 @@ type Props<T extends string> = {
   style?: StyleProp<ViewStyle>;
 };
 
-const TRACK_PADDING = 4.5;
-const TRACK_BORDER = 1.5;
+const TRACK_PADDING = 4;
+const TRACK_BORDER = 1;
 const PRESS_RETENTION = { top: 28, bottom: 28, left: 28, right: 28 };
 
 type SegmentItemProps<T extends string> = {
@@ -77,15 +77,7 @@ function SegmentItem<T extends string>({
       ]}
     >
       <View pointerEvents="none" style={styles.tabContent}>
-        <View
-          style={[
-            styles.iconWell,
-            compact && styles.iconWellCompact,
-            active ? styles.iconWellActive : styles.iconWellInactive,
-          ]}
-        >
-          <AppIcon name={option.icon} size={compact ? 19 : 23} />
-        </View>
+        <AppIcon name={option.icon} size={compact ? 21 : 25} />
         <View style={styles.labelColumn}>
           <View style={styles.labelRow}>
             <Text
@@ -124,9 +116,9 @@ function SegmentItem<T extends string>({
 }
 
 /**
- * Sculpted flagship dual-mode studio switcher driven by pure native-driver
- * spring motion with rich multi-stop gradient indicator, icon wells, and
- * micro-subtitles — zero elevation overdraw and zero Reanimated overhead.
+ * Ceramic-clean architectural dual-mode switcher driven by pure native-driver
+ * spring motion with a multi-stop gradient indicator and crisp micro-subtitles
+ * — zero chunky borders, zero nested icon boxes, zero Reanimated overhead.
  */
 export function SegmentedToggle<T extends string>({
   options,
@@ -200,8 +192,6 @@ export function SegmentedToggle<T extends string>({
         onLayout={handleLayout}
         style={[styles.track, hasSubtitle && styles.trackRich]}
       >
-        <View pointerEvents="none" style={styles.trackTopRim} />
-
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
@@ -251,44 +241,32 @@ export function SegmentedToggle<T extends string>({
 
 const styles = StyleSheet.create({
   outer: {
-    height: 50,
+    height: 48,
     position: 'relative',
     flexShrink: 0,
   },
   outerRich: {
-    height: 58,
+    height: 54,
   },
   outerCompact: {
-    height: 43,
+    height: 42,
   },
   track: {
     flex: 1,
     padding: TRACK_PADDING,
-    borderRadius: 25,
+    borderRadius: 22,
     borderWidth: TRACK_BORDER,
-    borderBottomWidth: 4,
-    borderColor: '#FFFFFF',
-    borderBottomColor: '#D4C1F8',
-    backgroundColor: '#F6F1FF',
+    borderColor: '#E9E0FA',
+    backgroundColor: '#FFFFFF',
     position: 'relative',
     overflow: 'hidden',
-    shadowColor: '#4315B8',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
+    shadowColor: '#3B11A8',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
   },
   trackRich: {
-    borderRadius: 24,
-  },
-  trackTopRim: {
-    position: 'absolute',
-    top: 0,
-    left: 20,
-    right: 20,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    zIndex: 0,
+    borderRadius: 21,
   },
   pill: {
     position: 'absolute',
@@ -296,24 +274,20 @@ const styles = StyleSheet.create({
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
     zIndex: 1,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.24)',
-    borderBottomWidth: 3,
-    borderBottomColor: 'rgba(18, 5, 58, 0.28)',
+    borderRadius: 17,
     overflow: 'hidden',
   },
   pillRich: {
-    borderRadius: 19,
+    borderRadius: 17,
   },
   pillGloss: {
     position: 'absolute',
-    top: 1.5,
-    left: 16,
-    right: 16,
-    height: 2,
+    top: 1,
+    left: 18,
+    right: 18,
+    height: 1.5,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255, 255, 255, 0.36)',
+    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   tabsRow: {
     flex: 1,
@@ -334,29 +308,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 10,
   },
-  iconWell: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  iconWellCompact: {
-    width: 26,
-    height: 26,
-    borderRadius: 9,
-  },
-  iconWellActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.96)',
-  },
-  iconWellInactive: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E8DDFC',
-  },
   labelColumn: {
     flexShrink: 1,
     minWidth: 0,
@@ -371,8 +322,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontFamily: fonts.display,
     color: colors.ink,
-    fontSize: 16,
-    lineHeight: 19,
+    fontSize: 15.5,
+    lineHeight: 18.5,
     letterSpacing: -0.2,
     includeFontPadding: false,
   },
@@ -381,8 +332,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   activeDot: {
-    width: 6,
-    height: 6,
+    width: 5.5,
+    height: 5.5,
     borderRadius: 3,
     flexShrink: 0,
   },
@@ -394,7 +345,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   subtitleActive: {
-    color: 'rgba(255, 255, 255, 0.84)',
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   subtitleInactive: {
     color: colors.inkSoft,

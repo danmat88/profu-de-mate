@@ -180,9 +180,10 @@ export const RoyalHeroCanopyBackdrop = memo(function RoyalHeroCanopyBackdrop({
 });
 
 /**
- * Flagship Obsidian-Violet (Solve) / Deep Berry-Plum (Check) optical scanner
- * stage backdrop for Home's centerpiece AI Camera Portal: rich luminous glass,
- * crisp optical SVG radial spotlights, drafting grid, and glowing wave curve.
+ * Airy Luminous Ceramic Studio backdrop for Home's unified Capture Monolith:
+ * pure porcelain-white depth with a whisper-soft centered optical radial halo
+ * behind the floating viewfinder portal and razor-fine architectural drafting
+ * grid hairlines — zero heavy borders, zero visual noise.
  */
 export const StudioCardBackdrop = memo(function StudioCardBackdrop({
   checkTheme = false,
@@ -190,59 +191,59 @@ export const StudioCardBackdrop = memo(function StudioCardBackdrop({
   checkTheme?: boolean;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
-  const topGlowId = `scTop_${uid}`;
-  const limeGlowId = `scLim_${uid}`;
+  const haloId = `scHal_${uid}`;
+  const accentId = `scAcc_${uid}`;
   const curveId = `scCur_${uid}`;
-  const topTint = checkTheme ? '#FF7B95' : '#8F50FF';
-  const rimTint = checkTheme ? '#FFD447' : '#D8FF3E';
+  const haloTint = checkTheme ? '#FF6B93' : '#7C3CFF';
+  const accentTint = checkTheme ? '#FFD447' : '#C8FA28';
+  const gridStroke = checkTheme ? '#C82064' : '#6A2CEB';
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LinearGradient
-        colors={checkTheme ? ['#5E123B', '#3B0A29', '#220519'] : ['#341684', '#210C5B', '#13063B']}
-        start={{ x: 0.08, y: 0 }}
-        end={{ x: 0.92, y: 1 }}
+        colors={checkTheme ? ['#FFFFFF', '#FFFCFD', '#FFF4F7'] : ['#FFFFFF', '#FDFCFF', '#F6F1FF']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
       <Svg
         pointerEvents="none"
         width="100%"
         height="100%"
-        viewBox="0 0 360 240"
+        viewBox="0 0 360 320"
         preserveAspectRatio="xMidYMid slice"
         style={StyleSheet.absoluteFill}
       >
         <Defs>
-          <RadialGradient id={topGlowId} cx="16%" cy="18%" rx="56%" ry="56%">
-            <Stop offset="0%" stopColor={topTint} stopOpacity="0.45" />
-            <Stop offset="55%" stopColor={topTint} stopOpacity="0.13" />
-            <Stop offset="100%" stopColor={topTint} stopOpacity="0" />
+          <RadialGradient id={haloId} cx="50%" cy="34%" rx="46%" ry="38%">
+            <Stop offset="0%" stopColor={haloTint} stopOpacity="0.14" />
+            <Stop offset="56%" stopColor={haloTint} stopOpacity="0.04" />
+            <Stop offset="100%" stopColor={haloTint} stopOpacity="0" />
           </RadialGradient>
-          <RadialGradient id={limeGlowId} cx="88%" cy="86%" rx="50%" ry="46%">
-            <Stop offset="0%" stopColor={rimTint} stopOpacity="0.24" />
-            <Stop offset="55%" stopColor={rimTint} stopOpacity="0.06" />
-            <Stop offset="100%" stopColor={rimTint} stopOpacity="0" />
+          <RadialGradient id={accentId} cx="88%" cy="12%" rx="44%" ry="36%">
+            <Stop offset="0%" stopColor={accentTint} stopOpacity={checkTheme ? '0.16' : '0.2'} />
+            <Stop offset="60%" stopColor={accentTint} stopOpacity="0.04" />
+            <Stop offset="100%" stopColor={accentTint} stopOpacity="0" />
           </RadialGradient>
           <SvgLinearGradient id={curveId} x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#43D6E6" stopOpacity="0" />
-            <Stop offset="34%" stopColor="#43D6E6" stopOpacity="0.24" />
-            <Stop offset="72%" stopColor={rimTint} stopOpacity="0.28" />
-            <Stop offset="100%" stopColor={rimTint} stopOpacity="0" />
+            <Stop offset="0%" stopColor={haloTint} stopOpacity="0" />
+            <Stop offset="45%" stopColor={haloTint} stopOpacity="0.12" />
+            <Stop offset="100%" stopColor={accentTint} stopOpacity="0" />
           </SvgLinearGradient>
         </Defs>
-        <Rect x="0" y="0" width="360" height="240" fill={`url(#${topGlowId})`} />
-        <Rect x="0" y="0" width="360" height="240" fill={`url(#${limeGlowId})`} />
+        <Rect x="0" y="0" width="360" height="320" fill={`url(#${haloId})`} />
+        <Rect x="0" y="0" width="360" height="320" fill={`url(#${accentId})`} />
         <Path
-          d="M36 0V240M72 0V240M108 0V240M144 0V240M180 0V240M216 0V240M252 0V240M288 0V240M324 0V240M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360M0 216H360"
-          stroke="#FFFFFF"
-          strokeWidth={0.75}
-          strokeOpacity={0.055}
+          d="M36 0V220M72 0V220M108 0V220M144 0V220M180 0V220M216 0V220M252 0V220M288 0V220M324 0V220M0 36H360M0 72H360M0 108H360M0 144H360M0 180H360"
+          stroke={gridStroke}
+          strokeWidth={0.7}
+          strokeOpacity={0.036}
           fill="none"
         />
         <Path
-          d="M-6 138 Q92 88 186 124 T368 96"
+          d="M-6 146 Q98 96 184 128 T368 94"
           stroke={`url(#${curveId})`}
-          strokeWidth={1.3}
+          strokeWidth={1.2}
           fill="none"
         />
       </Svg>
