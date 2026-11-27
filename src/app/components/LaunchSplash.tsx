@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,12 +17,14 @@ import { bundledImageSource } from '../../shared/services/bundledImages';
 import * as Haptics from '../../shared/services/haptics';
 import { colors, fonts, radii } from '../../shared/theme';
 import { ComicBackdrop } from '../../shared/ui/ComicBackdrop';
+import { MiniGlyph } from '../../shared/ui/MiniGlyph';
 import { Text } from '../../shared/ui/Typography';
 import { resolveSplashMood } from '../utils/splashMood';
 
 type Props = {
   ready: boolean;
   visualsReady: boolean;
+  onboardingPending?: boolean;
   startupReady?: boolean;
   reducedMotion: boolean;
   onIntroSettled?: () => void;
@@ -153,6 +156,7 @@ const SplashProgressHeader = memo(function SplashProgressHeader({
 export function LaunchSplash({
   ready,
   visualsReady,
+  onboardingPending = false,
   startupReady = false,
   reducedMotion,
   onIntroSettled,
@@ -210,6 +214,9 @@ export function LaunchSplash({
   // Deterministic geometry from frame width avoids mid-flight onLayout interpolation resets.
   const trackOuterWidth = Math.round(Math.max(222, Math.min(width - 70, 296)));
   const trackInnerWidth = Math.max(1, trackOuterWidth - 3);
+  // Spatial exit arc aimed right at the top-right Royal-Violet canopy mascot perch.
+  const owlExitTargetX = Math.round(Math.min(114, width * 0.27));
+  const owlExitTargetY = -Math.round(Math.min(198, height * 0.23));
 
   introSettledRef.current = onIntroSettled;
   revealStartRef.current = onRevealStart;
@@ -236,13 +243,21 @@ export function LaunchSplash({
     finishRef.current();
   }, [notifyIntroSettledOnce, notifyRevealOnce]);
 
-  const stageLabel = ready
-    ? 'Gata! Începem!'
-    : startupReady
-      ? 'Așez tabla de lucru…'
-      : visualsReady
-        ? 'Verific contul și Caietul…'
-        : 'Pregătesc culorile și formulele…';
+  const stageLabel = onboardingPending
+    ? (ready
+      ? 'Bun venit! Începem!'
+      : startupReady
+        ? 'Pregătesc ecranul de bun venit…'
+        : visualsReady
+          ? 'Pregătesc profilul tău…'
+          : 'Pregătesc culorile și formulele…')
+    : (ready
+      ? 'Gata! Începem!'
+      : startupReady
+        ? 'Așez tabla de lucru…'
+        : visualsReady
+          ? 'Verific contul și Caietul…'
+          : 'Pregătesc culorile și formulele…');
 
   // Hide native splash once the warm canvas and owl artwork are painted, then play unhurried entrance.
   useEffect(() => {
@@ -451,38 +466,38 @@ export function LaunchSplash({
       // Unhurried cinema exit matching LaunchSplash intro: progress glides down -> copy dissolves -> owl arcs up-right -> canvas melts.
       startAnim(Animated.timing(progressExit, {
         toValue: 1,
-        duration: 340,
+        duration: 300,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(chromeExit, {
         toValue: 1,
-        duration: 360,
-        delay: 70,
+        duration: 320,
+        delay: 50,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(owlExit, {
         toValue: 1,
-        duration: 500,
-        delay: 110,
+        duration: 480,
+        delay: 80,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
       startAnim(Animated.timing(backdropOpacity, {
         toValue: 0,
         duration: 420,
-        delay: 260,
+        delay: 200,
         easing: SILKY_EASE_IN_OUT,
         useNativeDriver: true,
       }));
-      // Launch Home unhurried pre-baked GPU choreography right as the cream veil turns translucent.
-      revealTimer = setTimeout(notifyRevealOnce, 300);
-      // Pass touches cleanly to Home the instant the splash veil reaches opacity 0.
-      passThroughTimer = setTimeout(() => setPassThrough(true), 680);
-      // Unmount LaunchSplash strictly AFTER Home entrance finishes landing so zero view-teardown hitch interrupts motion.
-      exitTimer = setTimeout(finishOnce, 1_320);
-    }, 480);
+      // Launch destination's unhurried pre-baked GPU choreography right as the cream veil turns translucent.
+      revealTimer = setTimeout(notifyRevealOnce, 220);
+      // Pass touches cleanly the instant the splash veil reaches opacity 0.
+      passThroughTimer = setTimeout(() => setPassThrough(true), 620);
+      // Unmount LaunchSplash strictly AFTER destination entrance finishes landing so zero view-teardown hitch interrupts motion.
+      exitTimer = setTimeout(finishOnce, 1_220);
+    }, 420);
 
     return () => {
       clearTimeout(beatTimer);
@@ -556,33 +571,57 @@ export function LaunchSplash({
   const owlSpatialExitStyle = useMemo(() => ({
     opacity: owlExit.interpolate({
       inputRange: [0, 0.72, 1],
-      outputRange: [1, 0.62, 0],
+      outputRange: [1, 0.68, 0],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         translateX: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, 76],
+          outputRange: [0, owlExitTargetX],
           extrapolate: 'clamp',
         }),
       },
       {
         translateY: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -116],
+          outputRange: [0, owlExitTargetY],
           extrapolate: 'clamp',
         }),
       },
       {
         scale: owlExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [1, 0.46],
+          outputRange: [1, 0.44],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        rotate: owlExit.interpolate({
+          inputRange: [0, 0.45, 1],
+          outputRange: ['0deg', '-7deg', '5deg'],
           extrapolate: 'clamp',
         }),
       },
     ],
-  }), [owlExit]);
+  }), [owlExit, owlExitTargetX, owlExitTargetY]);
+
+  const crownMistStyle = useMemo(() => ({
+    opacity: auraEnter.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateY: auraEnter.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-18, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [auraEnter]);
 
   const auraEnterStyle = useMemo(() => ({
     opacity: auraEnter.interpolate({
@@ -937,7 +976,7 @@ export function LaunchSplash({
   const milestones = [
     { key: 'visuals', label: 'Resurse', done: visualsReady },
     { key: 'account', label: 'Cont', done: startupReady },
-    { key: 'board', label: 'Tablă', done: ready },
+    { key: 'board', label: onboardingPending ? 'Bun venit' : 'Tablă', done: ready },
   ] as const;
 
   return (
@@ -955,6 +994,18 @@ export function LaunchSplash({
       {visualsReady ? (
         <>
           <ComicBackdrop />
+
+          {/* Soft Royal-Violet ambient crown mist bridging Splash into the curved canopy below */}
+          <Animated.View pointerEvents="none" style={[styles.topCrownMist, crownMistStyle]}>
+            <Animated.View style={[StyleSheet.absoluteFill, chromeExitStyle]}>
+              <LinearGradient
+                colors={['rgba(124, 60, 255, 0.13)', 'rgba(124, 60, 255, 0.04)', 'rgba(255, 248, 236, 0)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          </Animated.View>
 
           {/* Whisper-light peripheral math symbols giving subtle studio atmosphere */}
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, chromeExitStyle]}>
@@ -1026,7 +1077,7 @@ export function LaunchSplash({
                       </View>
                     </Animated.View>
 
-                    {/* Outer clockwise orbit with vibrant comic beads */}
+                    {/* Outer clockwise orbit with jewel-glossed comic beads */}
                     <Animated.View
                       style={[
                         styles.orbitRing,
@@ -1039,8 +1090,12 @@ export function LaunchSplash({
                         outerOrbitStyle,
                       ]}
                     >
-                      <View style={[styles.orbitBead, styles.orbitBeadLime]} />
-                      <View style={[styles.orbitBead, styles.orbitBeadCyan]} />
+                      <View style={[styles.orbitBead, styles.orbitBeadLime]}>
+                        <View style={styles.orbitBeadShine} />
+                      </View>
+                      <View style={[styles.orbitBead, styles.orbitBeadCyan]}>
+                        <View style={styles.orbitBeadShine} />
+                      </View>
                       <View style={[styles.orbitBeadSmall, styles.orbitBeadPeach]} />
                     </Animated.View>
 
@@ -1198,9 +1253,15 @@ export function LaunchSplash({
                   stageLabel={stageLabel}
                 />
 
-                <View style={[styles.barGlowFrame, { width: trackOuterWidth + 6 }]}>
+                <View style={[styles.barGlowFrame, ready && styles.barGlowFrameReady, { width: trackOuterWidth + 6 }]}>
                   <View style={[styles.barTrack, { width: trackOuterWidth }]}>
                     <Animated.View style={[styles.barFill, ready && styles.barFillReady, fillTransformStyle]}>
+                      <LinearGradient
+                        colors={ready ? ['#ECFF7A', '#C8F624', '#33D48E'] : ['#A370FF', '#7C3CFF', '#5319DC']}
+                        start={{ x: 0, y: 0.5 }}
+                        end={{ x: 1, y: 0.5 }}
+                        style={StyleSheet.absoluteFill}
+                      />
                       <View pointerEvents="none" style={styles.barFillHighlight} />
                       <Animated.View pointerEvents="none" style={[styles.barSheen, barSheenStyle]} />
                       <View pointerEvents="none" style={styles.barLeadingGlow} />
@@ -1211,7 +1272,9 @@ export function LaunchSplash({
                 <View style={styles.milestonesRow}>
                   {milestones.map((item) => (
                     <View key={item.key} style={styles.milestoneItem}>
-                      <View style={[styles.milestoneDot, item.done && styles.milestoneDotDone]} />
+                      <View style={[styles.milestoneDot, item.done && styles.milestoneDotDone]}>
+                        {item.done ? <MiniGlyph name="check" size={8} color={colors.ink} /> : null}
+                      </View>
                       <Text
                         maxFontSizeMultiplier={1.15}
                         style={[styles.milestoneLabel, item.done && styles.milestoneLabelDone]}
@@ -1240,6 +1303,13 @@ const styles = StyleSheet.create({
     zIndex: 1000,
     overflow: 'hidden',
     backgroundColor: colors.canvas,
+  },
+  topCrownMist: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 190,
   },
   ambientSymbol: {
     position: 'absolute',
@@ -1305,11 +1375,22 @@ const styles = StyleSheet.create({
   },
   orbitBead: {
     position: 'absolute',
-    width: 11,
-    height: 11,
+    width: 12,
+    height: 12,
     borderRadius: 6,
     borderWidth: 1.75,
     borderColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orbitBeadShine: {
+    position: 'absolute',
+    top: 1.5,
+    left: 2,
+    width: 3.5,
+    height: 3.5,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
   },
   orbitBeadSmall: {
     position: 'absolute',
@@ -1384,20 +1465,23 @@ const styles = StyleSheet.create({
     zIndex: 8,
   },
   greetingPill: {
-    minHeight: 30,
+    minHeight: 32,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
+    borderWidth: 1.4,
+    borderBottomWidth: 3.2,
     borderColor: '#E2D6FA',
+    borderBottomColor: '#CDBAF6',
     backgroundColor: colors.paper,
     elevation: 2,
   },
   greetingPillReady: {
     borderColor: colors.ink,
+    borderBottomColor: '#7EA508',
     backgroundColor: colors.lime,
   },
   greetingDot: {
@@ -1645,12 +1729,15 @@ const styles = StyleSheet.create({
   barGlowFrame: {
     padding: 3,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(124, 60, 255, 0.08)',
+    backgroundColor: 'rgba(124, 60, 255, 0.09)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  barGlowFrameReady: {
+    backgroundColor: 'rgba(185, 242, 29, 0.28)',
+  },
   barTrack: {
-    height: 13,
+    height: 14,
     borderRadius: radii.pill,
     borderWidth: 1.5,
     borderColor: '#DFD2FA',
@@ -1699,31 +1786,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
-    paddingTop: 1,
+    paddingTop: 2,
   },
   milestoneItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 5.5,
   },
   milestoneDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#D9CBEF',
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 1.2,
+    borderColor: '#D6C6F7',
+    backgroundColor: '#F4EEFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   milestoneDotDone: {
-    backgroundColor: colors.mint,
+    borderColor: '#8BB509',
+    backgroundColor: colors.lime,
   },
   milestoneLabel: {
     fontFamily: fonts.bodyMedium,
-    fontSize: 11,
+    fontSize: 11.2,
     lineHeight: 14,
     color: colors.inkMuted,
     includeFontPadding: false,
   },
   milestoneLabelDone: {
     fontFamily: fonts.bodyBold,
-    color: colors.inkSoft,
+    color: colors.ink,
   },
 });

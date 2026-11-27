@@ -38,6 +38,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
     'react-native-safe-area-context': {
       useSafeAreaFrame: () => ({ x: 0, y: 0, width: 360, height: 802 }),
     },
+    'expo-linear-gradient': { LinearGradient: view },
     'expo-splash-screen': {}, 'expo-status-bar': { StatusBar: () => null },
     'src/shared/services/bundledImages.ts': { bundledImageSource: (id: number) => id },
     'src/shared/services/haptics.ts': { selection() {} },

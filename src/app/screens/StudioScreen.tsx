@@ -123,10 +123,35 @@ export function StudioScreen() {
   const [ageConsentConfirmed, setAgeConsentConfirmed] = useState<boolean>(
     () => hasConfirmedAgeEligibility(),
   );
+  const [postOnboardingReveal, setPostOnboardingReveal] = useState<boolean>(
+    () => hasConfirmedAgeEligibility(),
+  );
   const { toast, showToast } = useActionToast();
   const captureActionRef = useRef<(() => void) | null>(null);
   const railPosition = useRef(new Animated.Value(TAB_ORDER.solve)).current;
   const activeTabRef = useRef<StudioTabId>('solve');
+  const effectiveHomeMotionReady = motionReady && postOnboardingReveal;
+
+  // After completing first-launch onboarding, mount Home pre-rasterized for two
+  // frames on the shared warm cream canvas, then unleash Home's full entrance
+  // choreography (sky canopy unfurl, hero cascade, and Split-Island dock rise).
+  useEffect(() => {
+    if (!ageConsentConfirmed || postOnboardingReveal) return undefined;
+    if (reducedMotion) {
+      setPostOnboardingReveal(true);
+      return undefined;
+    }
+    let secondFrame: number | undefined;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        setPostOnboardingReveal(true);
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame);
+    };
+  }, [ageConsentConfirmed, postOnboardingReveal, reducedMotion]);
 
   // Keep the Caiet dock badge synchronized live whenever lessons finish
   // prewarming, arrive after Google sign-in, are saved/removed, or clear on
@@ -147,17 +172,17 @@ export function StudioScreen() {
       setStatusBarReady(true);
       return undefined;
     }
-    if (!motionReady) {
+    if (!effectiveHomeMotionReady) {
       setStatusBarReady(false);
       return undefined;
     }
     const timer = setTimeout(() => setStatusBarReady(true), 940);
     return () => clearTimeout(timer);
-  }, [motionReady, reducedMotion]);
+  }, [effectiveHomeMotionReady, reducedMotion]);
 
   // Pre-warm offscreen Învață and Caiet tabs quietly after onboarding is done and Home entrance settles.
   useEffect(() => {
-    if (!motionReady || !ageConsentConfirmed) return undefined;
+    if (!effectiveHomeMotionReady || !ageConsentConfirmed) return undefined;
     const studyTimer = setTimeout(() => {
       setMountedTabs((current) => (current.study ? current : { ...current, study: true }));
     }, 1_900);
@@ -168,7 +193,7 @@ export function StudioScreen() {
       clearTimeout(studyTimer);
       clearTimeout(notebookTimer);
     };
-  }, [ageConsentConfirmed, motionReady]);
+  }, [ageConsentConfirmed, effectiveHomeMotionReady]);
 
   useFocusEffect(useCallback(() => {
     setScreenFocused(true);
@@ -176,6 +201,7 @@ export function StudioScreen() {
     const confirmed = hasConfirmedAgeEligibility();
     setAgeConsentConfirmed(confirmed);
     if (!confirmed) {
+      setPostOnboardingReveal(false);
       activeTabRef.current = 'solve';
       setActiveTab('solve');
       setSettledTab('solve');
@@ -279,8 +305,9 @@ export function StudioScreen() {
     if (track) {
       setStudyTrack(track);
     }
+    setPostOnboardingReveal(reducedMotion);
     setAgeConsentConfirmed(true);
-  }, []);
+  }, [reducedMotion]);
   const handleOpenLegalFromConsent = useCallback(() => {
     navigation.navigate('Legal');
   }, [navigation]);
@@ -312,6 +339,7 @@ export function StudioScreen() {
     return (
       <WelcomeOnboardingScreen
         active={screenFocused && motionReady}
+        ready={motionReady}
         onConfirm={handleConfirmAgeEligibility}
         onOpenLegal={handleOpenLegalFromConsent}
       />
@@ -319,6 +347,7 @@ export function StudioScreen() {
   }
 
   return (
+    <HomeMotionReadyContext.Provider value={effectiveHomeMotionReady}>
     <View style={styles.root}>
       {statusBarReady && screenFocused ? (
         <StatusBar style={activeTab === 'solve' && !access ? 'dark' : 'light'} />
@@ -374,7 +403,7 @@ export function StudioScreen() {
       {!keyboardVisible ? (
         <StudioTabBar
           activeTab={activeTab}
-          ready={motionReady}
+          ready={effectiveHomeMotionReady}
           active={screenFocused}
           notebookBadgeCount={notebookBadgeCount}
           studyDot={hasStudyAlerts}
@@ -394,6 +423,7 @@ export function StudioScreen() {
 
       <ActionToast toast={toast} bottomOffset={96} />
     </View>
+    </HomeMotionReadyContext.Provider>
   );
 }
 

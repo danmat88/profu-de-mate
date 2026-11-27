@@ -48,8 +48,13 @@ test('WelcomeOnboardingScreen blocks Home exclusively until age eligibility is c
   assert.match(onboardingSource, /16\+/);
   assert.match(onboardingSource, /părintelui sau tutorelui/);
   assert.match(onboardingSource, /onOpenLegal/);
+  assert.match(onboardingSource, /canopyEnter/);
+  assert.match(onboardingSource, /canopyExit/);
+  assert.match(onboardingSource, /celebrateBurst/);
 
   assert.match(studioSource, /if \(!ageConsentConfirmed\) \{\s*return \(\s*<WelcomeOnboardingScreen/s);
+  assert.match(studioSource, /postOnboardingReveal/);
+  assert.match(studioSource, /HomeMotionReadyContext\.Provider value=\{effectiveHomeMotionReady\}/);
   assert.match(studioSource, /navigation\.navigate\('Legal'\)/);
   assert.match(studioSource, /hasConfirmedAgeEligibility\(\)/);
   assert.match(studioSource, /saveAgeEligibilityConfirmation\(group\)/);

@@ -341,7 +341,7 @@ function AppRoot() {
           onReady={markNavigationReady}
         />
       </CommercialProvider> : null}
-      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} startupReady={Boolean(startup)} reducedMotion={reducedMotion} onIntroSettled={markSplashIntroDone} onRevealStart={startHomeReveal} onFinish={finishLaunch} /> : null}
+      {showLaunchSplash ? <LaunchSplash ready={Boolean(startup) && navigationReady} visualsReady={visualsReady} onboardingPending={!hasConfirmedAgeEligibility()} startupReady={Boolean(startup)} reducedMotion={reducedMotion} onIntroSettled={markSplashIntroDone} onRevealStart={startHomeReveal} onFinish={finishLaunch} /> : null}
     </View>
   );
 }
