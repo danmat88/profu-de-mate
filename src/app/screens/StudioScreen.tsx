@@ -172,11 +172,20 @@ export function StudioScreen() {
   useFocusEffect(useCallback(() => {
     setScreenFocused(true);
     setSavedLessonsCount(getCachedFavoriteLessons()?.length ?? 0);
-    setAgeConsentConfirmed(hasConfirmedAgeEligibility());
+    const confirmed = hasConfirmedAgeEligibility();
+    setAgeConsentConfirmed(confirmed);
+    if (!confirmed) {
+      activeTabRef.current = 'solve';
+      setActiveTab('solve');
+      setSettledTab('solve');
+      railPosition.setValue(TAB_ORDER.solve);
+      setMountedTabs({ study: false, notebook: false });
+      setHomeTrackSheetOpen(false);
+    }
     return () => {
       setScreenFocused(false);
     };
-  }, []));
+  }, [railPosition]));
 
   // Smooth pure-GPU horizontal slide aligned with Split-Island tab order.
   useEffect(() => {

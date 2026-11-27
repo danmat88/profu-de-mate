@@ -68,13 +68,15 @@ export async function deleteAllUserData(): Promise<DataDeletionResult> {
     localSignOutPending = true;
     recordDiagnosticError('data_deletion', error);
   }
-  void Promise.allSettled([
+  // Await fast local SecureStore cleanup before CommercialContext refreshes the
+  // replacement guest session, preventing a late delete from wiping the new cache.
+  await Promise.allSettled([
     clearCachedCommercialAccess(),
     removePendingGoogleMergesForUser(user.uid),
-    setCrashlyticsCollectionEnabled(getCrashlytics(app), false),
-    resetPurchasesForSignedOutUser(),
   ]);
   void Promise.allSettled([
+    setCrashlyticsCollectionEnabled(getCrashlytics(app), false),
+    resetPurchasesForSignedOutUser(),
     import('react-native-nitro-google-signin')
       .then(({ GoogleOneTapSignIn }) => GoogleOneTapSignIn.signOut()),
   ]);

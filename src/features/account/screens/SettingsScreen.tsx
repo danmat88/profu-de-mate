@@ -285,11 +285,11 @@ export function SettingsScreen({ navigation }: Props) {
       : `Ai ${access.remaining} din ${formatRoCount(access.limit, 'acțiune AI gratuită', 'acțiuni AI gratuite')} astăzi. Conectează-te cu Google pentru sincronizarea Caietului și pentru Pro sau Max.`;
 
   useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !accountBusy });
-  }, [accountBusy, navigation]);
+    navigation.setOptions({ gestureEnabled: !accountBusy && !deleteComplete });
+  }, [accountBusy, deleteComplete, navigation]);
 
   useEffect(() => {
-    if (!accountBusy) return undefined;
+    if (!accountBusy && !deleteComplete) return undefined;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
     const removeUnsubscribe = navigation.addListener('beforeRemove', (event) => {
       if (event.data.action.type !== 'RESET') {
@@ -300,7 +300,7 @@ export function SettingsScreen({ navigation }: Props) {
       subscription.remove();
       removeUnsubscribe();
     };
-  }, [accountBusy, navigation]);
+  }, [accountBusy, deleteComplete, navigation]);
 
   const connectAccount = async () => {
     if (isInteractionLocked()) return;
@@ -348,9 +348,9 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       const result = await deleteAccount();
       setDeleteFinishedInSheet(true);
+      setDiagnostics(false);
       setExternalDeletionPending(result.externalBillingProfilePending);
       Haptics.notification(Haptics.NotificationFeedbackType.Success);
-      setConfirmDelete(false);
       setDeleteComplete(true);
     } catch (deletionError) {
       if (deletionError instanceof DataDeletionCancelledError) return;
@@ -696,9 +696,13 @@ export function SettingsScreen({ navigation }: Props) {
       ) : null}
 
       <ComicSheetModal
-        visible={confirmDelete}
+        visible={confirmDelete || deleteComplete}
         busy={deleteSheetBusy}
-        onClose={() => setConfirmDelete(false)}
+        dismissable={!deleteComplete}
+        alertRole={deleteComplete}
+        onClose={() => {
+          if (!deleteComplete) setConfirmDelete(false);
+        }}
         onAfterClose={() => setDeleteFinishedInSheet(false)}
       >
         <ScrollView
@@ -707,29 +711,63 @@ export function SettingsScreen({ navigation }: Props) {
           style={styles.confirmScroll}
           contentContainerStyle={styles.confirmSheetContent}
         >
-          <View style={styles.sheetMascotStage}>
-            <SpotlightAura size={96} tone="rose" active={confirmDelete} />
-            <Mascot pose="oops" size={86} active={confirmDelete} />
-          </View>
-          <Chip label="ACȚIUNE DEFINITIVĂ" tone="roseSoft" />
-          <Text style={styles.confirmTitle}>{deletionConfirmTitle}</Text>
-          <Text style={styles.confirmText}>{deletionConfirmText}</Text>
-          {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
-          <PressableScale
-            accessibilityRole="button"
-            disabled={deleteSheetBusy}
-            pressedScale={0.97}
-            haptic="medium"
-            onPress={() => void deleteData()}
-            style={styles.confirmActionWrap}
-            contentStyle={styles.confirmDelete}
-          >
-            {deleteSheetBusy ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
-            <Text style={styles.confirmDeleteText}>{deleteSheetBusy ? 'Șterg datele…' : deleteModalHadGoogle ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
-          </PressableScale>
-          <Pressable accessibilityRole="button" disabled={deleteSheetBusy} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
-            <Text style={styles.cancelText}>Păstrează datele</Text>
-          </Pressable>
+          {deleteComplete ? (
+            <>
+              <View style={styles.sheetMascotStage}>
+                <SpotlightAura size={96} tone="lime" active={deleteComplete} />
+                <Mascot pose="cheer" size={86} active={deleteComplete} />
+              </View>
+              <Chip label="ȘTERGERE ÎNCHEIATĂ" tone="lime" />
+              <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
+              <Text style={styles.confirmText}>
+                {externalDeletionPending
+                  ? 'Datele aplicației au fost șterse. Cererea de ștergere a profilului tehnic de plăți a fost înregistrată și necesită verificarea echipei de suport.'
+                  : 'Contul sau profilul anterior și datele asociate au fost șterse. Aplicația pornește acum cu un spațiu temporar nou, fără legătură cu identitatea ștearsă.'}
+              </Text>
+              <PressableScale
+                accessibilityRole="button"
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={() => {
+                  setConfirmDelete(false);
+                  setDeleteComplete(false);
+                  beginAppTransition();
+                  navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+                }}
+                style={styles.confirmActionWrap}
+                contentStyle={styles.successButton}
+              >
+                <Text style={styles.successButtonText}>Înapoi la început</Text>
+                <MiniGlyph name="next" size={18} color={colors.ink} />
+              </PressableScale>
+            </>
+          ) : (
+            <>
+              <View style={styles.sheetMascotStage}>
+                <SpotlightAura size={96} tone="rose" active={confirmDelete} />
+                <Mascot pose="oops" size={86} active={confirmDelete} />
+              </View>
+              <Chip label="ACȚIUNE DEFINITIVĂ" tone="roseSoft" />
+              <Text style={styles.confirmTitle}>{deletionConfirmTitle}</Text>
+              <Text style={styles.confirmText}>{deletionConfirmText}</Text>
+              {deleteError ? <Text accessibilityRole="alert" style={styles.confirmError}>Ștergerea nu a reușit. Verifică internetul și încearcă din nou.</Text> : null}
+              <PressableScale
+                accessibilityRole="button"
+                disabled={deleteSheetBusy}
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={() => void deleteData()}
+                style={styles.confirmActionWrap}
+                contentStyle={styles.confirmDelete}
+              >
+                {deleteSheetBusy ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
+                <Text style={styles.confirmDeleteText}>{deleteSheetBusy ? 'Șterg datele…' : deleteModalHadGoogle ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
+              </PressableScale>
+              <Pressable accessibilityRole="button" disabled={deleteSheetBusy} onPress={() => setConfirmDelete(false)} style={styles.cancel}>
+                <Text style={styles.cancelText}>Păstrează datele</Text>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
       </ComicSheetModal>
 
@@ -773,43 +811,6 @@ export function SettingsScreen({ navigation }: Props) {
           <Pressable accessibilityRole="button" disabled={logoutSheetBusy} onPress={() => setConfirmLogout(false)} style={styles.cancel}>
             <Text style={styles.cancelText}>Rămân conectat</Text>
           </Pressable>
-        </ScrollView>
-      </ComicSheetModal>
-
-      <ComicSheetModal
-        visible={deleteComplete}
-        dismissable={false}
-        alertRole
-        onClose={() => { setDeleteComplete(false); beginAppTransition(); navigation.popToTop(); }}
-      >
-        <ScrollView
-          bounces={false}
-          showsVerticalScrollIndicator={false}
-          style={styles.confirmScroll}
-          contentContainerStyle={styles.confirmSheetContent}
-        >
-          <View style={styles.sheetMascotStage}>
-            <SpotlightAura size={96} tone="lime" active={deleteComplete} />
-            <Mascot pose="cheer" size={86} active={deleteComplete} />
-          </View>
-          <Chip label="ȘTERGERE ÎNCHEIATĂ" tone="lime" />
-          <Text style={styles.confirmTitle}>Datele tale au fost șterse.</Text>
-          <Text style={styles.confirmText}>
-            {externalDeletionPending
-              ? 'Datele aplicației au fost șterse. Cererea de ștergere a profilului tehnic de plăți a fost înregistrată și necesită verificarea echipei de suport.'
-              : 'Contul sau profilul anterior și datele asociate au fost șterse. Aplicația pornește acum cu un spațiu temporar nou, fără legătură cu identitatea ștearsă.'}
-          </Text>
-          <PressableScale
-            accessibilityRole="button"
-            pressedScale={0.97}
-            haptic="medium"
-            onPress={() => { setDeleteComplete(false); beginAppTransition(); navigation.popToTop(); }}
-            style={styles.confirmActionWrap}
-            contentStyle={styles.successButton}
-          >
-            <Text style={styles.successButtonText}>Înapoi la început</Text>
-            <MiniGlyph name="next" size={18} color={colors.ink} />
-          </PressableScale>
         </ScrollView>
       </ComicSheetModal>
 
