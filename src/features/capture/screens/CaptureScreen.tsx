@@ -590,7 +590,7 @@ export function CaptureScreen({ navigation, route }: Props) {
         <View style={[styles.bottomChrome, { bottom: bottomSpace + 12, paddingHorizontal: gutter + 14 }]}>
           <View style={styles.captureGuide}>
             <View style={[styles.captureGuideDot, isCheck && styles.captureGuideDotCheck]} />
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.captureHint}>{isCheck ? 'Prinde enunțul și toți pașii' : 'Prinde tot exercițiul în cadru'}</Text>
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.captureHint}>{isCheck ? 'Prinde enunțul și rezolvarea ta' : 'Prinde tot enunțul în cadru'}</Text>
           </View>
           <View style={styles.controls}>
             <View style={styles.sideControl}>
@@ -681,7 +681,14 @@ export function CaptureScreen({ navigation, route }: Props) {
       {showHelp ? (
         <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 172 : 190) }, helpBubbleStyle]}>
           <View style={styles.helpIcon}><AppIcon name="hint" size={35} /></View>
-          <View style={styles.helpCopy}><Text style={styles.helpTitle}>Pentru o fotografie clară</Text><Text style={styles.helpText}>Ține telefonul paralel cu foaia, evită umbrele și include tot exercițiul.</Text></View>
+          <View style={styles.helpCopy}>
+            <Text style={styles.helpTitle}>Pentru o fotografie clară</Text>
+            <Text style={styles.helpText}>
+              {isCheck
+                ? 'Ține telefonul paralel cu foaia, evită umbrele și include atât enunțul, cât și rezolvarea ta.'
+                : 'Ține telefonul paralel cu foaia, evită umbrele și include tot enunțul exercițiului.'}
+            </Text>
+          </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Închide ajutorul" hitSlop={9} onPress={toggleHelp} style={styles.helpClose}><CloseGlyph /></Pressable>
         </Animated.View>
       ) : null}

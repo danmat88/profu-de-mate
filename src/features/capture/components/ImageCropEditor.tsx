@@ -523,11 +523,13 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
             <CloseGlyph />
           </IconButton>
           <View style={styles.headerCopy}>
-            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>Încadrează {isCheck ? 'rezolvarea' : 'problema'}</Text>
+            <Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={styles.headerTitle}>{isCheck ? 'Enunțul și rezolvarea' : 'Încadrează enunțul'}</Text>
             <View style={styles.headerSubtitleRow}>
               <View style={[styles.headerSubtitleDot, isCheck && styles.headerSubtitleDotCheck]} />
               <Text numberOfLines={1} maxFontSizeMultiplier={1.15} style={styles.headerSubtitle}>
-                Trage de colțuri ca să păstrezi doar exercițiul
+                {isCheck
+                  ? 'Păstrează în cadru atât enunțul, cât și pașii tăi'
+                  : 'Trage de colțuri ca să păstrezi doar exercițiul'}
               </Text>
             </View>
           </View>

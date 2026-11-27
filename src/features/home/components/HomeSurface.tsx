@@ -73,7 +73,7 @@ const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode
   {
     value: 'solve',
     label: 'Rezolvă',
-    subtitle: 'Pas cu pas',
+    subtitle: 'Explică pas cu pas',
     icon: 'camera',
     activeFill: colors.violet,
     activeGradient: ['#8E49FF', '#6520EC', '#4410B4'],
@@ -84,7 +84,7 @@ const modeOptions: readonly [SegmentedOption<FlowMode>, SegmentedOption<FlowMode
   {
     value: 'check',
     label: 'Verifică',
-    subtitle: 'Corectează pașii',
+    subtitle: 'Enunț + rezolvare',
     icon: 'verify',
     activeFill: '#E63876',
     activeGradient: ['#FF7B63', '#E63876', '#B5175B'],
@@ -112,15 +112,15 @@ const LAST_PROBLEM_MESSAGE: TutorMessage = {
 
 const SOLVE_CHEER_MESSAGES: readonly TutorMessage[] = [
   { title: 'Hai că poți!', body: 'Fiecare problemă devine clară pas cu pas.', compactBody: 'Clar, pas cu pas.', pose: 'cheer', tone: 'limeSoft' },
-  { title: 'E mai simplu decât pare!', body: 'Fă o poză sau scrie formula direct.', compactBody: 'Fă o poză sau scrie direct.', pose: 'point', tone: 'limeSoft' },
+  { title: 'E mai simplu decât pare!', body: 'Fă o poză sau scrie enunțul direct.', compactBody: 'Fă o poză sau scrie enunțul.', pose: 'point', tone: 'limeSoft' },
   { title: 'Sunt aici cu tine!', body: 'Îți explic pe înțeles, fără grabă.', compactBody: 'Îți explic simplu, fără grabă.', pose: 'wave', tone: 'paper' },
   { title: 'Nivel de campion!', body: 'Un exercițiu pe zi face diferența.', compactBody: 'Un exercițiu pe zi contează.', pose: 'cheer', tone: 'limeSoft' },
 ];
 
 const CHECK_CHEER_MESSAGES: readonly TutorMessage[] = [
   { title: 'Bravo că încerci întâi!', body: 'Așa înveți cel mai repede la mate.', compactBody: 'Așa înveți cel mai repede.', pose: 'cheer', tone: 'limeSoft' },
-  { title: 'Verificăm fără stres!', body: 'Îți arăt ce e bine și ce corectezi.', compactBody: 'Vezi ce e bine și ce corectezi.', pose: 'point', tone: 'peachSoft' },
-  { title: 'Fiecare pas contează!', body: 'Prinde enunțul și pașii tăi în cadru.', compactBody: 'Prinde enunțul și pașii tăi.', pose: 'wave', tone: 'peachSoft' },
+  { title: 'Verificăm fără stres!', body: 'Prinde enunțul și pașii tăi — vezi ce e bine.', compactBody: 'Enunțul și pașii tăi în cadru.', pose: 'point', tone: 'peachSoft' },
+  { title: 'Fiecare pas contează!', body: 'Prinde enunțul și rezolvarea ta în cadru.', compactBody: 'Prinde enunțul și rezolvarea.', pose: 'wave', tone: 'peachSoft' },
 ];
 
 const EXHAUSTED_FREE_MESSAGES: readonly TutorMessage[] = [
@@ -633,8 +633,8 @@ export const HomeSurface = memo(function HomeSurface({
       : quotaExhausted
         ? 'Revin la 00:00. Offline merge mereu.'
         : isSolve
-          ? 'Fă o poză sau scrie problema, pas cu pas.'
-          : 'Arată-mi rezolvarea ta, pas cu pas.');
+          ? 'Poză sau scrie enunțul — îți explic pas cu pas.'
+          : 'Prinde enunțul și pașii tăi — îți verific rezolvarea.');
 
   const compactGreetingBody = galleryError
     ?? activeCheer?.compactBody
@@ -643,8 +643,8 @@ export const HomeSurface = memo(function HomeSurface({
       : quotaExhausted
         ? 'Revin la 00:00. Offline e liber.'
         : isSolve
-          ? 'Fă o poză sau scrie formula.'
-          : 'Arată-mi rezolvarea ta.');
+          ? 'Poză sau scrie enunțul.'
+          : 'Prinde enunțul și pașii tăi.');
 
   const greetingBody = compact ? compactGreetingBody : fullGreetingBody;
 
@@ -951,7 +951,7 @@ export const HomeSurface = memo(function HomeSurface({
                       {hasPendingAnalysis
                         ? 'ANALIZĂ ÎN CURS'
                         : isSolve
-                          ? 'SCANNER AI · PAS CU PAS'
+                          ? 'REZOLVARE AI · PAS CU PAS'
                           : 'VERIFICARE AI · PAȘII TĂI'}
                     </Text>
                   </View>
@@ -960,25 +960,25 @@ export const HomeSurface = memo(function HomeSurface({
                     <View
                       pointerEvents="none"
                       style={[
-                        styles.hudFormulaChip,
-                        isCheckTheme && styles.hudFormulaChipCheck,
-                        hasPendingAnalysis && styles.hudFormulaChipPending,
+                        styles.hudScopeChip,
+                        isCheckTheme && styles.hudScopeChipCheck,
+                        hasPendingAnalysis && styles.hudScopeChipPending,
                       ]}
                     >
                       <Text
                         maxFontSizeMultiplier={1.1}
                         numberOfLines={1}
                         style={[
-                          styles.hudFormulaChipText,
-                          isCheckTheme && styles.hudFormulaChipTextCheck,
-                          hasPendingAnalysis && styles.hudFormulaChipTextPending,
+                          styles.hudScopeChipText,
+                          isCheckTheme && styles.hudScopeChipTextCheck,
+                          hasPendingAnalysis && styles.hudScopeChipTextPending,
                         ]}
                       >
                         {hasPendingAnalysis
-                          ? 'ACTIV'
+                          ? 'În fundal'
                           : isSolve
-                            ? 'x² − 5x + 6 = 0'
-                            : '2x + 3 = 11 ✓'}
+                            ? 'Doar enunțul'
+                            : 'Enunț + rezolvare'}
                       </Text>
                     </View>
                   ) : null}
@@ -1065,8 +1065,8 @@ export const HomeSurface = memo(function HomeSurface({
                       {hasPendingAnalysis
                         ? 'Analiză în curs'
                         : isSolve
-                          ? 'Fotografiază problema'
-                          : 'Fotografiază rezolvarea'}
+                          ? 'Fotografiază enunțul'
+                          : 'Enunțul și rezolvarea'}
                     </Text>
                     <Text
                       maxFontSizeMultiplier={1.3}
@@ -1078,8 +1078,8 @@ export const HomeSurface = memo(function HomeSurface({
                           ? (isSolve ? 'Exercițiul scris se rezolvă în fundal.' : 'Rezolvarea scrisă se verifică în fundal.')
                           : (isSolve ? 'Fotografia ta se analizează în fundal.' : 'Rezolvarea fotografiată se verifică în fundal.'))
                         : isSolve
-                          ? 'Încadrezi enunțul și primești rezolvarea clară.'
-                          : 'Vezi exact ce e bine și unde corectezi.'}
+                          ? 'Încadrezi enunțul clar și primești rezolvarea pas cu pas.'
+                          : 'Prinde atât problema, cât și pașii tăi, să îi verific.'}
                     </Text>
                   </View>
                 </View>
@@ -1263,10 +1263,10 @@ export const HomeSurface = memo(function HomeSurface({
                       {!compact ? (
                         <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.bentoFeatureNote}>
                           {showTrackSetupBanner
-                            ? 'EN & BAC pe nivelul tău'
+                            ? 'Formule, teste și simulări'
                             : wrongCount > 0
-                              ? 'Reia rapid la practică'
-                              : '5 exerciții de ritm'}
+                              ? 'Reia ce ai greșit'
+                              : '5 întrebări · offline'}
                         </Text>
                       ) : null}
                     </View>
@@ -1474,7 +1474,7 @@ export const HomeSurface = memo(function HomeSurface({
                       </Text>
                       {!compact ? (
                         <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                          {isSolve ? 'Din telefon' : 'Poză cu pașii'}
+                          {isSolve ? 'Poză cu enunțul' : 'Enunț + pașii tăi'}
                         </Text>
                       ) : null}
                     </View>
@@ -1516,7 +1516,7 @@ export const HomeSurface = memo(function HomeSurface({
                       </Text>
                       {!compact ? (
                         <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={styles.tileNote}>
-                          {isSolve ? 'Tastatură mate' : 'Soluția ta'}
+                          {isSolve ? 'Scrie enunțul' : 'Enunț + soluția ta'}
                         </Text>
                       ) : null}
                     </View>
@@ -1893,7 +1893,7 @@ const styles = StyleSheet.create({
   stageEyebrowPending: {
     color: '#9CFFD2',
   },
-  hudFormulaChip: {
+  hudScopeChip: {
     paddingHorizontal: 9,
     paddingVertical: 3.5,
     borderRadius: radii.pill,
@@ -1902,15 +1902,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.18)',
     flexShrink: 0,
   },
-  hudFormulaChipCheck: {
+  hudScopeChipCheck: {
     backgroundColor: 'rgba(255, 232, 240, 0.1)',
     borderColor: 'rgba(255, 194, 214, 0.22)',
   },
-  hudFormulaChipPending: {
+  hudScopeChipPending: {
     backgroundColor: 'rgba(67, 214, 230, 0.16)',
     borderColor: 'rgba(67, 214, 230, 0.38)',
   },
-  hudFormulaChipText: {
+  hudScopeChipText: {
     fontFamily: fonts.bodyBold,
     fontSize: 10.5,
     lineHeight: 13,
@@ -1918,10 +1918,10 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.92)',
     includeFontPadding: false,
   },
-  hudFormulaChipTextCheck: {
+  hudScopeChipTextCheck: {
     color: '#FFE799',
   },
-  hudFormulaChipTextPending: {
+  hudScopeChipTextPending: {
     color: '#9DF4FF',
   },
 
