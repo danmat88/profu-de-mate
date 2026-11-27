@@ -286,8 +286,14 @@ export async function purchasePremium(
   });
 }
 
-export async function restorePremium(): Promise<CommercialAccess> {
+export async function restorePremium(options: { purchaseUserId?: string } = {}): Promise<CommercialAccess> {
   const session = captureSession();
+  if (
+    options.purchaseUserId
+    && (!purchasesSdkConfigured || configuredUserId !== options.purchaseUserId || configuredSessionKey !== session.sessionKey)
+  ) {
+    await initializePurchases(options.purchaseUserId, session);
+  }
   beginBillingOperation();
   return withSdk(async () => {
     await requirePurchases(session);
@@ -301,8 +307,14 @@ export async function restorePremium(): Promise<CommercialAccess> {
   });
 }
 
-export async function getSubscriptionManagementUrl(): Promise<string | null> {
+export async function getSubscriptionManagementUrl(options: { purchaseUserId?: string } = {}): Promise<string | null> {
   const session = captureSession();
+  if (
+    options.purchaseUserId
+    && (!purchasesSdkConfigured || configuredUserId !== options.purchaseUserId || configuredSessionKey !== session.sessionKey)
+  ) {
+    await initializePurchases(options.purchaseUserId, session);
+  }
   return withSdk(async () => {
     await requirePurchases(session);
     const customerInfo = await withDeadline(Purchases.getCustomerInfo(), 12_000, 'Google Play nu răspunde. Încearcă din nou.');

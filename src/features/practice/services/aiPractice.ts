@@ -93,16 +93,39 @@ export function aiPayloadToPracticeQuestion(
 
 export function friendlyAiPracticeError(error: unknown): string {
   const code = error && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string'
-    ? (error as { code: string }).code
+    ? (error as { code: string }).code.toLocaleLowerCase('en-US')
     : '';
+  const message = error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
+    ? (error as { message: string }).message.toLocaleLowerCase('ro-RO')
+    : '';
+  if (message.includes('pauză tehnică')) {
+    return 'Profu’ AI este într-o scurtă pauză tehnică. Între timp poți exersa testele rapide offline.';
+  }
   if (code.includes('not-found') || code.includes('unimplemented')) {
     return 'Generatorul AI este în pregătire pe server. Între timp poți exersa nelimitat testele rapide offline!';
   }
-  if (code.includes('unavailable') || code.includes('deadline-exceeded') || code.includes('network')) {
-    return 'Conexiunea nu răspunde acum. Verifică internetul sau încearcă un test rapid offline.';
+  if (code.includes('app-check') || code.includes('permission-denied') || code.includes('unauthorized') || code.includes('failed-precondition')) {
+    return 'Nu am putut verifica această instalare. Repornește aplicația și încearcă din nou.';
   }
-  if (error instanceof Error && error.message.trim().length > 0 && error.message.length < 180) {
-    return error.message;
+  if (code.includes('unauthenticated')) {
+    return 'Sesiunea aplicației nu a pornit. Închide aplicația, apoi deschide-o din nou.';
+  }
+  if (code.includes('resource-exhausted')) {
+    return 'Ai atins limita temporară pentru generarea de exerciții AI. Încearcă din nou peste puțin timp sau folosește testele rapide offline.';
+  }
+  if (code.includes('aborted') || code.includes('already-exists')) {
+    return 'Exercițiul AI este încă în curs de generare. Așteaptă câteva secunde și încearcă din nou.';
+  }
+  if (code.includes('deadline-exceeded') || message.includes('timed out') || message.includes('timeout')) {
+    return 'Generarea a durat prea mult. Încearcă din nou sau folosește testele rapide offline.';
+  }
+  if (
+    code.includes('unavailable')
+    || code.includes('network')
+    || message.includes('network request failed')
+    || message.includes('failed to fetch')
+  ) {
+    return 'Conexiunea nu răspunde acum. Verifică internetul sau încearcă un test rapid offline.';
   }
   return 'Nu am putut genera exercițiul AI acum. Încearcă din nou sau folosește testele rapide.';
 }

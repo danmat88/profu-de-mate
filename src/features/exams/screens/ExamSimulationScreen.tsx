@@ -40,7 +40,7 @@ import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { StepTransitionStage } from '../../../shared/ui/StepTransitionStage';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { commercialGateFromError } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit } from '../../access/services/commercial';
 import { StudyInlineText } from '../../study/components/StudyInlineText';
 import { StudyBlocksView } from '../../study/components/StudyRichContent';
 import { prewarmStudyMath } from '../../study/utils/prewarmStudyMath';
@@ -502,6 +502,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       Keyboard.dismiss();
       Haptics.selection();
       if (examPaused) {
+        latestDraftRef.current.examPaused = false;
         setExamPaused(false);
       } else {
         if (pausedAtRef.current === null) pausedAtRef.current = Date.now();
@@ -628,12 +629,17 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
       setGradingBusy(false);
     } catch (error) {
       if (!mountedRef.current) return;
+      const wasBusy = latestDraftRef.current.gradingBusy;
       gradingLockRef.current = false;
+      latestDraftRef.current.gradingBusy = false;
       setGradingBusy(false);
+      if (!wasBusy) {
+        resumeTimerIfUnlocked();
+      }
       const gate = commercialGateFromError(error);
       if (gate) {
         if (gate.access) applyServerAccess(gate.access);
-        if (gate.reason === 'burst_limited') {
+        if (isTemporaryCommercialLimit(gate.reason)) {
           setGradingError(gate.message);
           Haptics.notification(Haptics.NotificationFeedbackType.Warning);
           return;
@@ -698,7 +704,10 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
 
     const score = computeExamScore(variant, scope, itemAwarded);
     const effectiveNow = pausedAtRef.current ?? Date.now();
-    const elapsedSeconds = Math.max(1, Math.floor((effectiveNow - (startedAtRef.current ?? effectiveNow)) / 1000));
+    const elapsedSeconds = Math.min(
+      totalSeconds,
+      Math.max(1, Math.floor((effectiveNow - (startedAtRef.current ?? effectiveNow)) / 1000)),
+    );
 
     const finalPauseCount = pauseCountRef.current;
 

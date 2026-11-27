@@ -349,6 +349,10 @@ function detailsFromError(error: unknown): { reason: string; access: CommercialA
     : null;
 }
 
+export function isTemporaryCommercialLimit(reason: string): boolean {
+  return reason === 'burst_limited' || reason === 'service_capacity';
+}
+
 export function commercialGateFromError(error: unknown): CommercialGateError | null {
   if (error instanceof CommercialGateError) return error;
   const parsed = detailsFromError(error);

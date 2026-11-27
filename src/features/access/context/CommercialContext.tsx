@@ -388,7 +388,7 @@ export function CommercialProvider({ children, initialAccess = null, initialVeri
           return settled.value;
         }
         const current = getAuth(getApp()).currentUser ?? user;
-        if (!accessRef.current && (!current || firebaseUserSessionKey(current) !== previousSessionKey)) {
+        if (!current || firebaseUserSessionKey(current) !== previousSessionKey) {
           syncAuthUiState(current);
           clearAccessForIdentityChange(refreshInFlight.current ? 'resolving' : 'unavailable');
         }

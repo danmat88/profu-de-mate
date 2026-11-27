@@ -578,15 +578,16 @@ export function LessonScreen({ navigation, route }: Props) {
 
   const openSummary = useCallback(() => {
     beginAppTransition();
+    const lessonSource = isFromNotebook ? 'notebook' as const : 'flow' as const;
     if (isFromNotebook) {
-      navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved });
+      navigation.replace('Summary', { lesson, lessonId: route.params.lessonId, isFavorite: saved, source: lessonSource });
       return;
     }
     navigation.reset({
       index: 1,
       routes: [
         { name: 'Home' },
-        { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved } },
+        { name: 'Summary', params: { lesson, lessonId: route.params.lessonId, isFavorite: saved, source: lessonSource } },
       ],
     });
   }, [isFromNotebook, lesson, navigation, route.params.lessonId, saved]);

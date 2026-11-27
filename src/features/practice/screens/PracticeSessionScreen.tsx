@@ -47,7 +47,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { StepTransitionStage } from '../../../shared/ui/StepTransitionStage';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { commercialGateFromError } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit } from '../../access/services/commercial';
 import { createAnalysisRequestId } from '../../analysis/services/mathAnalysis';
 import { NativeMathFormula } from '../../math/components/NativeMathFormula';
 import { StudyInlineText } from '../../study/components/StudyInlineText';
@@ -638,7 +638,7 @@ export function PracticeSessionScreen({ navigation, route }: Props) {
       const gate = commercialGateFromError(error);
       if (gate) {
         if (gate.access) applyServerAccess(gate.access);
-        if (gate.reason === 'burst_limited') {
+        if (isTemporaryCommercialLimit(gate.reason)) {
           setSimilarError(gate.message);
           Haptics.notification(Haptics.NotificationFeedbackType.Warning);
           return;

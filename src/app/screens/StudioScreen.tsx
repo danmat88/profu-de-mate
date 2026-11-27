@@ -6,6 +6,7 @@ import { Animated, BackHandler, Keyboard, StyleSheet, View } from 'react-native'
 import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import { useCommercial } from '../../features/access/context/CommercialContext';
 import { WelcomeOnboardingScreen } from '../../features/account/screens/WelcomeOnboardingScreen';
+import { getPreparedPendingAnalysis } from '../../features/analysis/services/pendingAnalysis';
 import { HomeMotionReadyContext } from '../../features/home/context/HomeMotionContext';
 import { HomeScreen } from '../../features/home/screens/HomeScreen';
 import { NotebookScreen } from '../../features/lessons/screens/NotebookScreen';
@@ -102,7 +103,7 @@ export function StudioScreen() {
   const reducedMotion = useReducedMotion();
   const motionReady = useContext(HomeMotionReadyContext);
   const { keyboardVisible } = useKeyboardHeight();
-  const { authSessionKey } = useCommercial();
+  const { authSessionKey, access, refresh: refreshAccess } = useCommercial();
   const profile = useStudyProfile();
   const practiceState = usePracticeState();
 
@@ -256,8 +257,23 @@ export function StudioScreen() {
   }, [showToast]);
   const handleQuickCapture = useCallback(() => {
     Keyboard.dismiss();
-    captureActionRef.current?.();
-  }, []);
+    if (captureActionRef.current) {
+      captureActionRef.current();
+      return;
+    }
+    const pending = getPreparedPendingAnalysis();
+    if (pending) {
+      if (pending.schemaVersion === 3) navigation.navigate('MathProcessing', { ...pending, origin: 'home' });
+      else navigation.navigate('Processing', { ...pending, origin: 'home' });
+      return;
+    }
+    selectTab('solve');
+    void refreshAccess();
+    showToast({
+      message: 'Verificăm accesul înainte să deschidem camera.',
+      tone: 'neutral',
+    });
+  }, [navigation, refreshAccess, selectTab, showToast]);
   const handleConfirmAgeEligibility = useCallback((group: AgeEligibilityGroup, track: StudyTrackId | null) => {
     saveAgeEligibilityConfirmation(group);
     if (track) {
@@ -305,7 +321,7 @@ export function StudioScreen() {
   return (
     <View style={styles.root}>
       {statusBarReady && screenFocused ? (
-        <StatusBar style="light" />
+        <StatusBar style={activeTab === 'solve' && !access ? 'dark' : 'light'} />
       ) : null}
       <View style={styles.contentStage}>
         <Animated.View

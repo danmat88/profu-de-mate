@@ -618,7 +618,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                     {viewingStart
                       ? 'Fără card bancar și fără abonament. Poți trece oricând la Pro sau Max când ai nevoie de mai multe acțiuni AI.'
                       : viewingLowerThanActive
-                        ? 'Planul tău Max include deja 150 de acțiuni AI/zi și raționament matematic extins. Modificările se fac din Google Play.'
+                        ? `Planul tău Max include deja ${maxCountLabel}/zi și raționament matematic extins. Modificările se fac din Google Play.`
                         : 'Abonamentul este legat de contul tău Google și se administrează direct din Google Play.'}
                   </Text>
                 </View>

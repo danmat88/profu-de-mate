@@ -31,7 +31,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
 import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { commercialGateFromError } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit } from '../../access/services/commercial';
 import { deleteTemporaryCapturedImages } from '../../capture/services/temporaryImages';
 import { recordDailyStudyActivity } from '../../practice/services/practiceStorage';
 import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
@@ -229,9 +229,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
   }, [focused, haloSpin, orbit, reducedMotion, sceneReady, screenState.kind]);
 
   useFocusEffect(useCallback(() => {
-    if (resumeAfterPaywall.current && commercialAccess?.canAnalyze) {
+    if (resumeAfterPaywall.current) {
       resumeAfterPaywall.current = false;
-      setRequestKey((value) => value + 1);
+      if (commercialAccess?.canAnalyze) {
+        setRequestKey((value) => value + 1);
+      }
     }
     return () => undefined;
   }, [commercialAccess?.canAnalyze]));
@@ -321,10 +323,14 @@ export function ProcessingScreen({ navigation, route }: Props) {
         // Preserve the request id after transport failures so retry first
         // looks up the server result instead of charging for a second request.
         const commercial = commercialGateFromError(error);
-        if (commercial) clearPendingAnalysis(route.params.requestId);
-        setScreenState(commercial
-          ? { kind: 'commercial', message: commercial.message, reason: commercial.reason, access: commercial.access }
-          : { kind: 'error', message: friendlyAnalysisError(error) });
+        if (commercial && !isTemporaryCommercialLimit(commercial.reason)) {
+          clearPendingAnalysis(route.params.requestId);
+          setScreenState({ kind: 'commercial', message: commercial.message, reason: commercial.reason, access: commercial.access });
+        } else if (commercial) {
+          setScreenState({ kind: 'error', message: commercial.message });
+        } else {
+          setScreenState({ kind: 'error', message: friendlyAnalysisError(error) });
+        }
       });
 
     return () => {
@@ -402,7 +408,11 @@ export function ProcessingScreen({ navigation, route }: Props) {
                 remaining={screenState.access?.remaining ?? commercialAccess?.remaining ?? 0}
                 limit={screenState.access?.limit ?? commercialAccess?.limit ?? 5}
                 premium={Boolean(screenState.access?.premium.active ?? commercialAccess?.premium.active)}
-                planName={(screenState.access?.premium.tier ?? commercialAccess?.premium.tier) === 'max' ? 'Max' : 'Pro'}
+                planName={
+                  (screenState.access?.premium.active ?? commercialAccess?.premium.active)
+                    ? ((screenState.access?.premium.tier ?? commercialAccess?.premium.tier) === 'max' ? 'Max' : 'Pro')
+                    : null
+                }
                 variant="hero"
                 active={focused}
                 style={styles.commercialTimer}

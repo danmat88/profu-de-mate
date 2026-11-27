@@ -24,7 +24,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { Text } from '../../../shared/ui/Typography';
 import { QuotaResetTimer } from '../../access/components/QuotaResetTimer';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { commercialGateFromError } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit } from '../../access/services/commercial';
 import { FeedbackSheet } from '../../feedback/components/FeedbackSheet';
 import { beginLessonPresentation, waitForLessonPresentation } from '../../lessons/services/lessonPresentation';
 import { MathExpression } from '../../math/components/MathEditor';
@@ -201,9 +201,14 @@ export function MathProcessingScreen({ route, navigation }: Props) {
         if (!active()) return;
         recordDiagnosticError('analysis_request', error);
         const gate = commercialGateFromError(error);
-        if (gate) clearPendingAnalysis(requestId);
-        setState(gate ? { kind: 'commercial', message: gate.message, access: gate.access }
-          : { kind: 'error', message: friendlyWrittenMathError(error), canEdit: String(error?.code).endsWith('/invalid-argument') });
+        if (gate && !isTemporaryCommercialLimit(gate.reason)) {
+          clearPendingAnalysis(requestId);
+          setState({ kind: 'commercial', message: gate.message, access: gate.access });
+        } else if (gate) {
+          setState({ kind: 'error', message: gate.message });
+        } else {
+          setState({ kind: 'error', message: friendlyWrittenMathError(error), canEdit: String(error?.code).endsWith('/invalid-argument') });
+        }
       });
     return () => { mounted = false; clearTimeout(timer); };
   }, [attempt, math, mode, navigation, origin, requestId, userId]);
@@ -339,7 +344,11 @@ export function MathProcessingScreen({ route, navigation }: Props) {
                   remaining={state.access?.remaining ?? commercialAccess?.remaining ?? 0}
                   limit={state.access?.limit ?? commercialAccess?.limit ?? 5}
                   premium={Boolean(state.access?.premium.active ?? commercialAccess?.premium.active)}
-                  planName={(state.access?.premium.tier ?? commercialAccess?.premium.tier) === 'max' ? 'Max' : 'Pro'}
+                  planName={
+                    (state.access?.premium.active ?? commercialAccess?.premium.active)
+                      ? ((state.access?.premium.tier ?? commercialAccess?.premium.tier) === 'max' ? 'Max' : 'Pro')
+                      : null
+                  }
                   variant="hero"
                   active={focused}
                 />

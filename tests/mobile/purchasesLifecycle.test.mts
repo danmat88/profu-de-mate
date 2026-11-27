@@ -30,7 +30,7 @@ function harness(overrides: Record<string, (...args: any[]) => unknown> = {}) {
     },
     restorePurchases: async () => { calls.push({ name: 'restore', value: customer }); return overrides.restorePurchases?.(); },
     getOfferings: async () => { calls.push({ name: 'offerings' }); return overrides.getOfferings?.() ?? { current: { monthly: { identifier: 'month' }, annual: { identifier: 'year' } } }; },
-    getCustomerInfo: async () => ({ managementURL: 'https://play.google.com/store/account/subscriptions' }),
+    getCustomerInfo: async () => overrides.getCustomerInfo?.() ?? ({ managementURL: 'https://play.google.com/store/account/subscriptions' }),
   };
   const load = serviceLoader({
     '@react-native-firebase/app': { getApp: () => ({}) },
@@ -385,4 +385,17 @@ test('upgrading from Pro to Max passes Android Google Play subscription replacem
   const purchaseCall = h.calls.find((call) => call.name === 'purchase') as { changeInfo?: { oldProductIdentifier?: string; replacementMode?: string } } | undefined;
   assert.equal(purchaseCall?.changeInfo?.oldProductIdentifier, 'profu_premium');
   assert.equal(purchaseCall?.changeInfo?.replacementMode, 'WITH_TIME_PRORATION');
+});
+
+test('restorePremium and getSubscriptionManagementUrl lazily initialize Purchases when given purchaseUserId after failed background init', async () => {
+  const h = harness({
+    getCustomerInfo: async () => ({ managementURL: 'https://play.google.com/store/account/subscriptions?sku=max' }),
+  });
+  // Never called initializePurchases beforehand (e.g. startup offline or Max user skipping offer fetch).
+  const url = await h.purchases.getSubscriptionManagementUrl({ purchaseUserId: h.id('a') });
+  assert.equal(url, 'https://play.google.com/store/account/subscriptions?sku=max');
+  const restored = await h.purchases.restorePremium({ purchaseUserId: h.id('a') });
+  assert.equal(restored.premium.active, true);
+  assert.equal(h.calls.filter((call) => call.name === 'configure').length, 1);
+  assert.equal(h.calls.filter((call) => call.name === 'restore').length, 1);
 });

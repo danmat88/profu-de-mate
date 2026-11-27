@@ -42,6 +42,7 @@ import { PressableScale } from '../../../shared/ui/PressableScale';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text, TextInput } from '../../../shared/ui/Typography';
 import { useCommercial } from '../../access/context/CommercialContext';
+import { getPreparedPendingAnalysis } from '../../analysis/services/pendingAnalysis';
 import { MistakeCard, MistakeExplanationSheet } from '../../practice/components/MistakeCard';
 import { removeWrongQuestion, usePracticeState } from '../../practice/services/practiceStorage';
 import type { PracticeQuestion } from '../../practice/types';
@@ -892,6 +893,12 @@ export function NotebookScreen({
     Keyboard.dismiss();
     openingNoteRef.current = true;
     beginAppTransition();
+    const pending = getPreparedPendingAnalysis();
+    if (pending) {
+      if (pending.schemaVersion === 3) navigation.navigate('MathProcessing', { ...pending, origin: 'home' });
+      else navigation.navigate('Processing', { ...pending, origin: 'home' });
+      return;
+    }
     navigation.navigate('Capture', { mode });
   }, [navigation]);
   const clearSearch = useCallback(() => setQueryText(''), []);
@@ -1362,33 +1369,18 @@ export function NotebookScreen({
     );
   }
 
-  if (loading && notes.length === 0) {
-    return (
-      <View style={styles.safe}>
-        <ComicBackdrop />
-        {renderCanopyHeader('camera', 'Rezolvă o problemă nouă', () => startMode('solve'))}
-        <NotebookLoading active={motionActive} />
-      </View>
-    );
-  }
-
-  if (notes.length === 0) {
-    return (
-      <View style={styles.safe}>
-        <ComicBackdrop />
-        {renderCanopyHeader('camera', 'Rezolvă o problemă nouă', () => startMode('solve'))}
-        <View style={[styles.flex, embedded && { paddingBottom: bottomClearance }]}>
-          <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.safe}>
       <ComicBackdrop />
       {renderCanopyHeader('camera', 'Rezolvă o problemă nouă', () => startMode('solve'))}
 
+      {loading && notes.length === 0 ? (
+        <NotebookLoading active={motionActive} />
+      ) : notes.length === 0 ? (
+        <View style={[styles.flex, embedded && { paddingBottom: bottomClearance }]}>
+          <FullNotebookState kind={loadError ? 'error' : 'empty'} active={motionActive} onPrimary={loadError ? retrySubscription : () => startMode('solve')} onSecondary={() => startMode('check')} />
+        </View>
+      ) : (
       <View style={[styles.flex, keyboardVisible && { paddingBottom: keyboardInset }]}>
         <Pressable
           accessible={false}
@@ -1594,6 +1586,7 @@ export function NotebookScreen({
           />
         </View>
       </View>
+      )}
 
       {pendingRemoval ? (
         <RemoveFromNotebookModal

@@ -240,7 +240,7 @@ export function QuotaResetTimer({
   if (!snapshot) return null;
 
   const progressPercent = `${Math.round(snapshot.dayProgress * 100)}%` as `${number}%`;
-  const paidPlanLabel = planName ?? (premium ? 'Pro' : 'Start');
+  const paidPlanLabel = premium ? (planName ?? 'Pro') : 'Start';
   const actionsCountText = formatRoCount(limit, 'acțiune AI', 'acțiuni AI');
   const compactSummary = snapshot.expired
     ? 'Se reîncarcă acțiunile AI…'

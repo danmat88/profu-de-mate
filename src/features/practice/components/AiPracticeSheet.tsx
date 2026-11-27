@@ -23,7 +23,7 @@ import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { formatRoCount } from '../../../shared/utils/romanianGrammar';
 import { useCommercial } from '../../access/context/CommercialContext';
-import { commercialGateFromError } from '../../access/services/commercial';
+import { commercialGateFromError, isTemporaryCommercialLimit } from '../../access/services/commercial';
 import { FORMULAS_CATALOG } from '../../study/data/formulasCatalog';
 import {
   FORMULA_CATEGORIES,
@@ -166,7 +166,7 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
       const gate = commercialGateFromError(error);
       if (gate) {
         if (gate.access) applyServerAccess(gate.access);
-        if (gate.reason === 'burst_limited') {
+        if (isTemporaryCommercialLimit(gate.reason)) {
           setErrorText(gate.message);
           Haptics.notification(Haptics.NotificationFeedbackType.Warning);
           return;

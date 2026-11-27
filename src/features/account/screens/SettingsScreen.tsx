@@ -503,7 +503,7 @@ export function SettingsScreen({ navigation }: Props) {
                         ? access.premium.tier === 'max'
                           ? 'Vezi limita de azi sau deschide abonamentul în Google Play.'
                           : 'Vezi limita de azi, treci la Profu’ Max sau administrează în Google Play.'
-                        : '50 sau 150 de acțiuni AI pe zi · Max include raționament extins.'}
+                        : `${access?.allowances.premiumDaily ?? 50} sau ${access?.allowances.maxDaily ?? 150} de acțiuni AI pe zi · Max include raționament extins.`}
                     </Text>
                   </View>
                   <MiniGlyph name="next" size={17} color={colors.violetDeep} />

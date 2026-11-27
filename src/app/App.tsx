@@ -52,6 +52,7 @@ import { clearPracticeLocalState } from '../features/practice/services/practiceS
 import { clearStudyLocalState } from '../features/study/services/studyStorage';
 import { stopStudyProgressSync } from '../features/study/services/studySync';
 import { registerTerminalSessionCleanup, resetFirebaseInitialization } from '../shared/services/firebase';
+import { hasConfirmedAgeEligibility } from '../shared/storage/localPreferences';
 import { preloadCriticalAppAssets } from './services/startupAssets';
 import { StartupError, type StartupSnapshot } from './services/startupBootstrap';
 import { currentStartupSession, prepareApplication } from './services/applicationStartup';
@@ -119,14 +120,15 @@ function SystemBarChrome({
 const AppExperience = memo(function AppExperience({ startup, interactive, revealReady, onReady }: { startup: AppStartup; interactive: boolean; revealReady: boolean; onReady: () => void }) {
   const { pendingAnalysis } = startup;
   const navigationRef = useNavigationContainerRef<RootStackParamList>();
-  const initialRoute: keyof RootStackParamList = startup.offline ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home';
+  const allowOfflineNotebook = startup.offline && hasConfirmedAgeEligibility();
+  const initialRoute: keyof RootStackParamList = allowOfflineNotebook ? 'Notebook' : pendingAnalysis?.schemaVersion === 3 ? 'MathProcessing' : pendingAnalysis ? 'Processing' : 'Home';
   const reducedMotion = useReducedMotion();
   const { authSessionKey } = useCommercial();
   const previousSessionKey = useRef(authSessionKey);
   const activePending = pendingAnalysis && getPreparedPendingAnalysis()?.requestId === pendingAnalysis.requestId ? pendingAnalysis : null;
   const initialState = useMemo(
-    () => (startup.offline ? { index: 1, routes: [{ name: 'Home' as const }, { name: 'Notebook' as const }] } : undefined),
-    [startup.offline],
+    () => (allowOfflineNotebook ? { index: 1, routes: [{ name: 'Home' as const }, { name: 'Notebook' as const }] } : undefined),
+    [allowOfflineNotebook],
   );
   const defaultScreenOptions = useMemo(() => ({
     headerShown: false,
@@ -304,7 +306,7 @@ function AppRoot() {
     try {
       await preloadCriticalAppAssets();
       const session = currentStartupSession();
-      if (!session) return;
+      if (!session || !hasConfirmedAgeEligibility()) return;
       setVisualsReady(true);
       setSplashIntroDone(false);
       setNavigationReady(false);
@@ -325,7 +327,7 @@ function AppRoot() {
       title={resourceFailure ? 'Aplicația nu este încă pregătită' : 'Nu putem verifica accesul'}
       message={resourceFailure ? 'Unele resurse ale aplicației nu s-au putut încărca. Încearcă din nou.' : 'Verifică conexiunea și reîncearcă. Vom deschide ecranul principal după confirmarea contului și a limitei de azi.'}
       onRetry={retryStartup}
-      onNotebook={currentStartupSession() ? () => void openNotebookOffline() : undefined}
+      onNotebook={currentStartupSession() && hasConfirmedAgeEligibility() ? () => void openNotebookOffline() : undefined}
     />;
   }
 

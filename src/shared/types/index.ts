@@ -220,7 +220,7 @@ export type RootStackParamList = {
   Review: { mode: FlowMode; image: CapturedImage };
   Processing: { mode: FlowMode; image: CapturedImage; requestId: string; userId: string; origin?: 'review' | 'home' };
   Lesson: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean; source?: 'flow' | 'notebook'; sourceImage?: CapturedImage };
-  Summary: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean };
+  Summary: { lesson: MathAnalysis; lessonId: string; isFavorite?: boolean; source?: 'flow' | 'notebook' };
   Formulas: { initialCategory?: StudyFormulaCategoryParam; initialFavoritesOnly?: boolean; showAllTracks?: boolean } | undefined;
   FormulaDetail: { formulaId: string; formulaIds?: readonly string[] };
   ExamGuide: { examId?: ExamGuideRouteId } | undefined;

@@ -36,6 +36,7 @@ function friendlyPurchaseError(error: unknown): string {
     || message.includes('disponibil')
     || message.includes('întârzie')
     || message.includes('finalizează deja')
+    || message.includes('nu este încă verificat')
     || message.includes('a înregistrat plata')
     || message.includes('Plata a fost înregistrată')) return message;
   return 'Nu am putut finaliza acțiunea. Verifică internetul și încearcă din nou.';
@@ -157,6 +158,7 @@ export function PaywallScreen({ navigation, route }: Props) {
       try {
         const connectedAccess = await connectGoogle();
         if (!connectedAccess || connectedAccess.identity !== 'google') {
+          setBusy(null);
           return;
         }
         effectiveAccess = connectedAccess;
@@ -166,25 +168,33 @@ export function PaywallScreen({ navigation, route }: Props) {
           setSuccessLimit(connectedAccess.limit);
           setSuccessTier(connectedTier);
           setSuccess(true);
+          setBusy(null);
           return;
         }
-        setBusy('purchase');
-        const identifiedOffer = await getPremiumOffer({ purchaseUserId: connectedAccess.purchaseUserId, force: true });
-        setOfferState({ status: 'ready', value: identifiedOffer });
-        const identifiedTierOffer = packagesForTier(identifiedOffer, targetTier);
-        planToBuy = identifiedTierOffer[selectedPlan] ?? identifiedTierOffer.annual ?? identifiedTierOffer.monthly;
       } catch (connectError) {
         if (!isGoogleSignInCancelledError(connectError)) {
           setError(friendlyGoogleConnectError(connectError));
         }
-        return;
-      } finally {
         setBusy(null);
+        return;
+      }
+
+      setBusy('purchase');
+      try {
+        const identifiedOffer = await getPremiumOffer({ purchaseUserId: effectiveAccess.purchaseUserId, force: true });
+        setOfferState({ status: 'ready', value: identifiedOffer });
+        const identifiedTierOffer = packagesForTier(identifiedOffer, targetTier);
+        planToBuy = identifiedTierOffer[selectedPlan] ?? identifiedTierOffer.annual ?? identifiedTierOffer.monthly;
+      } catch (offerError) {
+        setError(friendlyPurchaseError(offerError));
+        setBusy(null);
+        return;
       }
     }
 
     if (!planToBuy || !effectiveAccess) {
       setError(`Planul Profu’ ${targetTier === 'max' ? 'Max' : 'Pro'} nu este disponibil momentan în Google Play.`);
+      setBusy(null);
       return;
     }
 
@@ -209,12 +219,14 @@ export function PaywallScreen({ navigation, route }: Props) {
   const restore = async () => {
     if (activeBusy) return;
     setError(null);
+    let effectivePurchaseUserId = purchaseUserId;
     if (!googleLinked) {
       setAllowRouteAccessFallback(false);
       setBusy('google');
       try {
         const connectedAccess = await connectGoogle();
         if (!connectedAccess || connectedAccess.identity !== 'google') return;
+        effectivePurchaseUserId = connectedAccess.purchaseUserId;
         if (connectedAccess.premium.active) {
           setSuccessLimit(connectedAccess.limit);
           setSuccessTier(connectedAccess.premium.tier ?? 'pro');
@@ -234,7 +246,7 @@ export function PaywallScreen({ navigation, route }: Props) {
     setBusy('restore');
     try {
       const session = captureSession();
-      const next = await restorePremium();
+      const next = await restorePremium({ purchaseUserId: effectivePurchaseUserId });
       assertSessionActive(session);
       applyServerAccess(next);
       if (next.premium.active) {
@@ -255,9 +267,11 @@ export function PaywallScreen({ navigation, route }: Props) {
     if (activeBusy) return;
     setBusy('manage');
     setError(null);
+    const playSubscriptionsUrl = 'https://play.google.com/store/account/subscriptions';
     try {
-      const url = isPurchasesConfigured() ? await getSubscriptionManagementUrl() : 'https://play.google.com/store/account/subscriptions';
-      if (!url) throw new Error('Pagina abonamentului nu este disponibilă.');
+      const url = isPurchasesConfigured()
+        ? (await getSubscriptionManagementUrl({ purchaseUserId }).catch(() => null)) || playSubscriptionsUrl
+        : playSubscriptionsUrl;
       await Linking.openURL(url);
     } catch (manageError) {
       setError(friendlyPurchaseError(manageError));

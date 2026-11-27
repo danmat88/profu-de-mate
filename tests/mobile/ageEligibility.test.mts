@@ -56,6 +56,10 @@ test('WelcomeOnboardingScreen blocks Home exclusively until age eligibility is c
 
   assert.match(prefsSource, /age-eligibility-v1\.json/);
   assert.match(prefsSource, /if \(ageEligibilityFile\.exists\) ageEligibilityFile\.delete\(\);/);
+
+  const appSource = await readFile(new URL('../../src/app/App.tsx', import.meta.url), 'utf8');
+  assert.match(appSource, /currentStartupSession\(\) && hasConfirmedAgeEligibility\(\)/);
+  assert.match(appSource, /startup\.offline && hasConfirmedAgeEligibility\(\)/);
 });
 
 test('in-app LegalScreen and public web legal pages stay aligned on Romania 16+, GDPR rights, OpenAI transfers, and ANPC/ANSPDCP', async () => {

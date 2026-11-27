@@ -598,13 +598,13 @@ test('both guest and Premium receive fresh daily counters at Bucharest midnight'
     await Promise.all([
       previousGuestDaily.set({ principalId: guest.principalId, day: '2043-07-15', requests: 5 }),
       premiumEntitlement.set({ active: true, productId: 'test-premium' }),
-      previousDaily.set({ principalId: premium.principalId, day: '2043-07-15', requests: 30 }),
+      previousDaily.set({ principalId: premium.principalId, day: '2043-07-15', requests: 50 }),
     ]);
     assert.equal((await readCommercialAccess(db, quotaUser, premium, before)).remaining, 0);
     assert.equal((await readCommercialAccess(db, quotaUser, guest, before)).remaining, 0);
     const newPremium = await readCommercialAccess(db, quotaUser, premium, after);
     assert.equal(newPremium.tier, 'premium');
-    assert.equal(newPremium.remaining, 30);
+    assert.equal(newPremium.remaining, 50);
     const sameGuest = await readCommercialAccess(db, quotaUser, guest, after);
     assert.equal(sameGuest.remaining, 5);
     assert.equal(sameGuest.resetAt, '2043-07-16T21:00:00.000Z');

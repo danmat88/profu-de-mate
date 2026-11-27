@@ -14,7 +14,7 @@ const principal = (digit) => `g_${digit.repeat(64)}`;
 const profile = (id) => db.collection('_commercialUsers').doc(id);
 const entitlement = (id) => db.collection('_commercialEntitlements').doc(id);
 const queue = (id) => db.collection('_pendingRevenueCatDeletions').doc(id);
-const inactive = { active: false, productId: null, expiresAtMs: null };
+const inactive = { active: false, planTier: null, entitlementId: 'premium', productId: null, expiresAtMs: null };
 const customer = { subscriber: { entitlements: { premium: { expires_date: null, product_identifier: 'lifetime' } } } };
 
 test('legacy, recreated and currently absent customers are retained for review without any HTTP DELETE', async (t) => {

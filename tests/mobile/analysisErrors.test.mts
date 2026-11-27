@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { friendlyAnalysisError } from '../../src/features/analysis/utils/analysisErrors.ts';
 
@@ -22,4 +23,24 @@ test('does not expose an unexpected provider error message to the user', () => {
 
   assert.doesNotMatch(message, /provider|secret|upstream/i);
   assert.match(message, /Nu am putut analiza fotografia/i);
+});
+
+test('AI practice and exam grading error mappers never return raw error.message verbatim and exempt server-wide temporary limits from Paywall', async () => {
+  const [practiceSource, gradingSource, processingSource, mathProcessingSource, sheetSource, examSimSource] = await Promise.all([
+    readFile(new URL('../../src/features/practice/services/aiPractice.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/exams/services/examGrading.ts', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/analysis/screens/ProcessingScreen.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/analysis/screens/MathProcessingScreen.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/practice/components/AiPracticeSheet.tsx', import.meta.url), 'utf8'),
+    readFile(new URL('../../src/features/exams/screens/ExamSimulationScreen.tsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.doesNotMatch(practiceSource, /return error\.message;/);
+  assert.doesNotMatch(gradingSource, /return error\.message;/);
+  assert.match(practiceSource, /app-check/);
+  assert.match(gradingSource, /app-check/);
+
+  for (const screen of [processingSource, mathProcessingSource, sheetSource, examSimSource]) {
+    assert.match(screen, /isTemporaryCommercialLimit/);
+  }
 });

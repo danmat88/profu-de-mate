@@ -842,7 +842,7 @@ export const deleteMyData = onCall({
   timeoutSeconds: 120,
   maxInstances: 3,
   enforceAppCheck: ENFORCE_APP_CHECK,
-  secrets: [commercialIdentityHmacKey, ...(revenueCatSecrets ? [revenueCatSecrets.apiKey] : [])],
+  secrets: [commercialIdentityHmacKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sesiunea nu este validă.');
   const userId = request.auth.uid;

@@ -311,7 +311,7 @@ export function SummaryScreen({ navigation, route }: Props) {
       lesson,
       lessonId: route.params.lessonId,
       isFavorite: saved,
-      source: saved ? 'notebook' : 'flow',
+      source: route.params.source ?? (saved ? 'notebook' : 'flow'),
     });
   };
 

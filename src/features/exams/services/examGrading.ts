@@ -43,16 +43,42 @@ async function preparePhotoBase64(uri: string): Promise<string> {
 
 export function friendlyExamGradingError(error: unknown): string {
   const code = error && typeof error === 'object' && typeof (error as { code?: unknown }).code === 'string'
-    ? (error as { code: string }).code
+    ? (error as { code: string }).code.toLocaleLowerCase('en-US')
     : '';
+  const message = error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
+    ? (error as { message: string }).message.toLocaleLowerCase('ro-RO')
+    : '';
+  if (message.includes('pauză tehnică')) {
+    return 'Profu’ AI este într-o scurtă pauză tehnică. Poți folosi baremul oficial offline de mai jos.';
+  }
   if (code.includes('not-found') || code.includes('unimplemented')) {
     return 'Corectarea foto pe barem cu AI este în curs de activare pe server. Între timp poți folosi baremul oficial pas cu pas de mai jos!';
   }
-  if (code.includes('unavailable') || code.includes('deadline-exceeded') || code.includes('network')) {
-    return 'Conexiunea nu răspunde acum. Poți verifica rezolvarea folosind baremul oficial offline.';
+  if (code.includes('app-check') || code.includes('permission-denied') || code.includes('unauthorized') || code.includes('failed-precondition')) {
+    return 'Nu am putut verifica această instalare. Repornește aplicația și încearcă din nou.';
   }
-  if (error instanceof Error && error.message.trim().length > 0 && error.message.length < 180) {
-    return error.message;
+  if (code.includes('unauthenticated')) {
+    return 'Sesiunea aplicației nu a pornit. Închide aplicația, apoi deschide-o din nou.';
+  }
+  if (code.includes('resource-exhausted')) {
+    return 'Ai atins limita temporară pentru corectarea foto AI. Încearcă din nou peste puțin timp sau folosește baremul oficial.';
+  }
+  if (code.includes('aborted') || code.includes('already-exists')) {
+    return 'Fotografia este încă analizată. Așteaptă câteva secunde și încearcă din nou.';
+  }
+  if (code.includes('invalid-argument')) {
+    return 'Nu am putut citi fotografia rezolvării. Fotografiază din nou pagina completă, într-o lumină bună.';
+  }
+  if (code.includes('deadline-exceeded') || message.includes('timed out') || message.includes('timeout')) {
+    return 'Corectarea a durat prea mult. Încearcă din nou sau folosește baremul oficial offline.';
+  }
+  if (
+    code.includes('unavailable')
+    || code.includes('network')
+    || message.includes('network request failed')
+    || message.includes('failed to fetch')
+  ) {
+    return 'Conexiunea nu răspunde acum. Poți verifica rezolvarea folosind baremul oficial offline.';
   }
   return 'Nu am putut analiza fotografia acum. Încearcă o poză mai clară sau folosește baremul oficial.';
 }
