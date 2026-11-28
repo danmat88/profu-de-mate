@@ -20,6 +20,7 @@ import { getPreparedPendingAnalysis } from '../../analysis/services/pendingAnaly
 import { colors, fonts } from '../../../shared/theme';
 import type { CapturedImage, FlowMode } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
@@ -534,9 +535,9 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
             </View>
           </View>
           <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.headerBadgeWrap}>
-            <View pointerEvents="none" style={styles.headerBadgeShadow} />
+            <CachedOutsetShadow borderRadius={15} shadow={LIQUID_SHADOWS.darkOutset} />
             <View style={[styles.headerBadge, isCheck && styles.headerBadgeCheck]}>
-              <View pointerEvents="none" style={styles.toolShine} />
+              <CachedInsetRelief borderRadius={15} shadow={LIQUID_SHADOWS.darkInset} zIndex={1} />
               <AppIcon name="crop" size={28} />
             </View>
           </View>
@@ -640,10 +641,11 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 pressedScale={0.96}
                 haptic="selection"
                 onPress={() => void rotate()}
+                backdrop={<CachedOutsetShadow borderRadius={18} shadow={LIQUID_SHADOWS.darkOutset} />}
                 style={styles.toolPillWrap}
                 contentStyle={styles.toolPill}
               >
-                <View pointerEvents="none" style={styles.toolShine} />
+                <CachedInsetRelief borderRadius={18} shadow={LIQUID_SHADOWS.darkInset} zIndex={1} />
                 <AppIcon name="retake" size={24} />
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.2} style={styles.toolPillText}>
                   Rotește
@@ -658,10 +660,11 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 pressedScale={0.96}
                 haptic="selection"
                 onPress={resetCrop}
+                backdrop={<CachedOutsetShadow borderRadius={18} shadow={LIQUID_SHADOWS.darkOutset} />}
                 style={styles.toolPillWrap}
                 contentStyle={styles.toolPill}
               >
-                <View pointerEvents="none" style={styles.toolShine} />
+                <CachedInsetRelief borderRadius={18} shadow={LIQUID_SHADOWS.darkInset} zIndex={1} />
                 <AppIcon name="crop" size={24} />
                 <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85} maxFontSizeMultiplier={1.2} style={styles.toolPillText}>
                   Tot cadrul
@@ -677,6 +680,12 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
               pressedScale={0.97}
               haptic="medium"
               onPress={() => void applyCrop()}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={999}
+                  shadow={isCheck ? LIQUID_SHADOWS.peachOutset : LIQUID_SHADOWS.limeOutset}
+                />
+              }
               style={styles.applyWrap}
               contentStyle={[styles.applyButton, isLargeText && styles.buttonLargeText, isCheck && styles.applyButtonCheck]}
             >
@@ -688,7 +697,11 @@ export function ImageCropEditor({ image, mode, actionError, onCancel, onApply }:
                 end={{ x: 0.92, y: 1 }}
                 style={StyleSheet.absoluteFill}
               />
-              <View pointerEvents="none" style={styles.applyShine} />
+              <CachedInsetRelief
+                borderRadius={999}
+                shadow={isCheck ? LIQUID_SHADOWS.peachInset : LIQUID_SHADOWS.limeInset}
+                zIndex={1}
+              />
               <View style={styles.applyIcon}>
                 {busy ? <PlayfulLoader micro /> : <AppIcon name={isCheck ? 'verify' : 'scan'} size={28} />}
               </View>
@@ -726,19 +739,18 @@ const styles = StyleSheet.create({
   headerSubtitleDotCheck: { backgroundColor: colors.peach },
   headerSubtitle: { flexShrink: 1, fontFamily: fonts.bodyMedium, color: '#C6BEE0', fontSize: 11.5, lineHeight: 14, textAlign: 'center' },
   headerBadgeWrap: { width: 42, height: 42, position: 'relative', flexShrink: 0 },
-  headerBadgeShadow: { display: 'none' },
   headerBadge: {
     width: 42,
     height: 42,
     borderRadius: 15,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: 'rgba(196, 176, 255, 0.34)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.8)',
+    borderWidth: 1.25,
+    borderColor: 'rgba(196, 176, 255, 0.3)',
     backgroundColor: 'rgba(38, 28, 84, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   headerBadgeCheck: { borderColor: 'rgba(255,184,107,0.45)' },
   workspace: { flex: 1, minHeight: 260, overflow: 'hidden', backgroundColor: '#080516' },
@@ -833,10 +845,8 @@ const styles = StyleSheet.create({
   toolPill: {
     height: 46,
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: 'rgba(196, 176, 255, 0.32)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.82)',
+    borderWidth: 1.25,
+    borderColor: 'rgba(196, 176, 255, 0.28)',
     backgroundColor: 'rgba(38, 28, 84, 0.92)',
     flexDirection: 'row',
     alignItems: 'center',
@@ -844,25 +854,17 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 12,
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
-  toolShine: {
-    position: 'absolute',
-    top: 0,
-    left: 14,
-    right: 14,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  toolPillText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 17 },
+  toolPillText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 17, zIndex: 2 },
   applyWrap: { width: '100%' },
   applyButton: {
     width: '100%',
     minHeight: 58,
     borderRadius: 999,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     paddingHorizontal: 11,
     paddingVertical: 7,
     flexDirection: 'row',
@@ -871,28 +873,21 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   buttonLargeText: { minHeight: 64 },
-  applyButtonCheck: { borderColor: '#FFD4C2', borderBottomColor: '#B84426' },
-  applyShine: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-  },
+  applyButtonCheck: { borderColor: '#FFD6C4' },
   applyIcon: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
-  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 23, textAlign: 'center' },
+  applyText: { flex: 1, fontFamily: fonts.display, color: colors.ink, fontSize: 19.5, lineHeight: 23, textAlign: 'center', zIndex: 2 },
   applyArrow: {
     width: 36,
     height: 36,
@@ -901,5 +896,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
 });

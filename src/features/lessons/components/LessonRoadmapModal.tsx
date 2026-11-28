@@ -1,9 +1,16 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, typography } from '../../../shared/theme';
 import type { MathAnalysis } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -87,10 +94,6 @@ export function LessonRoadmapModal({
               const hasNote = item.note.length > 0;
               return (
                 <View key={`${index}-${item.title}`} style={styles.stepCardWrap}>
-                  <View
-                    pointerEvents="none"
-                    style={[styles.stepCardShadow, active && styles.stepCardShadowActive]}
-                  />
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Pasul ${index + 1}: ${item.title}`}
@@ -103,11 +106,19 @@ export function LessonRoadmapModal({
                     }}
                     style={({ pressed }) => [
                       styles.stepCard,
-                      active && styles.stepCardActive,
-                      completed && styles.stepCardDone,
                       pressed && styles.stepCardPressed,
                     ]}
                   >
+                    <CachedSurface
+                      borderRadius={20}
+                      backgroundColor={active ? '#FBF8FF' : completed ? '#F7FFF9' : '#FFFFFF'}
+                      shadow={active ? LIQUID_SHADOWS.cardOutsetSoft : LIQUID_SHADOWS.chipSurface}
+                      borderWidth={1.1}
+                      borderColor={active ? 'rgba(124, 60, 255, 0.5)' : completed ? 'rgba(14, 166, 127, 0.32)' : 'rgba(255, 255, 255, 0.94)'}
+                      padTop={3}
+                      padX={5}
+                      padBottom={8}
+                    />
                     <View
                       collapsable={false}
                       style={[
@@ -155,7 +166,7 @@ export function LessonRoadmapModal({
             })}
 
             <View style={styles.finaleWrap}>
-              <View pointerEvents="none" style={styles.finaleShadow} />
+              <CachedOutsetShadow borderRadius={22} shadow={LIQUID_SHADOWS.goldSoftOutset} padTop={3} padX={6} padBottom={10} />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Deschide răspunsul final și ideile cheie"
@@ -165,6 +176,13 @@ export function LessonRoadmapModal({
                 }}
                 style={({ pressed }) => [styles.finaleCard, pressed && styles.stepCardPressed]}
               >
+                <LinearGradient
+                  colors={['#FFFDF0', '#FFF1BC']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={22} shadow={LIQUID_SHADOWS.goldSoftInset} />
                 <View style={styles.finaleIcon}>
                   <AppIcon name="trophy" size={30} />
                 </View>
@@ -188,6 +206,7 @@ export function LessonRoadmapModal({
 }
 
 const styles = StyleSheet.create({
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   sheet: {
     paddingHorizontal: 16,
   },
@@ -198,20 +217,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
     borderRadius: 22,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.8,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFFFF',
   },
   bannerIcon: {
     width: 44,
     height: 44,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -245,12 +260,8 @@ const styles = StyleSheet.create({
   },
   bannerTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17, lineHeight: 21 },
 
-  listContent: { gap: 9, paddingBottom: 8 },
+  listContent: { gap: 10, paddingBottom: 12, paddingTop: 2 },
   stepCardWrap: { position: 'relative' },
-  stepCardShadow: {
-    display: 'none',
-  },
-  stepCardShadowActive: { display: 'none' },
   stepCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -258,23 +269,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 11,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
-  },
-  stepCardActive: {
-    borderWidth: 1.5,
-    borderBottomWidth: 3.8,
-    borderColor: colors.violet,
-    borderBottomColor: '#4E19C4',
-    backgroundColor: '#FBF8FF',
-  },
-  stepCardDone: {
-    borderColor: '#BDECC8',
-    borderBottomColor: '#7BCFA0',
-    backgroundColor: '#F7FFF9',
+    position: 'relative',
   },
   stepCardPressed: {
     transform: [{ scale: 0.985 }],
@@ -339,9 +334,6 @@ const styles = StyleSheet.create({
   stepTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 15, lineHeight: 19 },
 
   finaleWrap: { position: 'relative', marginTop: 4 },
-  finaleShadow: {
-    display: 'none',
-  },
   finaleCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -349,20 +341,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     borderRadius: 22,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#F5DF86',
-    borderBottomColor: '#CEA01B',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 224, 130, 0.9)',
     backgroundColor: '#FFF6C8',
+    overflow: 'hidden',
+    position: 'relative',
   },
   finaleIcon: {
     width: 42,
     height: 42,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#F6E5A6',
-    borderBottomColor: '#E0BE58',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 224, 130, 0.72)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -370,7 +360,7 @@ const styles = StyleSheet.create({
   finaleKicker: {
     ...typography.kicker,
     fontSize: 9.5,
-    color: colors.violetDeep,
+    color: colors.goldDeep,
     includeFontPadding: false,
   },
   finaleTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 16, lineHeight: 19 },
@@ -379,10 +369,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#ECFF8A',
-    borderBottomColor: '#8BB509',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',

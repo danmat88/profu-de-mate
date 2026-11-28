@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
 import { colors, fonts } from '../theme';
+import { CachedInsetRelief, LIQUID_SHADOWS } from './CachedRelief';
 import { Text } from './Typography';
 
 type DotProps = {
@@ -75,8 +77,7 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
       : String(stepNumber);
 
   const fill = active ? colors.violet : completed ? colors.mintSoft : '#FFFFFF';
-  const border = active ? colors.violet : completed ? '#AEEBC7' : '#E5DCFF';
-  const borderBottom = active ? '#3C12A8' : completed ? '#78CFA0' : '#CEC0F8';
+  const border = active ? 'rgba(255, 255, 255, 0.32)' : completed ? '#FFFFFF' : '#FFFFFF';
   const activeFlex = dense ? 1.85 : 2.35;
 
   return (
@@ -84,16 +85,28 @@ function StepPill({ index, total, active, completed, motionActive, reducedMotion
       collapsable={false}
       style={[
         styles.pill,
-        active && styles.pillActive,
         {
           flex: active ? activeFlex : 1,
           backgroundColor: fill,
           borderColor: border,
-          borderBottomColor: borderBottom,
           transform: [{ scaleX }, { scaleY }],
         },
       ]}
     >
+      {active ? (
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#9456FF', '#6D28F4', '#4B14C9']}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      <CachedInsetRelief
+        borderRadius={999}
+        shadow={active ? LIQUID_SHADOWS.violetInset : completed ? LIQUID_SHADOWS.mintSoftInset : LIQUID_SHADOWS.cardInsetSoft}
+        zIndex={0}
+      />
       <Text
         maxFontSizeMultiplier={1.1}
         numberOfLines={1}
@@ -174,16 +187,12 @@ const styles = StyleSheet.create({
   pill: {
     minHeight: 28,
     borderRadius: 999,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
+    borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
     overflow: 'hidden',
     position: 'relative',
-  },
-  pillActive: {
-    elevation: 2,
   },
   label: {
     fontFamily: fonts.bodyBold,
@@ -192,6 +201,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlignVertical: 'center',
     paddingHorizontal: 1,
+    zIndex: 2,
   },
   labelActive: {
     color: colors.paper,

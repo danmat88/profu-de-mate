@@ -1,8 +1,14 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { recordDiagnosticError } from '../../../shared/services/diagnostics';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, typography } from '../../../shared/theme';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -124,8 +130,24 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
                   pressedScale={0.975}
                   haptic="selection"
                   onPress={() => void submit(option.category)}
+                  backdrop={
+                    <CachedOutsetShadow
+                      borderRadius={20}
+                      shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                      padTop={3}
+                      padX={6}
+                      padBottom={10}
+                    />
+                  }
                   contentStyle={styles.option}
                 >
+                  <LinearGradient
+                    colors={['#FFFFFF', '#FBF8FF']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={20} shadow={LIQUID_SHADOWS.cardInsetSoft} />
                   <View style={[styles.optionNumber, { backgroundColor: badgeColors[index] }]}>
                     {sending === option.category
                       ? <PlayfulLoader micro />
@@ -150,30 +172,31 @@ export function FeedbackSheet({ visible, lessonId, requestId, onClose }: Props) 
 }
 
 const styles = StyleSheet.create({
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   sheet: {
     minHeight: 386,
     paddingHorizontal: 18,
   },
   sheetScroll: { flexShrink: 1 },
-  sheetContent: { paddingBottom: 4 },
+  sheetContent: { paddingBottom: 8 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   headerCopy: { flex: 1 },
   eyebrow: { ...typography.kicker, color: colors.violetDeep },
   title: { fontFamily: fonts.display, color: colors.ink, fontSize: 25, lineHeight: 29, marginTop: 2 },
-  options: { gap: 9 },
+  options: { gap: 10 },
   option: {
     minHeight: 68,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 13,
     paddingVertical: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   optionNumber: {
     width: 38,
@@ -190,10 +213,8 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',

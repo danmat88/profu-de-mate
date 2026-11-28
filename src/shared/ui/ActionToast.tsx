@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
 import { colors, fonts, radii } from '../theme';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from './CachedRelief';
 import { Text } from './Typography';
 
 export type ActionToastState = {
@@ -98,28 +100,45 @@ export const ActionToast = memo(function ActionToast({ toast, bottomOffset = 20 
     >
       <Animated.View
         accessibilityLiveRegion="polite"
-        style={[styles.pill, animStyle]}
+        style={[styles.pillWrap, animStyle]}
       >
-        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
-          <Text style={[styles.badgeText, { color: badgeFg }]}>{badgeGlyph}</Text>
+        <CachedOutsetShadow
+          borderRadius={radii.pill}
+          shadow={LIQUID_SHADOWS.darkOutset}
+          padTop={10}
+          padX={16}
+          padBottom={20}
+        />
+        <View style={styles.pill}>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['#3A1D7A', '#241152', '#170B38']}
+            start={{ x: 0.1, y: 0 }}
+            end={{ x: 0.9, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.darkInset} zIndex={1} />
+          <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+            <Text style={[styles.badgeText, { color: badgeFg }]}>{badgeGlyph}</Text>
+          </View>
+          <Text numberOfLines={2} style={styles.message}>
+            {rendered.message}
+          </Text>
+          {rendered.actionLabel && rendered.onAction ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={rendered.actionLabel}
+              hitSlop={8}
+              onPress={() => {
+                Haptics.selection();
+                rendered.onAction?.();
+              }}
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+            >
+              <Text style={styles.actionText}>{rendered.actionLabel}</Text>
+            </Pressable>
+          ) : null}
         </View>
-        <Text numberOfLines={2} style={styles.message}>
-          {rendered.message}
-        </Text>
-        {rendered.actionLabel && rendered.onAction ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={rendered.actionLabel}
-            hitSlop={8}
-            onPress={() => {
-              Haptics.selection();
-              rendered.onAction?.();
-            }}
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
-          >
-            <Text style={styles.actionText}>{rendered.actionLabel}</Text>
-          </Pressable>
-        ) : null}
       </Animated.View>
     </View>
   );
@@ -133,14 +152,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 60,
   },
-  pill: {
+  pillWrap: {
     maxWidth: 420,
+    position: 'relative',
+  },
+  pill: {
     minHeight: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.5,
-    borderColor: '#482898',
-    borderBottomColor: '#120829',
+    borderWidth: 1.2,
+    borderColor: 'rgba(196, 172, 255, 0.3)',
     backgroundColor: '#231347',
     paddingLeft: 10,
     paddingRight: 14,
@@ -148,6 +168,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   badge: {
     width: 26,
@@ -156,6 +179,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   badgeText: {
     fontFamily: fonts.display,
@@ -169,6 +193,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
     color: colors.paper,
+    zIndex: 2,
   },
   actionBtn: {
     paddingHorizontal: 11,
@@ -176,6 +201,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     backgroundColor: colors.lime,
     flexShrink: 0,
+    zIndex: 2,
   },
   actionText: {
     fontFamily: fonts.display,

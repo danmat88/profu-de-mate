@@ -13,7 +13,11 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
 import { colors, fonts } from '../theme';
 import { AppIcon } from './AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from './CachedRelief';
 import { Text } from './Typography';
+
+const CARD_ORB_INSET = 'inset 0 2px 3px rgba(255, 255, 255, 1), inset 0 -2.5px 4px rgba(102, 58, 214, 0.14)';
+const GOLD_ORB_INSET = 'inset 0 2px 3px rgba(255, 254, 240, 1), inset 0 -3px 5px rgba(212, 144, 0, 0.24)';
 
 type Props = {
   active: boolean;
@@ -229,6 +233,13 @@ export const FavoriteStarButton = memo(function FavoriteStarButton({
         </View>
       ) : null}
 
+      <CachedOutsetShadow
+        borderRadius={boxSize / 2}
+        shadow={isCanopy ? LIQUID_SHADOWS.canopyGlassOutset : active ? LIQUID_SHADOWS.goldSoftOutset : LIQUID_SHADOWS.cardOutsetSoft}
+        padTop={10}
+        padX={12}
+        padBottom={16}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
@@ -251,6 +262,11 @@ export const FavoriteStarButton = memo(function FavoriteStarButton({
           pressed && styles.pressed,
         ]}
       >
+        <CachedInsetRelief
+          borderRadius={boxSize / 2}
+          shadow={active ? GOLD_ORB_INSET : CARD_ORB_INSET}
+          zIndex={0}
+        />
         <Animated.View style={[styles.iconInner, iconTransformStyle]}>
           {icon === 'bookmark' ? (
             <AppIcon name="bookmark" size={isCanopy ? 22 : 18} />
@@ -304,39 +320,40 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#FAF7FF',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.2,
-    borderColor: '#E5DCFF',
+    borderColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   cardButtonActive: {
-    backgroundColor: colors.goldSoft,
-    borderColor: '#F3C538',
-    borderBottomWidth: 2.5,
-    borderBottomColor: '#E0A810',
+    backgroundColor: '#FFF4C8',
+    borderColor: '#FFE48E',
   },
   canopyButton: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    borderWidth: 1.4,
+    borderWidth: 1.2,
     borderColor: '#FFFFFF',
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#D6C4FA',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   canopyButtonActive: {
-    backgroundColor: colors.goldSoft,
+    backgroundColor: '#FFF4C8',
     borderColor: '#FFE58A',
-    borderBottomColor: '#E2A916',
   },
   iconInner: {
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   cardStarGlyph: {
     fontFamily: fonts.display,

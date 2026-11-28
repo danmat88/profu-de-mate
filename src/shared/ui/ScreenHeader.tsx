@@ -5,6 +5,7 @@ import { beginAppTransition } from '../context/TransitionMotionContext';
 import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import { colors, fonts, typography } from '../theme';
 import { AppIcon, type AppIconName } from './AppIcon';
+import { CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from './CachedRelief';
 import { IconButton } from './IconButton';
 import { MiniGlyph } from './MiniGlyph';
 import { Text } from './Typography';
@@ -64,7 +65,23 @@ export const ScreenHeader = memo(function ScreenHeader({
       ]}
     >
       {onBack ? (
-        <IconButton label="Înapoi" onPress={handleBack} disabled={backDisabled} dimWhenDisabled={false} dark={dark} size={buttonSize}>
+        <IconButton
+          label="Înapoi"
+          onPress={handleBack}
+          disabled={backDisabled}
+          dimWhenDisabled={false}
+          dark={dark}
+          size={buttonSize}
+          backdrop={(
+            <CachedOutsetShadow
+              borderRadius={badgeRadius}
+              shadow={dark ? LIQUID_SHADOWS.canopyGlassOutset : LIQUID_SHADOWS.cardOutsetSoft}
+              padTop={10}
+              padX={14}
+              padBottom={18}
+            />
+          )}
+        >
           <MiniGlyph name="back" size={compact && !isLargeText ? 21 : 23} color={color} />
         </IconButton>
       ) : null}
@@ -94,6 +111,15 @@ export const ScreenHeader = memo(function ScreenHeader({
           dark={dark}
           active={rightActive}
           size={buttonSize}
+          backdrop={(
+            <CachedOutsetShadow
+              borderRadius={badgeRadius}
+              shadow={dark ? LIQUID_SHADOWS.canopyGlassOutset : LIQUID_SHADOWS.cardOutsetSoft}
+              padTop={10}
+              padX={14}
+              padBottom={18}
+            />
+          )}
         >
           <AppIcon name={rightIcon} size={compact && !isLargeText ? 28 : 32} />
         </IconButton>
@@ -106,7 +132,17 @@ export const ScreenHeader = memo(function ScreenHeader({
             dark && styles.rightBadgeDark,
           ]}
         >
-          <AppIcon name={rightIcon} size={compact && !isLargeText ? 26 : 30} />
+          <CachedSurface
+            borderRadius={badgeRadius}
+            backgroundColor={dark ? 'rgba(255, 255, 255, 0.16)' : '#FFFFFF'}
+            shadow={dark ? LIQUID_SHADOWS.canopyGlassInset : LIQUID_SHADOWS.orbSurface}
+            padTop={8}
+            padX={10}
+            padBottom={14}
+          />
+          <View style={styles.rightBadgeFront}>
+            <AppIcon name={rightIcon} size={compact && !isLargeText ? 26 : 30} />
+          </View>
         </View>
       ) : (
         <View style={{ width: buttonSize }} />
@@ -143,15 +179,17 @@ const styles = StyleSheet.create({
   titleNarrow: { fontSize: 18, lineHeight: 22 },
   titleDark: { color: colors.paper },
   rightBadge: {
-    borderWidth: 1,
-    borderColor: 'rgba(124, 60, 255, 0.1)',
-    backgroundColor: 'rgba(124, 60, 255, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    position: 'relative',
   },
   rightBadgeDark: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderColor: 'rgba(255, 255, 255, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+  },
+  rightBadgeFront: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

@@ -9,6 +9,12 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { CommercialAccess, PaidPlanTier } from '../../../shared/types';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { IconButton } from '../../../shared/ui/IconButton';
@@ -97,10 +103,19 @@ function PeriodCard({
       }}
       style={({ pressed }) => [
         styles.periodCard,
-        selected && (viewingMax ? styles.periodCardSelectedMax : styles.periodCardSelected),
         pressed && styles.pressed,
       ]}
     >
+      <CachedSurface
+        borderRadius={20}
+        backgroundColor={selected ? (viewingMax ? '#F6F0FF' : '#F5EEFF') : '#FFFFFF'}
+        shadow={selected ? (viewingMax ? LIQUID_SHADOWS.goldSoftOutset : LIQUID_SHADOWS.cardOutsetSoft) : LIQUID_SHADOWS.chipSurface}
+        borderWidth={selected ? 1.5 : 1.1}
+        borderColor={selected ? (viewingMax ? colors.goldRich : colors.violet) : 'rgba(255, 255, 255, 0.94)'}
+        padTop={3}
+        padX={5}
+        padBottom={8}
+      />
       <View style={styles.periodTopRow}>
         <View style={styles.periodTitleWrap}>
           <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.periodTitle}>
@@ -341,6 +356,15 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             dimWhenDisabled={false}
             onPress={props.onClose}
             size={36}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={18}
+                shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                padTop={3}
+                padX={5}
+                padBottom={8}
+              />
+            }
             style={styles.closeBtn}
           >
             <MiniGlyph name="close" size={15} color={colors.violetDeep} />
@@ -388,16 +412,26 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
       >
         <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'} style={styles.bodyStack}>
           {success ? (
-            <View style={styles.successCard}>
-              <View style={styles.activeMark}>
-                <MiniGlyph name="check" size={28} color={colors.ink} />
+            <View style={styles.cardWrap}>
+              <CachedOutsetShadow borderRadius={24} shadow={LIQUID_SHADOWS.mintSoftOutset} />
+              <View style={styles.successCard}>
+                <LinearGradient
+                  colors={['#FFFFFF', '#F7FFE4']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={24} shadow={LIQUID_SHADOWS.mintSoftInset} />
+                <View style={styles.activeMark}>
+                  <MiniGlyph name="check" size={28} color={colors.ink} />
+                </View>
+                <Text style={styles.successTitle}>
+                  {successTier === 'max' ? 'Profu’ Max este activ!' : 'Profu’ Pro este activ!'}
+                </Text>
+                <Text style={styles.successBody}>
+                  Ai până la {successCountLabel} pe zi. Abonamentul este salvat în contul tău Google și se administrează din Google Play.
+                </Text>
               </View>
-              <Text style={styles.successTitle}>
-                {successTier === 'max' ? 'Profu’ Max este activ!' : 'Profu’ Pro este activ!'}
-              </Text>
-              <Text style={styles.successBody}>
-                Ai până la {successCountLabel} pe zi. Abonamentul este salvat în contul tău Google și se administrează din Google Play.
-              </Text>
             </View>
           ) : (
             <>
@@ -419,138 +453,168 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
               ) : null}
 
               {/* Balanced 3-plan segmented selector: Start | Pro | Max */}
-              <View accessibilityRole="tablist" accessibilityLabel="Alege planul Profu’" style={styles.tierTrack}>
-                {(
-                  [
-                    { id: 'start', name: 'Start', quota: `${freeLimit} / zi`, tag: activePlanTab === 'start' ? 'ACTIV' : 'GRATUIT' },
-                    { id: 'pro', name: 'Pro', quota: `${proLimit} / zi`, tag: activePlanTab === 'pro' ? 'ACTIV' : 'POPULAR' },
-                    { id: 'max', name: 'Max', quota: `${maxLimit} / zi`, tag: activePlanTab === 'max' ? 'ACTIV' : 'EXTINS' },
-                  ] as const
-                ).map((tab) => {
-                  const isSelected = selectedTab === tab.id;
-                  const isActivePlan = activePlanTab === tab.id;
-                  return (
-                    <Pressable
-                      key={tab.id}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: isSelected }}
-                      accessibilityLabel={`Planul Profu’ ${tab.name}, ${tab.quota}`}
-                      disabled={Boolean(busy)}
-                      onPress={() => {
-                        Haptics.selection();
-                        props.onSelectTab(tab.id);
-                      }}
-                      style={({ pressed }) => [
-                        styles.tierTab,
-                        isSelected && (
-                          tab.id === 'max'
-                            ? styles.tierTabActiveMax
-                            : tab.id === 'start'
-                              ? styles.tierTabActiveStart
-                              : styles.tierTabActivePro
-                        ),
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <View style={styles.tierTabTop}>
+              <View style={styles.cardWrap}>
+                <CachedOutsetShadow borderRadius={20} shadow={LIQUID_SHADOWS.trackOutset} padTop={3} padX={6} padBottom={10} />
+                <View accessibilityRole="tablist" accessibilityLabel="Alege planul Profu’" style={styles.tierTrack}>
+                  <CachedInsetRelief borderRadius={20} shadow={LIQUID_SHADOWS.trackRecess} />
+                  {(
+                    [
+                      { id: 'start', name: 'Start', quota: `${freeLimit} / zi`, tag: activePlanTab === 'start' ? 'ACTIV' : 'GRATUIT' },
+                      { id: 'pro', name: 'Pro', quota: `${proLimit} / zi`, tag: activePlanTab === 'pro' ? 'ACTIV' : 'POPULAR' },
+                      { id: 'max', name: 'Max', quota: `${maxLimit} / zi`, tag: activePlanTab === 'max' ? 'ACTIV' : 'EXTINS' },
+                    ] as const
+                  ).map((tab) => {
+                    const isSelected = selectedTab === tab.id;
+                    const isActivePlan = activePlanTab === tab.id;
+                    const tabBg = tab.id === 'max'
+                      ? '#2B0E8C'
+                      : tab.id === 'start'
+                        ? '#5B31DC'
+                        : colors.violet;
+                    return (
+                      <Pressable
+                        key={tab.id}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: isSelected }}
+                        accessibilityLabel={`Planul Profu’ ${tab.name}, ${tab.quota}`}
+                        disabled={Boolean(busy)}
+                        onPress={() => {
+                          Haptics.selection();
+                          props.onSelectTab(tab.id);
+                        }}
+                        style={({ pressed }) => [
+                          styles.tierTab,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        {isSelected ? (
+                          <CachedSurface
+                            borderRadius={16}
+                            backgroundColor={tabBg}
+                            shadow={tab.id === 'max' ? LIQUID_SHADOWS.darkOutset : LIQUID_SHADOWS.violetOutset}
+                            borderWidth={1}
+                            borderColor={tab.id === 'max' ? 'rgba(255, 212, 71, 0.55)' : 'rgba(255, 255, 255, 0.36)'}
+                            padTop={2}
+                            padX={4}
+                            padBottom={6}
+                          />
+                        ) : null}
+                        <View style={styles.tierTabTop}>
+                          <Text
+                            maxFontSizeMultiplier={1.12}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.82}
+                            style={[styles.tierTabName, isSelected && styles.tierTabNameActive]}
+                          >
+                            {tab.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.tierTag,
+                              isSelected && tab.id === 'pro' && styles.tierTagPro,
+                              isSelected && tab.id === 'max' && styles.tierTagMax,
+                              isSelected && tab.id === 'start' && styles.tierTagStart,
+                              !isSelected && isActivePlan && styles.tierTagCurrent,
+                            ]}
+                          >
+                            <Text
+                              maxFontSizeMultiplier={1.0}
+                              numberOfLines={1}
+                              style={[
+                                styles.tierTagText,
+                                isSelected && styles.tierTagTextActive,
+                              ]}
+                            >
+                              {tab.tag}
+                            </Text>
+                          </View>
+                        </View>
                         <Text
                           maxFontSizeMultiplier={1.12}
                           numberOfLines={1}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.82}
-                          style={[styles.tierTabName, isSelected && styles.tierTabNameActive]}
+                          style={[styles.tierTabMeta, isSelected && styles.tierTabMetaActive]}
                         >
-                          {tab.name}
+                          {tab.quota}
                         </Text>
-                        <View
-                          style={[
-                            styles.tierTag,
-                            isSelected && tab.id === 'pro' && styles.tierTagPro,
-                            isSelected && tab.id === 'max' && styles.tierTagMax,
-                            isSelected && tab.id === 'start' && styles.tierTagStart,
-                            !isSelected && isActivePlan && styles.tierTagCurrent,
-                          ]}
-                        >
-                          <Text
-                            maxFontSizeMultiplier={1.0}
-                            numberOfLines={1}
-                            style={[
-                              styles.tierTagText,
-                              isSelected && styles.tierTagTextActive,
-                            ]}
-                          >
-                            {tab.tag}
-                          </Text>
-                        </View>
-                      </View>
-                      <Text
-                        maxFontSizeMultiplier={1.12}
-                        numberOfLines={1}
-                        style={[styles.tierTabMeta, isSelected && styles.tierTabMetaActive]}
-                      >
-                        {tab.quota}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Fixed-structure 3-row spec card — identical height on Start, Pro, and Max */}
-              <View style={[styles.benefitsCard, viewingMax && styles.benefitsCardMax]}>
-                <View style={styles.benefitsHeader}>
-                  <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.benefitsHeading}>
-                    Profu’ {selectedTierLabel}
-                  </Text>
-                  <View style={[styles.specTag, selectedTab === activePlanTab && styles.specTagActive, viewingMax && selectedTab !== activePlanTab && styles.specTagMax]}>
-                    <Text
-                      maxFontSizeMultiplier={1.05}
-                      numberOfLines={1}
-                      style={[styles.specTagText, selectedTab === activePlanTab && styles.specTagTextActive]}
-                    >
-                      {specStatusTag}
+              <View style={styles.cardWrap}>
+                <CachedOutsetShadow
+                  borderRadius={22}
+                  shadow={viewingMax ? LIQUID_SHADOWS.goldSoftOutset : LIQUID_SHADOWS.cardOutset}
+                />
+                <View style={[styles.benefitsCard, viewingMax && styles.benefitsCardMax]}>
+                  <LinearGradient
+                    colors={viewingMax ? ['#FFFFFF', '#FAF5FF'] : ['#FFFFFF', '#FBF8FF']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief
+                    borderRadius={22}
+                    shadow={viewingMax ? LIQUID_SHADOWS.goldSoftInset : LIQUID_SHADOWS.cardInset}
+                  />
+                  <View style={styles.benefitsHeader}>
+                    <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.benefitsHeading}>
+                      Profu’ {selectedTierLabel}
                     </Text>
-                  </View>
-                </View>
-
-                <View style={styles.benefitsList}>
-                  {tierBenefits.map((item) => (
-                    <View key={`${selectedTab}-${item.badge}-${item.title}`} style={styles.benefitRow}>
-                      <View
-                        style={[
-                          styles.benefitBadge,
-                          item.tone === 'lime'
-                            ? styles.benefitBadgeLime
-                            : item.tone === 'gold'
-                              ? styles.benefitBadgeGold
-                              : item.tone === 'limeSoft'
-                                ? styles.benefitBadgeLimeSoft
-                                : styles.benefitBadgeViolet,
-                        ]}
+                    <View style={[styles.specTag, selectedTab === activePlanTab && styles.specTagActive, viewingMax && selectedTab !== activePlanTab && styles.specTagMax]}>
+                      <Text
+                        maxFontSizeMultiplier={1.05}
+                        numberOfLines={1}
+                        style={[styles.specTagText, selectedTab === activePlanTab && styles.specTagTextActive]}
                       >
-                        <Text
-                          maxFontSizeMultiplier={1.05}
-                          numberOfLines={1}
-                          adjustsFontSizeToFit
-                          minimumFontScale={0.78}
+                        {specStatusTag}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.benefitsList}>
+                    {tierBenefits.map((item) => (
+                      <View key={`${selectedTab}-${item.badge}-${item.title}`} style={styles.benefitRow}>
+                        <View
                           style={[
-                            styles.benefitBadgeText,
-                            item.tone === 'violet' && styles.benefitBadgeTextViolet,
-                            item.tone === 'limeSoft' && styles.benefitBadgeTextLimeSoft,
+                            styles.benefitBadge,
+                            item.tone === 'lime'
+                              ? styles.benefitBadgeLime
+                              : item.tone === 'gold'
+                                ? styles.benefitBadgeGold
+                                : item.tone === 'limeSoft'
+                                  ? styles.benefitBadgeLimeSoft
+                                  : styles.benefitBadgeViolet,
                           ]}
                         >
-                          {item.badge}
-                        </Text>
+                          <Text
+                            maxFontSizeMultiplier={1.05}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.78}
+                            style={[
+                              styles.benefitBadgeText,
+                              item.tone === 'violet' && styles.benefitBadgeTextViolet,
+                              item.tone === 'limeSoft' && styles.benefitBadgeTextLimeSoft,
+                            ]}
+                          >
+                            {item.badge}
+                          </Text>
+                        </View>
+                        <View style={styles.benefitCopy}>
+                          <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.benefitTitle}>
+                            {item.title}
+                          </Text>
+                          <Text maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.benefitDetail}>
+                            {item.detail}
+                          </Text>
+                        </View>
                       </View>
-                      <View style={styles.benefitCopy}>
-                        <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.benefitTitle}>
-                          {item.title}
-                        </Text>
-                        <Text maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.benefitDetail}>
-                          {item.detail}
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
+                    ))}
+                  </View>
                 </View>
               </View>
 
@@ -602,28 +666,44 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
                   ) : null}
                 </View>
               ) : (
-                <View style={[styles.planSummaryCard, viewingOwnActivePaidPlan && styles.planSummaryCardPaid]}>
-                  <View style={styles.planSummaryTop}>
-                    <Text maxFontSizeMultiplier={1.15} style={styles.planSummaryPrice}>
-                      {viewingStart
-                        ? '0 RON · Gratuit mereu'
-                        : viewingLowerThanActive
-                          ? 'Ai deja Profu’ Max activ'
-                          : `Profu’ ${selectedTierLabel} este activ`}
-                    </Text>
-                    <View style={styles.planSummaryPill}>
-                      <Text style={styles.planSummaryPillText}>
-                        {viewingStart ? (activePlanTab === 'start' ? 'ACTIV' : 'BAZĂ') : 'GOOGLE PLAY'}
+                <View style={styles.cardWrap}>
+                  <CachedOutsetShadow
+                    borderRadius={20}
+                    shadow={viewingOwnActivePaidPlan ? LIQUID_SHADOWS.mintSoftOutset : LIQUID_SHADOWS.cardOutsetSoft}
+                  />
+                  <View style={[styles.planSummaryCard, viewingOwnActivePaidPlan && styles.planSummaryCardPaid]}>
+                    <LinearGradient
+                      colors={viewingOwnActivePaidPlan ? ['#FAFFE6', '#EFFFBF'] : ['#FFFFFF', '#FBF8FF']}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={styles.fill}
+                    />
+                    <CachedInsetRelief
+                      borderRadius={20}
+                      shadow={viewingOwnActivePaidPlan ? LIQUID_SHADOWS.mintSoftInset : LIQUID_SHADOWS.cardInsetSoft}
+                    />
+                    <View style={styles.planSummaryTop}>
+                      <Text maxFontSizeMultiplier={1.15} style={styles.planSummaryPrice}>
+                        {viewingStart
+                          ? '0 RON · Gratuit mereu'
+                          : viewingLowerThanActive
+                            ? 'Ai deja Profu’ Max activ'
+                            : `Profu’ ${selectedTierLabel} este activ`}
                       </Text>
+                      <View style={styles.planSummaryPill}>
+                        <Text style={styles.planSummaryPillText}>
+                          {viewingStart ? (activePlanTab === 'start' ? 'ACTIV' : 'BAZĂ') : 'GOOGLE PLAY'}
+                        </Text>
+                      </View>
                     </View>
+                    <Text maxFontSizeMultiplier={1.15} style={styles.planSummaryNote}>
+                      {viewingStart
+                        ? 'Fără card bancar și fără abonament. Poți trece oricând la Pro sau Max când ai nevoie de mai multe acțiuni AI.'
+                        : viewingLowerThanActive
+                          ? `Planul tău Max include deja ${maxCountLabel}/zi și raționament matematic extins. Modificările se fac din Google Play.`
+                          : 'Abonamentul este legat de contul tău Google și se administrează direct din Google Play.'}
+                    </Text>
                   </View>
-                  <Text maxFontSizeMultiplier={1.15} style={styles.planSummaryNote}>
-                    {viewingStart
-                      ? 'Fără card bancar și fără abonament. Poți trece oricând la Pro sau Max când ai nevoie de mai multe acțiuni AI.'
-                      : viewingLowerThanActive
-                        ? `Planul tău Max include deja ${maxCountLabel}/zi și raționament matematic extins. Modificările se fac din Google Play.`
-                        : 'Abonamentul este legat de contul tău Google și se administrează direct din Google Play.'}
-                  </Text>
                 </View>
               )}
 
@@ -740,9 +820,12 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
             accessibilityLiveRegion="polite"
             style={[styles.busyDock, { bottom: Math.max(insets.bottom, 14) + 14 }]}
           >
-            <View style={styles.busyPill}>
-              <PlayfulLoader micro inverse />
-              <Text style={styles.busyPillText}>{busyLabel}</Text>
+            <View style={styles.busyPillWrap}>
+              <CachedOutsetShadow borderRadius={radii.pill} shadow={LIQUID_SHADOWS.darkOutset} padTop={4} padX={8} padBottom={12} />
+              <View style={styles.busyPill}>
+                <PlayfulLoader micro inverse />
+                <Text style={styles.busyPillText}>{busyLabel}</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -754,6 +837,7 @@ export const PremiumSurface = memo(function PremiumSurface(props: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  cardWrap: { position: 'relative' },
   scroll: { flex: 1 },
   lockOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 40 },
   busyDock: {
@@ -763,6 +847,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 45,
   },
+  busyPillWrap: { position: 'relative' },
   busyPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -774,7 +859,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(216, 255, 62, 0.35)',
     backgroundColor: colors.ink,
-    elevation: 6,
   },
   busyPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 18 },
 
@@ -787,34 +871,6 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     position: 'relative',
     zIndex: 4,
-  },
-  canopyGlowCyan: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    top: -100,
-    left: -55,
-    backgroundColor: 'rgba(67, 214, 230, 0.2)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    bottom: -95,
-    right: 10,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    top: -125,
-    right: -75,
   },
   header: {
     height: 46,
@@ -841,8 +897,8 @@ const styles = StyleSheet.create({
   brandBadgeTextMax: { color: colors.gold },
   closeBtn: {
     borderRadius: 18,
-    borderBottomWidth: 3,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
   },
   canopyStatusSlot: {
@@ -872,7 +928,7 @@ const styles = StyleSheet.create({
   },
 
   content: { paddingTop: 10, paddingBottom: 10 },
-  bodyStack: { gap: 9 },
+  bodyStack: { gap: 10 },
 
   // 3-tier segmented selector (Start | Pro | Max)
   tierTrack: {
@@ -880,9 +936,11 @@ const styles = StyleSheet.create({
     gap: 5,
     padding: 4,
     borderRadius: 20,
-    backgroundColor: '#ECE4FF',
+    backgroundColor: '#EFE8FF',
     borderWidth: 1,
-    borderColor: '#DDD2FA',
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    overflow: 'hidden',
+    position: 'relative',
   },
   tierTab: {
     flex: 1,
@@ -891,26 +949,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     justifyContent: 'center',
     gap: 2,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  tierTabActiveStart: {
-    backgroundColor: '#5B31DC',
-    borderColor: '#7F5AF8',
-    borderBottomWidth: 3,
-    borderBottomColor: '#3714A3',
-  },
-  tierTabActivePro: {
-    backgroundColor: colors.violet,
-    borderColor: '#8B52FF',
-    borderBottomWidth: 3,
-    borderBottomColor: '#4514BE',
-  },
-  tierTabActiveMax: {
-    backgroundColor: '#2B0E8C',
-    borderColor: '#6D3DFF',
-    borderBottomWidth: 3,
-    borderBottomColor: '#190657',
+    position: 'relative',
   },
   tierTabTop: {
     flexDirection: 'row',
@@ -956,18 +995,17 @@ const styles = StyleSheet.create({
   // Fixed 3-row spec card
   benefitsCard: {
     borderRadius: 22,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 13,
     paddingVertical: 11,
     gap: 9,
+    overflow: 'hidden',
+    position: 'relative',
   },
   benefitsCardMax: {
-    borderColor: '#D8C8FF',
-    borderBottomColor: '#B99CF7',
+    borderColor: 'rgba(255, 212, 71, 0.55)',
   },
   benefitsHeader: {
     flexDirection: 'row',
@@ -1058,26 +1096,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 10,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#D0C2F7',
-    backgroundColor: '#FFFFFF',
     justifyContent: 'space-between',
-  },
-  periodCardSelected: {
-    backgroundColor: '#F5EEFF',
-    borderWidth: 1.75,
-    borderBottomWidth: 3.8,
-    borderColor: colors.violet,
-    borderBottomColor: '#4E16CE',
-  },
-  periodCardSelectedMax: {
-    backgroundColor: '#F2ECFF',
-    borderWidth: 1.75,
-    borderBottomWidth: 3.8,
-    borderColor: '#3B11AD',
-    borderBottomColor: '#22096E',
+    position: 'relative',
   },
   periodTopRow: {
     flexDirection: 'row',
@@ -1161,20 +1181,18 @@ const styles = StyleSheet.create({
   planSummaryCard: {
     minHeight: 100,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#D0C2F7',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
     paddingVertical: 12,
     justifyContent: 'center',
     gap: 6,
+    overflow: 'hidden',
+    position: 'relative',
   },
   planSummaryCardPaid: {
-    backgroundColor: '#F5FFD2',
-    borderColor: '#DDF68E',
-    borderBottomColor: '#B1D63D',
+    borderColor: 'rgba(154, 206, 26, 0.45)',
   },
   planSummaryTop: {
     flexDirection: 'row',
@@ -1290,15 +1308,15 @@ const styles = StyleSheet.create({
 
   successCard: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DDF68E',
-    borderBottomColor: '#B1D63D',
+    borderWidth: 1.1,
+    borderColor: 'rgba(154, 206, 26, 0.45)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     paddingHorizontal: 18,
     paddingVertical: 24,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   activeMark: {
     width: 56,

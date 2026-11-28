@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
@@ -74,48 +76,68 @@ export const StudyTrackSheet = memo(function StudyTrackSheet({
     const counts = TRACK_COUNTS[track.id];
 
     return (
-      <Pressable
-        key={track.id}
-        accessibilityRole="radio"
-        accessibilityState={{ checked: active }}
-        onPress={() => {
-          Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-          onSelect(track.id);
-          onClose();
-        }}
-        style={({ pressed }) => [
-          styles.trackRow,
-          active && styles.trackRowActive,
-          pressed && styles.pressed,
-        ]}
-      >
-        <View style={[styles.trackRail, { backgroundColor: active ? colors.lime : tone.dot }]} />
-        <View style={styles.trackBody}>
-          <View style={styles.trackTop}>
-            <View style={[styles.eyebrowBadge, { backgroundColor: active ? 'rgba(255,255,255,0.16)' : tone.tint, flexShrink: 1 }]}>
-              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.trackEyebrow, { color: active ? colors.lime : tone.dot }]}>
-                {track.eyebrow}
-              </Text>
+      <View key={track.id} style={styles.trackRowWrap}>
+        <CachedOutsetShadow
+          borderRadius={22}
+          shadow={active ? LIQUID_SHADOWS.violetOutset : LIQUID_SHADOWS.cardOutsetSoft}
+          padTop={9}
+          padX={12}
+          padBottom={16}
+        />
+        <Pressable
+          accessibilityRole="radio"
+          accessibilityState={{ checked: active }}
+          onPress={() => {
+            Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+            onSelect(track.id);
+            onClose();
+          }}
+          style={({ pressed }) => [
+            styles.trackRow,
+            active && styles.trackRowActive,
+            pressed && styles.pressed,
+          ]}
+        >
+          <LinearGradient
+            pointerEvents="none"
+            colors={active ? ['#9254FF', '#6B24F0', '#4912C4'] : ['#FFFFFF', '#FBF8FF']}
+            start={{ x: 0.08, y: 0 }}
+            end={{ x: 0.92, y: 1 }}
+            style={styles.fill}
+          />
+          <CachedInsetRelief
+            borderRadius={21}
+            shadow={active ? LIQUID_SHADOWS.violetInset : LIQUID_SHADOWS.cardInsetSoft}
+            zIndex={1}
+          />
+          <View style={[styles.trackRail, { backgroundColor: active ? colors.lime : tone.dot }]} />
+          <View style={styles.trackBody}>
+            <View style={styles.trackTop}>
+              <View style={[styles.eyebrowBadge, { backgroundColor: active ? 'rgba(255,255,255,0.16)' : tone.tint, flexShrink: 1 }]}>
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.trackEyebrow, { color: active ? colors.lime : tone.dot }]}>
+                  {track.eyebrow}
+                </Text>
+              </View>
+              <View style={styles.trackTopRight}>
+                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.trackCountMeta, active && styles.trackCountMetaActive]}>
+                  {counts.formulas} fișe · {counts.questions} ex.
+                </Text>
+                {active ? (
+                  <View style={styles.activeCheck}>
+                    <MiniGlyph name="check" size={13} color={colors.ink} />
+                  </View>
+                ) : null}
+              </View>
             </View>
-            <View style={styles.trackTopRight}>
-              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={[styles.trackCountMeta, active && styles.trackCountMetaActive]}>
-                {counts.formulas} fișe · {counts.questions} ex.
-              </Text>
-              {active ? (
-                <View style={styles.activeCheck}>
-                  <MiniGlyph name="check" size={13} color={colors.ink} />
-                </View>
-              ) : null}
-            </View>
+            <Text style={[styles.trackLabel, active && styles.trackLabelActive]}>
+              {track.label}
+            </Text>
+            <Text style={[styles.trackDesc, active && styles.trackDescActive]}>
+              {track.description}
+            </Text>
           </View>
-          <Text style={[styles.trackLabel, active && styles.trackLabelActive]}>
-            {track.label}
-          </Text>
-          <Text style={[styles.trackDesc, active && styles.trackDescActive]}>
-            {track.description}
-          </Text>
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
     );
   };
 
@@ -123,7 +145,17 @@ export const StudyTrackSheet = memo(function StudyTrackSheet({
     <ComicBottomSheet visible={visible} onClose={onClose} maxHeight="86%">
       <View style={styles.header}>
         <View style={styles.headerIcon}>
-          <AppIcon name="class" size={28} />
+          <CachedSurface
+            borderRadius={15}
+            backgroundColor={colors.violetSoft}
+            shadow={LIQUID_SHADOWS.orbSurface}
+            padTop={7}
+            padX={9}
+            padBottom={12}
+          />
+          <View style={styles.frontLayer}>
+            <AppIcon name="class" size={28} />
+          </View>
         </View>
         <View style={styles.headerCopy}>
           <Text style={styles.eyebrow}>NIVELUL TĂU DE STUDIU</Text>
@@ -166,6 +198,8 @@ export const StudyTrackSheet = memo(function StudyTrackSheet({
 });
 
 const styles = StyleSheet.create({
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  frontLayer: { zIndex: 2, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -175,13 +209,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 15,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
-    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: {
@@ -200,10 +230,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
+    borderWidth: 1.2,
     borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -231,32 +259,36 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   groupList: {
-    gap: 9,
+    gap: 10,
+  },
+  trackRowWrap: {
+    position: 'relative',
   },
   trackRow: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.8,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   trackRowActive: {
-    borderColor: '#9158FF',
-    borderBottomColor: '#3C12A8',
+    borderColor: 'rgba(255, 255, 255, 0.34)',
     backgroundColor: colors.violet,
   },
   trackRail: {
     width: 5,
     alignSelf: 'stretch',
+    zIndex: 2,
   },
   trackBody: {
     flex: 1,
     minWidth: 0,
     paddingHorizontal: 14,
     paddingVertical: 11,
+    zIndex: 2,
   },
   trackTop: {
     flexDirection: 'row',

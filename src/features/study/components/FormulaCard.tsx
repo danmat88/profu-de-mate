@@ -1,7 +1,9 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii } from '../../../shared/theme';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
@@ -40,91 +42,133 @@ export const FormulaCard = memo(function FormulaCard({
   );
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${formula.title}. ${categoryMeta.shortLabel}. ${formula.formulaSpoken}`}
-      onPress={() => {
-        Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
-        onOpen(formula);
-      }}
-      style={({ pressed }) => [
-        styles.card,
-        pressed && styles.cardPressed,
-      ]}
-    >
-      <View style={[styles.rail, { backgroundColor: categoryMeta.accent }]} />
+    <View style={styles.cardWrap}>
+      <CachedOutsetShadow
+        borderRadius={24}
+        shadow={LIQUID_SHADOWS.cardOutsetSoft}
+        padTop={10}
+        padX={14}
+        padBottom={18}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${formula.title}. ${categoryMeta.shortLabel}. ${formula.formulaSpoken}`}
+        onPress={() => {
+          Haptics.impact(Haptics.ImpactFeedbackStyle.Light);
+          onOpen(formula);
+        }}
+        style={({ pressed }) => [
+          styles.card,
+          pressed && styles.cardPressed,
+        ]}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFFFF', '#FBF8FF']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.fill}
+        />
+        <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
+        <View style={[styles.rail, { backgroundColor: categoryMeta.accent }]} />
 
-      <View style={[styles.body, compact && styles.bodyCompact]}>
-        <View style={styles.metaRow}>
-          <View style={styles.metaLeft}>
-            <View style={[styles.catDot, { backgroundColor: categoryMeta.accent }]} />
-            <Text numberOfLines={1} style={styles.catLabel}>
-              {categoryMeta.shortLabel}
-            </Text>
-            {formula.examTag ? (
-              <View collapsable={false} style={styles.examBadge}>
-                <Text numberOfLines={1} style={styles.examBadgeText}>
-                  {formula.examTag}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
-          <FavoriteStarButton
-            active={isFavorite}
-            variant="card"
-            icon="star"
-            stopPropagation
-            accessibilityLabel={isFavorite ? `Scoate ${formula.title} din favorite` : `Adaugă ${formula.title} la favorite`}
-            onPress={() => onToggleFavorite(formula.id)}
-          />
-        </View>
-
-        <Text numberOfLines={2} style={[styles.title, compact && styles.titleCompact]}>
-          {formula.title}
-        </Text>
-
-        <View style={styles.previewBox}>
-          {renderedFormula ? (
-            <NativeMathFormula
-              rendered={renderedFormula}
-              size="card"
-              align="left"
-            />
-          ) : (
-            <Text numberOfLines={2} style={styles.previewText}>
-              {formula.preview}
-            </Text>
-          )}
-        </View>
-
-        {!compact ? (
-          <View style={styles.footer}>
-            <Text numberOfLines={1} style={styles.footerHint}>
-              {extraCount > 0
-                ? `+${extraCount} ${extraCount === 1 ? 'formulă' : 'formule'} · exemplu pas cu pas`
-                : 'Fișă completă + exemplu pas cu pas'}
-            </Text>
-            <View style={styles.openArrow}>
-              <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+        <View style={[styles.body, compact && styles.bodyCompact]}>
+          <View style={styles.metaRow}>
+            <View style={styles.metaLeft}>
+              <View style={[styles.catDot, { backgroundColor: categoryMeta.accent }]} />
+              <Text numberOfLines={1} style={styles.catLabel}>
+                {categoryMeta.shortLabel}
+              </Text>
+              {formula.examTag ? (
+                <View collapsable={false} style={styles.examBadge}>
+                  <Text numberOfLines={1} style={styles.examBadgeText}>
+                    {formula.examTag}
+                  </Text>
+                </View>
+              ) : null}
             </View>
+
+            <FavoriteStarButton
+              active={isFavorite}
+              variant="card"
+              icon="star"
+              stopPropagation
+              accessibilityLabel={isFavorite ? `Scoate ${formula.title} din favorite` : `Adaugă ${formula.title} la favorite`}
+              onPress={() => onToggleFavorite(formula.id)}
+            />
           </View>
-        ) : null}
-      </View>
-    </Pressable>
+
+          <Text numberOfLines={2} style={[styles.title, compact && styles.titleCompact]}>
+            {formula.title}
+          </Text>
+
+          <View style={styles.previewBox}>
+            {renderedFormula ? (
+              <NativeMathFormula
+                rendered={renderedFormula}
+                size="card"
+                align="left"
+              />
+            ) : (
+              <Text numberOfLines={2} style={styles.previewText}>
+                {formula.preview}
+              </Text>
+            )}
+          </View>
+
+          {!compact ? (
+            <View style={styles.footer}>
+              <Text numberOfLines={1} style={styles.footerHint}>
+                {extraCount > 0
+                  ? `+${extraCount} ${extraCount === 1 ? 'formulă' : 'formule'} · exemplu pas cu pas`
+                  : 'Fișă completă + exemplu pas cu pas'}
+              </Text>
+              <View style={styles.openArrow}>
+                <CachedSurface
+                  borderRadius={14}
+                  backgroundColor={colors.violetSoft}
+                  shadow={LIQUID_SHADOWS.orbSurface}
+                  padTop={5}
+                  padX={7}
+                  padBottom={9}
+                />
+                <View style={styles.frontLayer}>
+                  <MiniGlyph name="next" size={14} color={colors.violetDeep} />
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
+  cardWrap: {
+    position: 'relative',
+  },
+  fill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  frontLayer: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   cardPressed: {
     transform: [{ scale: 0.985 }],
@@ -133,6 +177,7 @@ const styles = StyleSheet.create({
   rail: {
     width: 4.5,
     alignSelf: 'stretch',
+    zIndex: 2,
   },
   body: {
     flex: 1,
@@ -140,6 +185,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 11,
+    zIndex: 2,
   },
   bodyCompact: {
     paddingVertical: 11,
@@ -203,11 +249,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
     minHeight: 40,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#ECE4FA',
-    borderBottomColor: '#DDD0FA',
-    backgroundColor: '#FAF8FF',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.11)',
+    backgroundColor: '#FAF7FF',
     paddingHorizontal: 12,
     paddingVertical: 9,
     justifyContent: 'center',
@@ -239,13 +283,9 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
-    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
     flexShrink: 0,
   },
 });

@@ -20,6 +20,12 @@ import {
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
@@ -267,6 +273,15 @@ export function ExamGuideScreen({ navigation, route }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={4}
+                  padX={6}
+                  padBottom={10}
+                />
+              }
               style={styles.canopyActionBtn}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
@@ -285,6 +300,16 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             </View>
 
             <View accessible={false} style={styles.canopyTrophyBadge}>
+              <CachedSurface
+                borderRadius={21}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbGoldSurface}
+                borderWidth={1.6}
+                borderColor={colors.gold}
+                padTop={4}
+                padX={6}
+                padBottom={9}
+              />
               <AppIcon name="trophy" size={24} />
             </View>
           </View>
@@ -320,10 +345,19 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                 onPress={() => selectExam(item.id)}
                 style={({ pressed }) => [
                   styles.examPill,
-                  active && styles.examPillActive,
                   pressed && styles.pressed,
                 ]}
               >
+                <CachedSurface
+                  borderRadius={radii.pill}
+                  backgroundColor={active ? colors.violet : '#FFFFFF'}
+                  shadow={active ? LIQUID_SHADOWS.violetOutset : LIQUID_SHADOWS.chipSurface}
+                  borderWidth={1.1}
+                  borderColor={active ? 'rgba(255, 255, 255, 0.36)' : 'rgba(255, 255, 255, 0.94)'}
+                  padTop={3}
+                  padX={5}
+                  padBottom={7}
+                />
                 <Text style={[styles.examPillText, active && styles.examPillTextActive]}>
                   {item.shortTitle}
                 </Text>
@@ -342,110 +376,148 @@ export function ExamGuideScreen({ navigation, route }: Props) {
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
         {/* Pure-white 3D porcelain structure & points breakdown studio card */}
-        <View style={styles.overviewCard}>
-          <View pointerEvents="none" style={styles.cardTopGloss} />
-
-          <Text style={styles.overviewTitle}>{guide.title}</Text>
-          <Text style={styles.overviewSubtitle}>{guide.subtitle}</Text>
-
-          <View style={styles.pointsBarWrap}>
-            <View style={styles.pointsBarTrack}>
-              <View style={[styles.pointsSeg, { flex: guide.officePoints, backgroundColor: SEGMENT_COLORS.office }]} />
-              <View style={[styles.pointsSeg, { flex: guide.subjects[0].points, backgroundColor: SEGMENT_COLORS.s1 }]} />
-              <View style={[styles.pointsSeg, { flex: guide.subjects[1].points, backgroundColor: SEGMENT_COLORS.s2 }]} />
-              <View style={[styles.pointsSeg, { flex: guide.subjects[2].points, backgroundColor: SEGMENT_COLORS.s3 }]} />
-            </View>
-            <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.office }]} />
-                <Text style={styles.legendText}>{guide.officePoints}p oficiu</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.s1 }]} />
-                <Text style={styles.legendText}>30p S.I</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.s2 }]} />
-                <Text style={styles.legendText}>30p S.II</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.s3 }]} />
-                <Text style={styles.legendText}>30p S.III</Text>
-              </View>
-            </View>
-          </View>
-
-          <StudyInlineText
-            text={guide.overviewNote}
-            scale={0.93}
-            color={colors.inkSoft}
-            textStyle={styles.heroOverview}
-            containerStyle={styles.heroOverviewWrap}
-            maxMathWidth={Math.max(210, boundedPageWidth - 38)}
-          />
-
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={primaryDraftMatches ? `Continuă simularea pentru ${guide.title}` : `Începe simularea completă pentru ${guide.title}`}
-            pressedScale={0.97}
-            haptic="medium"
-            onPress={handleLaunchSimulation}
-            contentStyle={styles.heroSimCta}
-          >
+        <View style={styles.cardWrap}>
+          <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
+          <View style={styles.overviewCard}>
             <LinearGradient
-              colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-              start={{ x: 0.08, y: 0 }}
-              end={{ x: 0.92, y: 1 }}
+              colors={['#FFFFFF', '#FBF8FF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
               style={styles.fill}
             />
-            <View pointerEvents="none" style={styles.ctaTopGloss} />
-            <View style={styles.ctaIconBadge}>
-              <AppIcon name="simulation" size={22} />
+            <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.cardInset} />
+
+            <Text style={styles.overviewTitle}>{guide.title}</Text>
+            <Text style={styles.overviewSubtitle}>{guide.subtitle}</Text>
+
+            <View style={styles.pointsBarWrap}>
+              <View style={styles.pointsBarTrack}>
+                <View style={[styles.pointsSeg, { flex: guide.officePoints, backgroundColor: SEGMENT_COLORS.office }]} />
+                <View style={[styles.pointsSeg, { flex: guide.subjects[0].points, backgroundColor: SEGMENT_COLORS.s1 }]} />
+                <View style={[styles.pointsSeg, { flex: guide.subjects[1].points, backgroundColor: SEGMENT_COLORS.s2 }]} />
+                <View style={[styles.pointsSeg, { flex: guide.subjects[2].points, backgroundColor: SEGMENT_COLORS.s3 }]} />
+              </View>
+              <View style={styles.legendRow}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.office }]} />
+                  <Text style={styles.legendText}>{guide.officePoints}p oficiu</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.s1 }]} />
+                  <Text style={styles.legendText}>30p S.I</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.s2 }]} />
+                  <Text style={styles.legendText}>30p S.II</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: SEGMENT_COLORS.s3 }]} />
+                  <Text style={styles.legendText}>30p S.III</Text>
+                </View>
+              </View>
             </View>
-            <Text numberOfLines={2} style={styles.heroSimCtaText}>
-              {primaryDraftMatches ? `Continuă simularea · ${guide.shortTitle}` : `Simulare completă · ${guide.shortTitle}`}
-            </Text>
-            <View style={styles.heroSimCtaArrow}>
-              <MiniGlyph name="next" size={15} color={colors.paper} />
-            </View>
-          </PressableScale>
+
+            <StudyInlineText
+              text={guide.overviewNote}
+              scale={0.93}
+              color={colors.inkSoft}
+              textStyle={styles.heroOverview}
+              containerStyle={styles.heroOverviewWrap}
+              maxMathWidth={Math.max(210, boundedPageWidth - 38)}
+            />
+
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={primaryDraftMatches ? `Continuă simularea pentru ${guide.title}` : `Începe simularea completă pentru ${guide.title}`}
+              pressedScale={0.97}
+              haptic="medium"
+              onPress={handleLaunchSimulation}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
+              contentStyle={styles.heroSimCta}
+            >
+              <LinearGradient
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
+              <View style={styles.ctaIconBadge}>
+                <AppIcon name="simulation" size={22} />
+              </View>
+              <Text numberOfLines={2} style={styles.heroSimCtaText}>
+                {primaryDraftMatches ? `Continuă simularea · ${guide.shortTitle}` : `Simulare completă · ${guide.shortTitle}`}
+              </Text>
+              <View style={styles.heroSimCtaArrow}>
+                <MiniGlyph name="next" size={15} color={colors.paper} />
+              </View>
+            </PressableScale>
+          </View>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: strategyOpen }}
-          onPress={() => {
-            Haptics.selection();
-            setStrategyOpen((value) => !value);
-          }}
-          style={({ pressed }) => [styles.strategyCard, pressed && styles.pressed]}
-        >
-          <View style={styles.strategyHeader}>
-            <View style={styles.strategyIcon}>
-              <AppIcon name="hint" size={24} />
+        <View style={styles.cardWrap}>
+          <CachedOutsetShadow borderRadius={24} shadow={LIQUID_SHADOWS.cardOutsetSoft} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: strategyOpen }}
+            onPress={() => {
+              Haptics.selection();
+              setStrategyOpen((value) => !value);
+            }}
+            style={({ pressed }) => [styles.strategyCard, pressed && styles.pressed]}
+          >
+            <LinearGradient
+              colors={['#FFFFFF', '#FBF8FF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={24} shadow={LIQUID_SHADOWS.cardInsetSoft} />
+            <View style={styles.strategyHeader}>
+              <View style={styles.strategyIcon}>
+                <CachedSurface
+                  borderRadius={15}
+                  backgroundColor={colors.goldSoft}
+                  shadow={LIQUID_SHADOWS.orbGoldSurface}
+                  borderWidth={1}
+                  borderColor="rgba(255, 255, 255, 0.92)"
+                  padTop={3}
+                  padX={4}
+                  padBottom={6}
+                />
+                <AppIcon name="hint" size={24} />
+              </View>
+              <View style={styles.strategyCopy}>
+                <Text style={styles.cardEyebrow}>PLANIFICARE ÎN SALĂ</Text>
+                <Text style={styles.cardTitle}>Strategia de timp ({guide.durationMinutes} min)</Text>
+              </View>
+              <View style={styles.chevronBadge}>
+                <Text style={styles.chevronText}>{strategyOpen ? '▴' : '▾'}</Text>
+              </View>
             </View>
-            <View style={styles.strategyCopy}>
-              <Text style={styles.cardEyebrow}>PLANIFICARE ÎN SALĂ</Text>
-              <Text style={styles.cardTitle}>Strategia de timp ({guide.durationMinutes} min)</Text>
-            </View>
-            <View style={styles.chevronBadge}>
-              <Text style={styles.chevronText}>{strategyOpen ? '▴' : '▾'}</Text>
-            </View>
-          </View>
 
-          {strategyOpen ? (
-            <View style={styles.strategyList}>
-              {guide.timeStrategy.map((tip, index) => (
-                <View key={tip} style={styles.tipRow}>
-                  <View style={styles.tipIndex}>
-                    <Text style={styles.tipIndexText}>{index + 1}</Text>
+            {strategyOpen ? (
+              <View style={styles.strategyList}>
+                {guide.timeStrategy.map((tip, index) => (
+                  <View key={tip} style={styles.tipRow}>
+                    <View style={styles.tipIndex}>
+                      <Text style={styles.tipIndexText}>{index + 1}</Text>
+                    </View>
+                    <Text style={styles.tipText}>{tip}</Text>
                   </View>
-                  <Text style={styles.tipText}>{tip}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
 
         <View style={styles.subjectSection}>
           <Text style={styles.sectionKicker}>EXPLOREAZĂ SUBIECTELE</Text>
@@ -462,101 +534,130 @@ export function ExamGuideScreen({ navigation, route }: Props) {
           animate={subjectTransition.animate}
           style={styles.subjectStage}
         >
-        <View style={styles.detailCard}>
-          <View style={styles.detailMetaRow}>
-            <View style={styles.formatPill}>
-              <Text style={styles.formatPillText}>{subject.formatLabel}</Text>
-            </View>
-            <View style={styles.timePill}>
-              <Text style={styles.timePillText}>⏱ ~{subject.recommendedMinutes} min</Text>
-            </View>
-          </View>
-
-          <Text style={styles.detailTitle}>{subject.label}</Text>
-          <Text style={styles.detailSummary}>{subject.summary}</Text>
-
-          <Text style={styles.subHeading}>Ce pică cel mai des</Text>
-          <View style={styles.topicChipGrid}>
-            {subject.frequentTopics.map((topic) => (
-              <View key={topic} style={styles.topicChip}>
-                <Text style={styles.topicChipText}>{topic}</Text>
+        <View style={styles.cardWrap}>
+          <CachedOutsetShadow borderRadius={24} shadow={LIQUID_SHADOWS.cardOutsetSoft} />
+          <View style={styles.detailCard}>
+            <LinearGradient
+              colors={['#FFFFFF', '#FBF8FF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={24} shadow={LIQUID_SHADOWS.cardInsetSoft} />
+            <View style={styles.detailMetaRow}>
+              <View style={styles.formatPill}>
+                <Text style={styles.formatPillText}>{subject.formatLabel}</Text>
               </View>
-            ))}
-          </View>
-
-          <Text style={styles.subHeading}>Cum punctează baremul</Text>
-          <View style={styles.tipsStack}>
-            {subject.gradingTips.map((tip) => (
-              <View key={tip} style={styles.gradingTipRow}>
-                <View style={styles.checkDot}>
-                  <MiniGlyph name="check" size={11} color={colors.ink} />
-                </View>
-                <View style={styles.flexOne}>
-                  <StudyInlineText
-                    text={tip}
-                    scale={0.93}
-                    color={colors.ink}
-                    textStyle={styles.gradingTipText}
-                    maxMathWidth={Math.max(180, boundedPageWidth - 72)}
-                  />
-                </View>
+              <View style={styles.timePill}>
+                <Text style={styles.timePillText}>⏱ ~{subject.recommendedMinutes} min</Text>
               </View>
-            ))}
+            </View>
+
+            <Text style={styles.detailTitle}>{subject.label}</Text>
+            <Text style={styles.detailSummary}>{subject.summary}</Text>
+
+            <Text style={styles.subHeading}>Ce pică cel mai des</Text>
+            <View style={styles.topicChipGrid}>
+              {subject.frequentTopics.map((topic) => (
+                <View key={topic} style={styles.topicChip}>
+                  <Text style={styles.topicChipText}>{topic}</Text>
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.subHeading}>Cum punctează baremul</Text>
+            <View style={styles.tipsStack}>
+              {subject.gradingTips.map((tip) => (
+                <View key={tip} style={styles.gradingTipRow}>
+                  <View style={styles.checkDot}>
+                    <MiniGlyph name="check" size={11} color={colors.ink} />
+                  </View>
+                  <View style={styles.flexOne}>
+                    <StudyInlineText
+                      text={tip}
+                      scale={0.93}
+                      color={colors.ink}
+                      textStyle={styles.gradingTipText}
+                      maxMathWidth={Math.max(180, boundedPageWidth - 72)}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
         </View>
 
-        <View style={styles.modelCard}>
-          <View style={styles.modelTopRow}>
-            <View style={styles.modelBadge}>
-              <Text style={styles.modelBadgeText}>✦ MODEL PE BAREM</Text>
-            </View>
-            <Text style={styles.modelPointsCount}>{subject.rubricBreakdown.length} {subject.rubricBreakdown.length === 1 ? 'criteriu' : 'criterii'}</Text>
-          </View>
-
-          <Text style={styles.modelTitle}>{subject.modelTitle}</Text>
-
-          <View style={styles.rubricPreviewRow}>
-            {subject.rubricBreakdown.map((item) => (
-              <View key={`${item.points}-${item.step}`} style={styles.rubricPill}>
-                <Text style={styles.rubricPillPoints}>{item.points}</Text>
-                <View style={styles.flexOne}>
-                  <StudyInlineText
-                    text={item.step}
-                    scale={0.9}
-                    color={colors.ink}
-                    textStyle={styles.rubricPillStep}
-                    maxMathWidth={Math.max(170, boundedPageWidth - 96)}
-                  />
-                </View>
-              </View>
-            ))}
-          </View>
-
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`Deschide modelul rezolvat: ${subject.modelTitle}`}
-            pressedScale={0.97}
-            haptic="medium"
-            onPress={openModelSheet}
-            contentStyle={styles.modelCta}
-          >
+        <View style={styles.cardWrap}>
+          <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
+          <View style={styles.modelCard}>
             <LinearGradient
-              colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-              start={{ x: 0.08, y: 0 }}
-              end={{ x: 0.92, y: 1 }}
+              colors={['#FAF7FF', '#F0E6FF']}
+              start={{ x: 0.2, y: 0 }}
+              end={{ x: 0.8, y: 1 }}
               style={styles.fill}
             />
-            <View pointerEvents="none" style={styles.ctaTopGloss} />
-            <View style={styles.ctaIconBadge}>
-              <AppIcon name="explain" size={22} />
+            <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.cardInset} />
+            <View style={styles.modelTopRow}>
+              <View style={styles.modelBadge}>
+                <Text style={styles.modelBadgeText}>✦ MODEL PE BAREM</Text>
+              </View>
+              <Text style={styles.modelPointsCount}>{subject.rubricBreakdown.length} {subject.rubricBreakdown.length === 1 ? 'criteriu' : 'criterii'}</Text>
             </View>
-            <Text numberOfLines={2} style={styles.modelCtaText}>
-              Vezi modelul rezolvat pe barem
-            </Text>
-            <View style={styles.modelCtaArrow}>
-              <MiniGlyph name="next" size={15} color={colors.paper} />
+
+            <Text style={styles.modelTitle}>{subject.modelTitle}</Text>
+
+            <View style={styles.rubricPreviewRow}>
+              {subject.rubricBreakdown.map((item) => (
+                <View key={`${item.points}-${item.step}`} style={styles.rubricPill}>
+                  <Text style={styles.rubricPillPoints}>{item.points}</Text>
+                  <View style={styles.flexOne}>
+                    <StudyInlineText
+                      text={item.step}
+                      scale={0.9}
+                      color={colors.ink}
+                      textStyle={styles.rubricPillStep}
+                      maxMathWidth={Math.max(170, boundedPageWidth - 96)}
+                    />
+                  </View>
+                </View>
+              ))}
             </View>
-          </PressableScale>
+
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={`Deschide modelul rezolvat: ${subject.modelTitle}`}
+              pressedScale={0.97}
+              haptic="medium"
+              onPress={openModelSheet}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
+              contentStyle={styles.modelCta}
+            >
+              <LinearGradient
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
+              <View style={styles.ctaIconBadge}>
+                <AppIcon name="explain" size={22} />
+              </View>
+              <Text numberOfLines={2} style={styles.modelCtaText}>
+                Vezi modelul rezolvat pe barem
+              </Text>
+              <View style={styles.modelCtaArrow}>
+                <MiniGlyph name="next" size={15} color={colors.paper} />
+              </View>
+            </PressableScale>
+          </View>
         </View>
 
         {relatedFormulas.length > 0 ? (
@@ -573,6 +674,16 @@ export function ExamGuideScreen({ navigation, route }: Props) {
                     onPress={() => openFormula(formula.id)}
                     style={({ pressed }) => [styles.miniFormulaRow, pressed && styles.pressed]}
                   >
+                    <CachedSurface
+                      borderRadius={20}
+                      backgroundColor="#FFFFFF"
+                      shadow={LIQUID_SHADOWS.chipSurface}
+                      borderWidth={1.1}
+                      borderColor="rgba(255, 255, 255, 0.94)"
+                      padTop={3}
+                      padX={5}
+                      padBottom={8}
+                    />
                     <View style={[styles.miniFormulaDot, { backgroundColor: cat.accent }]} />
                     <View style={styles.miniFormulaCopy}>
                       <Text numberOfLines={1} style={styles.miniFormulaTitle}>{formula.title}</Text>
@@ -694,8 +805,24 @@ export function ExamGuideScreen({ navigation, route }: Props) {
               pressedScale={0.97}
               haptic="medium"
               onPress={handleResumeSavedDraft}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
               contentStyle={styles.draftSheetPrimaryBtn}
             >
+              <LinearGradient
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
               <Text style={styles.draftSheetPrimaryText}>Continuă simularea salvată</Text>
             </PressableScale>
             <Pressable
@@ -725,6 +852,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   page: { width: '100%', alignSelf: 'center', gap: 14 },
+  cardWrap: { position: 'relative' },
   subjectStage: { gap: 14 },
 
   canopy: {
@@ -735,51 +863,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     position: 'relative',
     zIndex: 4,
-  },
-  canopyGlow: {
-    position: 'absolute',
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    top: -80,
-    right: -45,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    bottom: -70,
-    left: -30,
-    backgroundColor: 'rgba(216, 255, 62, 0.15)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -120,
-    right: -85,
-  },
-  canopyGlyphSum: {
-    position: 'absolute',
-    right: 78,
-    bottom: 14,
-    fontFamily: fonts.display,
-    fontSize: 28,
-    color: 'rgba(255, 255, 255, 0.12)',
-    transform: [{ rotate: '-10deg' }],
-  },
-  canopyGlyphStar: {
-    position: 'absolute',
-    left: 24,
-    bottom: 10,
-    fontFamily: fonts.display,
-    fontSize: 18,
-    color: 'rgba(216, 255, 62, 0.25)',
   },
   canopyInner: {
     maxWidth: 560,
@@ -795,8 +878,8 @@ const styles = StyleSheet.create({
   },
   canopyActionBtn: {
     borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
   },
   canopyCopy: {
@@ -840,14 +923,10 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderBottomWidth: 3.5,
-    borderColor: colors.lime,
-    borderBottomColor: '#98C40E',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   canopyMetaRow: {
     flexDirection: 'row',
@@ -864,30 +943,22 @@ const styles = StyleSheet.create({
   },
 
   examPickerWrap: {
-    marginTop: -20,
-    paddingBottom: 10,
+    marginTop: -23,
+    paddingBottom: 6,
     zIndex: 8,
   },
   examPickerRow: {
     gap: 8,
+    paddingVertical: 5,
     alignItems: 'center',
   },
   examPill: {
     minHeight: 38,
     paddingHorizontal: 15,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  examPillActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#3C12A8',
-    backgroundColor: colors.violet,
+    position: 'relative',
   },
   examPillText: {
     fontFamily: fonts.bodyBold,
@@ -906,22 +977,12 @@ const styles = StyleSheet.create({
 
   overviewCard: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     padding: 18,
     overflow: 'hidden',
     position: 'relative',
-  },
-  cardTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   heroBadge: {
     paddingHorizontal: 10,
@@ -968,11 +1029,9 @@ const styles = StyleSheet.create({
     marginTop: 14,
     padding: 12,
     borderRadius: 18,
-    backgroundColor: '#F7F2FF',
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#D2C2FA',
+    backgroundColor: '#F6F1FF',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     gap: 9,
   },
   pointsBarTrack: {
@@ -1021,10 +1080,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 13,
@@ -1033,20 +1090,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-  },
   ctaIconBadge: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -1071,12 +1119,12 @@ const styles = StyleSheet.create({
 
   strategyCard: {
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     padding: 15,
+    overflow: 'hidden',
+    position: 'relative',
   },
   strategyHeader: {
     flexDirection: 'row',
@@ -1087,13 +1135,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 15,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#FBE08A',
-    borderBottomColor: '#E2B84A',
-    backgroundColor: colors.goldSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   strategyCopy: { flex: 1, minWidth: 0 },
   cardEyebrow: {
@@ -1112,10 +1156,8 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1172,12 +1214,12 @@ const styles = StyleSheet.create({
 
   detailCard: {
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     padding: 16,
+    overflow: 'hidden',
+    position: 'relative',
   },
   detailMetaRow: {
     flexDirection: 'row',
@@ -1240,11 +1282,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: radii.pill,
-    backgroundColor: '#F7F2FF',
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#D0C0F8',
+    backgroundColor: '#F6F1FF',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
   },
   topicChipText: {
     fontFamily: fonts.bodyMedium,
@@ -1278,13 +1318,13 @@ const styles = StyleSheet.create({
 
   modelCard: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#F7F2FF',
     padding: 16,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   modelTopRow: {
     flexDirection: 'row',
@@ -1324,11 +1364,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 9,
     borderRadius: 14,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
-    backgroundColor: '#FFFFFF',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
+    backgroundColor: 'rgba(255, 255, 255, 0.88)',
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
@@ -1356,10 +1394,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 13,
@@ -1390,20 +1426,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   formulasList: {
-    gap: 9,
+    gap: 10,
   },
   miniFormulaRow: {
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 13,
     paddingVertical: 11,
     gap: 10,
+    position: 'relative',
   },
   miniFormulaDot: {
     width: 9,
@@ -1430,10 +1462,8 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1464,10 +1494,8 @@ const styles = StyleSheet.create({
     minWidth: 44,
     minHeight: 36,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     alignItems: 'center',
@@ -1483,10 +1511,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1502,10 +1528,8 @@ const styles = StyleSheet.create({
   },
   sheetSectionCard: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFFFF',
     padding: 14,
     gap: 10,
@@ -1519,10 +1543,8 @@ const styles = StyleSheet.create({
     gap: 10,
     borderRadius: 14,
     backgroundColor: '#FAF8FF',
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#ECE4FC',
-    borderBottomColor: '#D8CAF8',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 60, 255, 0.12)',
     padding: 10,
   },
   sheetRubricPts: {
@@ -1559,14 +1581,13 @@ const styles = StyleSheet.create({
   draftSheetPrimaryBtn: {
     minHeight: 50,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
+    overflow: 'hidden',
+    position: 'relative',
   },
   draftSheetPrimaryText: {
     fontFamily: fonts.display,
@@ -1577,10 +1598,8 @@ const styles = StyleSheet.create({
   draftSheetDangerBtn: {
     minHeight: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#FFC5D0',
-    borderBottomColor: '#E58A9D',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 87, 109, 0.28)',
     backgroundColor: colors.roseSoft,
     alignItems: 'center',
     justifyContent: 'center',

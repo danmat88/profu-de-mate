@@ -6,6 +6,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { bundledImageSource } from '../../shared/services/bundledImages';
 import { colors, fonts, radii, typography } from '../../shared/theme';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../shared/ui/ComicBackdrop';
 import { SpotlightAura } from '../../shared/ui/SpotlightAura';
 import { Text } from '../../shared/ui/Typography';
@@ -31,8 +32,15 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
         </View>
 
         <View style={styles.cardWrap}>
+          <CachedOutsetShadow borderRadius={28} shadow={LIQUID_SHADOWS.cardOutset} />
           <View style={styles.card}>
-            <View pointerEvents="none" style={styles.cardTopGloss} />
+            <LinearGradient
+              colors={['#FFFFFF', '#FBF8FF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={28} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
             <Text style={styles.eyebrow}>APLICAȚIA A ÎNTÂMPINAT O PROBLEMĂ</Text>
             <Text style={styles.title}>Ceva nu a mers.</Text>
             <Text style={styles.message}>
@@ -42,6 +50,7 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
         </View>
 
         <View style={styles.buttonWrap}>
+          <CachedOutsetShadow borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeOutset} />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Încarcă din nou ecranul"
@@ -52,9 +61,9 @@ function ErrorFallback({ onRetry }: { onRetry: () => void }) {
               colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
               start={{ x: 0.08, y: 0 }}
               end={{ x: 0.92, y: 1 }}
-              style={StyleSheet.absoluteFill}
+              style={styles.fill}
             />
-            <View pointerEvents="none" style={styles.ctaTopGloss} />
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
             <Text style={styles.buttonText}>Încarcă din nou</Text>
           </Pressable>
         </View>
@@ -94,53 +103,35 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 },
   mascotWrap: { width: 176, height: 176, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   mascot: { width: 136, height: 136 },
-  cardWrap: { width: '100%', maxWidth: 356, marginTop: 18 },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  cardWrap: { width: '100%', maxWidth: 356, marginTop: 18, position: 'relative' },
   card: {
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.35,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 22,
     paddingVertical: 20,
     alignItems: 'center',
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
-  cardTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 26,
-    right: 26,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-  },
-  eyebrow: { ...typography.kicker, color: colors.violetDeep, textAlign: 'center' },
-  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 31, textAlign: 'center', marginTop: 5 },
-  message: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center', marginTop: 8 },
-  buttonWrap: { width: '100%', maxWidth: 260, minHeight: 56, marginTop: 22 },
+  eyebrow: { ...typography.kicker, color: colors.violetDeep, textAlign: 'center', zIndex: 2 },
+  title: { fontFamily: fonts.display, color: colors.ink, fontSize: 27, lineHeight: 31, textAlign: 'center', marginTop: 5, zIndex: 2 },
+  message: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 20, textAlign: 'center', marginTop: 8, zIndex: 2 },
+  buttonWrap: { width: '100%', maxWidth: 260, minHeight: 56, marginTop: 22, position: 'relative' },
   button: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    zIndex: 1,
   },
   buttonPressed: { transform: [{ scale: 0.97 }] },
-  buttonText: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5 },
+  buttonText: { fontFamily: fonts.display, color: colors.ink, fontSize: 17.5, zIndex: 2 },
 });

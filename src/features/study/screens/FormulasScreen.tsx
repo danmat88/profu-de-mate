@@ -26,6 +26,7 @@ import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackd
 import type { RootStackParamList } from '../../../shared/types';
 import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
@@ -271,7 +272,15 @@ export function FormulasScreen({ navigation, route }: Props) {
                 navigation.goBack();
               }}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
             </IconButton>
@@ -294,8 +303,22 @@ export function FormulasScreen({ navigation, route }: Props) {
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
               contentStyle={[styles.trackPill, !profile.hasChosenTrack && styles.trackPillUnchosen]}
             >
+              <CachedInsetRelief
+                borderRadius={radii.pill}
+                shadow={profile.hasChosenTrack ? LIQUID_SHADOWS.cardInsetSoft : LIQUID_SHADOWS.goldSoftInset}
+                zIndex={0}
+              />
               <View style={[styles.trackPillDot, !profile.hasChosenTrack && styles.trackPillDotUnchosen]} />
               <Text
                 maxFontSizeMultiplier={1.15}
@@ -317,8 +340,24 @@ export function FormulasScreen({ navigation, route }: Props) {
           style={[styles.controls, { paddingHorizontal: gutter }]}
         >
           <View style={[styles.controlsInner, { maxWidth: contentWidth }]}>
-            <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
-              <AppIcon name="search" size={22} />
+            <View style={styles.searchBoxWrap}>
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.cardOutset}
+                padTop={10}
+                padX={14}
+                padBottom={18}
+              />
+              <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={['#FFFFFF', '#FBF8FF']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={0} />
+                <AppIcon name="search" size={22} />
               {mountSearchInput ? (
                 <TextInput
                   autoFocus={searchActivated}
@@ -366,9 +405,10 @@ export function FormulasScreen({ navigation, route }: Props) {
                   }}
                   style={({ pressed }) => [styles.dismissSearchChip, pressed && styles.pressed]}
                 >
-                  <Text style={styles.dismissSearchText}>Gata</Text>
-                </Pressable>
-              ) : null}
+                <Text style={styles.dismissSearchText}>Gata</Text>
+              </Pressable>
+            ) : null}
+            </View>
             </View>
 
             <View style={styles.scopeRow}>
@@ -618,12 +658,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-  },
   canopyCopy: {
     flex: 1,
     minWidth: 0,
@@ -664,36 +698,38 @@ const styles = StyleSheet.create({
   trackPill: {
     minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.2,
     borderColor: '#FFFFFF',
-    borderBottomColor: '#BDD5FA',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 11,
     paddingVertical: 5,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   trackPillDot: {
     width: 6.5,
     height: 6.5,
     borderRadius: 3.5,
     backgroundColor: colors.cyanDeep,
+    zIndex: 2,
   },
   trackPillUnchosen: {
     backgroundColor: '#FFF7CF',
-    borderColor: '#F6E076',
-    borderBottomColor: '#C49F12',
+    borderColor: '#FFF0A8',
   },
   trackPillDotUnchosen: {
-    backgroundColor: '#B87B00',
+    backgroundColor: colors.goldDeep,
   },
   trackPillText: {
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
     fontSize: 11.5,
     includeFontPadding: false,
+    zIndex: 2,
   },
   trackPillTextUnchosen: {
     color: '#6E4600',
@@ -701,22 +737,23 @@ const styles = StyleSheet.create({
 
   controls: { marginTop: -23, zIndex: 8 },
   controlsInner: { width: '100%', alignSelf: 'center', gap: 9 },
+  searchBoxWrap: { position: 'relative' },
   searchBox: {
     height: 48,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     borderRadius: radii.pill,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   searchBoxFocused: {
     borderColor: colors.violet,
-    borderBottomColor: colors.violetDeep,
   },
   searchInput: {
     flex: 1,
@@ -725,8 +762,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     color: colors.ink,
     fontSize: 13.5,
+    zIndex: 2,
   },
-  searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center' },
+  searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center', zIndex: 2 },
   searchPlaceholderText: { fontFamily: fonts.bodyMedium, color: colors.inkMuted, fontSize: 13.5 },
   clearSearch: {
     width: 26,
@@ -735,6 +773,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   dismissSearchChip: {
     minHeight: 28,
@@ -744,6 +783,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   dismissSearchText: {
     fontFamily: fonts.bodyBold,
@@ -760,23 +800,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.2,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scopeChipActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#4A18C4',
+    borderColor: 'rgba(124, 60, 255, 0.35)',
     backgroundColor: colors.violetSoft,
   },
   favChipActive: {
-    borderColor: '#E3B63B',
-    borderBottomColor: '#C49218',
+    borderColor: '#F3C84B',
     backgroundColor: colors.goldSoft,
   },
   scopeChipText: {
@@ -805,9 +841,7 @@ const styles = StyleSheet.create({
     minHeight: 35,
     borderRadius: radii.pill,
     borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#EAE2FF',
-    borderBottomColor: '#D6CAFA',
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -816,8 +850,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   catPillActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#4114B4',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     backgroundColor: colors.violet,
   },
   catDot: {
@@ -869,10 +902,8 @@ const styles = StyleSheet.create({
     minHeight: 46,
     paddingHorizontal: 22,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#BCEF12',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',

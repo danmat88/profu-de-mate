@@ -11,6 +11,11 @@ import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-cont
 import Svg, { Path } from 'react-native-svg';
 import { beginAppTransition } from '../../../shared/context/TransitionMotionContext';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
@@ -478,9 +483,9 @@ export function CaptureScreen({ navigation, route }: Props) {
           <CloseGlyph />
         </IconButton>
         <View style={[styles.modeChipWrap, isNarrow && styles.modeChipNarrow]}>
-          <View pointerEvents="none" style={styles.modeChipShadow} />
+          <CachedOutsetShadow borderRadius={999} shadow={LIQUID_SHADOWS.darkOutset} padTop={3} padX={6} padBottom={10} />
           <View style={[styles.modeChip, isCheck && styles.modeChipCheck]}>
-            <View pointerEvents="none" style={styles.darkShine} />
+            <CachedInsetRelief borderRadius={999} shadow={LIQUID_SHADOWS.darkInset} />
             <View style={[styles.modeDot, isCheck && styles.modeDotCheck]} />
             <Text numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.modeChipText}>{isCheck ? 'VERIFICĂ REZOLVAREA' : 'REZOLVĂ PROBLEMA'}</Text>
           </View>
@@ -602,9 +607,18 @@ export function CaptureScreen({ navigation, route }: Props) {
                 pressedScale={0.94}
                 haptic="selection"
                 onPress={() => void pickFromGallery()}
+                backdrop={
+                  <CachedOutsetShadow
+                    borderRadius={19}
+                    shadow={LIQUID_SHADOWS.darkOutset}
+                    padTop={3}
+                    padX={5}
+                    padBottom={9}
+                  />
+                }
                 contentStyle={styles.sideIcon}
               >
-                <View pointerEvents="none" style={styles.darkShine} />
+                <CachedInsetRelief borderRadius={19} shadow={LIQUID_SHADOWS.darkInset} />
                 <AppIcon name="gallery" size={34} />
               </PressableScale>
               <Text style={styles.sideLabel}>Galerie</Text>
@@ -630,12 +644,15 @@ export function CaptureScreen({ navigation, route }: Props) {
                     <LinearGradient
                       colors={isCheck
                         ? ['#FFC0A3', '#FF8D6B', '#EE6846']
-                        : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                        : ['#F0FF88', '#D8FF3E', '#B8EB0E']}
                       start={{ x: 0.12, y: 0 }}
                       end={{ x: 0.88, y: 1 }}
                       style={StyleSheet.absoluteFill}
                     />
-                    <View pointerEvents="none" style={styles.shutterShine} />
+                    <CachedInsetRelief
+                      borderRadius={35}
+                      shadow={isCheck ? LIQUID_SHADOWS.peachInset : LIQUID_SHADOWS.limeInset}
+                    />
                     {working
                       ? <PlayfulLoader micro />
                       : cameraFailed
@@ -653,9 +670,21 @@ export function CaptureScreen({ navigation, route }: Props) {
                 pressedScale={0.94}
                 haptic="selection"
                 onPress={toggleHelp}
+                backdrop={
+                  <CachedOutsetShadow
+                    borderRadius={19}
+                    shadow={showHelp ? LIQUID_SHADOWS.limeOutset : LIQUID_SHADOWS.darkOutset}
+                    padTop={3}
+                    padX={5}
+                    padBottom={9}
+                  />
+                }
                 contentStyle={[styles.sideIcon, showHelp && styles.sideIconActive]}
               >
-                <View pointerEvents="none" style={styles.darkShine} />
+                <CachedInsetRelief
+                  borderRadius={19}
+                  shadow={showHelp ? LIQUID_SHADOWS.limeInset : LIQUID_SHADOWS.darkInset}
+                />
                 <AppIcon name="help" size={34} />
               </PressableScale>
               <Text style={styles.sideLabel}>Ajutor</Text>
@@ -680,6 +709,7 @@ export function CaptureScreen({ navigation, route }: Props) {
 
       {showHelp ? (
         <Animated.View style={[styles.helpBubble, { left: gutter, right: gutter, bottom: bottomSpace + (isCompact ? 172 : 190) }, helpBubbleStyle]}>
+          <CachedOutsetShadow borderRadius={24} shadow={LIQUID_SHADOWS.darkOutset} />
           <View style={styles.helpIcon}><AppIcon name="hint" size={35} /></View>
           <View style={styles.helpCopy}>
             <Text style={styles.helpTitle}>Pentru o fotografie clară</Text>
@@ -706,24 +736,21 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', zIndex: 20, left: 0, right: 0, height: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modeChipWrap: { maxWidth: 228, position: 'relative' },
   modeChipNarrow: { maxWidth: 202 },
-  modeChipShadow: { display: 'none' },
   modeChip: {
     minHeight: 42,
     borderRadius: 999,
     backgroundColor: 'rgba(28, 20, 68, 0.92)',
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.1,
     borderColor: 'rgba(196, 176, 255, 0.34)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.78)',
     paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     overflow: 'hidden',
+    position: 'relative',
   },
   modeChipCheck: { borderColor: 'rgba(255, 184, 107, 0.48)' },
-  darkShine: { position: 'absolute', top: 0, left: 14, right: 14, height: 1.5, backgroundColor: 'rgba(255, 255, 255, 0.22)' },
   modeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   modeDotCheck: { backgroundColor: colors.peach },
   modeChipText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, letterSpacing: 0.75 },
@@ -766,7 +793,7 @@ const styles = StyleSheet.create({
   cornerBL: { left: 0, bottom: 0, borderLeftWidth: 4.5, borderBottomWidth: 4.5, borderBottomLeftRadius: 26 },
   cornerBR: { right: 0, bottom: 0, borderRightWidth: 4.5, borderBottomWidth: 4.5, borderBottomRightRadius: 26 },
   bottomChrome: { position: 'absolute', zIndex: 20, left: 0, right: 0, alignItems: 'center', gap: 6 },
-  captureGuide: { minHeight: 36, borderRadius: 999, backgroundColor: 'rgba(24,18,58,0.92)', borderWidth: 1.3, borderBottomWidth: 3, borderColor: 'rgba(196,176,255,0.32)', borderBottomColor: 'rgba(7, 4, 24, 0.72)', paddingHorizontal: 15, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  captureGuide: { minHeight: 36, borderRadius: 999, backgroundColor: 'rgba(24,18,58,0.92)', borderWidth: 1.1, borderColor: 'rgba(196,176,255,0.32)', paddingHorizontal: 15, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   captureGuideDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.lime },
   captureGuideDotCheck: { backgroundColor: colors.peach },
   captureHint: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5, lineHeight: 15, textAlign: 'center' },
@@ -777,15 +804,14 @@ const styles = StyleSheet.create({
     height: 54,
     borderRadius: 19,
     backgroundColor: 'rgba(36, 26, 82, 0.92)',
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.1,
     borderColor: 'rgba(196, 176, 255, 0.34)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.82)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    position: 'relative',
   },
-  sideIconActive: { backgroundColor: colors.lime, borderColor: '#E8FF78', borderBottomColor: '#7EA508' },
+  sideIconActive: { backgroundColor: colors.lime, borderColor: 'rgba(255, 255, 255, 0.72)' },
   sideLabel: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 11.5 },
   shutterStage: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center' },
   shutterAura: {
@@ -807,26 +833,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(23,19,55,0.52)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#04030A',
-    shadowOpacity: 0.38,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
   shutterOuterCompact: { width: 78, height: 78, borderRadius: 39 },
   shutterInner: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#EEFF94',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
+    position: 'relative',
   },
-  shutterInnerCheck: { borderColor: '#FFD6C4', borderBottomColor: '#B84426' },
+  shutterInnerCheck: { borderColor: 'rgba(255, 232, 222, 0.72)' },
   shutterInnerCompact: { width: 62, height: 62, borderRadius: 31 },
   shutterLensRing: {
     width: 24,
@@ -834,15 +854,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2.25,
     borderColor: 'rgba(23,19,55,0.26)',
-  },
-  shutterShine: {
-    position: 'absolute',
-    top: 4,
-    left: 16,
-    right: 16,
-    height: 5,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.48)',
   },
   shutterPressed: { transform: [{ scale: 0.91 }] },
   permissionPanel: { flex: 1, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#17132E' },
@@ -856,7 +867,7 @@ const styles = StyleSheet.create({
   permissionGalleryText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5 },
   errorBanner: { position: 'absolute', zIndex: 35, minHeight: 48, borderRadius: 16, backgroundColor: '#D84A61', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 8 },
   errorText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, lineHeight: 16, textAlign: 'center' },
-  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 24, borderWidth: 1.5, borderBottomWidth: 4, borderColor: '#E5DCFF', borderBottomColor: '#CEC0F8', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 12, shadowColor: '#171337', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 12 },
+  helpBubble: { position: 'absolute', zIndex: 40, minHeight: 84, borderRadius: 24, borderWidth: 1.1, borderColor: 'rgba(255, 255, 255, 0.94)', backgroundColor: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 12 },
   helpIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: colors.limeSoft, alignItems: 'center', justifyContent: 'center' },
   helpCopy: { flex: 1, minWidth: 0 },
   helpTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 15, lineHeight: 18 },

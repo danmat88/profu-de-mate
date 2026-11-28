@@ -13,13 +13,14 @@ import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { LiquidProgressBar } from '../../../shared/ui/LiquidProgressBar';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
+import { MissionCardBackdrop, RoyalHeroCanopyBackdrop, StudioCardBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { formatRoCount } from '../../../shared/utils/romanianGrammar';
@@ -277,8 +278,20 @@ export const StudyHubScreen = memo(function StudyHubScreen({
         <View style={[styles.canopyInner, { width: contentWidth }]}>
           <View style={styles.header}>
             <View style={styles.brandRow}>
-              <View style={styles.brandBadge}>
-                <AppIcon name="class" size={28} />
+              <View style={styles.brandBadgeWrap}>
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+                <View style={styles.brandBadge}>
+                  <CachedInsetRelief borderRadius={21} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
+                  <View style={styles.frontLayer}>
+                    <AppIcon name="class" size={28} />
+                  </View>
+                </View>
               </View>
               <Text maxFontSizeMultiplier={1.25} numberOfLines={1} style={styles.headerTitle}>
                 Învață
@@ -286,28 +299,55 @@ export const StudyHubScreen = memo(function StudyHubScreen({
             </View>
 
             <View style={styles.headerActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  streakDays > 0
-                    ? `Seria zilnică: ${streakDays} zile. Apasă pentru detalii`
-                    : 'Seria zilnică. Apasă pentru detalii'
-                }
-                hitSlop={6}
-                onPress={openStreakSheet}
-                style={({ pressed }) => [styles.headerStreakPill, pressed && styles.pressed]}
-              >
-                <AppIcon name="streak" size={14} />
-                <Text maxFontSizeMultiplier={1.1} style={styles.headerStreakText}>
-                  {streakDays > 0 ? `${streakDays}z` : 'Seria'}
-                </Text>
-              </Pressable>
+              <View style={styles.headerStreakWrap}>
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={12}
+                  padBottom={16}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    streakDays > 0
+                      ? `Seria zilnică: ${streakDays} zile. Apasă pentru detalii`
+                      : 'Seria zilnică. Apasă pentru detalii'
+                  }
+                  hitSlop={6}
+                  onPress={openStreakSheet}
+                  style={({ pressed }) => [styles.headerStreakPill, pressed && styles.pressed]}
+                >
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['rgba(255, 226, 114, 0.34)', 'rgba(216, 255, 62, 0.16)']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.canopyGlassInset} zIndex={1} />
+                  <View style={styles.frontLayer}>
+                    <AppIcon name="streak" size={16} />
+                  </View>
+                  <Text maxFontSizeMultiplier={1.1} style={styles.headerStreakText}>
+                    {streakDays > 0 ? `${streakDays}z` : 'Seria'}
+                  </Text>
+                </Pressable>
+              </View>
 
               <IconButton
                 label="Deschide setările"
                 onPress={openSettings}
                 size={42}
-                style={styles.settingsWrap}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={21}
+                    shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                    padTop={10}
+                    padX={14}
+                    padBottom={18}
+                  />
+                )}
               >
                 <AppIcon name="settings" size={27} />
               </IconButton>
@@ -385,19 +425,32 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               pressedScale={0.975}
               haptic="selection"
               onPress={openTrackPicker}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={24}
+                  shadow={LIQUID_SHADOWS.goldSoftOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={22}
+                />
+              )}
               contentStyle={styles.trackBannerCard}
             >
-              <LinearGradient
-                pointerEvents="none"
-                colors={['#FFFDF2', '#FFF1BE']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fill}
-              />
-              <View pointerEvents="none" style={styles.cardTopGloss} />
+              <MissionCardBackdrop tone="setup" />
+              <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.goldSoftInset} zIndex={1} />
               <View style={styles.trackBannerRail} />
               <View style={styles.trackBannerIcon}>
-                <AppIcon name="class" size={30} />
+                <CachedSurface
+                  borderRadius={16}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbGoldSurface}
+                  padTop={8}
+                  padX={10}
+                  padBottom={14}
+                />
+                <View style={styles.frontLayer}>
+                  <AppIcon name="class" size={30} />
+                </View>
               </View>
               <View style={styles.trackBannerCopy}>
                 <Text maxFontSizeMultiplier={1.1} style={styles.trackBannerKicker}>
@@ -411,7 +464,17 @@ export const StudyHubScreen = memo(function StudyHubScreen({
                 </Text>
               </View>
               <View style={styles.trackBannerArrow}>
-                <MiniGlyph name="next" size={16} color="#8A5600" />
+                <CachedSurface
+                  borderRadius={17}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbGoldSurface}
+                  padTop={6}
+                  padX={8}
+                  padBottom={10}
+                />
+                <View style={styles.frontLayer}>
+                  <MiniGlyph name="next" size={16} color={colors.goldDeep} />
+                </View>
               </View>
             </PressableScale>
           ) : null}
@@ -423,19 +486,32 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               pressedScale={0.975}
               haptic="medium"
               onPress={resumeExamDraft}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={24}
+                  shadow={LIQUID_SHADOWS.mintSoftOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={22}
+                />
+              )}
               contentStyle={[styles.trackBannerCard, styles.draftBannerCard]}
             >
-              <LinearGradient
-                pointerEvents="none"
-                colors={['#F8FFDE', '#E7FFA0']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fill}
-              />
-              <View pointerEvents="none" style={styles.cardTopGloss} />
+              <MissionCardBackdrop tone="quiz" />
+              <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.mintSoftInset} zIndex={1} />
               <View style={[styles.trackBannerRail, { backgroundColor: colors.limeDeep }]} />
-              <View style={[styles.trackBannerIcon, { borderColor: '#BFE452' }]}>
-                <AppIcon name="trophy" size={30} />
+              <View style={styles.trackBannerIcon}>
+                <CachedSurface
+                  borderRadius={16}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbMintSurface}
+                  padTop={8}
+                  padX={10}
+                  padBottom={14}
+                />
+                <View style={styles.frontLayer}>
+                  <AppIcon name="trophy" size={30} />
+                </View>
               </View>
               <View style={styles.trackBannerCopy}>
                 <Text maxFontSizeMultiplier={1.1} style={[styles.trackBannerKicker, { color: colors.limeDeep }]}>
@@ -448,104 +524,158 @@ export const StudyHubScreen = memo(function StudyHubScreen({
                   {draftBanner.answered}/{draftBanner.total} itemi · ⏱ {draftBanner.remaining} rămas
                 </Text>
               </View>
-              <View style={[styles.trackBannerArrow, { borderColor: '#BFE452' }]}>
-                <MiniGlyph name="next" size={16} color={colors.ink} />
+              <View style={styles.trackBannerArrow}>
+                <CachedSurface
+                  borderRadius={17}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbMintSurface}
+                  padTop={6}
+                  padX={8}
+                  padBottom={10}
+                />
+                <View style={styles.frontLayer}>
+                  <MiniGlyph name="next" size={16} color={colors.ink} />
+                </View>
               </View>
             </PressableScale>
           ) : null}
 
-          {/* Pure-white 3D Quick-Start Quest Card matching Home optical studio craft */}
-          <View style={styles.questCard}>
-            <View pointerEvents="none" style={styles.studioTopGloss} />
-            <View pointerEvents="none" style={styles.questTintCorner} />
-            <View pointerEvents="none" style={styles.questDotGrid}>
-              <View style={styles.questDotRow}>
-                <View style={styles.questDot} />
-                <View style={styles.questDot} />
-                <View style={styles.questDot} />
-              </View>
-              <View style={styles.questDotRow}>
-                <View style={styles.questDot} />
-                <View style={styles.questDot} />
-                <View style={styles.questDot} />
-              </View>
-            </View>
+          {/* Flagship ceramic 3D Liquid-Glass Quick-Start Quest Card matching Home Studio */}
+          <View style={styles.questCardShadow}>
+            <CachedOutsetShadow
+              borderRadius={28}
+              shadow={LIQUID_SHADOWS.cardOutset}
+              padTop={14}
+              padX={18}
+              padBottom={24}
+            />
+            <View style={styles.questCard}>
+              <StudioCardBackdrop />
+              <CachedInsetRelief borderRadius={27} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
 
-            <View style={styles.questTopRow}>
-              <View style={styles.questStatusPill}>
-                <Text accessible={false} style={styles.questSpark}>✦</Text>
-                <Text maxFontSizeMultiplier={1.15} style={styles.questStatusLabel}>
-                  ANTRENAMENT RAPID
-                </Text>
-              </View>
-              {wrongCount > 0 ? (
-                <View style={styles.questWrongPill}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.questWrongText}>
-                    {wrongCount} de repetat
+              <View style={styles.questTopRow}>
+                <View style={styles.questStatusPill}>
+                  <CachedSurface
+                    borderRadius={radii.pill}
+                    backgroundColor="#F4EEFF"
+                    shadow={LIQUID_SHADOWS.chipSurface}
+                    padTop={6}
+                    padX={8}
+                    padBottom={10}
+                  />
+                  <Text accessible={false} style={styles.questSpark}>✦</Text>
+                  <Text maxFontSizeMultiplier={1.15} style={styles.questStatusLabel}>
+                    ANTRENAMENT RAPID
                   </Text>
                 </View>
-              ) : bestExamGrade !== null ? (
-                <View style={styles.questRecordPill}>
-                  <Text maxFontSizeMultiplier={1.1} style={styles.questRecordText}>
-                    ★ {formatRomanianGrade(bestExamGrade)}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            <Text numberOfLines={2} style={styles.questDesc}>
-              {profile.hasChosenTrack
-                ? trackMeta.description
-                : 'Test rapid de 5 întrebări cu explicații pas cu pas. Alege nivelul tău mai sus pentru programă personalizată.'}
-            </Text>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={`Începe un test fulger de 5 întrebări pentru ${trackMeta.label}`}
-              pressedScale={0.97}
-              haptic="medium"
-              onPress={startQuickQuiz}
-              contentStyle={styles.heroCta}
-            >
-              <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
-                style={styles.fill}
-              />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
-              <View style={styles.heroCtaBadge}>
-                <AppIcon name="test" size={25} />
+                {wrongCount > 0 ? (
+                  <View style={styles.questWrongPill}>
+                    <Text maxFontSizeMultiplier={1.1} style={styles.questWrongText}>
+                      {wrongCount} de repetat
+                    </Text>
+                  </View>
+                ) : bestExamGrade !== null ? (
+                  <View style={styles.questRecordPill}>
+                    <Text maxFontSizeMultiplier={1.1} style={styles.questRecordText}>
+                      ★ {formatRomanianGrade(bestExamGrade)}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
-              <Text numberOfLines={2} style={styles.heroCtaText}>
-                Test fulger · 5 întrebări
+
+              <Text numberOfLines={2} style={styles.questDesc}>
+                {profile.hasChosenTrack
+                  ? trackMeta.description
+                  : 'Test rapid de 5 întrebări cu explicații pas cu pas. Alege nivelul tău mai sus pentru programă personalizată.'}
               </Text>
-              <View style={styles.heroCtaArrow}>
-                <MiniGlyph name="next" size={16} color={colors.paper} />
-              </View>
-            </PressableScale>
+
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`Începe un test fulger de 5 întrebări pentru ${trackMeta.label}`}
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={startQuickQuiz}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.limeOutset}
+                    padTop={10}
+                    padX={16}
+                    padBottom={20}
+                  />
+                )}
+                contentStyle={styles.heroCta}
+              >
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
+                <View style={styles.heroCtaBadge}>
+                  <CachedSurface
+                    borderRadius={18}
+                    backgroundColor={colors.paper}
+                    shadow={LIQUID_SHADOWS.orbMintSurface}
+                    padTop={6}
+                    padX={8}
+                    padBottom={10}
+                  />
+                  <View style={styles.frontLayer}>
+                    <AppIcon name="test" size={24} />
+                  </View>
+                </View>
+                <Text numberOfLines={2} style={styles.heroCtaText}>
+                  Test fulger · 5 întrebări
+                </Text>
+                <View style={styles.heroCtaArrow}>
+                  <MiniGlyph name="next" size={16} color={colors.paper} />
+                </View>
+              </PressableScale>
+            </View>
           </View>
 
-          {/* Full-width glossy soft-violet AI Practice banner */}
+          {/* Full-width 3D Liquid-Glass soft-violet AI Practice banner */}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Deschide secțiunea Teste și Practică"
             pressedScale={0.975}
             haptic="light"
             onPress={openPracticeHub}
+            backdrop={(
+              <CachedOutsetShadow
+                borderRadius={24}
+                shadow={LIQUID_SHADOWS.cardOutset}
+                padTop={12}
+                padX={16}
+                padBottom={22}
+              />
+            )}
             contentStyle={styles.practiceCard}
           >
             <LinearGradient
               pointerEvents="none"
-              colors={['#FCF9FF', '#EFE3FF']}
+              colors={['#FFFFFF', '#F7F1FF', '#ECE0FF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.fill}
             />
-            <View pointerEvents="none" style={styles.cardTopGloss} />
+            <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
             <View style={styles.practiceRail} />
             <View style={styles.practiceIcon}>
-              <AppIcon name="streak" size={32} />
+              <CachedSurface
+                borderRadius={16}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbSurface}
+                padTop={8}
+                padX={10}
+                padBottom={14}
+              />
+              <View style={styles.frontLayer}>
+                <AppIcon name="streak" size={32} />
+              </View>
             </View>
             <View style={styles.practiceCopy}>
               <View style={styles.practiceTitleRow}>
@@ -561,11 +691,21 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               </Text>
             </View>
             <View style={styles.practiceArrow}>
-              <MiniGlyph name="next" size={16} color={colors.violetDeep} />
+              <CachedSurface
+                borderRadius={17}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbSurface}
+                padTop={6}
+                padX={8}
+                padBottom={10}
+              />
+              <View style={styles.frontLayer}>
+                <MiniGlyph name="next" size={16} color={colors.violetDeep} />
+              </View>
             </View>
           </PressableScale>
 
-          {/* 2-Column Glossy Sky-Cyan & Sunny-Gold 3D Hub Cards */}
+          {/* 2-Column 3D Liquid-Glass Sky-Cyan & Warm-Gold Hub Cards */}
           <View style={styles.cardsGrid}>
             <PressableScale
               accessibilityRole="button"
@@ -573,27 +713,56 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               pressedScale={0.965}
               haptic="light"
               onPress={() => openFormulas()}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={24}
+                  shadow={LIQUID_SHADOWS.cyanSoftOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={22}
+                />
+              )}
               style={styles.gridTileWrap}
               contentStyle={[styles.gridTile, styles.formulasTile]}
             >
               <LinearGradient
                 pointerEvents="none"
-                colors={['#F5FEFF', '#DCF7FE']}
+                colors={['#FFFFFF', '#F3FDFF', '#DCF7FE']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.cardTopGloss} />
-              <View style={[styles.tileIcon, styles.formulasTileIcon]}>
-                <AppIcon name="formulas" size={32} />
+              <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.cyanSoftInset} zIndex={1} />
+              <View style={styles.tileIcon}>
+                <CachedSurface
+                  borderRadius={16}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbCyanSurface}
+                  padTop={8}
+                  padX={10}
+                  padBottom={14}
+                />
+                <View style={styles.frontLayer}>
+                  <AppIcon name="formulas" size={32} />
+                </View>
               </View>
               <Text numberOfLines={2} style={styles.tileTitle}>Formule & Fișe</Text>
               <Text numberOfLines={2} style={styles.tileNote}>
                 {trackFormulas.length} fișe offline · exemple & capcane
               </Text>
               <View style={styles.tileFooterPill}>
+                <CachedSurface
+                  borderRadius={radii.pill}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbCyanSurface}
+                  padTop={5}
+                  padX={7}
+                  padBottom={9}
+                />
                 <Text style={styles.tileLinkText}>Deschide</Text>
-                <MiniGlyph name="next" size={13} color={colors.cyanDeep} />
+                <View style={styles.frontLayer}>
+                  <MiniGlyph name="next" size={13} color={colors.cyanDeep} />
+                </View>
               </View>
             </PressableScale>
 
@@ -603,19 +772,38 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               pressedScale={0.965}
               haptic="light"
               onPress={openExamsHub}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={24}
+                  shadow={LIQUID_SHADOWS.goldSoftOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={22}
+                />
+              )}
               style={styles.gridTileWrap}
               contentStyle={[styles.gridTile, styles.examTile]}
             >
               <LinearGradient
                 pointerEvents="none"
-                colors={['#FFFDF2', '#FFF1BE']}
+                colors={['#FFFFFF', '#FFFCF0', '#FFEFBA']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.cardTopGloss} />
-              <View style={[styles.tileIcon, styles.examTileIcon]}>
-                <AppIcon name="trophy" size={32} />
+              <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.goldSoftInset} zIndex={1} />
+              <View style={styles.tileIcon}>
+                <CachedSurface
+                  borderRadius={16}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbGoldSurface}
+                  padTop={8}
+                  padX={10}
+                  padBottom={14}
+                />
+                <View style={styles.frontLayer}>
+                  <AppIcon name="trophy" size={32} />
+                </View>
               </View>
               <Text numberOfLines={2} style={styles.tileTitle}>EN & BAC</Text>
               <Text numberOfLines={2} style={styles.tileNote}>
@@ -626,8 +814,18 @@ export const StudyHubScreen = memo(function StudyHubScreen({
                     : 'Simulări cronometrate, barem & ghid'}
               </Text>
               <View style={styles.tileFooterPillGold}>
+                <CachedSurface
+                  borderRadius={radii.pill}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbGoldSurface}
+                  padTop={5}
+                  padX={7}
+                  padBottom={9}
+                />
                 <Text style={styles.tileLinkTextGold}>{draftBanner ? 'Continuă' : 'Simulări'}</Text>
-                <MiniGlyph name="next" size={13} color={colors.ink} />
+                <View style={styles.frontLayer}>
+                  <MiniGlyph name="next" size={13} color={colors.goldDeep} />
+                </View>
               </View>
             </PressableScale>
           </View>
@@ -698,12 +896,31 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               pressedScale={0.975}
               haptic="selection"
               onPress={() => openFormulas()}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
               contentStyle={styles.allFormulasCta}
             >
+              <LinearGradient
+                pointerEvents="none"
+                colors={['#FFFFFF', '#F6F0FF']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
               <Text style={styles.allFormulasCtaText}>
                 Deschide toate cele {formatRoCount(trackFormulas.length, 'fișă', 'fișe')} de formule
               </Text>
-              <MiniGlyph name="next" size={16} color={colors.violetDeep} />
+              <View style={styles.frontLayer}>
+                <MiniGlyph name="next" size={16} color={colors.violetDeep} />
+              </View>
             </PressableScale>
           </View>
         </View>
@@ -829,6 +1046,15 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     minWidth: 0,
   },
+  brandBadgeWrap: {
+    position: 'relative',
+    flexShrink: 0,
+  },
+  frontLayer: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   brandBadge: {
     width: 42,
     height: 42,
@@ -836,10 +1062,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2.2,
     borderColor: colors.lime,
-    borderBottomWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   headerTitle: {
     fontFamily: fonts.display,
@@ -857,6 +1084,9 @@ const styles = StyleSheet.create({
     gap: 8,
     flexShrink: 0,
   },
+  headerStreakWrap: {
+    position: 'relative',
+  },
   headerStreakPill: {
     minHeight: 36,
     flexDirection: 'row',
@@ -865,22 +1095,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(216, 255, 62, 0.2)',
-    borderWidth: 1.2,
-    borderColor: 'rgba(216, 255, 62, 0.52)',
+    backgroundColor: 'rgba(255, 212, 71, 0.16)',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 226, 114, 0.56)',
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   headerStreakText: {
     fontFamily: fonts.bodyBold,
-    color: colors.lime,
+    color: colors.gold,
     fontSize: 12,
     lineHeight: 15,
     includeFontPadding: false,
-  },
-  settingsWrap: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
+    zIndex: 2,
   },
 
   heroRow: {
@@ -998,53 +1226,20 @@ const styles = StyleSheet.create({
     gap: 13,
   },
 
-  // Pure-white 3D Quick-Start Quest Card
+  // Flagship 3D Liquid-Glass Quick-Start Quest Card
+  questCardShadow: {
+    position: 'relative',
+  },
   questCard: {
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderBottomWidth: 5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D2C0F8',
+    borderWidth: 1.4,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     padding: 15,
     gap: 11,
     overflow: 'hidden',
     position: 'relative',
-  },
-  studioTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 26,
-    right: 26,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    zIndex: 2,
-  },
-  questTintCorner: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    top: -85,
-    right: -60,
-    backgroundColor: 'rgba(124, 60, 255, 0.06)',
-  },
-  questDotGrid: {
-    position: 'absolute',
-    top: 44,
-    right: 18,
-    gap: 6,
-  },
-  questDotRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  questDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(124, 60, 255, 0.12)',
+    zIndex: 1,
   },
   questTopRow: {
     flexDirection: 'row',
@@ -1057,18 +1252,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 11,
+    paddingVertical: 4.5,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: '#E1D3FE',
-    backgroundColor: '#F4EEFF',
+    position: 'relative',
   },
   questSpark: {
     fontFamily: fonts.display,
     fontSize: 12,
     lineHeight: 14,
     color: colors.violet,
+    zIndex: 2,
   },
   questStatusLabel: {
     fontFamily: fonts.bodyBold,
@@ -1076,6 +1270,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.85,
     color: colors.violetDeep,
     includeFontPadding: false,
+    zIndex: 2,
   },
   questWrongPill: {
     paddingHorizontal: 9,
@@ -1115,10 +1310,8 @@ const styles = StyleSheet.create({
   heroCta: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderColor: '#EEFF96',
-    borderBottomWidth: 4.5,
-    borderBottomColor: '#8CB600',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1127,27 +1320,16 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 1.5,
-    left: 24,
-    right: 24,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
     zIndex: 1,
   },
   heroCtaBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.paper,
-    borderWidth: 1.2,
-    borderColor: 'rgba(86, 120, 0, 0.16)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
     zIndex: 2,
   },
   heroCtaText: {
@@ -1170,23 +1352,11 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
 
-  // Full-width glossy AI Practice banner
-  cardTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 16,
-    right: 16,
-    height: 1.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    zIndex: 1,
-  },
+  // Full-width 3D Liquid-Glass AI Practice banner
   practiceCard: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#D6BEFF',
-    borderBottomColor: '#B18CFF',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#F4EEFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1196,6 +1366,7 @@ const styles = StyleSheet.create({
     gap: 11,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   practiceRail: {
     position: 'absolute',
@@ -1212,12 +1383,10 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
-    borderColor: '#DFD0FF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
     zIndex: 2,
   },
   practiceCopy: {
@@ -1260,15 +1429,13 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DFD0FF',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
     zIndex: 2,
   },
 
-  // 2-Column Glossy Pastel 3D Hub Cards
+  // 2-Column 3D Liquid-Glass Hub Cards
   cardsGrid: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -1281,36 +1448,30 @@ const styles = StyleSheet.create({
   gridTile: {
     flex: 1,
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4.5,
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     padding: 14,
     gap: 6,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   formulasTile: {
     backgroundColor: '#EBFBFF',
-    borderColor: '#9EE8F7',
-    borderBottomColor: '#5BC9DE',
   },
   examTile: {
     backgroundColor: '#FFFBEB',
-    borderColor: '#F8DC82',
-    borderBottomColor: '#E5B72F',
   },
   tileIcon: {
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+    position: 'relative',
     zIndex: 2,
   },
-  formulasTileIcon: { borderColor: '#BCEFFA' },
-  examTileIcon: { borderColor: '#FAE5A2' },
   tileTitle: {
     fontFamily: fonts.display,
     color: colors.ink,
@@ -1328,29 +1489,25 @@ const styles = StyleSheet.create({
   tileFooterPill: {
     marginTop: 'auto',
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 5.5,
     borderRadius: radii.pill,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#BCEFFA',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    position: 'relative',
     zIndex: 2,
   },
   tileFooterPillGold: {
     marginTop: 'auto',
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 5.5,
     borderRadius: radii.pill,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F8DA7A',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    position: 'relative',
     zIndex: 2,
   },
   tileLinkText: {
@@ -1358,12 +1515,14 @@ const styles = StyleSheet.create({
     color: colors.cyanDeep,
     fontSize: 11.5,
     includeFontPadding: false,
+    zIndex: 2,
   },
   tileLinkTextGold: {
     fontFamily: fonts.bodyBold,
-    color: colors.ink,
+    color: colors.goldDeep,
     fontSize: 11.5,
     includeFontPadding: false,
+    zIndex: 2,
   },
 
   sectionBlock: {
@@ -1393,12 +1552,10 @@ const styles = StyleSheet.create({
   },
   seeAllPill: {
     minHeight: 30,
-    paddingHorizontal: 11,
+    paddingHorizontal: 12,
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderBottomWidth: 2.5,
-    borderColor: '#DCD0F8',
-    borderBottomColor: '#C5B3F5',
+    borderWidth: 1.2,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1417,9 +1574,7 @@ const styles = StyleSheet.create({
     minHeight: 38,
     borderRadius: radii.pill,
     borderWidth: 1.2,
-    borderBottomWidth: 3,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1444,10 +1599,8 @@ const styles = StyleSheet.create({
   allFormulasCta: {
     minHeight: 50,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1455,6 +1608,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   allFormulasCtaText: {
     flexShrink: 1,
@@ -1462,14 +1618,13 @@ const styles = StyleSheet.create({
     color: colors.violetDeep,
     fontSize: 13.5,
     textAlign: 'center',
+    zIndex: 2,
   },
 
   trackBannerCard: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4.5,
-    borderColor: '#ECCB5B',
-    borderBottomColor: '#D0A51E',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFF9DC',
     paddingVertical: 13,
     paddingLeft: 15,
@@ -1479,10 +1634,10 @@ const styles = StyleSheet.create({
     gap: 12,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   draftBannerCard: {
-    borderColor: '#C5EA63',
-    borderBottomColor: '#8CB600',
+    borderColor: '#FFFFFF',
     backgroundColor: '#F3FFD1',
   },
   trackBannerRail: {
@@ -1500,12 +1655,10 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
-    borderColor: '#F0D576',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
     zIndex: 2,
   },
   trackBannerCopy: {
@@ -1518,7 +1671,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyBold,
     fontSize: 9.5,
     letterSpacing: 0.85,
-    color: '#8A5600',
+    color: colors.goldDeep,
     includeFontPadding: false,
   },
   trackBannerTitle: {
@@ -1537,12 +1690,10 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
-    borderColor: '#F0D576',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
     zIndex: 2,
   },
   pressed: { opacity: 0.78 },

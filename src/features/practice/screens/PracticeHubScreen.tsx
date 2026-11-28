@@ -17,13 +17,14 @@ import type {
   StudyFormulaCategoryParam,
 } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { LiquidProgressBar } from '../../../shared/ui/LiquidProgressBar';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
+import { MissionCardBackdrop, RoyalHeroCanopyBackdrop, StudioCardBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { formatRoCount } from '../../../shared/utils/romanianGrammar';
@@ -161,7 +162,15 @@ export function PracticeHubScreen({ navigation }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
             </IconButton>
@@ -184,8 +193,22 @@ export function PracticeHubScreen({ navigation }: Props) {
               pressedScale={0.95}
               haptic="selection"
               onPress={openTrackPicker}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
               contentStyle={[styles.trackPill, !studyProfile.hasChosenTrack && styles.trackPillUnchosen]}
             >
+              <CachedInsetRelief
+                borderRadius={radii.pill}
+                shadow={studyProfile.hasChosenTrack ? LIQUID_SHADOWS.cardInsetSoft : LIQUID_SHADOWS.goldSoftInset}
+                zIndex={0}
+              />
               <View style={[styles.trackPillDot, !studyProfile.hasChosenTrack && styles.trackPillDotUnchosen]} />
               <Text
                 maxFontSizeMultiplier={1.15}
@@ -258,55 +281,84 @@ export function PracticeHubScreen({ navigation }: Props) {
         ]}
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
-          {/* Pure-white 3D Quick-Test Quest Studio Card */}
-          <View style={styles.questCard}>
-            <View pointerEvents="none" style={styles.studioTopGloss} />
-            <View pointerEvents="none" style={styles.questTintCorner} />
-            <View style={styles.questHeaderRow}>
-              <View style={styles.questStatusPill}>
-                <Text accessible={false} style={styles.questSpark}>✦</Text>
-                <Text maxFontSizeMultiplier={1.15} style={styles.questStatusLabel}>
-                  ANTRENAMENT RAPID
-                </Text>
+          {/* Flagship 3D Liquid-Glass Quick-Test Quest Studio Card */}
+          <View style={styles.cardShadow}>
+            <CachedOutsetShadow
+              borderRadius={28}
+              shadow={LIQUID_SHADOWS.cardOutset}
+              padTop={14}
+              padX={18}
+              padBottom={24}
+            />
+            <View style={styles.questCard}>
+              <StudioCardBackdrop />
+              <CachedInsetRelief borderRadius={27} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
+              <View style={styles.questHeaderRow}>
+                <View style={styles.questStatusPill}>
+                  <Text accessible={false} style={styles.questSpark}>✦</Text>
+                  <Text maxFontSizeMultiplier={1.15} style={styles.questStatusLabel}>
+                    ANTRENAMENT RAPID
+                  </Text>
+                </View>
+                <View style={styles.questOfflinePill}>
+                  <AppIcon name="offline" size={14} />
+                  <Text maxFontSizeMultiplier={1.1} style={styles.questOfflineText}>
+                    Offline · Instant
+                  </Text>
+                </View>
               </View>
-              <View style={styles.questOfflinePill}>
-                <AppIcon name="offline" size={14} />
-                <Text maxFontSizeMultiplier={1.1} style={styles.questOfflineText}>
-                  Offline · Instant
-                </Text>
-              </View>
+
+              <Text style={styles.questTitle}>Test fulger · 5 întrebări</Text>
+              <Text style={styles.questSubtitle}>
+                {studyProfile.hasChosenTrack
+                  ? `Grilă și răspuns scurt pentru ${trackMeta.shortLabel}, cu explicații pas cu pas.`
+                  : 'Grilă și răspuns scurt din toată programa, cu explicații pas cu pas.'}
+              </Text>
+
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Începe testul fulger de 5 întrebări"
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={startQuickTest}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.limeOutset}
+                    padTop={10}
+                    padX={16}
+                    padBottom={20}
+                  />
+                )}
+                contentStyle={styles.heroCta}
+              >
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
+                <View style={styles.heroCtaBadge}>
+                  <CachedSurface
+                    borderRadius={19}
+                    backgroundColor="#FFFFFF"
+                    shadow={LIQUID_SHADOWS.orbMintSurface}
+                    padTop={6}
+                    padX={8}
+                    padBottom={10}
+                  />
+                  <View style={styles.frontLayer}>
+                    <AppIcon name="test" size={24} />
+                  </View>
+                </View>
+                <Text numberOfLines={2} style={styles.heroCtaText}>Începe testul fulger</Text>
+                <View style={styles.heroCtaArrow}>
+                  <MiniGlyph name="next" size={16} color={colors.paper} />
+                </View>
+              </PressableScale>
             </View>
-
-            <Text style={styles.questTitle}>Test fulger · 5 întrebări</Text>
-            <Text style={styles.questSubtitle}>
-              {studyProfile.hasChosenTrack
-                ? `Grilă și răspuns scurt pentru ${trackMeta.shortLabel}, cu explicații pas cu pas.`
-                : 'Grilă și răspuns scurt din toată programa, cu explicații pas cu pas.'}
-            </Text>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Începe testul fulger de 5 întrebări"
-              pressedScale={0.97}
-              haptic="medium"
-              onPress={startQuickTest}
-              contentStyle={styles.heroCta}
-            >
-              <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
-                style={styles.fill}
-              />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
-              <View style={styles.heroCtaBadge}>
-                <AppIcon name="test" size={24} />
-              </View>
-              <Text numberOfLines={2} style={styles.heroCtaText}>Începe testul fulger</Text>
-              <View style={styles.heroCtaArrow}>
-                <MiniGlyph name="next" size={16} color={colors.paper} />
-              </View>
-            </PressableScale>
           </View>
 
           {wrongCount > 0 ? (
@@ -316,18 +368,32 @@ export function PracticeHubScreen({ navigation }: Props) {
               pressedScale={0.975}
               haptic="light"
               onPress={startMistakesReview}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={24}
+                  shadow={LIQUID_SHADOWS.roseSoftOutset}
+                  padTop={12}
+                  padX={16}
+                  padBottom={22}
+                />
+              )}
               contentStyle={styles.mistakesCard}
             >
-              <LinearGradient
-                pointerEvents="none"
-                colors={['#FFF9FA', '#FFE6EB']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fill}
-              />
+              <MissionCardBackdrop tone="mistakes" />
+              <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.roseSoftInset} zIndex={1} />
               <View style={styles.mistakesRail} />
               <View style={styles.mistakesIcon}>
-                <AppIcon name="retake" size={28} />
+                <CachedSurface
+                  borderRadius={15}
+                  backgroundColor="#FFFFFF"
+                  shadow={LIQUID_SHADOWS.orbRoseSurface}
+                  padTop={7}
+                  padX={9}
+                  padBottom={12}
+                />
+                <View style={styles.frontLayer}>
+                  <AppIcon name="retake" size={28} />
+                </View>
               </View>
               <View style={styles.mistakesCopy}>
                 <View style={styles.mistakesHeader}>
@@ -354,18 +420,38 @@ export function PracticeHubScreen({ navigation }: Props) {
             pressedScale={0.975}
             haptic="light"
             onPress={openAiGenerator}
+            backdrop={(
+              <CachedOutsetShadow
+                borderRadius={24}
+                shadow={LIQUID_SHADOWS.cardOutset}
+                padTop={12}
+                padX={16}
+                padBottom={22}
+              />
+            )}
             contentStyle={styles.aiCard}
           >
             <LinearGradient
               pointerEvents="none"
-              colors={['#FCF9FF', '#EFE3FF']}
+              colors={['#FFFFFF', '#F7F1FF', '#ECE0FF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.fill}
             />
+            <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
             <View style={styles.aiRail} />
             <View style={styles.aiIcon}>
-              <AppIcon name="hint" size={28} />
+              <CachedSurface
+                borderRadius={16}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbSurface}
+                padTop={7}
+                padX={9}
+                padBottom={12}
+              />
+              <View style={styles.frontLayer}>
+                <AppIcon name="hint" size={28} />
+              </View>
             </View>
             <View style={styles.aiCopy}>
               <View style={styles.aiTagRow}>
@@ -390,44 +476,60 @@ export function PracticeHubScreen({ navigation }: Props) {
               {categoryStats.map((stat) => {
                 const ratio = stat.total > 0 ? stat.mastered / stat.total : 0;
                 return (
-                  <Pressable
-                    key={stat.categoryId}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Antrenament la ${stat.label}: ${stat.mastered} din ${stat.total} stăpânite`}
-                    onPress={() => startCategoryPractice(stat.categoryId)}
-                    style={({ pressed }) => [styles.chapterCard, pressed && styles.pressed]}
-                  >
-                    <View style={[styles.chapterRail, { backgroundColor: stat.accent }]} />
-                    <View style={styles.chapterBody}>
-                      <View style={styles.chapterHeader}>
-                        <Text numberOfLines={1} style={styles.chapterTitle}>{stat.label}</Text>
-                        <View style={styles.chapterRatioPill}>
-                          <Text style={styles.chapterRatio}>
-                            {stat.mastered}/{stat.total}
-                          </Text>
-                        </View>
-                      </View>
-                      <LiquidProgressBar
-                        progress={Math.max(ratio, stat.mastered > 0 ? 0.12 : 0.04)}
-                        height={6}
-                        tone="studio"
-                        shimmer={false}
-                        active={motionActive}
+                  <View key={stat.categoryId} style={styles.cardShadow}>
+                    <CachedOutsetShadow
+                      borderRadius={22}
+                      shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                      padTop={10}
+                      padX={14}
+                      padBottom={18}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Antrenament la ${stat.label}: ${stat.mastered} din ${stat.total} stăpânite`}
+                      onPress={() => startCategoryPractice(stat.categoryId)}
+                      style={({ pressed }) => [styles.chapterCard, pressed && styles.pressed]}
+                    >
+                      <LinearGradient
+                        pointerEvents="none"
+                        colors={['#FFFFFF', '#FBF8FF']}
+                        start={{ x: 0.5, y: 0 }}
+                        end={{ x: 0.5, y: 1 }}
+                        style={styles.fill}
                       />
-                      <View style={styles.chapterFooter}>
-                        <Text style={styles.chapterMeta}>
-                          {stat.wrong > 0
-                            ? `${stat.wrong} de repetat · ${formatRoCount(stat.total, 'exercițiu', 'exerciții')}`
-                            : stat.total === 1
-                              ? '1 exercițiu disponibil'
-                              : `${formatRoCount(stat.total, 'exercițiu', 'exerciții')} disponibile`}
-                        </Text>
-                        <View style={styles.chapterStartPill}>
-                          <Text style={styles.chapterStartText}>Exersează →</Text>
+                      <CachedInsetRelief borderRadius={21} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
+                      <View style={[styles.chapterRail, { backgroundColor: stat.accent }]} />
+                      <View style={styles.chapterBody}>
+                        <View style={styles.chapterHeader}>
+                          <Text numberOfLines={1} style={styles.chapterTitle}>{stat.label}</Text>
+                          <View style={styles.chapterRatioPill}>
+                            <Text style={styles.chapterRatio}>
+                              {stat.mastered}/{stat.total}
+                            </Text>
+                          </View>
+                        </View>
+                        <LiquidProgressBar
+                          progress={Math.max(ratio, stat.mastered > 0 ? 0.12 : 0.04)}
+                          height={6}
+                          tone="studio"
+                          shimmer={false}
+                          active={motionActive}
+                        />
+                        <View style={styles.chapterFooter}>
+                          <Text style={styles.chapterMeta}>
+                            {stat.wrong > 0
+                              ? `${stat.wrong} de repetat · ${formatRoCount(stat.total, 'exercițiu', 'exerciții')}`
+                              : stat.total === 1
+                                ? '1 exercițiu disponibil'
+                                : `${formatRoCount(stat.total, 'exercițiu', 'exerciții')} disponibile`}
+                          </Text>
+                          <View style={styles.chapterStartPill}>
+                            <Text style={styles.chapterStartText}>Exersează →</Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  </Pressable>
+                    </Pressable>
+                  </View>
                 );
               })}
             </View>
@@ -536,12 +638,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-  },
   canopyTitleCopy: {
     flex: 1,
     minWidth: 0,
@@ -582,36 +678,38 @@ const styles = StyleSheet.create({
   trackPill: {
     minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.2,
     borderColor: '#FFFFFF',
-    borderBottomColor: '#C5B8FA',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 11,
     paddingVertical: 5,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   trackPillDot: {
     width: 6.5,
     height: 6.5,
     borderRadius: 3.5,
     backgroundColor: colors.violet,
+    zIndex: 2,
   },
   trackPillUnchosen: {
     backgroundColor: '#FFF7CF',
-    borderColor: '#F6E076',
-    borderBottomColor: '#C49F12',
+    borderColor: '#FFF0A8',
   },
   trackPillDotUnchosen: {
-    backgroundColor: '#B87B00',
+    backgroundColor: colors.goldDeep,
   },
   trackPillText: {
     fontFamily: fonts.bodyBold,
     color: colors.violetDeep,
     fontSize: 11.5,
     includeFontPadding: false,
+    zIndex: 2,
   },
   trackPillTextUnchosen: {
     color: '#6E4600',
@@ -694,40 +792,25 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingTop: 14 },
   page: { width: '100%', alignSelf: 'center', gap: 13 },
 
+  cardShadow: { position: 'relative' },
+  frontLayer: { zIndex: 2, alignItems: 'center', justifyContent: 'center' },
   questCard: {
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.4,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     padding: 16,
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  studioTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 22,
-    right: 22,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
-  questTintCorner: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    top: -64,
-    right: -46,
-    backgroundColor: 'rgba(124, 60, 255, 0.06)',
+    zIndex: 1,
   },
   questHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    zIndex: 2,
   },
   questStatusPill: {
     flexDirection: 'row',
@@ -771,21 +854,21 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 25,
     letterSpacing: -0.2,
+    zIndex: 2,
   },
   questSubtitle: {
     fontFamily: fonts.bodyMedium,
     color: colors.inkSoft,
     fontSize: 13,
     lineHeight: 18,
+    zIndex: 2,
   },
   heroCta: {
     marginTop: 2,
-    minHeight: 56,
+    minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#C5F228',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
@@ -793,22 +876,16 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 20,
-    right: 20,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    zIndex: 1,
   },
   heroCtaBadge: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
     flexShrink: 0,
   },
   heroCtaText: {
@@ -818,6 +895,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 17,
     lineHeight: 21,
+    zIndex: 2,
   },
   heroCtaArrow: {
     width: 34,
@@ -827,40 +905,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
 
   mistakesCard: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#FBCBD4',
-    borderBottomColor: '#EBA5B5',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 13,
     gap: 11,
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   mistakesRail: {
     width: 5,
     alignSelf: 'stretch',
     backgroundColor: colors.rose,
+    zIndex: 2,
   },
   mistakesIcon: {
     width: 44,
     height: 44,
     borderRadius: 15,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F9C5CF',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
     flexShrink: 0,
   },
   mistakesCopy: {
     flex: 1,
     minWidth: 0,
     paddingVertical: 12,
+    zIndex: 2,
   },
   mistakesHeader: {
     flexDirection: 'row',
@@ -901,37 +981,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
 
   aiCard: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FF',
-    borderBottomColor: '#C2AEF9',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 13,
     gap: 11,
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   aiRail: {
     width: 5,
     alignSelf: 'stretch',
     backgroundColor: colors.violet,
+    zIndex: 2,
   },
   aiIcon: {
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DFD2FF',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
     flexShrink: 0,
   },
-  aiCopy: { flex: 1, minWidth: 0, paddingVertical: 13 },
+  aiCopy: { flex: 1, minWidth: 0, paddingVertical: 13, zIndex: 2 },
   aiTagRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -977,6 +1058,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
 
   chaptersBlock: { gap: 9, marginTop: 2 },
@@ -989,17 +1071,18 @@ const styles = StyleSheet.create({
   chaptersList: { gap: 10 },
   chapterCard: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   chapterRail: {
     width: 5,
     alignSelf: 'stretch',
+    zIndex: 2,
   },
   chapterBody: {
     flex: 1,
@@ -1007,6 +1090,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 8,
+    zIndex: 2,
   },
   chapterHeader: {
     flexDirection: 'row',

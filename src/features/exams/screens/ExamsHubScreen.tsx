@@ -17,13 +17,14 @@ import type {
   RootStackParamList,
 } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PressableScale } from '../../../shared/ui/PressableScale';
-import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
+import { MissionCardBackdrop, RoyalHeroCanopyBackdrop, StudioCardBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
 import { useStudyProfile } from '../../study/services/studyStorage';
@@ -190,7 +191,15 @@ export function ExamsHubScreen({ navigation, route }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
             </IconButton>
@@ -207,8 +216,20 @@ export function ExamsHubScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            <View style={styles.canopyTrophyBadge}>
-              <AppIcon name="trophy" size={26} />
+            <View style={styles.canopyTrophyWrap}>
+              <CachedOutsetShadow
+                borderRadius={21}
+                shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                padTop={10}
+                padX={14}
+                padBottom={18}
+              />
+              <View style={styles.canopyTrophyBadge}>
+                <CachedInsetRelief borderRadius={21} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
+                <View style={styles.frontLayer}>
+                  <AppIcon name="trophy" size={26} />
+                </View>
+              </View>
             </View>
           </View>
 
@@ -284,163 +305,219 @@ export function ExamsHubScreen({ navigation, route }: Props) {
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
           {draftSummary ? (
-            <View style={styles.resumeCard}>
-              <LinearGradient
-                pointerEvents="none"
-                colors={['#FFFDF2', '#FFF0B8']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.fill}
+            <View style={styles.cardShadow}>
+              <CachedOutsetShadow
+                borderRadius={26}
+                shadow={LIQUID_SHADOWS.goldSoftOutset}
+                padTop={12}
+                padX={16}
+                padBottom={22}
               />
-              <View pointerEvents="none" style={styles.studioTopGloss} />
-              <View style={styles.resumeRail} />
-              <View style={styles.resumeTopRow}>
-                <View style={styles.resumeBadge}>
-                  <Text style={styles.resumeBadgeText}>
-                    ⏸ SIMULARE ÎN PAUZĂ · {draftSummary.guideShortTitle.toUpperCase()}
+              <View style={styles.resumeCard}>
+                <MissionCardBackdrop tone="setup" />
+                <CachedInsetRelief borderRadius={25} shadow={LIQUID_SHADOWS.goldSoftInset} zIndex={1} />
+                <View style={styles.resumeRail} />
+                <View style={styles.resumeTopRow}>
+                  <View style={styles.resumeBadge}>
+                    <Text style={styles.resumeBadgeText}>
+                      ⏸ SIMULARE ÎN PAUZĂ · {draftSummary.guideShortTitle.toUpperCase()}
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Șterge simularea salvată"
+                    hitSlop={8}
+                    onPress={() => {
+                      Haptics.selection();
+                      setDiscardSheetOpen(true);
+                    }}
+                    style={({ pressed }) => [styles.resumeDiscardBtn, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.resumeDiscardText}>Șterge</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.resumeTitle}>
+                  {draftSummary.variantLabel} · {draftSummary.scopeTitle}
+                </Text>
+                <Text style={styles.resumeMeta}>
+                  {draftSummary.answered}/{draftSummary.total} itemi completați · ⏱ {draftSummary.remainingLabel} timp rămas
+                </Text>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={`Continuă simularea salvată ${draftSummary.guideShortTitle} ${draftSummary.variantLabel}`}
+                  pressedScale={0.97}
+                  haptic="medium"
+                  onPress={resumeSavedDraft}
+                  backdrop={(
+                    <CachedOutsetShadow
+                      borderRadius={radii.pill}
+                      shadow={LIQUID_SHADOWS.limeOutset}
+                      padTop={10}
+                      padX={16}
+                      padBottom={20}
+                    />
+                  )}
+                  contentStyle={styles.resumeCta}
+                >
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
+                  <Text style={styles.resumeCtaText}>Continuă de unde ai rămas</Text>
+                  <View style={styles.heroCtaArrow}>
+                    <MiniGlyph name="next" size={16} color={colors.paper} />
+                  </View>
+                </PressableScale>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Flagship 3D Liquid-Glass Simulation Launch Studio Card */}
+          <View style={styles.cardShadow}>
+            <CachedOutsetShadow
+              borderRadius={28}
+              shadow={LIQUID_SHADOWS.cardOutset}
+              padTop={14}
+              padX={18}
+              padBottom={24}
+            />
+            <View style={styles.simStudioCard}>
+              <StudioCardBackdrop />
+              <CachedInsetRelief borderRadius={27} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
+              <View style={styles.studioHeaderRow}>
+                <View style={styles.studioKickerPill}>
+                  <Text accessible={false} style={styles.studioKickerSpark}>✦</Text>
+                  <Text maxFontSizeMultiplier={1.15} style={styles.studioKickerText}>
+                    SIMULARE TIP EXAMEN · 1–10
                   </Text>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Șterge simularea salvată"
-                  hitSlop={8}
-                  onPress={() => {
-                    Haptics.selection();
-                    setDiscardSheetOpen(true);
-                  }}
-                  style={({ pressed }) => [styles.resumeDiscardBtn, pressed && styles.pressed]}
-                >
-                  <Text style={styles.resumeDiscardText}>Șterge</Text>
-                </Pressable>
+                <Text style={styles.studioOfficeText}>
+                  {variants.length > 1 ? `${variants.length} variante · 10p oficiu` : '10p oficiu'}
+                </Text>
               </View>
-              <Text style={styles.resumeTitle}>
-                {draftSummary.variantLabel} · {draftSummary.scopeTitle}
+
+              {variants.length > 1 ? (
+                <View style={styles.variantGrid}>
+                  {variants.map((variant, index) => {
+                    const selected = variant.id === activeVariant?.id;
+                    const variantBest = getBestGradeForVariant(history, variant.id);
+                    return (
+                      <Pressable
+                        key={variant.id}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected }}
+                        accessibilityLabel={`Alege Varianta ${index + 1} pentru ${guide.shortTitle}`}
+                        onPress={() => {
+                          if (selected) return;
+                          Haptics.selection();
+                          setSelectedVariantByExam((prev) => ({ ...prev, [examId]: variant.id }));
+                        }}
+                        style={({ pressed }) => [
+                          styles.variantPill,
+                          selected && styles.variantPillActive,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        {selected ? (
+                          <LinearGradient
+                            pointerEvents="none"
+                            colors={['#8E49FF', '#6520EC', '#4812BE']}
+                            start={{ x: 0.08, y: 0 }}
+                            end={{ x: 0.92, y: 1 }}
+                            style={styles.fill}
+                          />
+                        ) : null}
+                        <CachedInsetRelief
+                          borderRadius={15}
+                          shadow={selected ? LIQUID_SHADOWS.violetInset : LIQUID_SHADOWS.cardInsetSoft}
+                          zIndex={0}
+                        />
+                        <Text
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.82}
+                          maxFontSizeMultiplier={1.15}
+                          style={[styles.variantPillTitle, selected && styles.variantPillTitleActive]}
+                        >
+                          Varianta {index + 1}
+                        </Text>
+                        <Text
+                          numberOfLines={1}
+                          maxFontSizeMultiplier={1.1}
+                          style={[
+                            styles.variantPillMeta,
+                            variantBest !== null && styles.variantPillMetaScored,
+                            selected && styles.variantPillMetaActive,
+                          ]}
+                        >
+                          {variantBest !== null ? `★ ${formatRomanianGrade(variantBest)}` : '100p · nouă'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              <Text style={styles.studioSubtitle}>
+                {examId === 'en'
+                  ? 'Cronometru real, barem model pas cu pas, corectare foto AI la Subiectul III și notă estimată.'
+                  : 'Cronometru real, barem model pas cu pas, corectare foto AI la Subiectele II și III și notă estimată.'}
               </Text>
-              <Text style={styles.resumeMeta}>
-                {draftSummary.answered}/{draftSummary.total} itemi completați · ⏱ {draftSummary.remainingLabel} timp rămas
-              </Text>
+
               <PressableScale
                 accessibilityRole="button"
-                accessibilityLabel={`Continuă simularea salvată ${draftSummary.guideShortTitle} ${draftSummary.variantLabel}`}
+                accessibilityLabel={`Începe simularea completă ${activeVariant?.title ?? guide.title}`}
                 pressedScale={0.97}
                 haptic="medium"
-                onPress={resumeSavedDraft}
-                contentStyle={styles.resumeCta}
+                onPress={() => launchSimulation('full')}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.limeOutset}
+                    padTop={10}
+                    padX={16}
+                    padBottom={20}
+                  />
+                )}
+                contentStyle={styles.heroCta}
               >
                 <LinearGradient
-                  colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                  pointerEvents="none"
+                  colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
                   start={{ x: 0.08, y: 0 }}
                   end={{ x: 0.92, y: 1 }}
                   style={styles.fill}
                 />
-                <View pointerEvents="none" style={styles.ctaTopGloss} />
-                <Text style={styles.resumeCtaText}>Continuă de unde ai rămas</Text>
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
+                <View style={styles.heroCtaBadge}>
+                  <CachedSurface
+                    borderRadius={19}
+                    backgroundColor="#FFFFFF"
+                    shadow={LIQUID_SHADOWS.orbMintSurface}
+                    padTop={6}
+                    padX={8}
+                    padBottom={10}
+                  />
+                  <View style={styles.frontLayer}>
+                    <AppIcon name="simulation" size={24} />
+                  </View>
+                </View>
+                <Text numberOfLines={2} style={styles.heroCtaText}>
+                  {activeFullDraftMatches && draftSummary
+                    ? `Continuă Varianta ${activeVariantIndex + 1} (${draftSummary.answered}/${draftSummary.total})`
+                    : variants.length > 1
+                      ? `Începe Varianta ${activeVariantIndex + 1} completă`
+                      : 'Începe simularea completă'}
+                </Text>
                 <View style={styles.heroCtaArrow}>
                   <MiniGlyph name="next" size={16} color={colors.paper} />
                 </View>
               </PressableScale>
             </View>
-          ) : null}
-
-          {/* Pure-white 3D Simulation Launch Studio Card */}
-          <View style={styles.simStudioCard}>
-            <View pointerEvents="none" style={styles.studioTopGloss} />
-            <View pointerEvents="none" style={styles.studioCornerGlow} />
-            <View style={styles.studioHeaderRow}>
-              <View style={styles.studioKickerPill}>
-                <Text accessible={false} style={styles.studioKickerSpark}>✦</Text>
-                <Text maxFontSizeMultiplier={1.15} style={styles.studioKickerText}>
-                  SIMULARE TIP EXAMEN · 1–10
-                </Text>
-              </View>
-              <Text style={styles.studioOfficeText}>
-                {variants.length > 1 ? `${variants.length} variante · 10p oficiu` : '10p oficiu'}
-              </Text>
-            </View>
-
-            {variants.length > 1 ? (
-              <View style={styles.variantGrid}>
-                {variants.map((variant, index) => {
-                  const selected = variant.id === activeVariant?.id;
-                  const variantBest = getBestGradeForVariant(history, variant.id);
-                  return (
-                    <Pressable
-                      key={variant.id}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={`Alege Varianta ${index + 1} pentru ${guide.shortTitle}`}
-                      onPress={() => {
-                        if (selected) return;
-                        Haptics.selection();
-                        setSelectedVariantByExam((prev) => ({ ...prev, [examId]: variant.id }));
-                      }}
-                      style={({ pressed }) => [
-                        styles.variantPill,
-                        selected && styles.variantPillActive,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        minimumFontScale={0.82}
-                        maxFontSizeMultiplier={1.15}
-                        style={[styles.variantPillTitle, selected && styles.variantPillTitleActive]}
-                      >
-                        Varianta {index + 1}
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        maxFontSizeMultiplier={1.1}
-                        style={[
-                          styles.variantPillMeta,
-                          variantBest !== null && styles.variantPillMetaScored,
-                          selected && styles.variantPillMetaActive,
-                        ]}
-                      >
-                        {variantBest !== null ? `★ ${formatRomanianGrade(variantBest)}` : '100p · nouă'}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
-
-            <Text style={styles.studioSubtitle}>
-              {examId === 'en'
-                ? 'Cronometru real, barem model pas cu pas, corectare foto AI la Subiectul III și notă estimată.'
-                : 'Cronometru real, barem model pas cu pas, corectare foto AI la Subiectele II și III și notă estimată.'}
-            </Text>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={`Începe simularea completă ${activeVariant?.title ?? guide.title}`}
-              pressedScale={0.97}
-              haptic="medium"
-              onPress={() => launchSimulation('full')}
-              contentStyle={styles.heroCta}
-            >
-              <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
-                style={styles.fill}
-              />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
-              <View style={styles.heroCtaBadge}>
-                <AppIcon name="simulation" size={24} />
-              </View>
-              <Text numberOfLines={2} style={styles.heroCtaText}>
-                {activeFullDraftMatches && draftSummary
-                  ? `Continuă Varianta ${activeVariantIndex + 1} (${draftSummary.answered}/${draftSummary.total})`
-                  : variants.length > 1
-                    ? `Începe Varianta ${activeVariantIndex + 1} completă`
-                    : 'Începe simularea completă'}
-              </Text>
-              <View style={styles.heroCtaArrow}>
-                <MiniGlyph name="next" size={16} color={colors.paper} />
-              </View>
-            </PressableScale>
           </View>
 
           <PressableScale
@@ -449,18 +526,38 @@ export function ExamsHubScreen({ navigation, route }: Props) {
             pressedScale={0.975}
             haptic="light"
             onPress={openGuide}
+            backdrop={(
+              <CachedOutsetShadow
+                borderRadius={24}
+                shadow={LIQUID_SHADOWS.cyanSoftOutset}
+                padTop={12}
+                padX={16}
+                padBottom={22}
+              />
+            )}
             contentStyle={styles.guideCard}
           >
             <LinearGradient
               pointerEvents="none"
-              colors={['#F5FEFF', '#DCF7FE']}
+              colors={['#FFFFFF', '#F3FDFF', '#DCF7FE']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.fill}
             />
+            <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.cyanSoftInset} zIndex={1} />
             <View style={styles.guideRail} />
             <View style={styles.guideIcon}>
-              <AppIcon name="examPapers" size={28} />
+              <CachedSurface
+                borderRadius={16}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbCyanSurface}
+                padTop={7}
+                padX={9}
+                padBottom={12}
+              />
+              <View style={styles.frontLayer}>
+                <AppIcon name="examPapers" size={28} />
+              </View>
             </View>
             <View style={styles.guideCopy}>
               <Text style={styles.cardKicker}>STRUCTURĂ &amp; MODELE PE BAREM</Text>
@@ -738,12 +835,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-  },
   canopyTitleCopy: {
     flex: 1,
     minWidth: 0,
@@ -781,18 +872,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.85,
     includeFontPadding: false,
   },
+  canopyTrophyWrap: {
+    position: 'relative',
+    flexShrink: 0,
+  },
+  frontLayer: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardShadow: {
+    position: 'relative',
+  },
   canopyTrophyBadge: {
     width: 42,
     height: 42,
     borderRadius: 21,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderBottomWidth: 3.5,
     borderColor: colors.lime,
-    borderBottomColor: '#98C40E',
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   canopyHeroRow: {
     flexDirection: 'row',
@@ -860,17 +963,14 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 15,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.2,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   examPillActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#3C12A8',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     backgroundColor: colors.violet,
   },
   examPillText: {
@@ -886,38 +986,21 @@ const styles = StyleSheet.create({
 
   simStudioCard: {
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.4,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     padding: 16,
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  studioTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 22,
-    right: 22,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-  },
-  studioCornerGlow: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    top: -64,
-    right: -46,
-    backgroundColor: 'rgba(255, 208, 44, 0.14)',
+    zIndex: 1,
   },
   studioHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    zIndex: 2,
   },
   studioKickerPill: {
     flexDirection: 'row',
@@ -948,6 +1031,7 @@ const styles = StyleSheet.create({
   variantGrid: {
     flexDirection: 'row',
     gap: 8,
+    zIndex: 2,
   },
   variantPill: {
     flex: 1,
@@ -955,18 +1039,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 9,
     borderRadius: 16,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#D4C7F7',
-    backgroundColor: '#FAF8FF',
+    borderWidth: 1.2,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#F7F3FF',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    overflow: 'hidden',
+    position: 'relative',
   },
   variantPillActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#3C12A8',
+    borderColor: 'rgba(255, 255, 255, 0.34)',
     backgroundColor: colors.violet,
   },
   variantPillTitle: {
@@ -974,6 +1057,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 13.5,
     includeFontPadding: false,
+    zIndex: 2,
   },
   variantPillTitleActive: {
     color: colors.paper,
@@ -983,6 +1067,7 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     fontSize: 10.5,
     includeFontPadding: false,
+    zIndex: 2,
   },
   variantPillMetaScored: {
     color: '#2A7A16',
@@ -995,15 +1080,14 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     fontSize: 13,
     lineHeight: 18,
+    zIndex: 2,
   },
   heroCta: {
     marginTop: 2,
-    minHeight: 56,
+    minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#C5F228',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
@@ -1011,22 +1095,16 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 1,
-    left: 20,
-    right: 20,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    zIndex: 1,
   },
   heroCtaBadge: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
     flexShrink: 0,
   },
   heroCtaText: {
@@ -1036,6 +1114,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 16.5,
     lineHeight: 20.5,
+    zIndex: 2,
   },
   heroCtaArrow: {
     width: 34,
@@ -1045,37 +1124,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
 
   guideCard: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#BCEBF7',
-    borderBottomColor: '#8ED4E8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 13,
     gap: 11,
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   guideRail: {
     width: 5,
     alignSelf: 'stretch',
     backgroundColor: colors.cyan,
+    zIndex: 2,
   },
   guideIcon: {
     width: 46,
     height: 46,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#BCEBF7',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    zIndex: 2,
     flexShrink: 0,
   },
-  guideCopy: { flex: 1, minWidth: 0, paddingVertical: 13 },
+  guideCopy: { flex: 1, minWidth: 0, paddingVertical: 13, zIndex: 2 },
   cardKicker: {
     ...typography.kicker,
     fontSize: 9.5,
@@ -1102,6 +1182,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
 
   subjectsBlock: { gap: 9, marginTop: 2 },
@@ -1114,10 +1195,8 @@ const styles = StyleSheet.create({
   subjectsList: { gap: 10 },
   subjectCard: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1208,10 +1287,8 @@ const styles = StyleSheet.create({
   historyList: { gap: 9 },
   historyRow: {
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1275,10 +1352,8 @@ const styles = StyleSheet.create({
   },
   resumeCard: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 5,
-    borderColor: '#ECCB5B',
-    borderBottomColor: '#D0A51E',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFF9DC',
     paddingVertical: 15,
     paddingLeft: 18,
@@ -1286,6 +1361,7 @@ const styles = StyleSheet.create({
     gap: 8,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   resumeRail: {
     position: 'absolute',
@@ -1353,10 +1429,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     minHeight: 50,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderColor: '#EEFF96',
-    borderBottomWidth: 4,
-    borderBottomColor: '#8CB600',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1374,6 +1448,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     fontSize: 15.5,
     color: colors.ink,
+    zIndex: 2,
   },
   pausedSubjectTag: {
     paddingHorizontal: 8,
@@ -1410,10 +1485,8 @@ const styles = StyleSheet.create({
   sheetPrimaryBtn: {
     minHeight: 50,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1430,9 +1503,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
     borderRadius: radii.pill,
     borderWidth: 1.2,
-    borderBottomWidth: 2.8,
     borderColor: '#F8B9C7',
-    borderBottomColor: '#E07990',
     backgroundColor: '#FFF1F4',
     alignItems: 'center',
     justifyContent: 'center',

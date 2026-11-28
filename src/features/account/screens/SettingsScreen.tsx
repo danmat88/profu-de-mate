@@ -20,6 +20,12 @@ import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
@@ -54,6 +60,24 @@ function SettingsSectionTitle({ children, tone }: { children: string; tone: stri
   );
 }
 
+function PorcelainGroup({ children }: { children: ReactNode }) {
+  return (
+    <View style={styles.cardWrap}>
+      <CachedOutsetShadow borderRadius={24} shadow={LIQUID_SHADOWS.cardOutsetSoft} />
+      <View style={styles.porcelainGroup}>
+        <LinearGradient
+          colors={['#FFFFFF', '#FBF8FF']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.fill}
+        />
+        <CachedInsetRelief borderRadius={24} shadow={LIQUID_SHADOWS.cardInsetSoft} />
+        {children}
+      </View>
+    </View>
+  );
+}
+
 function SettingsCanopyHeader({
   canopyTopStyle,
   contentWidth,
@@ -83,6 +107,15 @@ function SettingsCanopyHeader({
             dimWhenDisabled={false}
             onPress={onBack}
             size={42}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={21}
+                shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                padTop={4}
+                padX={6}
+                padBottom={10}
+              />
+            }
             style={styles.canopyActionBtn}
           >
             <MiniGlyph name="back" size={18} color={colors.violetDeep} />
@@ -101,6 +134,16 @@ function SettingsCanopyHeader({
           </View>
 
           <View style={styles.canopyBadge}>
+            <CachedSurface
+              borderRadius={21}
+              backgroundColor="#FFFFFF"
+              shadow={LIQUID_SHADOWS.orbSurface}
+              borderWidth={1.6}
+              borderColor={colors.lime}
+              padTop={4}
+              padX={6}
+              padBottom={9}
+            />
             <AppIcon name="settings" size={26} />
           </View>
         </View>
@@ -402,9 +445,16 @@ export function SettingsScreen({ navigation }: Props) {
         contentContainerStyle={[styles.content, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 14) + 20 }]}
       >
         <View collapsable={false} style={[styles.contentInner, { maxWidth: contentWidth }]}>
-          <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} style={identityAnimated}>
+          <Animated.View pointerEvents={accountBusy ? 'none' : 'auto'} style={[styles.cardWrap, identityAnimated]}>
+            <CachedOutsetShadow borderRadius={28} shadow={LIQUID_SHADOWS.cardOutset} />
             <View style={styles.identityCard}>
-              <View pointerEvents="none" style={styles.identityTopGloss} />
+              <LinearGradient
+                colors={['#FFFFFF', '#FBF8FF']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={28} shadow={LIQUID_SHADOWS.cardInset} />
               <View pointerEvents="none" style={styles.identityCornerTint} />
               <View style={styles.identityTopRow}>
                 <View style={styles.identityMascotWrap}>
@@ -445,8 +495,18 @@ export function SettingsScreen({ navigation }: Props) {
                 pressedScale={0.97}
                 haptic="selection"
                 onPress={() => { if (!isInteractionLocked()) void refresh(); }}
+                backdrop={
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.cyanSoftOutset}
+                    padTop={3}
+                    padX={6}
+                    padBottom={10}
+                  />
+                }
                 contentStyle={styles.accountRetry}
               >
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cyanSoftInset} />
                 <MiniGlyph name="spark" size={16} color={colors.ink} />
                 <Text style={styles.accountRetryText}>Verifică din nou</Text>
               </PressableScale>
@@ -462,7 +522,7 @@ export function SettingsScreen({ navigation }: Props) {
             ) : null}
 
             <View pointerEvents={accountBusy ? 'none' : 'auto'}>
-              <View style={styles.porcelainGroup}>
+              <PorcelainGroup>
                 {hasGoogleAccount ? (
                   <Pressable
                     accessibilityRole="button"
@@ -506,7 +566,7 @@ export function SettingsScreen({ navigation }: Props) {
                   </View>
                   <MiniGlyph name="next" size={17} color={colors.violetDeep} />
                 </Pressable>
-              </View>
+              </PorcelainGroup>
             </View>
           </View>
 
@@ -516,7 +576,7 @@ export function SettingsScreen({ navigation }: Props) {
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.violet}>Profil de studiu</SettingsSectionTitle>
-            <View style={styles.porcelainGroup}>
+            <PorcelainGroup>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={
@@ -560,12 +620,12 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="next" size={17} color={studyProfile.hasChosenTrack ? colors.violetDeep : '#8A5600'} />
               </Pressable>
-            </View>
+            </PorcelainGroup>
           </View>
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.cyan}>Confidențialitate</SettingsSectionTitle>
-            <View style={styles.porcelainGroup}>
+            <PorcelainGroup>
               <Pressable
                 accessibilityRole="switch"
                 accessibilityState={{ checked: diagnostics, disabled: accountBusy }}
@@ -588,12 +648,12 @@ export function SettingsScreen({ navigation }: Props) {
                   <Text style={styles.rowText}>Sunt micșorate pe telefon și trimise securizat, fără să fie păstrate pe server. Detaliile sunt explicate la „Legal și siguranță”.</Text>
                 </View>
               </View>
-            </View>
+            </PorcelainGroup>
           </View>
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.peach}>Datele tale</SettingsSectionTitle>
-            <View style={styles.porcelainGroup}>
+            <PorcelainGroup>
               <View style={[styles.row, styles.rowBorder]}>
                 <View style={[styles.rowIcon, { backgroundColor: colors.violetSoft }]}><AppIcon name="notebook" size={30} /></View>
                 <View style={styles.rowCopy}>
@@ -615,12 +675,12 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="next" size={17} color={colors.rose} />
               </Pressable>
-            </View>
+            </PorcelainGroup>
           </View>
 
           <View pointerEvents={accountBusy ? 'none' : 'auto'} style={styles.sectionBlock}>
             <SettingsSectionTitle tone={colors.limeDeep}>Despre aplicație</SettingsSectionTitle>
-            <View style={styles.porcelainGroup}>
+            <PorcelainGroup>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Ajutor și suport pe e-mail la ${legalDocument.supportEmail}`}
@@ -655,7 +715,7 @@ export function SettingsScreen({ navigation }: Props) {
                 </View>
                 <MiniGlyph name="next" size={17} color={colors.violetDeep} />
               </Pressable>
-            </View>
+            </PorcelainGroup>
           </View>
 
           <View style={styles.versionRow}>
@@ -670,9 +730,12 @@ export function SettingsScreen({ navigation }: Props) {
             accessibilityLiveRegion="polite"
             style={[styles.floatingDock, { bottom: Math.max(insets.bottom, 14) + 12 }]}
           >
-            <View style={styles.busyPill}>
-              <PlayfulLoader micro inverse />
-              <Text style={styles.busyPillText}>{busyStatusLabel}</Text>
+            <View style={styles.cardWrap}>
+              <CachedOutsetShadow borderRadius={radii.pill} shadow={LIQUID_SHADOWS.darkOutset} padTop={4} padX={8} padBottom={12} />
+              <View style={styles.busyPill}>
+                <PlayfulLoader micro inverse />
+                <Text style={styles.busyPillText}>{busyStatusLabel}</Text>
+              </View>
             </View>
           </View>
         </View>
@@ -684,11 +747,20 @@ export function SettingsScreen({ navigation }: Props) {
           accessibilityLiveRegion="polite"
           style={[styles.floatingDock, { bottom: Math.max(insets.bottom, 14) + 12 }]}
         >
-          <View style={[styles.noticePill, statusNotice.tone === 'disconnected' && styles.noticePillCyan]}>
-            <View style={styles.noticeBadge}>
-              <MiniGlyph name="check" size={13} color={colors.ink} />
+          <View style={styles.cardWrap}>
+            <CachedOutsetShadow
+              borderRadius={radii.pill}
+              shadow={statusNotice.tone === 'disconnected' ? LIQUID_SHADOWS.cyanSoftOutset : LIQUID_SHADOWS.limeOutset}
+              padTop={4}
+              padX={8}
+              padBottom={12}
+            />
+            <View style={[styles.noticePill, statusNotice.tone === 'disconnected' && styles.noticePillCyan]}>
+              <View style={styles.noticeBadge}>
+                <MiniGlyph name="check" size={13} color={colors.ink} />
+              </View>
+              <Text style={styles.noticePillText}>{statusNotice.label}</Text>
             </View>
-            <Text style={styles.noticePillText}>{statusNotice.label}</Text>
           </View>
         </View>
       ) : null}
@@ -733,8 +805,24 @@ export function SettingsScreen({ navigation }: Props) {
                   navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
                 }}
                 style={styles.confirmActionWrap}
+                backdrop={
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.limeOutset}
+                    padTop={4}
+                    padX={8}
+                    padBottom={12}
+                  />
+                }
                 contentStyle={styles.successButton}
               >
+                <LinearGradient
+                  colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
                 <Text style={styles.successButtonText}>Înapoi la început</Text>
                 <MiniGlyph name="next" size={18} color={colors.ink} />
               </PressableScale>
@@ -756,8 +844,24 @@ export function SettingsScreen({ navigation }: Props) {
                 haptic="medium"
                 onPress={() => void deleteData()}
                 style={styles.confirmActionWrap}
+                backdrop={
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.peachOutset}
+                    padTop={4}
+                    padX={8}
+                    padBottom={12}
+                  />
+                }
                 contentStyle={styles.confirmDelete}
               >
+                <LinearGradient
+                  colors={['#FF7488', '#FF4D66', '#E02D48']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.peachInset} />
                 {deleteSheetBusy ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={18} color={colors.paper} />}
                 <Text style={styles.confirmDeleteText}>{deleteSheetBusy ? 'Șterg datele…' : deleteModalHadGoogle ? 'Da, șterge contul' : 'Da, șterge datele'}</Text>
               </PressableScale>
@@ -801,8 +905,24 @@ export function SettingsScreen({ navigation }: Props) {
             haptic="medium"
             onPress={() => void disconnectAccount()}
             style={styles.confirmActionWrap}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.cyanOutset}
+                padTop={4}
+                padX={8}
+                padBottom={12}
+              />
+            }
             contentStyle={styles.confirmLogout}
           >
+            <LinearGradient
+              colors={['#74ECFA', '#43D6E6', '#21B4C8']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cyanInset} />
             {logoutSheetBusy ? <PlayfulLoader micro /> : <MiniGlyph name="next" size={18} color={colors.ink} />}
             <Text style={styles.confirmLogoutText}>{logoutSheetBusy ? 'Deconectez…' : 'Da, deconectează-mă'}</Text>
           </PressableScale>
@@ -831,6 +951,7 @@ export function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  cardWrap: { position: 'relative' },
 
   canopy: {
     width: '100%',
@@ -840,42 +961,6 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     position: 'relative',
     zIndex: 4,
-  },
-  canopyGlowCyan: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    top: -80,
-    left: -50,
-    backgroundColor: 'rgba(67, 214, 230, 0.2)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    borderRadius: 85,
-    bottom: -70,
-    right: 24,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -115,
-    right: -80,
-  },
-  canopyStar: {
-    position: 'absolute',
-    right: 88,
-    bottom: 12,
-    fontFamily: fonts.display,
-    fontSize: 13,
-    color: 'rgba(216, 255, 62, 0.36)',
   },
   canopyInner: {
     maxWidth: 560,
@@ -890,8 +975,8 @@ const styles = StyleSheet.create({
   },
   canopyActionBtn: {
     borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
   },
   canopyCopy: {
@@ -931,14 +1016,10 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderBottomWidth: 3.5,
-    borderColor: colors.lime,
-    borderBottomColor: '#98C40E',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
 
   scroll: { flex: 1 },
@@ -965,7 +1046,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(216, 255, 62, 0.35)',
     backgroundColor: colors.ink,
-    elevation: 6,
   },
   busyPillText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 13.5, lineHeight: 18 },
   noticePill: {
@@ -979,7 +1059,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(86, 120, 0, 0.2)',
     backgroundColor: colors.lime,
-    elevation: 5,
   },
   noticePillCyan: { backgroundColor: colors.cyanSoft, borderColor: '#B2EAF0' },
   noticeBadge: {
@@ -994,23 +1073,13 @@ const styles = StyleSheet.create({
   identityCard: {
     minHeight: 152,
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     padding: 16,
     gap: 12,
     overflow: 'hidden',
     position: 'relative',
-  },
-  identityTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 22,
-    right: 22,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   identityCornerTint: {
     position: 'absolute',
@@ -1048,15 +1117,15 @@ const styles = StyleSheet.create({
   accountRetry: {
     minHeight: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.5,
-    borderColor: '#A6E6F2',
-    borderBottomColor: '#72C9DC',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: colors.cyanSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
+    overflow: 'hidden',
+    position: 'relative',
   },
   accountRetryText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 13.5 },
 
@@ -1066,14 +1135,13 @@ const styles = StyleSheet.create({
 
   porcelainGroup: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
     paddingVertical: 4,
     overflow: 'hidden',
+    position: 'relative',
   },
   row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(124, 60, 255, 0.07)' },
@@ -1122,22 +1190,28 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 52,
     borderRadius: radii.pill,
-    backgroundColor: colors.rose,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.36)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
   confirmDeleteText: { fontFamily: fonts.displaySemi, color: colors.paper, fontSize: 16.5 },
   confirmLogout: {
     width: '100%',
     minHeight: 52,
     borderRadius: radii.pill,
-    backgroundColor: colors.cyan,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
   confirmLogoutText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16.5 },
   cancel: { minHeight: 46, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, marginTop: 6 },
@@ -1146,11 +1220,14 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 54,
     borderRadius: radii.pill,
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
   successButtonText: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 16.5 },
 });

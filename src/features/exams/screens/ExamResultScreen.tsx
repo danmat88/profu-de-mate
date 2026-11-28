@@ -12,6 +12,7 @@ import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { ExamResultItemSummary, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ConfettiBurst } from '../../../shared/ui/ConfettiBurst';
@@ -114,7 +115,15 @@ export function ExamResultScreen({ navigation, route }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
             </IconButton>
@@ -178,34 +187,50 @@ export function ExamResultScreen({ navigation, route }: Props) {
       >
         <View style={[styles.page, { maxWidth: contentWidth }]}>
           {scope === 'full' ? (
-            <View style={styles.breakdownCard}>
-              <View pointerEvents="none" style={styles.cardTopGloss} />
-              <Text style={styles.sectionKicker}>DISTRIBUȚIA PUNCTAJULUI</Text>
+            <View style={styles.breakdownCardWrap}>
+              <CachedOutsetShadow
+                borderRadius={26}
+                shadow={LIQUID_SHADOWS.cardOutset}
+                padTop={14}
+                padX={18}
+                padBottom={24}
+              />
+              <View style={styles.breakdownCard}>
+                <LinearGradient
+                  pointerEvents="none"
+                  colors={['#FFFFFF', '#FBF8FF']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={25} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
+                <Text style={styles.sectionKicker}>DISTRIBUȚIA PUNCTAJULUI</Text>
 
-              <View style={styles.breakdownBox}>
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Din oficiu</Text>
-                  <Text style={styles.breakdownPts}>{officePoints} / 10p</Text>
-                </View>
-                <LiquidProgressBar progress={1} height={6} tone="lime" shimmer={false} />
+                <View style={styles.breakdownBox}>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Din oficiu</Text>
+                    <Text style={styles.breakdownPts}>{officePoints} / 10p</Text>
+                  </View>
+                  <LiquidProgressBar progress={1} height={6} tone="lime" shimmer={false} />
 
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Subiectul I</Text>
-                  <Text style={styles.breakdownPts}>{subjectPoints.s1} / 30p</Text>
-                </View>
-                <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s1 / 30)} height={6} tone="studio" shimmer={false} />
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Subiectul I</Text>
+                    <Text style={styles.breakdownPts}>{subjectPoints.s1} / 30p</Text>
+                  </View>
+                  <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s1 / 30)} height={6} tone="studio" shimmer={false} />
 
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Subiectul II</Text>
-                  <Text style={styles.breakdownPts}>{subjectPoints.s2} / 30p</Text>
-                </View>
-                <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s2 / 30)} height={6} tone="studio" shimmer={false} />
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Subiectul II</Text>
+                    <Text style={styles.breakdownPts}>{subjectPoints.s2} / 30p</Text>
+                  </View>
+                  <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s2 / 30)} height={6} tone="studio" shimmer={false} />
 
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Subiectul III</Text>
-                  <Text style={styles.breakdownPts}>{subjectPoints.s3} / 30p</Text>
+                  <View style={styles.breakdownRow}>
+                    <Text style={styles.breakdownLabel}>Subiectul III</Text>
+                    <Text style={styles.breakdownPts}>{subjectPoints.s3} / 30p</Text>
+                  </View>
+                  <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s3 / 30)} height={6} tone="warm" shimmer={false} />
                 </View>
-                <LiquidProgressBar progress={Math.max(0.04, subjectPoints.s3 / 30)} height={6} tone="warm" shimmer={false} />
               </View>
             </View>
           ) : null}
@@ -264,15 +289,25 @@ export function ExamResultScreen({ navigation, route }: Props) {
               pressedScale={0.97}
               haptic="medium"
               onPress={handleRestart}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={10}
+                  padX={16}
+                  padBottom={20}
+                />
+              )}
               contentStyle={styles.primaryBtn}
             >
               <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                pointerEvents="none"
+                colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
                 start={{ x: 0.08, y: 0 }}
                 end={{ x: 0.92, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
               <View style={styles.primaryCtaBadge}>
                 <AppIcon name="retake" size={22} />
               </View>
@@ -481,12 +516,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-  },
   canopyCopy: {
     flex: 1,
     minWidth: 0,
@@ -530,9 +559,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderBottomWidth: 3.5,
     borderColor: colors.lime,
-    borderBottomColor: '#98C40E',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -585,10 +612,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#ECFF8A',
-    borderBottomColor: '#8BB509',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     backgroundColor: colors.lime,
   },
   gradeBadgeText: {
@@ -616,25 +641,19 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingTop: 14 },
   page: { width: '100%', alignSelf: 'center', gap: 16 },
 
+  breakdownCardWrap: {
+    position: 'relative',
+  },
   breakdownCard: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.35,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     padding: 16,
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  cardTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    zIndex: 1,
   },
   breakdownBox: {
     width: '100%',
@@ -644,6 +663,7 @@ const styles = StyleSheet.create({
     borderColor: '#ECE4FC',
     backgroundColor: '#F8F4FF',
     gap: 7,
+    zIndex: 2,
   },
   breakdownRow: {
     flexDirection: 'row',
@@ -671,10 +691,8 @@ const styles = StyleSheet.create({
   itemsList: { gap: 9 },
   itemRow: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -686,9 +704,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     borderRadius: radii.pill,
     borderWidth: 1.2,
-    borderBottomWidth: 2.8,
     borderColor: '#FFC8D3',
-    borderBottomColor: '#E691A2',
     backgroundColor: colors.roseSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -697,12 +713,10 @@ const styles = StyleSheet.create({
   scorePillFull: {
     backgroundColor: colors.lime,
     borderColor: '#E8FF78',
-    borderBottomColor: '#98C40E',
   },
   scorePillPartial: {
     backgroundColor: colors.goldSoft,
     borderColor: '#FBE08A',
-    borderBottomColor: '#DDB038',
   },
   scorePillText: {
     fontFamily: fonts.bodyBold,
@@ -728,10 +742,8 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
+    borderWidth: 1,
     borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -741,10 +753,8 @@ const styles = StyleSheet.create({
   primaryBtn: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -752,24 +762,17 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    zIndex: 1,
   },
   primaryCtaBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   primaryBtnText: {
     flex: 1,
@@ -778,6 +781,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 17,
     lineHeight: 21,
+    zIndex: 2,
   },
   primaryArrow: {
     width: 36,
@@ -787,6 +791,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   backLink: {
     minHeight: 44,
@@ -821,10 +826,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
+    borderWidth: 1.25,
     borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -836,29 +839,24 @@ const styles = StyleSheet.create({
   },
   sheetUserCard: {
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.25,
     padding: 13,
     gap: 4,
   },
   sheetUserCardCorrect: {
     borderColor: '#C5EA63',
-    borderBottomColor: '#98C40E',
     backgroundColor: '#F5FFD6',
   },
   sheetUserCardWrong: {
     borderColor: '#F8B9C7',
-    borderBottomColor: '#E07990',
     backgroundColor: '#FFF1F4',
   },
   sheetUserCardSkipped: {
     borderColor: '#F2CC55',
-    borderBottomColor: '#CC9A12',
     backgroundColor: '#FFF8D8',
   },
   sheetUserCardRubric: {
     borderColor: '#DCD0F8',
-    borderBottomColor: '#C4B1F4',
     backgroundColor: '#F6F1FF',
   },
   sheetUserEyebrow: {
@@ -872,10 +870,8 @@ const styles = StyleSheet.create({
   sheetUserEyebrowRubric: { color: colors.violetDeep },
   sheetAnswerCard: {
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.25,
     borderColor: '#D6F08A',
-    borderBottomColor: '#AED442',
     backgroundColor: '#F5FFD6',
     padding: 13,
     gap: 4,

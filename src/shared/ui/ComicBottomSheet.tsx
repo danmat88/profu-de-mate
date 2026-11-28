@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { SILKY_EASE_IN, SILKY_EASE_OUT } from '../motion/nativeMotion';
 import { colors } from '../theme';
+import { CachedInsetRelief, LIQUID_SHADOWS } from './CachedRelief';
 
 type Props = {
   visible: boolean;
@@ -175,9 +177,16 @@ export function ComicBottomSheet({
             sheetAnimated,
           ]}
         >
-          <View pointerEvents="none" style={styles.topShine} />
+          <LinearGradient
+            pointerEvents="none"
+            colors={tone === 'paper' ? ['#FFFFFF', '#FAF6FF'] : ['#FFFDF8', '#FFF7E8']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <CachedInsetRelief borderRadius={32} shadow={LIQUID_SHADOWS.sheetInset} zIndex={0} />
           {showHandle ? <View pointerEvents="none" style={styles.handle} /> : null}
-          {children}
+          <View style={styles.sheetBody}>{children}</View>
         </Animated.View>
       </View>
     </Modal>
@@ -195,7 +204,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(18, 11, 48, 0.56)',
+    backgroundColor: 'rgba(18, 11, 48, 0.54)',
   },
   sheet: {
     width: '100%',
@@ -204,36 +213,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.canvas,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    borderTopWidth: 1.8,
+    borderTopWidth: 1.4,
     borderLeftWidth: 1.2,
     borderRightWidth: 1.2,
-    borderColor: '#E5DCFF',
+    borderColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingTop: 12,
     overflow: 'hidden',
-    elevation: 18,
-    shadowColor: '#1B1142',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 24,
+    position: 'relative',
   },
   sheetPaper: {
     backgroundColor: '#FFFFFF',
   },
-  topShine: {
-    position: 'absolute',
-    top: 0,
-    left: 32,
-    right: 32,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  sheetBody: {
+    zIndex: 2,
+    flexShrink: 1,
   },
   handle: {
     width: 44,
     height: 5,
     borderRadius: 999,
-    backgroundColor: '#D4C5F5',
+    backgroundColor: 'rgba(115, 78, 198, 0.28)',
     alignSelf: 'center',
     marginBottom: 14,
+    zIndex: 2,
   },
 });

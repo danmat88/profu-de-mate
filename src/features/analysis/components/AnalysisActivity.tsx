@@ -9,6 +9,11 @@ import {
   WAVE_INPUT_17,
 } from '../../../shared/motion/nativeMotion';
 import { colors, fonts, radii } from '../../../shared/theme';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { Text } from '../../../shared/ui/Typography';
 
@@ -143,8 +148,9 @@ export function AnalysisActivity({
       accessibilityLiveRegion="polite"
       style={styles.outer}
     >
+      <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.darkOutset} />
       <View style={[styles.card, check && styles.cardCheck]}>
-        <View pointerEvents="none" style={styles.shine} />
+        <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.darkInset} />
         <View style={styles.heading}>
           <Animated.View style={[styles.glyph, { backgroundColor: accent }, glyphStyle]}>
             <MiniGlyph name={preparing ? 'check' : 'spark'} size={16} color={colors.ink} />
@@ -229,34 +235,23 @@ const styles = StyleSheet.create({
   outer: { width: '100%', position: 'relative' },
   card: {
     borderRadius: 26,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
+    borderWidth: 1.1,
     borderColor: 'rgba(190, 168, 255, 0.3)',
-    borderBottomColor: 'rgba(8, 5, 28, 0.82)',
     backgroundColor: 'rgba(34, 25, 78, 0.94)',
     paddingHorizontal: 16,
     paddingVertical: 15,
     overflow: 'hidden',
+    position: 'relative',
   },
   cardCheck: {
     borderColor: 'rgba(255, 184, 107, 0.38)',
     backgroundColor: 'rgba(42, 26, 72, 0.94)',
-  },
-  shine: {
-    position: 'absolute',
-    top: 0,
-    left: 20,
-    right: 20,
-    height: 1.8,
-    backgroundColor: 'rgba(255, 255, 255, 0.24)',
   },
   heading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   glyph: {
     width: 40,
     height: 40,
     borderRadius: 14,
-    borderBottomWidth: 3,
-    borderBottomColor: 'rgba(20, 12, 48, 0.24)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -357,10 +352,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 30,
     borderRadius: 11,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: 'rgba(255,255,255,0.14)',
-    borderBottomColor: 'rgba(7, 4, 22, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
     backgroundColor: 'rgba(18,13,46,0.68)',
     flexDirection: 'row',
     alignItems: 'center',
@@ -369,13 +362,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   phasePillReady: {
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderColor: 'rgba(232, 255, 120, 0.72)',
     backgroundColor: colors.lime,
   },
   phasePillReadyCheck: {
-    borderColor: '#FFD4C2',
-    borderBottomColor: '#B84426',
+    borderColor: 'rgba(255, 212, 194, 0.72)',
     backgroundColor: colors.peach,
   },
   phaseDot: { width: 5.5, height: 5.5, borderRadius: 3 },

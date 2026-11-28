@@ -23,6 +23,11 @@ import {
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
@@ -474,6 +479,15 @@ export function SummaryScreen({ navigation, route }: Props) {
             label="Închide recapitularea"
             onPress={closeSummary}
             size={40}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={20}
+                shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                padTop={4}
+                padX={6}
+                padBottom={10}
+              />
+            }
             style={styles.canopyActionBtn}
           >
             <MiniGlyph name="close" size={18} color={colors.violetDeep} />
@@ -502,6 +516,7 @@ export function SummaryScreen({ navigation, route }: Props) {
                 { transform: [{ translateX: cardShiftX }] },
               ]}
             >
+              <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
               <View collapsable={false} style={styles.documentFrame}>
                 <View style={[styles.cardRibbon, { backgroundColor: ribbonColor }]}>
                   <Animated.View
@@ -577,12 +592,25 @@ export function SummaryScreen({ navigation, route }: Props) {
               pressedScale={0.965}
               haptic="selection"
               onPress={() => void toggleSaved()}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={saved ? LIQUID_SHADOWS.mintSoftOutset : LIQUID_SHADOWS.cardOutsetSoft}
+                  padTop={3}
+                  padX={6}
+                  padBottom={9}
+                />
+              }
               contentStyle={[
                 styles.saveAction,
                 isLargeText && styles.secondaryActionLargeText,
                 saved && styles.saveActionActive,
               ]}
             >
+              <CachedInsetRelief
+                borderRadius={radii.pill}
+                shadow={saved ? LIQUID_SHADOWS.mintSoftInset : LIQUID_SHADOWS.cardInsetSoft}
+              />
               <AppIcon name="bookmark" size={22} />
               <Text numberOfLines={isLargeText ? 2 : 1} adjustsFontSizeToFit={!isLargeText} minimumFontScale={0.85} style={styles.secondaryText}>
                 {saved ? 'Salvată în Caiet' : 'Salvează în Caiet'}
@@ -600,8 +628,18 @@ export function SummaryScreen({ navigation, route }: Props) {
             haptic="selection"
             onPress={shareLesson}
             style={styles.homeActionWrap}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                padTop={3}
+                padX={5}
+                padBottom={9}
+              />
+            }
             contentStyle={[styles.shareAction, isLargeText && styles.secondaryActionLargeText]}
           >
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} />
             <Text style={styles.shareGlyph}>↗</Text>
             <Text numberOfLines={isLargeText ? 2 : 1} style={styles.shareLinkText}>Trimite</Text>
           </PressableScale>
@@ -615,8 +653,18 @@ export function SummaryScreen({ navigation, route }: Props) {
               setFeedbackEverOpened(true);
               setFeedbackOpen(true);
             }}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                padTop={3}
+                padX={5}
+                padBottom={9}
+              />
+            }
             contentStyle={[styles.reportButton, isLargeText && styles.secondaryActionLargeText]}
           >
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} />
             <MiniGlyph name="flag" size={16} color={colors.inkSoft} />
           </PressableScale>
         </View>
@@ -646,6 +694,7 @@ export function SummaryScreen({ navigation, route }: Props) {
             coachAnimatedStyle,
           ]}
         >
+          <CachedOutsetShadow borderRadius={22} shadow={LIQUID_SHADOWS.cardOutset} />
           <View style={styles.saveCoachPointer} />
           <View style={styles.saveCoachIcon}>
             <AppIcon name="notebook" size={34} />
@@ -707,51 +756,6 @@ const styles = StyleSheet.create({
   canopyWithTabs: {
     paddingBottom: 30,
   },
-  canopyGlowTop: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    top: -80,
-    right: -45,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    bottom: -70,
-    left: -30,
-    backgroundColor: 'rgba(216, 255, 62, 0.15)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 250,
-    height: 250,
-    borderRadius: 125,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -120,
-    right: -80,
-  },
-  canopyGlyphStar: {
-    position: 'absolute',
-    left: 24,
-    bottom: 10,
-    fontFamily: fonts.display,
-    fontSize: 18,
-    color: 'rgba(216, 255, 62, 0.25)',
-  },
-  canopyGlyphPi: {
-    position: 'absolute',
-    right: 68,
-    bottom: 12,
-    fontFamily: fonts.display,
-    fontSize: 26,
-    color: 'rgba(255, 255, 255, 0.12)',
-    transform: [{ rotate: '-10deg' }],
-  },
   heroRow: {
     minHeight: 88,
     flexDirection: 'row',
@@ -766,8 +770,8 @@ const styles = StyleSheet.create({
   },
   canopyActionBtn: {
     borderRadius: 20,
-    borderBottomWidth: 3.2,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
   },
   celebration: { width: 84, height: 84, alignItems: 'center', justifyContent: 'center', position: 'relative' },
@@ -824,10 +828,8 @@ const styles = StyleSheet.create({
     minHeight: 0,
     overflow: 'hidden',
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFDF9',
   },
   cardRibbon: {
@@ -946,18 +948,18 @@ const styles = StyleSheet.create({
   saveAction: {
     height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     paddingHorizontal: 11,
+    overflow: 'hidden',
+    position: 'relative',
   },
-  saveActionActive: { backgroundColor: '#F3FFE0', borderColor: '#C5EA63', borderBottomColor: '#98C40E' },
+  saveActionActive: { backgroundColor: '#F3FFE0', borderColor: 'rgba(154, 206, 26, 0.55)' },
   saveBadge: {
     width: 22,
     height: 22,
@@ -973,16 +975,16 @@ const styles = StyleSheet.create({
   shareAction: {
     height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: colors.violetSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     paddingHorizontal: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   shareGlyph: { fontFamily: fonts.display, color: colors.violetDeep, fontSize: 14, lineHeight: 16, includeFontPadding: false },
   shareLinkText: { fontFamily: fonts.bodyBold, color: colors.violetDeep, fontSize: 12.5 },
@@ -990,13 +992,13 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
   secondaryActionLargeText: { height: 54 },
   secondaryText: { flexShrink: 1, fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
@@ -1007,19 +1009,14 @@ const styles = StyleSheet.create({
     zIndex: 25,
     minHeight: 80,
     borderRadius: 22,
-    borderWidth: 1.25,
-    borderColor: '#C9EB46',
+    borderWidth: 1.2,
+    borderColor: 'rgba(164, 214, 34, 0.62)',
     backgroundColor: '#F5FFD6',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
     paddingHorizontal: 13,
     paddingVertical: 11,
-    shadowColor: '#261758',
-    shadowOpacity: 0.16,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 10,
   },
   saveCoachPointer: {
     position: 'absolute',

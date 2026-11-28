@@ -1,8 +1,10 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii } from '../../../shared/theme';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -78,14 +80,30 @@ export const MistakeCard = memo(function MistakeCard({
   );
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Reia exercițiul ${item.title}`}
-      onPress={() => onRetry(item)}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      <View style={[styles.rail, { backgroundColor: cat.accent }]} />
-      <View style={styles.body}>
+    <View style={styles.cardWrap}>
+      <CachedOutsetShadow
+        borderRadius={24}
+        shadow={LIQUID_SHADOWS.peachSoftOutset}
+        padTop={10}
+        padX={14}
+        padBottom={18}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Reia exercițiul ${item.title}`}
+        onPress={() => onRetry(item)}
+        style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFFFF', '#FFF8F6']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.fill}
+        />
+        <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.peachSoftInset} zIndex={1} />
+        <View style={[styles.rail, { backgroundColor: cat.accent }]} />
+        <View style={styles.body}>
         <View style={styles.topRow}>
           <View style={styles.topLeft}>
             <View style={[styles.metaDot, { backgroundColor: cat.accent }]} />
@@ -189,7 +207,8 @@ export const MistakeCard = memo(function MistakeCard({
           </View>
         </View>
       </View>
-    </Pressable>
+      </Pressable>
+    </View>
   );
 });
 
@@ -312,19 +331,30 @@ export function MistakeExplanationSheet({
 }
 
 const styles = StyleSheet.create({
+  cardWrap: {
+    position: 'relative',
+  },
+  fill: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
   card: {
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#FFD0C2',
-    borderBottomColor: '#EE9579',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   rail: {
     width: 4.5,
     alignSelf: 'stretch',
+    zIndex: 2,
   },
   body: {
     flex: 1,
@@ -332,6 +362,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 11,
     paddingHorizontal: 13,
+    zIndex: 2,
   },
   topRow: {
     flexDirection: 'row',
@@ -513,10 +544,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.2,
+    borderColor: '#E8DFFA',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -528,10 +557,8 @@ const styles = StyleSheet.create({
   },
   sheetAnswerCard: {
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.2,
     borderColor: '#D6F08A',
-    borderBottomColor: '#AED442',
     backgroundColor: '#F5FFD6',
     padding: 13,
     gap: 4,
@@ -565,10 +592,8 @@ const styles = StyleSheet.create({
   sheetFormulaBtn: {
     minHeight: 48,
     borderRadius: 16,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
+    borderWidth: 1.2,
     borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
     backgroundColor: colors.violetSoft,
     paddingHorizontal: 14,
     paddingVertical: 10,

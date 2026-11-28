@@ -9,6 +9,12 @@ import { useResponsiveLayout } from '../../../shared/hooks/useResponsiveLayout';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
@@ -31,12 +37,22 @@ const tabs: readonly ComicTabOption<DocumentTab>[] = [
 
 function Section({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeading}>
-        <View style={styles.sectionNumber}><Text style={styles.sectionNumberText}>{number}</Text></View>
-        <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.cardWrap}>
+      <CachedOutsetShadow borderRadius={22} shadow={LIQUID_SHADOWS.cardOutsetSoft} />
+      <View style={styles.section}>
+        <LinearGradient
+          colors={['#FFFFFF', '#FBF8FF']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.fill}
+        />
+        <CachedInsetRelief borderRadius={22} shadow={LIQUID_SHADOWS.cardInsetSoft} />
+        <View style={styles.sectionHeading}>
+          <View style={styles.sectionNumber}><Text style={styles.sectionNumberText}>{number}</Text></View>
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        <View style={styles.sectionBody}>{children}</View>
       </View>
-      <View style={styles.sectionBody}>{children}</View>
     </View>
   );
 }
@@ -94,6 +110,15 @@ export function LegalScreen({ navigation }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={4}
+                  padX={6}
+                  padBottom={10}
+                />
+              }
               style={styles.canopyActionBtn}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
@@ -112,6 +137,16 @@ export function LegalScreen({ navigation }: Props) {
             </View>
 
             <View accessible={false} style={styles.canopyShieldBadge}>
+              <CachedSurface
+                borderRadius={21}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbSurface}
+                borderWidth={1.6}
+                borderColor={colors.lime}
+                padTop={4}
+                padX={6}
+                padBottom={9}
+              />
               <AppIcon name="privacy" size={24} />
             </View>
           </View>
@@ -133,19 +168,40 @@ export function LegalScreen({ navigation }: Props) {
           <View style={[styles.tabBody, { maxWidth: contentWidth }]}>
           {tab === 'overview' ? (
             <>
-              <View style={styles.heroCard}>
-                <View pointerEvents="none" style={styles.cardTopGloss} />
-                <View style={styles.heroIcon}><AppIcon name="privacy" size={52} /></View>
-                <Text style={styles.heroEyebrow}>PE SCURT</Text>
-                <View style={styles.heroTitleWrap}>
-                  <View pointerEvents="none" style={styles.heroTitleHighlight} />
-                  <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
-                </View>
-                <Text style={styles.heroText}>Folosim fotografia sau formula trimisă de tine ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
-                <View style={styles.chips}>
-                  <Chip label="13+ · Acord sub 16" tone="violetSoft" />
-                  <Chip label="Fără reclame" tone="lime" />
-                  <Chip label="Ștergere din aplicație" tone="cyanSoft" />
+              <View style={styles.cardWrap}>
+                <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
+                <View style={styles.heroCard}>
+                  <LinearGradient
+                    colors={['#FFFFFF', '#FBF8FF']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.cardInset} />
+                  <View style={styles.heroIcon}>
+                    <CachedSurface
+                      borderRadius={24}
+                      backgroundColor="#F4FFD2"
+                      shadow={LIQUID_SHADOWS.orbMintSurface}
+                      borderWidth={1.1}
+                      borderColor="rgba(255, 255, 255, 0.94)"
+                      padTop={4}
+                      padX={6}
+                      padBottom={10}
+                    />
+                    <AppIcon name="privacy" size={52} />
+                  </View>
+                  <Text style={styles.heroEyebrow}>PE SCURT</Text>
+                  <View style={styles.heroTitleWrap}>
+                    <View pointerEvents="none" style={styles.heroTitleHighlight} />
+                    <Text style={styles.heroTitle}>Tu îți controlezi datele.</Text>
+                  </View>
+                  <Text style={styles.heroText}>Folosim fotografia sau formula trimisă de tine ca să construim explicația. Poți începe fără cont Google, nu avem reclame și nu vindem date.</Text>
+                  <View style={styles.chips}>
+                    <Chip label="13+ · Acord sub 16" tone="violetSoft" />
+                    <Chip label="Fără reclame" tone="lime" />
+                    <Chip label="Ștergere din aplicație" tone="cyanSoft" />
+                  </View>
                 </View>
               </View>
 
@@ -174,10 +230,20 @@ export function LegalScreen({ navigation }: Props) {
 
           {tab === 'privacy' ? (
             <>
-              <View style={styles.documentIntro}>
-                <Text style={styles.documentEyebrow}>POLITICA DE CONFIDENȚIALITATE</Text>
-                <Text style={styles.documentTitle}>Date puține, scop clar.</Text>
-                <Text style={styles.documentLead}>{operatorLine}</Text>
+              <View style={styles.cardWrap}>
+                <CachedOutsetShadow borderRadius={22} shadow={LIQUID_SHADOWS.cardOutsetSoft} />
+                <View style={styles.documentIntro}>
+                  <LinearGradient
+                    colors={['#FFFFFF', '#FBF8FF']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={22} shadow={LIQUID_SHADOWS.cardInsetSoft} />
+                  <Text style={styles.documentEyebrow}>POLITICA DE CONFIDENȚIALITATE</Text>
+                  <Text style={styles.documentTitle}>Date puține, scop clar.</Text>
+                  <Text style={styles.documentLead}>{operatorLine}</Text>
+                </View>
               </View>
 
               <Section number="01" title="Ce date folosim">
@@ -244,10 +310,20 @@ export function LegalScreen({ navigation }: Props) {
 
           {tab === 'terms' ? (
             <>
-              <View style={styles.documentIntro}>
-                <Text style={styles.documentEyebrow}>TERMENI DE UTILIZARE</Text>
-                <Text style={styles.documentTitle}>Învățăm corect și în siguranță.</Text>
-                <Text style={styles.documentLead}>Folosind aplicația, accepți regulile de mai jos. Versiune din {legalDocument.updatedAt}.</Text>
+              <View style={styles.cardWrap}>
+                <CachedOutsetShadow borderRadius={22} shadow={LIQUID_SHADOWS.cardOutsetSoft} />
+                <View style={styles.documentIntro}>
+                  <LinearGradient
+                    colors={['#FFFFFF', '#FBF8FF']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={22} shadow={LIQUID_SHADOWS.cardInsetSoft} />
+                  <Text style={styles.documentEyebrow}>TERMENI DE UTILIZARE</Text>
+                  <Text style={styles.documentTitle}>Învățăm corect și în siguranță.</Text>
+                  <Text style={styles.documentLead}>Folosind aplicația, accepți regulile de mai jos. Versiune din {legalDocument.updatedAt}.</Text>
+                </View>
               </View>
 
               <Section number="01" title="Scop educațional">
@@ -289,11 +365,21 @@ export function LegalScreen({ navigation }: Props) {
                 </Paragraph>
               </Section>
 
-              <View style={styles.safetyCard}>
-                <AppIcon name="help" size={48} />
-                <View style={styles.safetyCopy}>
-                  <Text style={styles.safetyTitle}>Ai găsit o greșeală?</Text>
-                  <Text style={styles.safetyText}>Atinge butonul de raportare din lecție sau recapitulare. Lecția rămâne în Caiet, iar trimiterea durează câteva secunde.</Text>
+              <View style={styles.cardWrap}>
+                <CachedOutsetShadow borderRadius={22} shadow={LIQUID_SHADOWS.mintSoftOutset} />
+                <View style={styles.safetyCard}>
+                  <LinearGradient
+                    colors={['#FAFFE6', '#F1FFC4']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={22} shadow={LIQUID_SHADOWS.mintSoftInset} />
+                  <AppIcon name="help" size={48} />
+                  <View style={styles.safetyCopy}>
+                    <Text style={styles.safetyTitle}>Ai găsit o greșeală?</Text>
+                    <Text style={styles.safetyText}>Atinge butonul de raportare din lecție sau recapitulare. Lecția rămâne în Caiet, iar trimiterea durează câteva secunde.</Text>
+                  </View>
                 </View>
               </View>
             </>
@@ -308,6 +394,7 @@ export function LegalScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  cardWrap: { position: 'relative' },
 
   canopy: {
     width: '100%',
@@ -317,42 +404,6 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     position: 'relative',
     zIndex: 4,
-  },
-  canopyGlowCyan: {
-    position: 'absolute',
-    width: 210,
-    height: 210,
-    borderRadius: 105,
-    top: -80,
-    left: -50,
-    backgroundColor: 'rgba(67, 214, 230, 0.24)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    top: -40,
-    right: -40,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -120,
-    right: -82,
-  },
-  canopyGlyphStar: {
-    position: 'absolute',
-    right: 78,
-    bottom: 12,
-    fontFamily: fonts.display,
-    fontSize: 22,
-    color: 'rgba(216, 255, 62, 0.24)',
   },
   canopyInner: {
     maxWidth: 560,
@@ -367,8 +418,8 @@ const styles = StyleSheet.create({
   },
   canopyActionBtn: {
     borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
   },
   canopyCopy: {
@@ -412,14 +463,10 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderBottomWidth: 3.5,
-    borderColor: colors.lime,
-    borderBottomColor: '#98C40E',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
 
   tabWrap: {
@@ -437,10 +484,8 @@ const styles = StyleSheet.create({
 
   heroCard: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     paddingHorizontal: 18,
@@ -448,25 +493,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  cardTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
   heroIcon: {
     width: 72,
     height: 72,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DDF68E',
-    borderBottomColor: '#B1D63D',
     borderRadius: 24,
-    backgroundColor: '#F4FFD2',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   heroEyebrow: { ...typography.kicker, color: colors.violetDeep, marginTop: 12 },
   heroTitleWrap: { position: 'relative', alignItems: 'center', marginTop: 3 },
@@ -484,22 +517,20 @@ const styles = StyleSheet.create({
 
   section: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     padding: 15,
+    overflow: 'hidden',
+    position: 'relative',
   },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   sectionNumber: {
     width: 34,
     height: 34,
     borderRadius: 12,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#DDF68E',
-    borderBottomColor: '#B1D63D',
+    borderWidth: 1.1,
+    borderColor: 'rgba(130, 184, 16, 0.34)',
     backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -517,27 +548,27 @@ const styles = StyleSheet.create({
   updatedText: { fontFamily: fonts.bodyBold, color: colors.inkSoft, fontSize: 12.5 },
   documentIntro: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     padding: 16,
+    overflow: 'hidden',
+    position: 'relative',
   },
   documentEyebrow: { ...typography.kicker, color: colors.violetDeep },
   documentTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 24, lineHeight: 28, marginTop: 3 },
   documentLead: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 13.5, lineHeight: 19.5, marginTop: 4 },
   safetyCard: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DDF68E',
-    borderBottomColor: '#B1D63D',
+    borderWidth: 1.1,
+    borderColor: 'rgba(154, 206, 26, 0.4)',
     backgroundColor: '#F6FFD4',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
     padding: 14,
+    overflow: 'hidden',
+    position: 'relative',
   },
   safetyCopy: { flex: 1 },
   safetyTitle: { fontFamily: fonts.displaySemi, color: colors.ink, fontSize: 17.5 },

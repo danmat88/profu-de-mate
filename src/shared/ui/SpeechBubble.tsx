@@ -1,18 +1,26 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { SILKY_EASE_OUT } from '../motion/nativeMotion';
 import { colors, fonts, radii } from '../theme';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from './CachedRelief';
 import { Text } from './Typography';
 
 export type SpeechBubbleTone = 'paper' | 'limeSoft' | 'peachSoft' | 'roseSoft' | 'violetSoft';
 
-const palettes: Record<SpeechBubbleTone, { bg: string; border: string; lip: string; accent: string }> = {
-  paper: { bg: '#FFFFFF', border: '#E7DDFB', lip: '#DDD0F7', accent: colors.violet },
-  limeSoft: { bg: '#F6FFE2', border: '#D3EE8C', lip: '#BBE05C', accent: colors.limeDeep },
-  peachSoft: { bg: '#FFF5F0', border: '#FAD0C0', lip: '#F2B49D', accent: colors.peach },
-  roseSoft: { bg: '#FFF0F3', border: '#FBC2CC', lip: '#F49AA9', accent: colors.rose },
-  violetSoft: { bg: '#F4EEFF', border: '#DAC8FC', lip: '#C5ACFA', accent: colors.violet },
+const palettes: Record<SpeechBubbleTone, {
+  gradient: readonly [string, string];
+  border: string;
+  outset: string;
+  inset: string;
+  accent: string;
+}> = {
+  paper: { gradient: ['#FFFFFF', '#FBF8FF'], border: '#FFFFFF', outset: LIQUID_SHADOWS.cardOutsetSoft, inset: LIQUID_SHADOWS.cardInsetSoft, accent: colors.violet },
+  limeSoft: { gradient: ['#FAFFE8', '#ECFFB9'], border: '#FFFFFF', outset: LIQUID_SHADOWS.mintSoftOutset, inset: LIQUID_SHADOWS.mintSoftInset, accent: colors.limeDeep },
+  peachSoft: { gradient: ['#FFF9F6', '#FFEBE3'], border: '#FFFFFF', outset: LIQUID_SHADOWS.peachSoftOutset, inset: LIQUID_SHADOWS.peachSoftInset, accent: colors.peach },
+  roseSoft: { gradient: ['#FFF6F8', '#FFE3EA'], border: '#FFFFFF', outset: LIQUID_SHADOWS.roseSoftOutset, inset: LIQUID_SHADOWS.roseSoftInset, accent: colors.rose },
+  violetSoft: { gradient: ['#FAF7FF', '#EDE3FF'], border: '#FFFFFF', outset: LIQUID_SHADOWS.cardOutsetSoft, inset: LIQUID_SHADOWS.cardInset, accent: colors.violet },
 };
 
 type Props = {
@@ -50,9 +58,11 @@ export function SpeechBubble({
   const reducedMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
   const previousKey = useRef(messageKey);
-  const { bg: fill, border, lip, accent } = palettes[tone];
+  const { gradient, border, outset, inset, accent } = palettes[tone];
   const isSky = variant === 'sky';
   const isSkyError = isSky && tone === 'roseSoft';
+  const cardMode = !isSky || isSkyError;
+  const cardRadius = compact ? radii.md : 20;
 
   useEffect(() => {
     if (!messageKey || previousKey.current === messageKey) return undefined;
@@ -131,16 +141,38 @@ export function SpeechBubble({
     </View>
   );
 
-  const shellStyle = isSky && !isSkyError
+  const shellStyle = !cardMode
     ? [styles.skyShell, compact && styles.skyShellCompact]
     : [
         styles.card,
         compact && styles.cardCompact,
-        { backgroundColor: fill, borderColor: border, borderBottomColor: lip },
+        { borderColor: border },
       ];
+
+  const cardSurface = cardMode ? (
+    <>
+      <LinearGradient
+        pointerEvents="none"
+        colors={gradient}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.fill}
+      />
+      <CachedInsetRelief borderRadius={Math.max(4, cardRadius - 1)} shadow={inset} zIndex={1} />
+    </>
+  ) : null;
 
   return (
     <Animated.View style={[styles.outer, animatedStyle, style]}>
+      {cardMode ? (
+        <CachedOutsetShadow
+          borderRadius={cardRadius}
+          shadow={outset}
+          padTop={10}
+          padX={14}
+          padBottom={18}
+        />
+      ) : null}
       {onPress ? (
         <Pressable
           accessibilityRole="button"
@@ -151,10 +183,12 @@ export function SpeechBubble({
             pressed && styles.cardPressed,
           ]}
         >
+          {cardSurface}
           {cardInner}
         </Pressable>
       ) : (
         <View style={shellStyle}>
+          {cardSurface}
           {cardInner}
         </View>
       )}
@@ -163,14 +197,16 @@ export function SpeechBubble({
 }
 
 const styles = StyleSheet.create({
-  outer: { flex: 1, minWidth: 0 },
+  outer: { flex: 1, minWidth: 0, position: 'relative' },
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   card: {
     borderRadius: 20,
-    borderWidth: 1.2,
-    borderBottomWidth: 3,
+    borderWidth: 1.25,
     paddingHorizontal: 13,
     paddingVertical: 10,
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   cardCompact: {
     borderRadius: radii.md,
@@ -239,6 +275,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    zIndex: 2,
   },
   accentBar: {
     width: 3.5,

@@ -30,6 +30,7 @@ import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList, StoredLesson } from '../../../shared/types';
 import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon, type AppIconName } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
@@ -325,6 +326,13 @@ const LessonRow = memo(function LessonRow({
 
   return (
     <Animated.View style={[styles.lessonRowWrap, cardPressStyle]}>
+      <CachedOutsetShadow
+        borderRadius={24}
+        shadow={LIQUID_SHADOWS.cardOutsetSoft}
+        padTop={10}
+        padX={14}
+        padBottom={18}
+      />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${modeLabel}: ${presentation.identity}. ${lesson.topic}. ${verdict ? `${verdict.label}. ` : ''}${stepLabel}.`}
@@ -339,6 +347,14 @@ const LessonRow = memo(function LessonRow({
         }}
         style={styles.lessonCard}
       >
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFFFF', '#FBF8FF']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.fill}
+        />
+        <CachedInsetRelief borderRadius={23} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
         <View style={[styles.lessonRail, { backgroundColor: spineTone }]} />
 
         <View style={styles.lessonBody}>
@@ -1172,13 +1188,33 @@ export function NotebookScreen({
                 label="Înapoi"
                 onPress={headerBack}
                 size={42}
-                style={styles.canopyActionBtn}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={21}
+                    shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                    padTop={10}
+                    padX={14}
+                    padBottom={18}
+                  />
+                )}
               >
                 <MiniGlyph name="back" size={18} color={colors.violetDeep} />
               </IconButton>
             ) : (
-              <View style={styles.canopyBadge}>
-                <AppIcon name="notebook" size={28} />
+              <View style={styles.canopyBadgeWrap}>
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+                <View style={styles.canopyBadge}>
+                  <CachedInsetRelief borderRadius={21} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
+                  <View style={styles.frontLayer}>
+                    <AppIcon name="notebook" size={28} />
+                  </View>
+                </View>
               </View>
             )}
 
@@ -1204,7 +1240,15 @@ export function NotebookScreen({
               label={rightLabel}
               onPress={onRight}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <AppIcon name={rightIcon} size={25} />
             </IconButton>
@@ -1380,52 +1424,71 @@ export function NotebookScreen({
           onPress={Keyboard.dismiss}
           style={[styles.controls, { paddingHorizontal: gutter }]}
         >
-          <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
-            <AppIcon name="search" size={24} />
-            {mountSearchInput ? (
-              <TextInput
-                autoFocus={searchActivated}
-                autoCorrect={false}
-                returnKeyType="search"
-                value={queryText}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                onChangeText={setQueryText}
-                onSubmitEditing={() => Keyboard.dismiss()}
-                placeholder={searchPlaceholder}
-                placeholderTextColor={colors.inkSoft}
-                selectionColor={colors.violet}
-                style={styles.searchInput}
+          <View style={styles.searchBoxWrap}>
+            <CachedOutsetShadow
+              borderRadius={radii.pill}
+              shadow={LIQUID_SHADOWS.cardOutsetSoft}
+              padTop={10}
+              padX={14}
+              padBottom={18}
+            />
+            <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+              <LinearGradient
+                pointerEvents="none"
+                colors={['#FFFFFF', '#FBF8FF']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.fill}
               />
-            ) : (
-              <Pressable
-                accessibilityRole="search"
-                accessibilityLabel={searchPlaceholder}
-                onPress={() => setSearchActivated(true)}
-                style={styles.searchPlaceholderTouch}
-              >
-                <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
-              </Pressable>
-            )}
-            {queryText ? (
-              <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
-                <MiniGlyph name="close" size={14} color={colors.ink} />
-              </Pressable>
-            ) : null}
-            {searchFocused || keyboardVisible ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ascunde tastatura"
-                hitSlop={6}
-                onPress={() => {
-                  Haptics.selection();
-                  Keyboard.dismiss();
-                }}
-                style={({ pressed }) => [styles.dismissSearchChip, pressed && styles.actionPressed]}
-              >
-                <Text style={styles.dismissSearchText}>Gata</Text>
-              </Pressable>
-            ) : null}
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={0} />
+              <View style={styles.frontLayer}>
+                <AppIcon name="search" size={24} />
+              </View>
+              {mountSearchInput ? (
+                <TextInput
+                  autoFocus={searchActivated}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                  value={queryText}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  onChangeText={setQueryText}
+                  onSubmitEditing={() => Keyboard.dismiss()}
+                  placeholder={searchPlaceholder}
+                  placeholderTextColor={colors.inkSoft}
+                  selectionColor={colors.violet}
+                  style={styles.searchInput}
+                />
+              ) : (
+                <Pressable
+                  accessibilityRole="search"
+                  accessibilityLabel={searchPlaceholder}
+                  onPress={() => setSearchActivated(true)}
+                  style={styles.searchPlaceholderTouch}
+                >
+                  <Text numberOfLines={1} style={styles.searchPlaceholderText}>{searchPlaceholder}</Text>
+                </Pressable>
+              )}
+              {queryText ? (
+                <Pressable accessibilityRole="button" accessibilityLabel="Șterge căutarea" hitSlop={9} onPress={clearSearch} style={styles.clearSearch}>
+                  <MiniGlyph name="close" size={14} color={colors.ink} />
+                </Pressable>
+              ) : null}
+              {searchFocused || keyboardVisible ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ascunde tastatura"
+                  hitSlop={6}
+                  onPress={() => {
+                    Haptics.selection();
+                    Keyboard.dismiss();
+                  }}
+                  style={({ pressed }) => [styles.dismissSearchChip, pressed && styles.actionPressed]}
+                >
+                  <Text style={styles.dismissSearchText}>Gata</Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           <ComicTabBar
@@ -1508,8 +1571,17 @@ export function NotebookScreen({
         >
           <View style={styles.listHeadingLeft}>
             <View collapsable={false} style={styles.miniMascotBadge}>
-              <View pointerEvents="none" style={styles.miniMascotShine} />
-              <AppIcon name="notebook" size={26} />
+              <CachedSurface
+                borderRadius={13}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbSurface}
+                padTop={7}
+                padX={9}
+                padBottom={12}
+              />
+              <View style={styles.frontLayer}>
+                <AppIcon name="notebook" size={26} />
+              </View>
             </View>
             <View style={styles.listHeadingCopy}>
               <Text numberOfLines={1} style={styles.listEyebrow}>
@@ -1675,6 +1747,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 10,
   },
+  canopyBadgeWrap: {
+    position: 'relative',
+    flexShrink: 0,
+  },
+  frontLayer: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   canopyBadge: {
     width: 42,
     height: 42,
@@ -1682,10 +1763,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2.2,
     borderColor: colors.lime,
-    borderBottomWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   canopyCopy: {
     flex: 1,
@@ -1725,12 +1807,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.75,
     lineHeight: 13,
     includeFontPadding: false,
-  },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#D6C4FA',
-    backgroundColor: '#FFFFFF',
   },
 
   // Solid-white 3D section switcher straddling the curved canopy arch
@@ -1789,15 +1865,12 @@ const styles = StyleSheet.create({
     minHeight: 34,
     borderRadius: radii.pill,
     borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
   },
   topicFilterPillActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#4312B5',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     backgroundColor: colors.violet,
   },
   topicFilterPillInner: {
@@ -1845,12 +1918,13 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
 
+  searchBoxWrap: {
+    position: 'relative',
+  },
   searchBox: {
     height: 46,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     borderRadius: radii.pill,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
@@ -1858,10 +1932,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 8,
     overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
-  searchBoxFocused: { borderColor: colors.violet, borderBottomColor: colors.violetDeep },
-  searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5 },
-  searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center' },
+  searchBoxFocused: { borderColor: colors.violet },
+  searchInput: { flex: 1, height: 42, paddingVertical: 0, fontFamily: fonts.bodyMedium, color: colors.ink, fontSize: 13.5, zIndex: 2 },
+  searchPlaceholderTouch: { flex: 1, height: 42, justifyContent: 'center', zIndex: 2 },
   searchPlaceholderText: { fontFamily: fonts.bodyMedium, color: colors.inkMuted, fontSize: 13.5 },
   clearSearch: {
     width: 26,
@@ -1916,16 +1992,10 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 13,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    position: 'relative',
   },
-  miniMascotShine: { display: 'none' },
   listHeadingCopy: { flex: 1, minWidth: 0 },
   listEyebrow: { ...typography.kicker, fontSize: 10, lineHeight: 13, color: colors.violetDeep },
   listTitle: { fontFamily: fonts.display, color: colors.ink, fontSize: 18.5, lineHeight: 22, marginTop: 1 },
@@ -1978,16 +2048,17 @@ const styles = StyleSheet.create({
   lessonCard: {
     overflow: 'hidden',
     borderRadius: 24,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
+    position: 'relative',
+    zIndex: 1,
   },
   lessonRail: {
     width: 4.5,
     alignSelf: 'stretch',
+    zIndex: 2,
   },
   lessonBody: {
     flex: 1,
@@ -1995,6 +2066,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 13,
     paddingBottom: 11,
+    zIndex: 2,
   },
   lessonMeta: {
     flexDirection: 'row',

@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -11,7 +12,11 @@ import {
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import * as Haptics from '../services/haptics';
 import { colors, fonts, radii } from '../theme';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from './CachedRelief';
 import { Text } from './Typography';
+
+const PILL_OUTSET_SHADOW = '0 2px 5px -1px rgba(60, 16, 176, 0.26), 0 1px 2px rgba(28, 6, 98, 0.15)';
+const PILL_INSET_SHADOW = 'inset 0 2.5px 4.5px rgba(255, 255, 255, 0.42), inset 0 -3.5px 6px rgba(18, 4, 68, 0.30)';
 
 export type ComicTabOption<T extends string> = {
   value: T;
@@ -32,8 +37,8 @@ type Props<T extends string> = {
   style?: StyleProp<ViewStyle>;
 };
 
-const TRACK_PADDING = 3.5;
-const TRACK_BORDER = 1;
+const TRACK_PADDING = 4;
+const TRACK_BORDER = 1.25;
 const PRESS_RETENTION = { top: 24, bottom: 24, left: 24, right: 24 };
 
 type TabItemProps<T extends string> = {
@@ -172,6 +177,9 @@ export function ComicTabBar<T extends string>({
     }
   };
 
+  const activeFill = activeOption?.activeFill ?? colors.violet;
+  const isDefaultViolet = activeFill === colors.violet;
+
   return (
     <View
       collapsable={false}
@@ -183,20 +191,63 @@ export function ComicTabBar<T extends string>({
         style,
       ]}
     >
+      <CachedOutsetShadow
+        borderRadius={radii.pill}
+        shadow={LIQUID_SHADOWS.trackOutset}
+        padTop={12}
+        padX={16}
+        padBottom={20}
+      />
       <View collapsable={false} onLayout={handleLayout} style={styles.track}>
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#EFE7FF', '#F7F3FF', '#FFFFFF']}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <CachedInsetRelief
+          borderRadius={radii.pill}
+          shadow={LIQUID_SHADOWS.trackRecess}
+          zIndex={0}
+        />
         {pillWidth > 0 ? (
           <Animated.View
             pointerEvents="none"
             style={[
-              styles.pill,
+              styles.pillWrap,
               {
                 width: pillWidth,
-                backgroundColor: activeOption?.activeFill ?? colors.violet,
                 transform: [{ translateX: slideX }],
               },
             ]}
           >
-            <View style={styles.pillGloss} />
+            <CachedOutsetShadow
+              borderRadius={radii.pill}
+              shadow={PILL_OUTSET_SHADOW}
+              padTop={8}
+              padX={10}
+              padBottom={12}
+            />
+            <View
+              style={[
+                styles.pill,
+                { backgroundColor: activeFill },
+              ]}
+            >
+              {isDefaultViolet ? (
+                <LinearGradient
+                  colors={['#8E49FF', '#6520EC', '#4410B4']}
+                  start={{ x: 0.06, y: 0 }}
+                  end={{ x: 0.94, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : null}
+              <CachedInsetRelief
+                borderRadius={radii.pill}
+                shadow={PILL_INSET_SHADOW}
+              />
+            </View>
           </Animated.View>
         ) : null}
 
@@ -235,33 +286,24 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: TRACK_PADDING,
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DAFA',
-    borderBottomColor: '#D4C2F8',
-    backgroundColor: '#FFFFFF',
+    borderWidth: TRACK_BORDER,
+    borderColor: '#FFFFFF',
+    backgroundColor: '#F6F1FF',
     position: 'relative',
     overflow: 'hidden',
+    zIndex: 1,
   },
-  pill: {
+  pillWrap: {
     position: 'absolute',
     top: TRACK_PADDING,
     bottom: TRACK_PADDING,
     left: TRACK_PADDING,
     zIndex: 1,
-    borderRadius: radii.pill,
-    borderBottomWidth: 2,
-    borderBottomColor: 'rgba(20, 8, 60, 0.18)',
-    overflow: 'hidden',
   },
-  pillGloss: {
-    position: 'absolute',
-    top: 1.5,
-    left: 14,
-    right: 14,
-    height: 2,
+  pill: {
+    flex: 1,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
+    overflow: 'hidden',
   },
   tabsRow: {
     flex: 1,

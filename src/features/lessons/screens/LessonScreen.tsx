@@ -22,6 +22,12 @@ import {
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { AnalysisVerdict, CapturedImage, RichContent, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { ComicTabBar, type ComicTabOption } from '../../../shared/ui/ComicTabBar';
@@ -108,10 +114,19 @@ function LessonSaveToast({ kind, reducedMotion, topOffset }: { kind: 'saved' | '
       pointerEvents="none"
       style={[
         styles.savedToast,
-        kind === 'removed' && styles.removedToast,
         { top: topOffset, opacity, transform: [{ translateY }, { scale }] },
       ]}
     >
+      <CachedSurface
+        borderRadius={999}
+        backgroundColor={kind === 'removed' ? colors.peachSoft : colors.lime}
+        shadow={kind === 'removed' ? LIQUID_SHADOWS.peachSoftOutset : LIQUID_SHADOWS.limeOutset}
+        borderWidth={1.1}
+        borderColor={kind === 'removed' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.72)'}
+        padTop={4}
+        padX={6}
+        padBottom={10}
+      />
       <MiniGlyph name={kind === 'saved' ? 'check' : 'wrong'} size={15} color={colors.ink} />
       <Text style={styles.savedText}>
         {kind === 'saved' ? 'Lecție salvată în Caiet' : 'Scoasă din Caiet'}
@@ -202,6 +217,13 @@ function LessonAlternateModal({
             { paddingBottom: bottomSpace + 14, opacity: sheetOpacity, transform: [{ translateY: sheetTranslateY }] },
           ]}
         >
+          <LinearGradient
+            colors={['#FFFFFF', '#F7F3FF']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.sheetGradient}
+          />
+          <CachedInsetRelief borderRadius={32} shadow={LIQUID_SHADOWS.sheetInset} />
           <View style={styles.sheetHandle} />
           <View style={styles.sheetBanner}>
             <View style={styles.sheetMascotBadge}>
@@ -347,6 +369,13 @@ function LessonProblemModal({
             { paddingBottom: bottomSpace + 14, opacity: sheetOpacity, transform: [{ translateY: sheetTranslateY }] },
           ]}
         >
+          <LinearGradient
+            colors={['#FFFFFF', '#F7F3FF']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.sheetGradient}
+          />
+          <CachedInsetRelief borderRadius={32} shadow={LIQUID_SHADOWS.sheetInset} />
           <View style={styles.sheetHandle} />
           <View style={styles.sheetBanner}>
             <View style={[styles.sheetIcon, styles.problemSheetIcon]}>
@@ -413,6 +442,13 @@ function LessonProblemModal({
               onPress={requestClose}
               style={({ pressed }) => [styles.sheetDoneButton, pressed && styles.quickResultPillPressed]}
             >
+              <LinearGradient
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={16} shadow={LIQUID_SHADOWS.limeInset} />
               <Text style={styles.sheetDoneText}>Înapoi la pași</Text>
             </Pressable>
           </View>
@@ -792,6 +828,15 @@ export function LessonScreen({ navigation, route }: Props) {
               label="Înapoi"
               onPress={back}
               size={42}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={4}
+                  padX={6}
+                  padBottom={10}
+                />
+              }
               style={styles.canopyActionBtn}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
@@ -853,8 +898,24 @@ export function LessonScreen({ navigation, route }: Props) {
           haptic="selection"
           onPress={openProblem}
           style={styles.problemWrap}
+          backdrop={
+            <CachedOutsetShadow
+              borderRadius={20}
+              shadow={LIQUID_SHADOWS.cardOutsetSoft}
+              padTop={3}
+              padX={6}
+              padBottom={10}
+            />
+          }
           contentStyle={styles.problemRow}
         >
+          <LinearGradient
+            colors={['#FFFFFF', '#FBF8FF']}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.fill}
+          />
+          <CachedInsetRelief borderRadius={20} shadow={LIQUID_SHADOWS.cardInsetSoft} />
           <View style={[styles.problemIcon, isCheck && styles.problemIconCheck]}>
             <Text style={styles.problemIconText}>{isCheck ? '✓' : 'ƒ'}</Text>
           </View>
@@ -883,6 +944,7 @@ export function LessonScreen({ navigation, route }: Props) {
               { transform: [{ translateX: cardShiftX }] },
             ]}
           >
+            <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
             <View collapsable={false} style={styles.cardFace}>
               <View style={[styles.cardRibbon, { backgroundColor: ribbonColors[tone] }]}>
                 <Animated.View
@@ -980,8 +1042,18 @@ export function LessonScreen({ navigation, route }: Props) {
               pressedScale={0.94}
               haptic="selection"
               onPress={back}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                  padTop={3}
+                  padX={5}
+                  padBottom={9}
+                />
+              }
               contentStyle={styles.prevStepAction}
             >
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} />
               <MiniGlyph name="back" size={18} color={colors.ink} />
             </PressableScale>
           ) : null}
@@ -993,8 +1065,24 @@ export function LessonScreen({ navigation, route }: Props) {
             haptic="selection"
             onPress={openAlternate}
             style={styles.secondaryActionWrap}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                padTop={3}
+                padX={6}
+                padBottom={9}
+              />
+            }
             contentStyle={styles.secondaryAction}
           >
+            <LinearGradient
+              colors={['#FAF7FF', '#F0E6FF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} />
             <View style={styles.hintIconBadge}>
               <AppIcon name="hint" size={20} />
             </View>
@@ -1016,8 +1104,18 @@ export function LessonScreen({ navigation, route }: Props) {
             pressedScale={0.94}
             haptic="selection"
             onPress={openFeedback}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                padTop={3}
+                padX={5}
+                padBottom={9}
+              />
+            }
             contentStyle={styles.reportAction}
           >
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} />
             <MiniGlyph name="flag" size={16} color={colors.inkSoft} />
           </PressableScale>
         </View>
@@ -1109,25 +1207,6 @@ const styles = StyleSheet.create({
     position: 'relative',
     zIndex: 4,
   },
-  canopyGlow: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    top: -85,
-    right: -40,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -120,
-    left: -70,
-  },
   canopyInner: {
     width: '100%',
     paddingTop: 5,
@@ -1141,14 +1220,9 @@ const styles = StyleSheet.create({
   },
   canopyActionBtn: {
     borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
-  },
-  canopyFavActive: {
-    backgroundColor: '#FFE57A',
-    borderColor: '#FFF3B8',
-    borderBottomColor: '#D6A118',
   },
   canopyCopy: {
     flex: 1,
@@ -1192,26 +1266,15 @@ const styles = StyleSheet.create({
     right: 18,
     minHeight: 36,
     borderRadius: 999,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#ECFF8A',
-    borderBottomColor: '#8BB509',
-    backgroundColor: colors.lime,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 14,
-    elevation: 5,
-  },
-  removedToast: {
-    backgroundColor: colors.peachSoft,
-    borderColor: '#FFD1BE',
-    borderBottomColor: '#E5A68E',
   },
   savedText: { fontFamily: fonts.bodyBold, color: colors.ink, fontSize: 12.5 },
   stage: { flex: 1, minHeight: 0, gap: 9, paddingBottom: 2 },
 
-  // Pure-white 3D porcelain statement header bar
+  // Pure-white 3D Liquid-Glass statement header bar
   problemWrap: {},
   problemRow: {
     minHeight: 46,
@@ -1219,14 +1282,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 7,
     overflow: 'hidden',
+    position: 'relative',
   },
   problemIcon: {
     width: 32,
@@ -1308,7 +1370,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
 
-  // Pure floating paper canvas
+  // Pure floating 3D paper canvas
   cardWrap: {
     flex: 1,
     minHeight: 0,
@@ -1318,10 +1380,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFDF9',
     overflow: 'hidden',
   },
@@ -1497,28 +1557,27 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
   secondaryActionWrap: { flex: 1 },
   secondaryAction: {
     height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#F6F1FF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 11,
     overflow: 'hidden',
+    position: 'relative',
   },
   hintIconBadge: {
     width: 28,
@@ -1547,18 +1606,27 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
 
   // Bottom sheets
   modalLayer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 30, justifyContent: 'flex-end' },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(20, 15, 46, 0.48)' },
+  sheetGradient: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+  },
   sheet: {
     width: '100%',
     maxWidth: 640,
@@ -1569,11 +1637,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1.25,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: colors.borderHairline,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: colors.canvas,
     paddingHorizontal: 16,
     paddingTop: 12,
-    elevation: 18,
+    overflow: 'hidden',
   },
   problemSheet: {
     width: '100%',
@@ -1585,11 +1653,11 @@ const styles = StyleSheet.create({
     borderTopWidth: 1.25,
     borderLeftWidth: 1,
     borderRightWidth: 1,
-    borderColor: colors.borderHairline,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: colors.canvas,
     paddingHorizontal: 16,
     paddingTop: 12,
-    elevation: 18,
+    overflow: 'hidden',
   },
   sheetHandle: { width: 40, height: 4.5, borderRadius: 999, backgroundColor: '#DBD1F0', alignSelf: 'center', marginBottom: 12 },
   sheetBanner: {
@@ -1599,10 +1667,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
     borderRadius: 20,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: colors.paper,
-    elevation: 2,
   },
   sheetMascotBadge: {
     width: 52,
@@ -1669,13 +1736,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     borderRadius: 22,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFDF9',
     overflow: 'hidden',
     marginBottom: 10,
     paddingHorizontal: 6,
-    elevation: 2,
   },
   sheetDocument: { flex: 1 },
   problemTabs: { marginBottom: 10 },
@@ -1683,13 +1749,12 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     borderRadius: 22,
-    borderWidth: 1.25,
-    borderColor: colors.borderHairline,
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     overflow: 'hidden',
     backgroundColor: '#FFFDF9',
     position: 'relative',
     paddingHorizontal: 6,
-    elevation: 2,
   },
   problemPane: { flex: 1 },
   problemPaneOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, padding: 8 },
@@ -1703,8 +1768,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 46,
     borderRadius: 16,
-    borderWidth: 1.25,
-    borderColor: '#DDD0F9',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.2)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1721,11 +1786,13 @@ const styles = StyleSheet.create({
     flex: 1.2,
     minHeight: 46,
     borderRadius: 16,
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
-    elevation: 2,
+    overflow: 'hidden',
+    position: 'relative',
   },
   sheetDoneText: {
     fontFamily: fonts.displaySemi,

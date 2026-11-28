@@ -4,7 +4,12 @@ import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'reac
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useReducedMotion } from '../../../shared/hooks/useReducedMotion';
 import { cosinePulseRange, createNativeLoop, SILKY_EASE_OUT, WAVE_INPUT_17 } from '../../../shared/motion/nativeMotion';
-import { colors, fonts, radii, shadows, typography } from '../../../shared/theme';
+import { colors, fonts, radii, typography } from '../../../shared/theme';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { Text } from '../../../shared/ui/Typography';
 import { formatRoCount } from '../../../shared/utils/romanianGrammar';
@@ -338,10 +343,10 @@ export function QuotaResetTimer({
         accessibilityLabel={accessibleLabel}
         style={[styles.heroOuter, style]}
       >
-        <View pointerEvents="none" style={styles.heroShadow} />
+        <CachedOutsetShadow borderRadius={radii.xl} shadow={LIQUID_SHADOWS.darkOutset} />
         <View style={[styles.heroCard, !premium && styles.heroCardFree]}>
+          <CachedInsetRelief borderRadius={radii.xl} shadow={LIQUID_SHADOWS.darkInset} />
           <View pointerEvents="none" style={styles.heroGlow} />
-          <View pointerEvents="none" style={styles.heroShine} />
 
           <View style={styles.heroHeader}>
             <View style={[styles.heroBadge, { backgroundColor: heroAccent }]}>
@@ -521,31 +526,17 @@ const styles = StyleSheet.create({
   heroOuter: {
     width: '100%',
     position: 'relative',
-    paddingBottom: shadows.md,
-  },
-  heroShadow: {
-    position: 'absolute',
-    top: shadows.md,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: radii.xl,
-    backgroundColor: 'rgba(26, 17, 68, 0.14)',
   },
   heroCard: {
     borderRadius: radii.xl,
-    borderWidth: 1,
+    borderWidth: 1.1,
     borderColor: 'rgba(198, 184, 255, 0.24)',
     backgroundColor: '#1E1547',
     paddingHorizontal: 16,
     paddingTop: 15,
     paddingBottom: 15,
     overflow: 'hidden',
-    elevation: 6,
-    shadowColor: '#1B1142',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
+    position: 'relative',
   },
   heroCardFree: {
     backgroundColor: '#23164B',
@@ -558,14 +549,6 @@ const styles = StyleSheet.create({
     top: -96,
     right: -46,
     backgroundColor: 'rgba(139, 92, 246, 0.26)',
-  },
-  heroShine: {
-    position: 'absolute',
-    top: 0,
-    left: 20,
-    right: 20,
-    height: 1.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.24)',
   },
   heroHeader: {
     flexDirection: 'row',

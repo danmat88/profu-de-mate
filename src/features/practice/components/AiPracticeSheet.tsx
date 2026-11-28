@@ -14,6 +14,12 @@ import type {
   StudyFormulaCategoryParam,
 } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { Mascot } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -234,6 +240,16 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
         <>
           <View style={styles.header}>
             <View style={styles.headerIcon}>
+              <CachedSurface
+                borderRadius={15}
+                backgroundColor={colors.limeSoft}
+                shadow={LIQUID_SHADOWS.orbSurface}
+                borderWidth={1}
+                borderColor="rgba(255, 255, 255, 0.94)"
+                padTop={3}
+                padX={4}
+                padBottom={6}
+              />
               <AppIcon name="hint" size={28} />
             </View>
             <View style={styles.headerCopy}>
@@ -255,6 +271,16 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
               }}
               style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
             >
+              <CachedSurface
+                borderRadius={18}
+                backgroundColor="#FFFFFF"
+                shadow={LIQUID_SHADOWS.orbSurface}
+                borderWidth={1}
+                borderColor="rgba(255, 255, 255, 0.94)"
+                padTop={3}
+                padX={4}
+                padBottom={6}
+              />
               <MiniGlyph name="close" size={16} color={colors.ink} />
             </Pressable>
           </View>
@@ -315,10 +341,19 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
                     }}
                     style={({ pressed }) => [
                       styles.diffPill,
-                      active && styles.diffPillActive,
                       pressed && styles.pressed,
                     ]}
                   >
+                    <CachedSurface
+                      borderRadius={18}
+                      backgroundColor={active ? colors.violetSoft : '#FFFFFF'}
+                      shadow={active ? LIQUID_SHADOWS.chipSurface : LIQUID_SHADOWS.orbSurface}
+                      borderWidth={1.2}
+                      borderColor={active ? 'rgba(124, 60, 255, 0.45)' : 'rgba(229, 220, 255, 0.9)'}
+                      padTop={3}
+                      padX={4}
+                      padBottom={7}
+                    />
                     <Text
                       numberOfLines={1}
                       adjustsFontSizeToFit
@@ -352,15 +387,24 @@ export const AiPracticeSheet = memo(function AiPracticeSheet({
               pressedScale={0.97}
               haptic="medium"
               onPress={() => void handleGenerate()}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
               contentStyle={styles.generateBtn}
             >
               <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
                 start={{ x: 0.08, y: 0 }}
                 end={{ x: 0.92, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
               <MiniGlyph name="spark" size={16} color={colors.ink} />
               <Text numberOfLines={2} style={styles.generateBtnText}>
                 {quotaExhausted ? 'Vezi Profu’ Pro & Max' : 'Generează exercițiul acum'}
@@ -393,14 +437,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 15,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#DDF68E',
-    borderBottomColor: '#AED442',
-    backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   headerCopy: { flex: 1, minWidth: 0 },
   eyebrow: {
@@ -419,14 +459,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   subtitle: {
     marginTop: 8,
@@ -438,7 +474,7 @@ const styles = StyleSheet.create({
   },
   body: {
     gap: 12,
-    paddingBottom: 8,
+    paddingBottom: 10,
   },
   sectionLabel: {
     fontFamily: fonts.bodyBold,
@@ -453,10 +489,8 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.2,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,8 +499,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   chipActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#3C12A8',
+    borderColor: 'rgba(124, 60, 255, 0.72)',
     backgroundColor: colors.violet,
   },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
@@ -481,28 +514,19 @@ const styles = StyleSheet.create({
   },
   diffRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 9,
   },
   diffPill: {
     flex: 1,
     minWidth: 0,
     minHeight: 54,
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 8,
     paddingVertical: 8,
     gap: 2,
-  },
-  diffPillActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#4E19C4',
-    backgroundColor: colors.violetSoft,
+    position: 'relative',
   },
   diffPillText: {
     fontFamily: fonts.display,
@@ -591,23 +615,12 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     textAlign: 'center',
   },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-  },
   generateBtn: {
     marginTop: 4,
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,

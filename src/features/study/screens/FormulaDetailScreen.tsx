@@ -21,6 +21,7 @@ import { colors, fonts, radii } from '../../../shared/theme';
 import type { AiPracticeExercisePayload, RootStackParamList } from '../../../shared/types';
 import { ActionToast } from '../../../shared/ui/ActionToast';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { FavoriteStarButton } from '../../../shared/ui/FavoriteStarButton';
 import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
@@ -236,7 +237,15 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
             </IconButton>
@@ -307,10 +316,25 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
           key={formula.id}
           direction={stepTransition.direction}
           animate={stepTransition.animate}
-          style={[styles.sheetCard, { maxWidth: contentWidth }]}
+          style={[styles.sheetCardWrap, { maxWidth: contentWidth }]}
         >
-          <View pointerEvents="none" style={styles.cardTopGloss} />
-          <View style={styles.heroHeader}>
+          <CachedOutsetShadow
+            borderRadius={26}
+            shadow={LIQUID_SHADOWS.cardOutset}
+            padTop={14}
+            padX={18}
+            padBottom={24}
+          />
+          <View style={styles.sheetCard}>
+            <LinearGradient
+              pointerEvents="none"
+              colors={['#FFFFFF', '#FBF8FF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={25} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
+            <View style={styles.heroHeader}>
             <View style={[styles.accentBar, { backgroundColor: categoryMeta.accent }]} />
             <Text style={styles.sheetTitle}>{formula.title}</Text>
           </View>
@@ -410,6 +434,7 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
             </View>
             <MiniGlyph name="next" size={15} color={colors.violetDeep} />
           </Pressable>
+          </View>
         </StepTransitionStage>
       </ScrollView>
 
@@ -446,16 +471,26 @@ export function FormulaDetailScreen({ navigation, route }: Props) {
           pressedScale={0.97}
           haptic="medium"
           onPress={handlePrimaryPractice}
+          backdrop={(
+            <CachedOutsetShadow
+              borderRadius={radii.pill}
+              shadow={LIQUID_SHADOWS.limeOutset}
+              padTop={10}
+              padX={16}
+              padBottom={20}
+            />
+          )}
           style={styles.practiceCtaWrap}
           contentStyle={styles.practiceCta}
         >
           <LinearGradient
-            colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+            pointerEvents="none"
+            colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
             start={{ x: 0.08, y: 0 }}
             end={{ x: 0.92, y: 1 }}
             style={styles.fill}
           />
-          <View pointerEvents="none" style={styles.ctaTopGloss} />
+          <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
           <View style={styles.practiceCtaBadge}>
             <AppIcon name={hasFormulaPractice ? 'practice' : 'hint'} size={20} />
           </View>
@@ -585,17 +620,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-  },
-  canopyFavActive: {
-    backgroundColor: '#FFE57A',
-    borderColor: '#FFF3B8',
-    borderBottomColor: '#D6A118',
-  },
   canopyCopy: {
     flex: 1,
     minWidth: 0,
@@ -660,10 +684,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 6,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
   },
   catDot: {
@@ -683,10 +705,8 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 11,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#FBE08A',
-    borderBottomColor: '#DDB038',
+    borderWidth: 1.2,
+    borderColor: '#FFE58A',
     backgroundColor: '#FFF5C4',
     alignItems: 'center',
     justifyContent: 'center',
@@ -702,10 +722,8 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 13,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -721,32 +739,28 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     alignItems: 'center',
   },
+  sheetCardWrap: {
+    width: '100%',
+    position: 'relative',
+  },
   sheetCard: {
     width: '100%',
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.35,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 15,
     paddingVertical: 17,
     gap: 17,
     overflow: 'hidden',
     position: 'relative',
-  },
-  cardTopGloss: {
-    position: 'absolute',
-    top: 0,
-    left: 24,
-    right: 24,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    zIndex: 1,
   },
   heroHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
+    zIndex: 2,
   },
   accentBar: {
     width: 4.5,
@@ -764,14 +778,13 @@ const styles = StyleSheet.create({
   },
   formulaHeroBox: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C5B0F4',
+    borderWidth: 1.2,
+    borderColor: '#E5DCFF',
     backgroundColor: '#F7F2FF',
     paddingHorizontal: 10,
     paddingVertical: 13,
     gap: 10,
+    zIndex: 2,
   },
   formulaHeroEyebrow: {
     fontFamily: fonts.bodyBold,
@@ -801,10 +814,8 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E8E0FC',
-    borderBottomColor: '#D4C7F7',
+    borderWidth: 1.2,
+    borderColor: '#EAE2FA',
     paddingVertical: 13,
     paddingHorizontal: 8,
     alignItems: 'center',
@@ -812,6 +823,7 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 9,
+    zIndex: 2,
   },
   sectionEyebrow: {
     fontFamily: fonts.bodyBold,
@@ -827,13 +839,12 @@ const styles = StyleSheet.create({
   },
   pitfallBox: {
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.2,
     borderColor: '#FFD6C4',
-    borderBottomColor: '#F2B296',
     backgroundColor: '#FFF5F0',
     padding: 14,
     gap: 6,
+    zIndex: 2,
   },
   pitfallHeader: {
     flexDirection: 'row',
@@ -860,25 +871,22 @@ const styles = StyleSheet.create({
   },
   aiFormulaCard: {
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C5B0F4',
+    borderWidth: 1.2,
+    borderColor: '#E2D4FF',
     backgroundColor: '#F7F2FF',
     paddingHorizontal: 13,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    zIndex: 2,
   },
   aiFormulaIcon: {
     width: 38,
     height: 38,
     borderRadius: 13,
     borderWidth: 1.2,
-    borderBottomWidth: 2.5,
     borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -911,10 +919,8 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -930,10 +936,8 @@ const styles = StyleSheet.create({
   practiceCta: {
     minHeight: 52,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -942,24 +946,17 @@ const styles = StyleSheet.create({
     gap: 8,
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    zIndex: 1,
   },
   practiceCtaBadge: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   practiceCtaText: {
     flex: 1,
@@ -968,6 +965,7 @@ const styles = StyleSheet.create({
     fontSize: 15.5,
     color: colors.ink,
     textAlign: 'center',
+    zIndex: 2,
   },
   practiceArrow: {
     width: 28,
@@ -977,6 +975,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   pressed: {
     opacity: 0.78,

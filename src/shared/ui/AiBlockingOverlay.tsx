@@ -1,7 +1,9 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useState } from 'react';
 import { Modal, StyleSheet, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { colors, fonts, radii, typography } from '../theme';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from './CachedRelief';
 import { Mascot } from './Mascot';
 import { PlayfulLoader } from './PlayfulLoader';
 import { SpotlightAura } from './SpotlightAura';
@@ -69,26 +71,50 @@ export const AiBlockingOverlay = memo(function AiBlockingOverlay({
         accessibilityLabel={`${title}. ${activeStage}`}
         style={styles.scrim}
       >
-        <View style={styles.card}>
-          <View pointerEvents="none" style={styles.topShine} />
+        <View style={styles.cardShadow}>
+          <CachedOutsetShadow
+            borderRadius={30}
+            shadow={LIQUID_SHADOWS.darkOutset}
+            padTop={16}
+            padX={22}
+            padBottom={28}
+          />
+          <View style={styles.card}>
+            <LinearGradient
+              pointerEvents="none"
+              colors={['#FFFFFF', '#FDFBFF', '#F4EEFF']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <CachedInsetRelief borderRadius={29} shadow={LIQUID_SHADOWS.cardInset} zIndex={1} />
 
-          <View style={styles.mascotStage}>
-            <SpotlightAura size={118} tone="violet" active={!reducedMotion} />
-            <Mascot pose="thinking" size={102} active={!reducedMotion} />
+            <View style={styles.mascotStage}>
+              <SpotlightAura size={118} tone="violet" active={!reducedMotion} />
+              <Mascot pose="thinking" size={102} active={!reducedMotion} />
+            </View>
+
+            <View style={styles.eyebrowPill}>
+              <CachedSurface
+                borderRadius={radii.pill}
+                backgroundColor={colors.violetSoft}
+                shadow={LIQUID_SHADOWS.chipSurface}
+                padTop={8}
+                padX={10}
+                padBottom={12}
+              />
+              <Text numberOfLines={2} style={styles.eyebrowText}>{eyebrow}</Text>
+            </View>
+
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.stageText}>{activeStage}</Text>
+
+            <View style={styles.loaderWrap}>
+              <PlayfulLoader compact />
+            </View>
+
+            <Text style={styles.footerNote}>{subtitle}</Text>
           </View>
-
-          <View style={styles.eyebrowPill}>
-            <Text numberOfLines={2} style={styles.eyebrowText}>{eyebrow}</Text>
-          </View>
-
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.stageText}>{activeStage}</Text>
-
-          <View style={styles.loaderWrap}>
-            <PlayfulLoader compact />
-          </View>
-
-          <Text style={styles.footerNote}>{subtitle}</Text>
         </View>
       </View>
     </Modal>
@@ -98,38 +124,28 @@ export const AiBlockingOverlay = memo(function AiBlockingOverlay({
 const styles = StyleSheet.create({
   scrim: {
     flex: 1,
-    backgroundColor: 'rgba(18, 11, 48, 0.62)',
+    backgroundColor: 'rgba(18, 11, 48, 0.58)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-  card: {
+  cardShadow: {
     width: '100%',
     maxWidth: 360,
+    position: 'relative',
+  },
+  card: {
     borderRadius: 30,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.4,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 22,
     paddingTop: 22,
     paddingBottom: 22,
     alignItems: 'center',
     overflow: 'hidden',
-    elevation: 18,
-    shadowColor: '#1B1142',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.24,
-    shadowRadius: 24,
-  },
-  topShine: {
-    position: 'absolute',
-    top: 0,
-    left: 32,
-    right: 32,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    position: 'relative',
+    zIndex: 1,
   },
   mascotStage: {
     width: 126,
@@ -137,23 +153,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    zIndex: 2,
   },
   eyebrowPill: {
     marginTop: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 4.5,
+    paddingHorizontal: 13,
+    paddingVertical: 5,
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
-    backgroundColor: colors.violetSoft,
+    position: 'relative',
+    zIndex: 2,
   },
   eyebrowText: {
     ...typography.kicker,
     fontSize: 10,
     color: colors.violetDeep,
     textAlign: 'center',
+    zIndex: 2,
   },
   title: {
     marginTop: 10,
@@ -162,6 +177,7 @@ const styles = StyleSheet.create({
     fontSize: 21,
     lineHeight: 26,
     textAlign: 'center',
+    zIndex: 2,
   },
   stageText: {
     marginTop: 6,
@@ -170,12 +186,14 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     textAlign: 'center',
+    zIndex: 2,
   },
   loaderWrap: {
     marginTop: 14,
     minHeight: 38,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   footerNote: {
     marginTop: 10,
@@ -184,5 +202,6 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     lineHeight: 16,
     textAlign: 'center',
+    zIndex: 2,
   },
 });

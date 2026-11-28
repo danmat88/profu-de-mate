@@ -12,6 +12,12 @@ import { assertSessionActive, captureSession, type ActiveSession } from '../../.
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { FlowMode, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { IconButton } from '../../../shared/ui/IconButton';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
@@ -391,6 +397,15 @@ export function MathInputScreen({ navigation, route }: Props) {
               navigation.goBack();
             }}
             size={compact ? 38 : 42}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={21}
+                shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                padTop={4}
+                padX={6}
+                padBottom={10}
+              />
+            }
             style={styles.canopyActionBtn}
           >
             <MiniGlyph name="back" size={compact ? 18 : 19} color={colors.violetDeep} />
@@ -415,10 +430,19 @@ export function MathInputScreen({ navigation, route }: Props) {
             onPress={toggleMode}
             style={({ pressed }) => [
               styles.modeSwitchPill,
-              isCheck && styles.modeSwitchPillCheck,
               pressed && styles.pillPressed,
             ]}
           >
+            <CachedSurface
+              borderRadius={radii.pill}
+              backgroundColor="#FFFFFF"
+              shadow={LIQUID_SHADOWS.canopyGlassOutset}
+              borderWidth={1.1}
+              borderColor="rgba(255, 255, 255, 0.94)"
+              padTop={3}
+              padX={5}
+              padBottom={7}
+            />
             <View style={[styles.modeSwitchDot, isCheck && styles.modeSwitchDotCheck]} />
             <Text numberOfLines={1} style={styles.modeSwitchText}>
               {isCheck ? '⇄ Rezolvă' : '⇄ Verifică'}
@@ -508,21 +532,32 @@ export function MathInputScreen({ navigation, route }: Props) {
             pressedScale={0.97}
             haptic="medium"
             onPress={() => { void submit(); }}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={isCheck && !shouldAdvanceToSolution ? LIQUID_SHADOWS.goldOutset : LIQUID_SHADOWS.limeOutset}
+                padTop={4}
+                padX={8}
+                padBottom={12}
+              />
+            }
             contentStyle={[
               styles.submit,
               compact && styles.submitCompact,
-              isCheck && !shouldAdvanceToSolution && styles.submitCheck,
             ]}
           >
             <LinearGradient
               colors={isCheck && !shouldAdvanceToSolution
-                ? ['#FFE17A', '#FFBE52', '#FF9F38']
-                : ['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                ? ['#FFE580', '#FFBE48', '#F29A22']
+                : ['#F0FF88', '#D8FF3E', '#B8EB0E']}
               start={{ x: 0.08, y: 0 }}
               end={{ x: 0.92, y: 1 }}
               style={styles.fill}
             />
-            <View pointerEvents="none" style={styles.submitShine} />
+            <CachedInsetRelief
+              borderRadius={radii.pill}
+              shadow={isCheck && !shouldAdvanceToSolution ? LIQUID_SHADOWS.goldInset : LIQUID_SHADOWS.limeInset}
+            />
             {busy
               ? <PlayfulLoader micro />
               : (
@@ -569,31 +604,12 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 18,
     paddingBottom: 4,
   },
-  canopyGlow: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    top: -90,
-    right: -35,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 230,
-    height: 230,
-    borderRadius: 115,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -120,
-    left: -65,
-  },
   header: { flexShrink: 0, minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   headerCompact: { minHeight: 44, paddingVertical: 2 },
   canopyActionBtn: {
     borderRadius: 21,
-    borderBottomWidth: 3.2,
-    borderBottomColor: '#C5B8FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
   },
   headerCopy: { flex: 1, minWidth: 0 },
@@ -621,17 +637,10 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 12,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#FFFFFF',
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  modeSwitchPillCheck: {
-    borderBottomColor: '#F2B8A2',
+    position: 'relative',
   },
   modeSwitchDot: {
     width: 7,
@@ -650,10 +659,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
     height: 40,
     paddingHorizontal: 10,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.2,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     borderRadius: radii.pill,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
@@ -661,8 +668,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 7,
   },
-  tabActive: { borderColor: colors.violet, borderBottomColor: '#4715B8', backgroundColor: '#F4EEFF' },
-  tabActiveCheck: { borderColor: colors.peach, borderBottomColor: '#C45A38', backgroundColor: '#FFF2EC' },
+  tabActive: { borderColor: 'rgba(124, 60, 255, 0.65)', backgroundColor: '#F4EEFF' },
+  tabActiveCheck: { borderColor: 'rgba(235, 118, 82, 0.65)', backgroundColor: '#FFF2EC' },
   tabPressed: { transform: [{ scale: 0.97 }] },
   step: {
     width: 22,
@@ -688,10 +695,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 14,
-    borderWidth: 1.3,
-    borderBottomWidth: 2.8,
-    borderColor: '#FBC4CE',
-    borderBottomColor: '#E595A4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(214, 34, 92, 0.25)',
     backgroundColor: colors.roseSoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -706,10 +711,8 @@ const styles = StyleSheet.create({
     minHeight: 54,
     paddingHorizontal: 11,
     paddingVertical: 6,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     borderRadius: radii.pill,
     flexDirection: 'row',
     alignItems: 'center',
@@ -718,16 +721,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   submitCompact: { minHeight: 46, gap: 8 },
-  submitCheck: { borderColor: '#FFEB9C', borderBottomColor: '#C46C0E' },
-  submitShine: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-  },
   submitIcon: {
     width: 36,
     height: 36,

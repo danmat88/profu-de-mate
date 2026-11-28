@@ -19,6 +19,11 @@ import { assertSessionActive, captureSession, type ActiveSession } from '../../.
 import { borders, colors, fonts } from '../../../shared/theme';
 import type { CapturedImage, CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
@@ -484,8 +489,18 @@ export function ProcessingScreen({ navigation, route }: Props) {
             pressedScale={0.95}
             haptic="selection"
             onPress={continueInBackground}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={999}
+                shadow={LIQUID_SHADOWS.darkOutset}
+                padTop={3}
+                padX={5}
+                padBottom={9}
+              />
+            }
             contentStyle={styles.stopButton}
           >
+            <CachedInsetRelief borderRadius={999} shadow={LIQUID_SHADOWS.darkInset} />
             <MiniGlyph name="back" size={16} color={colors.paper} />
             <Text style={styles.stopText}>ACASĂ</Text>
           </PressableScale>
@@ -495,6 +510,7 @@ export function ProcessingScreen({ navigation, route }: Props) {
           <View style={[styles.stage, { height: stageHeight }]}>
             <View pointerEvents="none" style={[styles.stageAura, isCheck && styles.stageAuraCheck]} />
             <View style={styles.analysisFrameShadow}>
+              <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.darkOutset} />
               <View pointerEvents="none" style={[styles.analysisFrame, isCheck && styles.analysisFrameCheck, { width: analysisFrameWidth, height: analysisFrameHeight }]}>
                 <Image
                   accessible={false}
@@ -585,13 +601,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
+    borderWidth: 1.1,
     borderColor: 'rgba(196, 176, 255, 0.34)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.78)',
     backgroundColor: 'rgba(38, 28, 84, 0.92)',
     borderRadius: 999,
     paddingHorizontal: 14,
+    overflow: 'hidden',
+    position: 'relative',
   },
   stopText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
   stage: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
@@ -607,20 +623,14 @@ const styles = StyleSheet.create({
   },
   analysisFrameShadow: {
     borderRadius: 26,
-    elevation: 8,
-    shadowColor: '#070512',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.38,
-    shadowRadius: 18,
+    position: 'relative',
   },
   analysisFrame: {
     width: '100%',
     maxWidth: 440,
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: 'rgba(190, 168, 255, 0.36)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.86)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(190, 168, 255, 0.38)',
     backgroundColor: '#0C0820',
     overflow: 'hidden',
   },
@@ -714,7 +724,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 4,
   },
   messageGlyphGold: { backgroundColor: colors.gold },
   messageCard: { minHeight: 168, padding: 20 },

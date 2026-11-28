@@ -12,6 +12,7 @@ import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import type { RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { ConfettiBurst } from '../../../shared/ui/ConfettiBurst';
@@ -110,7 +111,15 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
               label="Înapoi"
               onPress={() => navigation.goBack()}
               size={42}
-              style={styles.canopyActionBtn}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={21}
+                  shadow={LIQUID_SHADOWS.canopyGlassOutset}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+              )}
             >
               <MiniGlyph name="back" size={18} color={colors.violetDeep} />
             </IconButton>
@@ -274,15 +283,25 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
               pressedScale={0.97}
               haptic="medium"
               onPress={startAnotherSession}
+              backdrop={(
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={10}
+                  padX={16}
+                  padBottom={20}
+                />
+              )}
               contentStyle={styles.primaryBtn}
             >
               <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                pointerEvents="none"
+                colors={['#F2FF82', '#D8FF3E', '#B4EC0C']}
                 start={{ x: 0.08, y: 0 }}
                 end={{ x: 0.92, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
               <View style={styles.primaryCtaBadge}>
                 <AppIcon name="practice" size={22} />
               </View>
@@ -376,6 +395,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
                   beginAppTransition();
                   navigation.replace('PracticeSession', { mode: 'mistakes', questionId: targetId });
                 }}
+                backdrop={<CachedOutsetShadow borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeOutset} />}
                 contentStyle={styles.sheetRetryBtn}
               >
                 <LinearGradient
@@ -384,7 +404,7 @@ export function PracticeSummaryScreen({ navigation, route }: Props) {
                   end={{ x: 0.92, y: 1 }}
                   style={styles.fill}
                 />
-                <View pointerEvents="none" style={styles.ctaTopGloss} />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} zIndex={1} />
                 <AppIcon name="retake" size={20} />
                 <Text style={styles.sheetRetryText}>Reia acest exercițiu acum</Text>
               </PressableScale>
@@ -466,12 +486,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  canopyActionBtn: {
-    borderRadius: 21,
-    borderBottomWidth: 3.5,
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
-  },
   canopyCopy: {
     flex: 1,
     minWidth: 0,
@@ -515,9 +529,7 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderBottomWidth: 3.5,
     borderColor: colors.lime,
-    borderBottomColor: '#98C40E',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -578,10 +590,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingVertical: 10,
     paddingHorizontal: 8,
@@ -590,8 +600,7 @@ const styles = StyleSheet.create({
   },
   statChipLime: {
     backgroundColor: '#F6FFD4',
-    borderColor: '#DDF68E',
-    borderBottomColor: '#B1D63D',
+    borderColor: '#E5FA9E',
   },
   statValue: {
     fontFamily: fonts.display,
@@ -611,10 +620,8 @@ const styles = StyleSheet.create({
 
   mistakesNotePill: {
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
+    borderWidth: 1.2,
     borderColor: '#FFD1DA',
-    borderBottomColor: '#EE9FB0',
     backgroundColor: '#FFF2F5',
     paddingHorizontal: 14,
     paddingVertical: 9,
@@ -635,10 +642,8 @@ const styles = StyleSheet.create({
   reviewList: { gap: 9 },
   reviewCard: {
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -672,10 +677,8 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
+    borderWidth: 1,
     borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -685,10 +688,8 @@ const styles = StyleSheet.create({
   repeatMistakesBtn: {
     minHeight: 52,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.8,
+    borderWidth: 1.25,
     borderColor: '#FFC5D0',
-    borderBottomColor: '#E58A9D',
     backgroundColor: colors.roseSoft,
     flexDirection: 'row',
     alignItems: 'center',
@@ -707,10 +708,8 @@ const styles = StyleSheet.create({
   primaryBtn: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -718,24 +717,17 @@ const styles = StyleSheet.create({
     gap: 10,
     overflow: 'hidden',
     position: 'relative',
-  },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
+    zIndex: 1,
   },
   primaryCtaBadge: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.62)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   primaryBtnText: {
     flex: 1,
@@ -744,6 +736,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 17,
     lineHeight: 21,
+    zIndex: 2,
   },
   primaryArrow: {
     width: 36,
@@ -753,6 +746,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    zIndex: 2,
   },
   backLink: {
     minHeight: 44,
@@ -787,10 +781,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
+    borderWidth: 1.25,
     borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -802,10 +794,8 @@ const styles = StyleSheet.create({
   },
   sheetAnswerCard: {
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
+    borderWidth: 1.25,
     borderColor: '#D6F08A',
-    borderBottomColor: '#AED442',
     backgroundColor: '#F5FFD6',
     padding: 13,
     gap: 4,
@@ -828,10 +818,8 @@ const styles = StyleSheet.create({
   sheetRetryBtn: {
     minHeight: 50,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.25,
+    borderColor: '#F4FFA6',
     paddingHorizontal: 18,
     paddingVertical: 10,
     flexDirection: 'row',
@@ -840,11 +828,13 @@ const styles = StyleSheet.create({
     gap: 9,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   sheetRetryText: {
     fontFamily: fonts.display,
     color: colors.ink,
     fontSize: 16,
+    zIndex: 2,
   },
   pressed: { opacity: 0.78 },
 });

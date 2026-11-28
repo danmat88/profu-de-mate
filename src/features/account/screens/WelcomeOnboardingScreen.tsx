@@ -15,7 +15,7 @@ import { bundledImageSource } from '../../../shared/services/bundledImages';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import { AppIcon, type AppIconName } from '../../../shared/ui/AppIcon';
-import { CachedInsetRelief, CachedOutsetShadow } from '../../../shared/ui/CachedRelief';
+import { CachedInsetRelief, CachedOutsetShadow, CachedSurface, LIQUID_SHADOWS } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
@@ -205,9 +205,18 @@ const AgeOptionCard = memo(function AgeOptionCard({
     transform: [{ scale: Animated.multiply(pressScale, selectPop) }],
   }), [pressScale, selectPop]);
 
+  const cardRadius = compact ? 19 : 22;
+
   return (
     <Animated.View style={[styles.ageCardCol, enterStyle]}>
-      <Animated.View style={interactiveScale}>
+      <Animated.View style={[styles.ageCardScaleWrap, interactiveScale]}>
+        <CachedOutsetShadow
+          borderRadius={cardRadius}
+          shadow={selected ? LIQUID_SHADOWS.violetOutset : LIQUID_SHADOWS.cardOutset}
+          padTop={12}
+          padX={16}
+          padBottom={22}
+        />
         <Pressable
           accessibilityRole="radio"
           accessibilityLabel={`${option.title}, ${option.subtitle}`}
@@ -222,32 +231,40 @@ const AgeOptionCard = memo(function AgeOptionCard({
             selected && styles.ageCardSelected,
           ]}
         >
-          {selected ? (
-            <>
-              <LinearGradient
-                colors={['#9456FF', '#6D28F4', '#4B14C9']}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
-                style={styles.fill}
-              />
-              <View pointerEvents="none" style={styles.ageCardGlowLime} />
-              <View pointerEvents="none" style={styles.ageCardShineSelected} />
-            </>
-          ) : (
-            <View pointerEvents="none" style={styles.ageCardShine} />
-          )}
+          <LinearGradient
+            pointerEvents="none"
+            colors={selected ? ['#9456FF', '#6D28F4', '#4B14C9'] : ['#FFFFFF', '#FBF8FF']}
+            start={{ x: 0.08, y: 0 }}
+            end={{ x: 0.92, y: 1 }}
+            style={styles.fill}
+          />
+          {selected ? <View pointerEvents="none" style={styles.ageCardGlowLime} /> : null}
+          <CachedInsetRelief
+            borderRadius={cardRadius - 1}
+            shadow={selected ? LIQUID_SHADOWS.violetInset : LIQUID_SHADOWS.cardInset}
+            zIndex={1}
+          />
 
           <View style={styles.ageCardTop}>
             <View
               style={[
                 styles.ageIconMedallion,
                 compact && styles.ageIconMedallionCompact,
-                selected
-                  ? styles.ageIconMedallionSelected
-                  : { backgroundColor: option.badgeBg, borderColor: option.badgeRing },
               ]}
             >
-              <AppIcon name={option.icon} size={compact ? 24 : 28} />
+              <CachedSurface
+                borderRadius={compact ? 12 : 14}
+                backgroundColor={selected ? '#FFFFFF' : option.badgeBg}
+                borderWidth={1}
+                borderColor={selected ? 'rgba(216, 255, 62, 0.9)' : '#FFFFFF'}
+                shadow={LIQUID_SHADOWS.orbSurface}
+                padTop={7}
+                padX={9}
+                padBottom={12}
+              />
+              <View style={styles.frontLayer}>
+                <AppIcon name={option.icon} size={compact ? 24 : 28} />
+              </View>
             </View>
 
             {selected ? (
@@ -1420,7 +1437,14 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
               </View>
 
               {selectedGroup === '13_15_parental' ? (
-                <Animated.View style={parentalRevealStyle}>
+                <Animated.View style={[styles.parentalBoxWrap, parentalRevealStyle]}>
+                  <CachedOutsetShadow
+                    borderRadius={20}
+                    shadow={parentalConfirmed ? LIQUID_SHADOWS.limeOutset : LIQUID_SHADOWS.cyanSoftOutset}
+                    padTop={10}
+                    padX={14}
+                    padBottom={18}
+                  />
                   <Pressable
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: parentalConfirmed, disabled: exiting }}
@@ -1432,6 +1456,18 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
                       pressed && styles.pressed,
                     ]}
                   >
+                    <LinearGradient
+                      pointerEvents="none"
+                      colors={parentalConfirmed ? ['#FAFFE6', '#EAFFB5'] : ['#F5FEFF', '#E2F8FE']}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={styles.fill}
+                    />
+                    <CachedInsetRelief
+                      borderRadius={19}
+                      shadow={parentalConfirmed ? LIQUID_SHADOWS.mintSoftInset : LIQUID_SHADOWS.cyanSoftInset}
+                      zIndex={1}
+                    />
                     <View style={[styles.checkbox, parentalConfirmed && styles.checkboxChecked]}>
                       {parentalConfirmed ? <MiniGlyph name="check" size={13} color={colors.ink} /> : null}
                     </View>
@@ -1474,33 +1510,63 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
                   {TRACK_CHIPS.map((item) => {
                     const activeTrack = selectedTrack === item.id;
                     return (
-                      <Pressable
-                        key={item.id}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: activeTrack, disabled: exiting }}
-                        disabled={exiting}
-                        onPress={() => handleToggleTrack(item.id)}
-                        style={({ pressed }) => [
-                          styles.trackChip,
-                          activeTrack && styles.trackChipActive,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        {activeTrack ? (
-                          <View style={styles.trackCheckDot}>
-                            <MiniGlyph name="check" size={10} color={colors.ink} />
-                          </View>
-                        ) : (
-                          <View style={[styles.trackAccentDot, { backgroundColor: item.dot }]} />
-                        )}
-                        <Text
-                          maxFontSizeMultiplier={1.15}
-                          numberOfLines={1}
-                          style={[styles.trackChipText, activeTrack && styles.trackChipTextActive]}
+                      <View key={item.id} style={styles.trackChipWrap}>
+                        <CachedOutsetShadow
+                          borderRadius={radii.pill}
+                          shadow={activeTrack ? LIQUID_SHADOWS.violetOutset : LIQUID_SHADOWS.cardOutsetSoft}
+                          padTop={8}
+                          padX={10}
+                          padBottom={14}
+                        />
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: activeTrack, disabled: exiting }}
+                          disabled={exiting}
+                          onPress={() => handleToggleTrack(item.id)}
+                          style={({ pressed }) => [
+                            styles.trackChip,
+                            activeTrack && styles.trackChipActive,
+                            pressed && styles.pressed,
+                          ]}
                         >
-                          {item.label}
-                        </Text>
-                      </Pressable>
+                          {activeTrack ? (
+                            <LinearGradient
+                              pointerEvents="none"
+                              colors={['#8E49FF', '#6520EC', '#4812BE']}
+                              start={{ x: 0.08, y: 0 }}
+                              end={{ x: 0.92, y: 1 }}
+                              style={styles.fill}
+                            />
+                          ) : (
+                            <LinearGradient
+                              pointerEvents="none"
+                              colors={['#FFFFFF', '#F8F4FF']}
+                              start={{ x: 0.5, y: 0 }}
+                              end={{ x: 0.5, y: 1 }}
+                              style={styles.fill}
+                            />
+                          )}
+                          <CachedInsetRelief
+                            borderRadius={radii.pill}
+                            shadow={activeTrack ? LIQUID_SHADOWS.violetInset : LIQUID_SHADOWS.cardInsetSoft}
+                            zIndex={1}
+                          />
+                          {activeTrack ? (
+                            <View style={styles.trackCheckDot}>
+                              <MiniGlyph name="check" size={10} color={colors.ink} />
+                            </View>
+                          ) : (
+                            <View style={[styles.trackAccentDot, { backgroundColor: item.dot }]} />
+                          )}
+                          <Text
+                            maxFontSizeMultiplier={1.15}
+                            numberOfLines={1}
+                            style={[styles.trackChipText, activeTrack && styles.trackChipTextActive]}
+                          >
+                            {item.label}
+                          </Text>
+                        </Pressable>
+                      </View>
                     );
                   })}
                 </View>
@@ -1512,14 +1578,41 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
                 </Text>
               </View>
 
-              {/* Compact privacy & safety reassurance */}
-              <View style={styles.safetyBar}>
-                <View style={styles.safetyIcon}>
-                  <AppIcon name="privacy" size={22} />
+              {/* Compact 3D Liquid-Glass privacy & safety reassurance */}
+              <View style={styles.safetyBarWrap}>
+                <CachedOutsetShadow
+                  borderRadius={20}
+                  shadow={LIQUID_SHADOWS.cardOutsetSoft}
+                  padTop={10}
+                  padX={14}
+                  padBottom={18}
+                />
+                <View style={styles.safetyBar}>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={['#FFFFFF', '#FBF8FF']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={19} shadow={LIQUID_SHADOWS.cardInsetSoft} zIndex={1} />
+                  <View style={styles.safetyIcon}>
+                    <CachedSurface
+                      borderRadius={13}
+                      backgroundColor={colors.limeSoft}
+                      shadow={LIQUID_SHADOWS.orbMintSurface}
+                      padTop={6}
+                      padX={8}
+                      padBottom={10}
+                    />
+                    <View style={styles.frontLayer}>
+                      <AppIcon name="privacy" size={22} />
+                    </View>
+                  </View>
+                  <Text maxFontSizeMultiplier={1.15} style={styles.safetyText}>
+                    Nu cerem data nașterii. Fotografiază doar probleme de matematică, fără fețe sau date personale.
+                  </Text>
                 </View>
-                <Text maxFontSizeMultiplier={1.15} style={styles.safetyText}>
-                  Nu cerem data nașterii. Fotografiază doar probleme de matematică, fără fețe sau date personale.
-                </Text>
               </View>
             </Animated.View>
           </View>
@@ -1853,13 +1946,19 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  ageCardScaleWrap: {
+    position: 'relative',
+  },
+  frontLayer: {
+    zIndex: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   ageCard: {
     minHeight: 114,
     borderRadius: 22,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 11,
@@ -1867,6 +1966,7 @@ const styles = StyleSheet.create({
     gap: 8,
     overflow: 'hidden',
     position: 'relative',
+    zIndex: 1,
   },
   ageCardCompact: {
     minHeight: 100,
@@ -1876,8 +1976,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ageCardSelected: {
-    borderColor: '#A675FF',
-    borderBottomColor: '#360EA0',
+    borderColor: 'rgba(255, 255, 255, 0.34)',
     backgroundColor: colors.violet,
   },
   ageCardGlowLime: {
@@ -1889,45 +1988,24 @@ const styles = StyleSheet.create({
     right: -28,
     backgroundColor: 'rgba(216, 255, 62, 0.2)',
   },
-  ageCardShine: {
-    position: 'absolute',
-    top: 1.5,
-    left: 14,
-    right: 14,
-    height: 2,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
-  ageCardShineSelected: {
-    position: 'absolute',
-    top: 1.5,
-    left: 14,
-    right: 14,
-    height: 2.5,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
-  },
   ageCardTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    zIndex: 2,
   },
   ageIconMedallion: {
     width: 40,
     height: 40,
     borderRadius: 14,
-    borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   ageIconMedallionCompact: {
     width: 34,
     height: 34,
     borderRadius: 12,
-  },
-  ageIconMedallionSelected: {
-    backgroundColor: '#FFFFFF',
-    borderColor: 'rgba(216, 255, 62, 0.9)',
   },
   ageCheck: {
     width: 21,
@@ -1949,6 +2027,7 @@ const styles = StyleSheet.create({
   },
   ageCopy: {
     gap: 1.5,
+    zIndex: 2,
   },
   ageTitle: {
     fontFamily: fonts.display,
@@ -1973,21 +2052,24 @@ const styles = StyleSheet.create({
     color: 'rgba(244, 238, 255, 0.92)',
   },
 
+  parentalBoxWrap: {
+    position: 'relative',
+  },
   parentalBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     padding: 13,
     borderRadius: 20,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.5,
-    borderColor: '#A9EAF2',
-    borderBottomColor: '#6FD4E2',
+    borderWidth: 1.3,
+    borderColor: '#FFFFFF',
     backgroundColor: '#EFFDFE',
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   parentalBoxChecked: {
-    borderColor: '#A8DC2B',
-    borderBottomColor: '#7EA508',
+    borderColor: '#E9FF9E',
     backgroundColor: '#F4FFCC',
   },
   checkbox: {
@@ -2001,6 +2083,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 1,
     flexShrink: 0,
+    zIndex: 2,
   },
   checkboxChecked: {
     borderColor: '#7EA508',
@@ -2012,6 +2095,7 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 12.5,
     lineHeight: 17.5,
+    zIndex: 2,
   },
   ageNote: {
     fontFamily: fonts.body,
@@ -2025,29 +2109,33 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  trackChipWrap: {
+    position: 'relative',
+  },
   trackChip: {
-    minHeight: 39,
+    minHeight: 38,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.2,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 13,
     paddingVertical: 7,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6.5,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   trackChipActive: {
-    borderColor: '#9960FF',
-    borderBottomColor: '#3C12A8',
+    borderColor: 'rgba(255, 255, 255, 0.34)',
     backgroundColor: colors.violet,
   },
   trackAccentDot: {
     width: 7,
     height: 7,
     borderRadius: 3.5,
+    zIndex: 2,
   },
   trackCheckDot: {
     width: 16,
@@ -2056,6 +2144,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 2,
   },
   trackChipText: {
     fontFamily: fonts.bodyBold,
@@ -2063,6 +2152,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: colors.ink,
     includeFontPadding: false,
+    zIndex: 2,
   },
   trackChipTextActive: {
     color: colors.paper,
@@ -2074,27 +2164,32 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
   },
 
+  safetyBarWrap: {
+    position: 'relative',
+  },
   safetyBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     borderRadius: 20,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#D6C8FA',
+    borderWidth: 1.25,
+    borderColor: '#FFFFFF',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    zIndex: 1,
   },
   safetyIcon: {
     width: 36,
     height: 36,
     borderRadius: 13,
-    backgroundColor: colors.limeSoft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
+    zIndex: 2,
   },
   safetyText: {
     flex: 1,
@@ -2102,6 +2197,7 @@ const styles = StyleSheet.create({
     fontSize: 11.8,
     lineHeight: 16.2,
     color: colors.inkSoft,
+    zIndex: 2,
   },
 
   footer: {
@@ -2122,7 +2218,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 2,
-    bottom: 5,
+    bottom: 2,
     left: 2,
     borderRadius: radii.pill,
     overflow: 'hidden',

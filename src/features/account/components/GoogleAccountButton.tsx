@@ -1,6 +1,12 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { colors, fonts, radii } from '../../../shared/theme';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
 import { PlayfulLoader } from '../../../shared/ui/PlayfulLoader';
 import { PressableScale } from '../../../shared/ui/PressableScale';
@@ -38,8 +44,24 @@ export function GoogleAccountButton({ busy = false, disabled = false, note, onPr
       haptic="medium"
       onPress={onPress}
       style={style}
+      backdrop={
+        <CachedOutsetShadow
+          borderRadius={24}
+          shadow={LIQUID_SHADOWS.cardOutsetSoft}
+          padTop={4}
+          padX={8}
+          padBottom={12}
+        />
+      }
       contentStyle={styles.button}
     >
+      <LinearGradient
+        colors={['#FFFFFF', '#FBF8FF']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={styles.fill}
+      />
+      <CachedInsetRelief borderRadius={24} shadow={LIQUID_SHADOWS.cardInsetSoft} />
       <View style={styles.googleMark}><GoogleGlyph /></View>
       <View style={styles.copy}>
         <Text style={styles.title}>{busy ? 'Conectez contul…' : 'Continuă cu Google'}</Text>
@@ -53,12 +75,11 @@ export function GoogleAccountButton({ busy = false, disabled = false, note, onPr
 }
 
 const styles = StyleSheet.create({
+  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   button: {
     minHeight: 64,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     borderRadius: 24,
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
@@ -67,15 +88,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     paddingVertical: 10,
     overflow: 'hidden',
+    position: 'relative',
   },
   googleMark: {
     width: 44,
     height: 44,
     borderRadius: 15,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#EAE0FC',
-    borderBottomColor: '#D4C2F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FAF7FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -87,8 +107,6 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: radii.pill,
-    borderBottomWidth: 2.5,
-    borderBottomColor: '#3C12A8',
     backgroundColor: colors.violet,
     alignItems: 'center',
     justifyContent: 'center',

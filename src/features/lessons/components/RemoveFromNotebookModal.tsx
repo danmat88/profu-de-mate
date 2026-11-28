@@ -2,6 +2,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View } from 'react-native';
 import { colors, fonts, radii } from '../../../shared/theme';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { Mascot } from '../../../shared/ui/Mascot';
@@ -86,6 +91,15 @@ export function RemoveFromNotebookModal({
         haptic="medium"
         onPress={onConfirm}
         style={styles.confirmWrap}
+        backdrop={
+          <CachedOutsetShadow
+            borderRadius={radii.pill}
+            shadow={LIQUID_SHADOWS.peachOutset}
+            padTop={4}
+            padX={8}
+            padBottom={12}
+          />
+        }
         contentStyle={styles.confirmButton}
       >
         <LinearGradient
@@ -94,7 +108,7 @@ export function RemoveFromNotebookModal({
           end={{ x: 0.92, y: 1 }}
           style={styles.fill}
         />
-        <View pointerEvents="none" style={styles.buttonShine} />
+        <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.peachInset} />
         {removing ? <PlayfulLoader micro inverse /> : <MiniGlyph name="wrong" size={17} color={colors.paper} />}
         <Text style={styles.confirmText}>
           {removing ? 'Actualizez Caietul…' : 'Da, scoate problema'}
@@ -110,8 +124,18 @@ export function RemoveFromNotebookModal({
         haptic="selection"
         onPress={onCancel}
         style={styles.keepWrap}
+        backdrop={
+          <CachedOutsetShadow
+            borderRadius={radii.pill}
+            shadow={LIQUID_SHADOWS.cardOutsetSoft}
+            padTop={3}
+            padX={6}
+            padBottom={10}
+          />
+        }
         contentStyle={styles.keepButton}
       >
+        <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.cardInsetSoft} />
         <Text style={styles.keepText}>Păstreaz-o în Caiet</Text>
       </PressableScale>
     </ComicBottomSheet>
@@ -153,7 +177,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.rose,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 2,
   },
   title: {
     fontFamily: fonts.display,
@@ -168,10 +191,8 @@ const styles = StyleSheet.create({
     width: '100%',
     marginTop: 12,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
@@ -230,25 +251,14 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#FF98A6',
-    borderBottomColor: '#A81E34',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.36)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     overflow: 'hidden',
     position: 'relative',
-  },
-  buttonShine: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.34)',
   },
   confirmText: {
     fontFamily: fonts.display,
@@ -260,14 +270,14 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 50,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
+    overflow: 'hidden',
+    position: 'relative',
   },
   keepText: {
     fontFamily: fonts.bodyBold,

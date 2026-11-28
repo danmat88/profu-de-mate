@@ -13,6 +13,11 @@ import { assertSessionActive, captureSession } from '../../../shared/services/se
 import { borders, colors, fonts } from '../../../shared/theme';
 import type { CommercialAccess, MathAnalysis, RootStackParamList } from '../../../shared/types';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { Chip } from '../../../shared/ui/Chip';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
@@ -258,8 +263,18 @@ export function MathProcessingScreen({ route, navigation }: Props) {
           pressedScale={0.95}
           haptic="selection"
           onPress={goHome}
+          backdrop={
+            <CachedOutsetShadow
+              borderRadius={999}
+              shadow={LIQUID_SHADOWS.darkOutset}
+              padTop={3}
+              padX={5}
+              padBottom={9}
+            />
+          }
           contentStyle={styles.home}
         >
+          <CachedInsetRelief borderRadius={999} shadow={LIQUID_SHADOWS.darkInset} />
           <MiniGlyph name="back" size={16} color={colors.paper} />
           <Text style={styles.homeText}>ACASĂ</Text>
         </PressableScale>
@@ -280,16 +295,20 @@ export function MathProcessingScreen({ route, navigation }: Props) {
             />
           ) : null}
           {working ? (
-            <View style={[styles.paper, isVeryShort && styles.paperCompact]}>
-              <View style={styles.paperTopBand}>
-                <View style={styles.paperDot} />
-                <View style={styles.paperDot} />
-                <Text style={styles.paperLabel}>{isCheck ? 'VERIFICĂM ÎMPREUNĂ' : 'PROBLEMA TA'}</Text>
+            <View style={styles.paperWrap}>
+              <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.darkOutset} />
+              <View style={[styles.paper, isVeryShort && styles.paperCompact]}>
+                <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.cardInset} />
+                <View style={styles.paperTopBand}>
+                  <View style={styles.paperDot} />
+                  <View style={styles.paperDot} />
+                  <Text style={styles.paperLabel}>{isCheck ? 'VERIFICĂM ÎMPREUNĂ' : 'PROBLEMA TA'}</Text>
+                </View>
+                <View style={styles.formula}>
+                  {preview ? <MathExpression document={preview} accessibilityLabel="Problema trimisă spre analiză" /> : <AppIcon name="practice" size={62} />}
+                </View>
+                <View style={styles.paperRule} />
               </View>
-              <View style={styles.formula}>
-                {preview ? <MathExpression document={preview} accessibilityLabel="Problema trimisă spre analiză" /> : <AppIcon name="practice" size={62} />}
-              </View>
-              <View style={styles.paperRule} />
             </View>
           ) : null}
 
@@ -418,12 +437,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
+    borderWidth: 1.1,
     borderColor: 'rgba(196, 176, 255, 0.34)',
-    borderBottomColor: 'rgba(7, 4, 24, 0.78)',
     backgroundColor: 'rgba(38, 28, 84, 0.92)',
     borderRadius: 999,
+    overflow: 'hidden',
+    position: 'relative',
   },
   homeText: { fontFamily: fonts.bodyBold, color: colors.paper, fontSize: 12, letterSpacing: 0.8 },
   scroll: { flex: 1 },
@@ -445,23 +464,22 @@ const styles = StyleSheet.create({
   },
   haloOrbitCheck: { borderColor: 'rgba(255, 184, 107, 0.5)' },
   haloOrbitReady: { borderColor: colors.lime },
-  paper: {
+  paperWrap: {
     width: '86%',
     alignSelf: 'flex-start',
+    position: 'relative',
+  },
+  paper: {
+    width: '100%',
     minHeight: 172,
     padding: 17,
     paddingRight: 72,
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.94)',
     backgroundColor: '#FFFFFF',
-    shadowColor: '#080615',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.34,
-    shadowRadius: 18,
-    elevation: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
   paperCompact: { minHeight: 146, paddingVertical: 12 },
   paperTopBand: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
@@ -481,7 +499,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 13,
     borderRadius: 999,
     backgroundColor: colors.lime,
-    elevation: 4,
   },
   bubbleCheck: { backgroundColor: colors.peach },
   bubbleReady: { backgroundColor: colors.lime },

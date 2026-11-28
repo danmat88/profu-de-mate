@@ -32,6 +32,12 @@ import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackd
 import type { ExamResultItemSummary, RootStackParamList } from '../../../shared/types';
 import { AiBlockingOverlay } from '../../../shared/ui/AiBlockingOverlay';
 import { AppIcon } from '../../../shared/ui/AppIcon';
+import {
+  CachedInsetRelief,
+  CachedOutsetShadow,
+  CachedSurface,
+  LIQUID_SHADOWS,
+} from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicBottomSheet } from '../../../shared/ui/ComicBottomSheet';
 import { Mascot } from '../../../shared/ui/Mascot';
@@ -808,6 +814,16 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             }}
             style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
           >
+            <CachedSurface
+              borderRadius={19}
+              backgroundColor="#FFFFFF"
+              shadow={LIQUID_SHADOWS.canopyGlassOutset}
+              borderWidth={1.1}
+              borderColor="rgba(255, 255, 255, 0.94)"
+              padTop={3}
+              padX={5}
+              padBottom={7}
+            />
             <MiniGlyph name="close" size={16} color={colors.violetDeep} />
           </Pressable>
 
@@ -851,6 +867,16 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             onPress={cycleScale}
             style={({ pressed }) => [styles.scalePill, pressed && styles.pressed]}
           >
+            <CachedSurface
+              borderRadius={radii.pill}
+              backgroundColor="#FFFFFF"
+              shadow={LIQUID_SHADOWS.canopyGlassOutset}
+              borderWidth={1.1}
+              borderColor="rgba(255, 255, 255, 0.94)"
+              padTop={3}
+              padX={4}
+              padBottom={6}
+            />
             <Text maxFontSizeMultiplier={1.12} style={styles.scalePillText}>
               {mathReadingScaleBadge(readingScale)}
             </Text>
@@ -863,6 +889,16 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             onPress={() => openConfirmModal('submit')}
             style={({ pressed }) => [styles.submitPill, pressed && styles.pressed]}
           >
+            <CachedSurface
+              borderRadius={radii.pill}
+              backgroundColor={colors.lime}
+              shadow={LIQUID_SHADOWS.limeOutset}
+              borderWidth={1.1}
+              borderColor="rgba(255, 255, 255, 0.72)"
+              padTop={3}
+              padX={4}
+              padBottom={6}
+            />
             <Text maxFontSizeMultiplier={1.12} style={styles.submitPillText}>Predă</Text>
           </Pressable>
         </View>
@@ -870,49 +906,68 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
 
       {examPaused ? (
         <View style={[styles.pauseStageWrap, { paddingHorizontal: gutter }]}>
-          <View style={[styles.pauseCard, { maxWidth: contentWidth }]}>
-            <View style={styles.pauseMascotWrap}>
-              <SpotlightAura size={96} tone="violet" active={!reducedMotion} />
-              <Mascot pose="wave" size={88} active={!reducedMotion} />
-            </View>
-            <View style={styles.pauseBadge}>
-              <Text style={styles.pauseBadgeText}>
-                CRONOMETRU OPRIT · {formatCountdown(secondsLeft)}{pauseCount > 0 ? ` · PAUZA #${pauseCount}` : ''}
-              </Text>
-            </View>
-            <Text style={styles.pauseTitle}>Simulare în pauză</Text>
-            <Text style={styles.pauseText}>
-              Cronometrul este oprit, iar progresul tău ({answeredCount}/{items.length}) este salvat automat — poți reveni oricând din Examene sau Învață.
-            </Text>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Continuă simularea"
-              pressedScale={0.97}
-              haptic="medium"
-              onPress={toggleExamPause}
-              style={styles.pauseResumeWrap}
-              contentStyle={styles.pauseResumeBtn}
-            >
+          <View style={[styles.cardWrap, styles.fullWidth, { maxWidth: contentWidth }]}>
+            <CachedOutsetShadow borderRadius={28} shadow={LIQUID_SHADOWS.cardOutset} />
+            <View style={styles.pauseCard}>
               <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
+                colors={['#FFFFFF', '#FBF8FF']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
-              <Text style={styles.pauseResumeText}>Continuă simularea</Text>
-              <View style={styles.mainNavArrow}>
-                <MiniGlyph name="next" size={16} color={colors.paper} />
+              <CachedInsetRelief borderRadius={28} shadow={LIQUID_SHADOWS.cardInset} />
+              <View style={styles.pauseMascotWrap}>
+                <SpotlightAura size={96} tone="violet" active={!reducedMotion} />
+                <Mascot pose="wave" size={88} active={!reducedMotion} />
               </View>
-            </PressableScale>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Salvează simularea și ieși pentru mai târziu"
-              onPress={saveAndExitSimulation}
-              style={({ pressed }) => [styles.pauseSaveExitBtn, pressed && styles.pressed]}
-            >
-              <Text style={styles.pauseSaveExitText}>Salvează și ieși pentru mai târziu</Text>
-            </Pressable>
+              <View style={styles.pauseBadge}>
+                <Text style={styles.pauseBadgeText}>
+                  CRONOMETRU OPRIT · {formatCountdown(secondsLeft)}{pauseCount > 0 ? ` · PAUZA #${pauseCount}` : ''}
+                </Text>
+              </View>
+              <Text style={styles.pauseTitle}>Simulare în pauză</Text>
+              <Text style={styles.pauseText}>
+                Cronometrul este oprit, iar progresul tău ({answeredCount}/{items.length}) este salvat automat — poți reveni oricând din Examene sau Învață.
+              </Text>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Continuă simularea"
+                pressedScale={0.97}
+                haptic="medium"
+                onPress={toggleExamPause}
+                style={styles.pauseResumeWrap}
+                backdrop={
+                  <CachedOutsetShadow
+                    borderRadius={radii.pill}
+                    shadow={LIQUID_SHADOWS.limeOutset}
+                    padTop={4}
+                    padX={8}
+                    padBottom={12}
+                  />
+                }
+                contentStyle={styles.pauseResumeBtn}
+              >
+                <LinearGradient
+                  colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
+                <Text style={styles.pauseResumeText}>Continuă simularea</Text>
+                <View style={styles.mainNavArrow}>
+                  <MiniGlyph name="next" size={16} color={colors.paper} />
+                </View>
+              </PressableScale>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Salvează simularea și ieși pentru mai târziu"
+                onPress={saveAndExitSimulation}
+                style={({ pressed }) => [styles.pauseSaveExitBtn, pressed && styles.pressed]}
+              >
+                <Text style={styles.pauseSaveExitText}>Salvează și ieși pentru mai târziu</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       ) : (
@@ -929,6 +984,20 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             const active = idx === currentIndex;
             const answered = isItemAnswered(item.id, item.kind);
             const flagged = Boolean(flaggedIds[item.id]);
+            const chipBg = active
+              ? colors.violet
+              : flagged
+                ? '#FFF8D8'
+                : answered
+                  ? '#F5FFD6'
+                  : '#FFFFFF';
+            const chipBorder = active
+              ? 'rgba(255, 255, 255, 0.36)'
+              : flagged
+                ? 'rgba(220, 168, 22, 0.45)'
+                : answered
+                  ? 'rgba(130, 184, 16, 0.4)'
+                  : 'rgba(255, 255, 255, 0.94)';
             return (
               <Pressable
                 key={item.id}
@@ -941,12 +1010,19 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                 onPress={() => jumpToIndex(idx)}
                 style={({ pressed }) => [
                   styles.navChip,
-                  active && styles.navChipActive,
-                  !active && answered && styles.navChipAnswered,
-                  !active && flagged && styles.navChipFlagged,
                   pressed && styles.pressed,
                 ]}
               >
+                <CachedSurface
+                  borderRadius={radii.pill}
+                  backgroundColor={chipBg}
+                  shadow={active ? LIQUID_SHADOWS.violetOutset : LIQUID_SHADOWS.chipSurface}
+                  borderWidth={1.1}
+                  borderColor={chipBorder}
+                  padTop={3}
+                  padX={4}
+                  padBottom={6}
+                />
                 <Text style={[styles.navChipText, active && styles.navChipTextActive]}>
                   {item.numberLabel}
                 </Text>
@@ -981,50 +1057,60 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
             animate={stepTransition.animate}
             style={[styles.stageWrap, { maxWidth: contentWidth }]}
           >
-            <Pressable
-              accessible={false}
-              onPress={Keyboard.dismiss}
-              style={styles.promptCard}
-            >
-              <View style={styles.itemMetaRow}>
-                <View style={[styles.subjectBadge, { backgroundColor: SUBJECT_BADGE_BG[currentItem.subject] }]}>
-                  <Text style={[styles.subjectBadgeText, { color: SUBJECT_BADGE_TEXT[currentItem.subject] }]}>
-                    {currentItem.numberLabel}
-                  </Text>
-                </View>
-                <View style={styles.itemMetaRight}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isCurrentFlagged }}
-                    accessibilityLabel={isCurrentFlagged ? 'Scoate marcajul de revizuit' : 'Marchează itemul de revizuit mai târziu'}
-                    disabled={gradingBusy}
-                    hitSlop={6}
-                    onPress={toggleCurrentFlag}
-                    style={({ pressed }) => [
-                      styles.flagPill,
-                      isCurrentFlagged && styles.flagPillActive,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={[styles.flagPillText, isCurrentFlagged && styles.flagPillTextActive]}>
-                      {isCurrentFlagged ? '★ De revizuit' : '☆ Revizuiește'}
+            <View style={styles.cardWrap}>
+              <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
+              <Pressable
+                accessible={false}
+                onPress={Keyboard.dismiss}
+                style={styles.promptCard}
+              >
+                <LinearGradient
+                  colors={['#FFFFFF', '#FBF8FF']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.cardInset} />
+                <View style={styles.itemMetaRow}>
+                  <View style={[styles.subjectBadge, { backgroundColor: SUBJECT_BADGE_BG[currentItem.subject] }]}>
+                    <Text style={[styles.subjectBadgeText, { color: SUBJECT_BADGE_TEXT[currentItem.subject] }]}>
+                      {currentItem.numberLabel}
                     </Text>
-                  </Pressable>
-                  <View style={styles.pointsBadge}>
-                    <Text style={styles.pointsBadgeText}>{currentItem.maxPoints}p</Text>
+                  </View>
+                  <View style={styles.itemMetaRight}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isCurrentFlagged }}
+                      accessibilityLabel={isCurrentFlagged ? 'Scoate marcajul de revizuit' : 'Marchează itemul de revizuit mai târziu'}
+                      disabled={gradingBusy}
+                      hitSlop={6}
+                      onPress={toggleCurrentFlag}
+                      style={({ pressed }) => [
+                        styles.flagPill,
+                        isCurrentFlagged && styles.flagPillActive,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[styles.flagPillText, isCurrentFlagged && styles.flagPillTextActive]}>
+                        {isCurrentFlagged ? '★ De revizuit' : '☆ Revizuiește'}
+                      </Text>
+                    </Pressable>
+                    <View style={styles.pointsBadge}>
+                      <Text style={styles.pointsBadgeText}>{currentItem.maxPoints}p</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              <Text style={styles.itemTitle}>{currentItem.title}</Text>
+                <Text style={styles.itemTitle}>{currentItem.title}</Text>
 
-              <StudyBlocksView
-                blocks={currentItem.prompt}
-                scale={readingScale}
-                maxWidth={innerMathWidth}
-                accent={SUBJECT_ACCENT[currentItem.subject]}
-              />
-            </Pressable>
+                <StudyBlocksView
+                  blocks={currentItem.prompt}
+                  scale={readingScale}
+                  maxWidth={innerMathWidth}
+                  accent={SUBJECT_ACCENT[currentItem.subject]}
+                />
+              </Pressable>
+            </View>
 
           {currentItem.kind === 'choice' && currentItem.choices ? (
             <View style={styles.choicesStack}>
@@ -1043,10 +1129,19 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                     }}
                     style={({ pressed }) => [
                       styles.choiceCard,
-                      selected && styles.choiceCardSelected,
                       pressed && styles.pressed,
                     ]}
                   >
+                    <CachedSurface
+                      borderRadius={20}
+                      backgroundColor={selected ? colors.violetSoft : '#FFFFFF'}
+                      shadow={selected ? LIQUID_SHADOWS.cardOutsetSoft : LIQUID_SHADOWS.chipSurface}
+                      borderWidth={1.2}
+                      borderColor={selected ? 'rgba(124, 60, 255, 0.55)' : 'rgba(255, 255, 255, 0.94)'}
+                      padTop={3}
+                      padX={6}
+                      padBottom={9}
+                    />
                     <View style={[styles.choiceBadge, selected && styles.choiceBadgeSelected]}>
                       <Text style={[styles.choiceBadgeText, selected && styles.choiceBadgeTextSelected]}>
                         {CHOICE_LETTERS[idx]}
@@ -1132,115 +1227,144 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               ) : null}
             </View>
           ) : (
-            <View style={styles.rubricWorkspace}>
-              <View style={styles.rubricHeaderRow}>
-                <View style={styles.rubricHeaderCopy}>
-                  <Text style={styles.cardKicker}>REDACTARE PE CAIET · {currentItem.maxPoints} PUNCTE</Text>
-                  <Text style={styles.rubricTitle}>Verifică rezolvarea pe barem</Text>
+            <View style={styles.cardWrap}>
+              <CachedOutsetShadow borderRadius={26} shadow={LIQUID_SHADOWS.cardOutset} />
+              <View style={styles.rubricWorkspace}>
+                <LinearGradient
+                  colors={['#FFFFFF', '#FBF8FF']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.fill}
+                />
+                <CachedInsetRelief borderRadius={26} shadow={LIQUID_SHADOWS.cardInset} />
+                <View style={styles.rubricHeaderRow}>
+                  <View style={styles.rubricHeaderCopy}>
+                    <Text style={styles.cardKicker}>REDACTARE PE CAIET · {currentItem.maxPoints} PUNCTE</Text>
+                    <Text style={styles.rubricTitle}>Verifică rezolvarea pe barem</Text>
+                  </View>
+                  <View style={[styles.rubricPtsPill, currentRubricScore !== undefined && styles.rubricPtsPillScored]}>
+                    <Text style={[styles.rubricPtsText, currentRubricScore !== undefined && styles.rubricPtsTextScored]}>
+                      {currentRubricScore !== undefined ? `${currentRubricScore}/${currentItem.maxPoints}p` : `0/${currentItem.maxPoints}p`}
+                    </Text>
+                  </View>
                 </View>
-                <View style={[styles.rubricPtsPill, currentRubricScore !== undefined && styles.rubricPtsPillScored]}>
-                  <Text style={[styles.rubricPtsText, currentRubricScore !== undefined && styles.rubricPtsTextScored]}>
-                    {currentRubricScore !== undefined ? `${currentRubricScore}/${currentItem.maxPoints}p` : `0/${currentItem.maxPoints}p`}
-                  </Text>
+
+                <Text style={styles.rubricNote}>
+                  Rezolvă problema pe hârtie ca la examen, apoi fotografiază pagina pentru corectare pe barem cu Profu’ AI sau notează-te offline după baremul model.
+                </Text>
+
+                <View style={styles.photoActionsRow}>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel="Fotografiază rezolvarea pentru corectare pe barem cu Profu AI"
+                    disabled={gradingBusy}
+                    pressedScale={0.97}
+                    haptic="medium"
+                    onPress={() => void launchPhotoGrading('camera')}
+                    style={styles.cameraBtnWrap}
+                    backdrop={
+                      <CachedOutsetShadow
+                        borderRadius={radii.pill}
+                        shadow={LIQUID_SHADOWS.limeOutset}
+                        padTop={4}
+                        padX={8}
+                        padBottom={12}
+                      />
+                    }
+                    contentStyle={styles.cameraBtn}
+                  >
+                    <LinearGradient
+                      colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                      start={{ x: 0.08, y: 0 }}
+                      end={{ x: 0.92, y: 1 }}
+                      style={styles.fill}
+                    />
+                    <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
+                    <AppIcon name="camera" size={22} />
+                    <Text numberOfLines={2} style={styles.cameraBtnText}>
+                      Corectează poza (AI)
+                    </Text>
+                  </PressableScale>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Alege o fotografie din galerie pentru barem"
+                    disabled={gradingBusy}
+                    onPress={() => void launchPhotoGrading('gallery')}
+                    style={({ pressed }) => [styles.galleryMiniBtn, pressed && styles.pressed]}
+                  >
+                    <CachedSurface
+                      borderRadius={18}
+                      backgroundColor={colors.violetSoft}
+                      shadow={LIQUID_SHADOWS.orbSurface}
+                      borderWidth={1.1}
+                      borderColor="rgba(255, 255, 255, 0.94)"
+                      padTop={3}
+                      padX={4}
+                      padBottom={7}
+                    />
+                    <AppIcon name="gallery" size={22} />
+                  </Pressable>
                 </View>
-              </View>
 
-              <Text style={styles.rubricNote}>
-                Rezolvă problema pe hârtie ca la examen, apoi fotografiază pagina pentru corectare pe barem cu Profu’ AI sau notează-te offline după baremul model.
-              </Text>
+                {gradingError ? (
+                  <View style={styles.errorBox}>
+                    <Text style={styles.errorText}>{gradingError}</Text>
+                  </View>
+                ) : null}
 
-              <View style={styles.photoActionsRow}>
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel="Fotografiază rezolvarea pentru corectare pe barem cu Profu AI"
-                  disabled={gradingBusy}
-                  pressedScale={0.97}
-                  haptic="medium"
-                  onPress={() => void launchPhotoGrading('camera')}
-                  style={styles.cameraBtnWrap}
-                  contentStyle={styles.cameraBtn}
-                >
-                  <LinearGradient
-                    colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
-                    start={{ x: 0.08, y: 0 }}
-                    end={{ x: 0.92, y: 1 }}
-                    style={styles.fill}
-                  />
-                  <View pointerEvents="none" style={styles.ctaTopGloss} />
-                  <AppIcon name="camera" size={22} />
-                  <Text numberOfLines={2} style={styles.cameraBtnText}>
-                    Corectează poza (AI)
-                  </Text>
-                </PressableScale>
+                {currentAiResult ? (
+                  <View style={styles.aiResultCard}>
+                    <View style={styles.aiResultTop}>
+                      <Text style={styles.aiResultTag}>✦ CORECTARE PE BAREM · PROFU’ AI</Text>
+                      <Text style={styles.aiResultPts}>
+                        {currentAiResult.awardedPoints}/{currentAiResult.maxPoints}p
+                      </Text>
+                    </View>
+                    <Text style={styles.aiResultSummary}>{currentAiResult.summary}</Text>
+                    {currentAiResult.criteriaScores.map((crit, cIdx) => (
+                      <View key={`${crit.step}-${cIdx}`} style={styles.aiCritRow}>
+                        <View style={styles.aiCritPts}>
+                          <Text style={styles.aiCritPtsText}>{crit.awardedPoints}/{crit.maxPoints}p</Text>
+                        </View>
+                        <View style={styles.aiCritCopy}>
+                          <StudyInlineText
+                            text={crit.step}
+                            scale={0.9}
+                            textStyle={styles.aiCritStep}
+                            maxMathWidth={innerMathWidth - 96}
+                          />
+                          <Text style={styles.aiCritComment}>{crit.comment}</Text>
+                        </View>
+                      </View>
+                    ))}
+                    {currentAiResult.improvementTip?.trim() ? (
+                      <View style={styles.aiTipPill}>
+                        <Text style={styles.aiTipText}>💡 {currentAiResult.improvementTip.trim()}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Alege o fotografie din galerie pentru barem"
+                  accessibilityLabel="Deschide baremul model și notează-te offline"
                   disabled={gradingBusy}
-                  onPress={() => void launchPhotoGrading('gallery')}
-                  style={({ pressed }) => [styles.galleryMiniBtn, pressed && styles.pressed]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    Haptics.selection();
+                    setRubricSheetEverOpened(true);
+                    setRubricSheetOpen(true);
+                  }}
+                  style={({ pressed }) => [styles.manualRubricBtn, pressed && styles.pressed]}
                 >
-                  <AppIcon name="gallery" size={22} />
+                  <AppIcon name="explain" size={20} />
+                  <Text numberOfLines={2} style={styles.manualRubricText}>
+                    Vezi baremul model & notează-te offline
+                  </Text>
+                  <MiniGlyph name="next" size={14} color={colors.violetDeep} />
                 </Pressable>
               </View>
-
-              {gradingError ? (
-                <View style={styles.errorBox}>
-                  <Text style={styles.errorText}>{gradingError}</Text>
-                </View>
-              ) : null}
-
-              {currentAiResult ? (
-                <View style={styles.aiResultCard}>
-                  <View style={styles.aiResultTop}>
-                    <Text style={styles.aiResultTag}>✦ CORECTARE PE BAREM · PROFU’ AI</Text>
-                    <Text style={styles.aiResultPts}>
-                      {currentAiResult.awardedPoints}/{currentAiResult.maxPoints}p
-                    </Text>
-                  </View>
-                  <Text style={styles.aiResultSummary}>{currentAiResult.summary}</Text>
-                  {currentAiResult.criteriaScores.map((crit, cIdx) => (
-                    <View key={`${crit.step}-${cIdx}`} style={styles.aiCritRow}>
-                      <View style={styles.aiCritPts}>
-                        <Text style={styles.aiCritPtsText}>{crit.awardedPoints}/{crit.maxPoints}p</Text>
-                      </View>
-                      <View style={styles.aiCritCopy}>
-                        <StudyInlineText
-                          text={crit.step}
-                          scale={0.9}
-                          textStyle={styles.aiCritStep}
-                          maxMathWidth={innerMathWidth - 96}
-                        />
-                        <Text style={styles.aiCritComment}>{crit.comment}</Text>
-                      </View>
-                    </View>
-                  ))}
-                  {currentAiResult.improvementTip?.trim() ? (
-                    <View style={styles.aiTipPill}>
-                      <Text style={styles.aiTipText}>💡 {currentAiResult.improvementTip.trim()}</Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Deschide baremul model și notează-te offline"
-                disabled={gradingBusy}
-                onPress={() => {
-                  Keyboard.dismiss();
-                  Haptics.selection();
-                  setRubricSheetEverOpened(true);
-                  setRubricSheetOpen(true);
-                }}
-                style={({ pressed }) => [styles.manualRubricBtn, pressed && styles.pressed]}
-              >
-                <AppIcon name="explain" size={20} />
-                <Text numberOfLines={2} style={styles.manualRubricText}>
-                  Vezi baremul model & notează-te offline
-                </Text>
-                <MiniGlyph name="next" size={14} color={colors.violetDeep} />
-              </Pressable>
             </View>
           )}
           </StepTransitionStage>
@@ -1304,8 +1428,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   haptic="selection"
                   onPress={() => jumpToIndex(currentIndex + 1)}
                   style={styles.mainNavWrap}
+                  backdrop={
+                    <CachedOutsetShadow
+                      borderRadius={radii.pill}
+                      shadow={LIQUID_SHADOWS.limeOutset}
+                      padTop={4}
+                      padX={8}
+                      padBottom={10}
+                    />
+                  }
                   contentStyle={styles.dockNextBtn}
                 >
+                  <LinearGradient
+                    colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
                   <Text numberOfLines={2} style={styles.keyboardNextText}>
                     Itemul următor →
                   </Text>
@@ -1319,8 +1459,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   haptic="medium"
                   onPress={() => openConfirmModal('submit')}
                   style={styles.mainNavWrap}
+                  backdrop={
+                    <CachedOutsetShadow
+                      borderRadius={radii.pill}
+                      shadow={LIQUID_SHADOWS.limeOutset}
+                      padTop={4}
+                      padX={8}
+                      padBottom={10}
+                    />
+                  }
                   contentStyle={styles.dockNextBtn}
                 >
+                  <LinearGradient
+                    colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                    start={{ x: 0.08, y: 0 }}
+                    end={{ x: 0.92, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
                   <Text numberOfLines={2} style={styles.keyboardNextText}>
                     Predă lucrarea ★
                   </Text>
@@ -1347,6 +1503,16 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               pressed && currentIndex > 0 && styles.pressed,
             ]}
           >
+            <CachedSurface
+              borderRadius={18}
+              backgroundColor="#FFFFFF"
+              shadow={LIQUID_SHADOWS.orbSurface}
+              borderWidth={1.1}
+              borderColor="rgba(255, 255, 255, 0.94)"
+              padTop={3}
+              padX={4}
+              padBottom={7}
+            />
             <MiniGlyph name="back" size={18} color={currentIndex > 0 ? colors.ink : colors.inkMuted} />
           </Pressable>
 
@@ -1359,15 +1525,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               haptic="selection"
               onPress={() => jumpToIndex(currentIndex + 1)}
               style={styles.mainNavWrap}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
               contentStyle={styles.mainNavBtn}
             >
               <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
                 start={{ x: 0.08, y: 0 }}
                 end={{ x: 0.92, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
               <Text numberOfLines={2} style={styles.mainNavText}>Itemul următor</Text>
               <View style={styles.mainNavArrow}>
                 <MiniGlyph name="next" size={16} color={colors.paper} />
@@ -1382,15 +1557,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               haptic="medium"
               onPress={() => setConfirmMode('submit')}
               style={styles.mainNavWrap}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
               contentStyle={styles.mainNavBtn}
             >
               <LinearGradient
-                colors={['#EDFF7A', '#D8FF3E', '#BCEF12']}
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
                 start={{ x: 0.08, y: 0 }}
                 end={{ x: 0.92, y: 1 }}
                 style={styles.fill}
               />
-              <View pointerEvents="none" style={styles.ctaTopGloss} />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
               <Text numberOfLines={2} style={styles.mainNavText}>Predă lucrarea ★</Text>
               <View style={styles.mainNavArrow}>
                 <MiniGlyph name="check" size={16} color={colors.paper} />
@@ -1420,7 +1604,7 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               accessibilityLabel="Închide baremul"
               hitSlop={8}
               onPress={() => setRubricSheetOpen(false)}
-              style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.sheetCloseBtn, pressed && styles.pressed]}
             >
               <MiniGlyph name="close" size={16} color={colors.ink} />
             </Pressable>
@@ -1494,8 +1678,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
               setRubricScores((map) => (currentItem.id in map ? map : { ...map, [currentItem.id]: 0 }));
               setRubricSheetOpen(false);
             }}
+            backdrop={
+              <CachedOutsetShadow
+                borderRadius={radii.pill}
+                shadow={LIQUID_SHADOWS.limeOutset}
+                padTop={4}
+                padX={8}
+                padBottom={12}
+              />
+            }
             contentStyle={styles.rubricSaveBtn}
           >
+            <LinearGradient
+              colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: 1 }}
+              style={styles.fill}
+            />
+            <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
             <Text numberOfLines={2} style={styles.rubricSaveBtnText}>
               Salvează punctajul ({currentRubricScore ?? 0}/{currentItem.maxPoints}p)
             </Text>
@@ -1592,8 +1792,24 @@ export function ExamSimulationScreen({ navigation, route }: Props) {
                   saveAndExitSimulation();
                 }
               }}
+              backdrop={
+                <CachedOutsetShadow
+                  borderRadius={radii.pill}
+                  shadow={LIQUID_SHADOWS.limeOutset}
+                  padTop={4}
+                  padX={8}
+                  padBottom={12}
+                />
+              }
               contentStyle={styles.confirmPrimaryBtn}
             >
+              <LinearGradient
+                colors={['#F0FF88', '#D8FF3E', '#B8EB0E']}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={LIQUID_SHADOWS.limeInset} />
               <Text numberOfLines={2} style={styles.confirmPrimaryText}>
                 {confirmMode === 'submit'
                   ? scope === 'full'
@@ -1641,6 +1857,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   flexBody: { flex: 1, minHeight: 0 },
+  cardWrap: { position: 'relative' },
+  fullWidth: { width: '100%' },
 
   canopy: {
     width: '100%',
@@ -1650,34 +1868,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     position: 'relative',
     zIndex: 4,
-  },
-  canopyGlowCyan: {
-    position: 'absolute',
-    width: 190,
-    height: 190,
-    borderRadius: 95,
-    top: -85,
-    left: -45,
-    backgroundColor: 'rgba(67, 214, 230, 0.22)',
-  },
-  canopyGlowLime: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    top: -60,
-    right: -35,
-    backgroundColor: 'rgba(216, 255, 62, 0.14)',
-  },
-  canopyOrbitArc: {
-    position: 'absolute',
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    borderWidth: 1.2,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    top: -120,
-    right: -75,
   },
   topBar: {
     minHeight: 54,
@@ -1690,10 +1880,17 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#FFFFFF',
-    borderBottomColor: '#C5B8FA',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    position: 'relative',
+  },
+  sheetCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1712,15 +1909,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
   },
   timerPillLow: {
-    borderColor: '#FFC5D0',
-    borderBottomWidth: 2.8,
-    borderBottomColor: '#E07C90',
+    borderColor: 'rgba(224, 124, 144, 0.72)',
     backgroundColor: '#FFE8EC',
   },
   timerPillPaused: {
-    borderColor: '#F6DC74',
-    borderBottomWidth: 2.8,
-    borderBottomColor: '#C59A10',
+    borderColor: 'rgba(220, 168, 22, 0.72)',
     backgroundColor: '#FFF7CE',
   },
   timerText: {
@@ -1757,14 +1950,10 @@ const styles = StyleSheet.create({
     minHeight: 34,
     paddingHorizontal: 8,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 2.8,
-    borderColor: '#FFFFFF',
-    borderBottomColor: '#C5B8FA',
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   scalePillText: {
     fontFamily: fonts.display,
@@ -1776,14 +1965,10 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 13,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#ECFF8A',
-    borderBottomColor: '#8BB509',
-    backgroundColor: colors.lime,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   submitPillText: {
     fontFamily: fonts.display,
@@ -1793,41 +1978,23 @@ const styles = StyleSheet.create({
   },
 
   navStripWrap: {
-    marginTop: -18,
-    paddingBottom: 8,
+    marginTop: -21,
+    paddingBottom: 4,
     zIndex: 8,
   },
   navStrip: {
     gap: 7,
+    paddingVertical: 5,
     alignItems: 'center',
   },
   navChip: {
     minHeight: 36,
     paddingHorizontal: 12,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-  },
-  navChipActive: {
-    borderColor: colors.violet,
-    borderBottomColor: '#3C12A8',
-    backgroundColor: colors.violet,
-  },
-  navChipAnswered: {
-    borderColor: '#C5EA63',
-    borderBottomColor: '#98C40E',
-    backgroundColor: '#F5FFD6',
-  },
-  navChipFlagged: {
-    borderColor: '#F2CC55',
-    borderBottomColor: '#CC9A12',
-    backgroundColor: '#FFF8D8',
+    position: 'relative',
   },
   navChipText: {
     fontFamily: fonts.bodyBold,
@@ -1840,7 +2007,7 @@ const styles = StyleSheet.create({
   flagChipStar: {
     fontFamily: fonts.display,
     fontSize: 11,
-    color: '#B87A00',
+    color: colors.goldDeep,
     includeFontPadding: false,
   },
   flagChipStarActive: {
@@ -1865,15 +2032,15 @@ const styles = StyleSheet.create({
   pauseCard: {
     width: '100%',
     borderRadius: 28,
-    borderWidth: 1.5,
-    borderBottomWidth: 5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 22,
     paddingVertical: 26,
     alignItems: 'center',
     gap: 11,
+    overflow: 'hidden',
+    position: 'relative',
   },
   pauseMascotWrap: {
     width: 98,
@@ -1887,8 +2054,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: radii.pill,
     backgroundColor: '#FFF6CC',
-    borderWidth: 1.2,
-    borderColor: '#E8C54F',
+    borderWidth: 1.1,
+    borderColor: 'rgba(232, 197, 79, 0.65)',
   },
   pauseBadgeText: {
     fontFamily: fonts.bodyBold,
@@ -1918,11 +2085,8 @@ const styles = StyleSheet.create({
   pauseResumeBtn: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderColor: '#EEFF96',
-    borderBottomWidth: 4.5,
-    borderBottomColor: '#8CB600',
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1941,10 +2105,8 @@ const styles = StyleSheet.create({
     width: '100%',
     minHeight: 48,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.2,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1969,14 +2131,14 @@ const styles = StyleSheet.create({
   },
   promptCard: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 17,
     paddingVertical: 15,
     gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   itemMetaRow: {
     flexDirection: 'row',
@@ -1992,17 +2154,14 @@ const styles = StyleSheet.create({
   },
   flagPill: {
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#FAF8FF',
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
   flagPillActive: {
-    borderColor: '#F2CC55',
-    borderBottomColor: '#CC9A12',
+    borderColor: 'rgba(220, 168, 22, 0.55)',
     backgroundColor: '#FFF7CE',
   },
   flagPillText: {
@@ -2025,10 +2184,8 @@ const styles = StyleSheet.create({
   pointsBadge: {
     borderRadius: radii.pill,
     backgroundColor: colors.limeSoft,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.5,
-    borderColor: '#D6F08A',
-    borderBottomColor: '#AED442',
+    borderWidth: 1.1,
+    borderColor: 'rgba(130, 184, 16, 0.34)',
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
@@ -2044,25 +2201,16 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 
-  choicesStack: { gap: 9 },
+  choicesStack: { gap: 10 },
   choiceCard: {
     minHeight: 56,
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     paddingHorizontal: 13,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  choiceCardSelected: {
-    borderColor: colors.violet,
-    borderBottomColor: '#4715B8',
-    backgroundColor: colors.violetSoft,
+    position: 'relative',
   },
   choiceBadge: {
     width: 32,
@@ -2096,10 +2244,8 @@ const styles = StyleSheet.create({
   inputWrap: {
     minHeight: 56,
     borderRadius: 20,
-    borderWidth: 1.5,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C5B0F4',
+    borderWidth: 1.4,
+    borderColor: 'rgba(124, 60, 255, 0.22)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
     flexDirection: 'row',
@@ -2108,7 +2254,6 @@ const styles = StyleSheet.create({
   },
   inputWrapFilled: {
     borderColor: colors.violet,
-    borderBottomColor: '#4715B8',
   },
   shortInput: {
     flex: 1,
@@ -2130,10 +2275,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 40,
     borderRadius: 13,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2149,8 +2292,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   keyboardDock: {
-    borderTopWidth: 1.4,
-    borderTopColor: '#E5DCFF',
+    borderTopWidth: 1.2,
+    borderTopColor: 'rgba(124, 60, 255, 0.14)',
     backgroundColor: '#FFFFFF',
     paddingTop: 9,
     paddingBottom: 10,
@@ -2164,10 +2307,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 38,
     borderRadius: 12,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#FAF7FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2176,10 +2317,8 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: 11,
     borderRadius: 12,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#E2D6FF',
-    borderBottomColor: '#C8B5FA',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2194,10 +2333,8 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 15,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2208,13 +2345,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
   keyboardNextText: {
     fontFamily: fonts.display,
@@ -2240,13 +2376,13 @@ const styles = StyleSheet.create({
 
   rubricWorkspace: {
     borderRadius: 26,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
     backgroundColor: '#FFFFFF',
     padding: 15,
     gap: 11,
+    overflow: 'hidden',
+    position: 'relative',
   },
   rubricHeaderRow: {
     flexDirection: 'row',
@@ -2293,23 +2429,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
   },
-  ctaTopGloss: {
-    position: 'absolute',
-    top: 2,
-    left: 22,
-    right: 22,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-  },
   cameraBtnWrap: { flex: 1, minWidth: 0 },
   cameraBtn: {
     minHeight: 52,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     paddingHorizontal: 14,
     paddingVertical: 9,
     flexDirection: 'row',
@@ -2331,14 +2456,10 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
-    backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   errorBox: {
     borderRadius: 14,
@@ -2354,10 +2475,8 @@ const styles = StyleSheet.create({
 
   aiResultCard: {
     borderRadius: 20,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#F8F4FF',
     padding: 12,
     gap: 8,
@@ -2436,10 +2555,8 @@ const styles = StyleSheet.create({
   manualRubricBtn: {
     minHeight: 48,
     borderRadius: 16,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: colors.violetSoft,
     paddingHorizontal: 13,
     paddingVertical: 10,
@@ -2466,24 +2583,18 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    position: 'relative',
   },
   stepNavBtnDisabled: { opacity: 0.4 },
   mainNavWrap: { flex: 1, minWidth: 0 },
   mainNavBtn: {
     minHeight: 54,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4.5,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     paddingLeft: 18,
     paddingRight: 10,
     paddingVertical: 9,
@@ -2538,10 +2649,8 @@ const styles = StyleSheet.create({
   },
   sheetAnswerCard: {
     borderRadius: 18,
-    borderWidth: 1.4,
-    borderBottomWidth: 3.5,
-    borderColor: '#D6F08A',
-    borderBottomColor: '#AED442',
+    borderWidth: 1.2,
+    borderColor: 'rgba(130, 184, 16, 0.36)',
     backgroundColor: '#F5FFD6',
     padding: 13,
     gap: 4,
@@ -2573,10 +2682,8 @@ const styles = StyleSheet.create({
   checkRow: {
     minHeight: 44,
     borderRadius: 14,
-    borderWidth: 1.3,
-    borderBottomWidth: 3,
-    borderColor: '#E5DCFF',
-    borderBottomColor: '#CEC0F8',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.16)',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 9,
@@ -2585,8 +2692,7 @@ const styles = StyleSheet.create({
     gap: 9,
   },
   checkRowActive: {
-    borderColor: '#A8D832',
-    borderBottomColor: '#7EA508',
+    borderColor: 'rgba(130, 184, 16, 0.48)',
     backgroundColor: '#F4FFD2',
   },
   checkboxBox: {
@@ -2624,17 +2730,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
     minHeight: 48,
     borderRadius: radii.pill,
-    borderWidth: 1.4,
-    borderBottomWidth: 4,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     paddingHorizontal: 16,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
+    position: 'relative',
   },
   rubricSaveBtnText: {
     flexShrink: 1,
@@ -2697,10 +2802,8 @@ const styles = StyleSheet.create({
   jumpFlaggedBtn: {
     minHeight: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#F2CC55',
-    borderBottomColor: '#CC9A12',
+    borderWidth: 1.1,
+    borderColor: 'rgba(220, 168, 22, 0.48)',
     backgroundColor: '#FFF7CE',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2716,10 +2819,8 @@ const styles = StyleSheet.create({
   jumpUnansweredBtn: {
     minHeight: 46,
     borderRadius: radii.pill,
-    borderWidth: 1.3,
-    borderBottomWidth: 3.2,
-    borderColor: '#DFD2FA',
-    borderBottomColor: '#C2ADF4',
+    borderWidth: 1.1,
+    borderColor: 'rgba(124, 60, 255, 0.18)',
     backgroundColor: colors.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2735,15 +2836,14 @@ const styles = StyleSheet.create({
   confirmPrimaryBtn: {
     minHeight: 52,
     borderRadius: radii.pill,
-    borderWidth: 1.5,
-    borderBottomWidth: 4,
-    borderColor: '#E8FF78',
-    borderBottomColor: '#7EA508',
-    backgroundColor: colors.lime,
+    borderWidth: 1.1,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
+    overflow: 'hidden',
+    position: 'relative',
   },
   confirmPrimaryText: {
     fontFamily: fonts.display,
@@ -2754,10 +2854,8 @@ const styles = StyleSheet.create({
   confirmDiscardBtn: {
     minHeight: 44,
     borderRadius: radii.pill,
-    borderWidth: 1.2,
-    borderBottomWidth: 2.8,
-    borderColor: '#F8B9C7',
-    borderBottomColor: '#E07990',
+    borderWidth: 1.1,
+    borderColor: 'rgba(214, 34, 92, 0.25)',
     backgroundColor: '#FFF1F4',
     alignItems: 'center',
     justifyContent: 'center',
