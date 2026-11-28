@@ -400,7 +400,7 @@ export function ExamGuideScreen({ navigation, route }: Props) {
             />
             <View pointerEvents="none" style={styles.ctaTopGloss} />
             <View style={styles.ctaIconBadge}>
-              <AppIcon name="trophy" size={22} />
+              <AppIcon name="simulation" size={22} />
             </View>
             <Text numberOfLines={2} style={styles.heroSimCtaText}>
               {primaryDraftMatches ? `Continuă simularea · ${guide.shortTitle}` : `Simulare completă · ${guide.shortTitle}`}

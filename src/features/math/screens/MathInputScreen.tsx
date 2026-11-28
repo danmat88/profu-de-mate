@@ -527,7 +527,7 @@ export function MathInputScreen({ navigation, route }: Props) {
               ? <PlayfulLoader micro />
               : (
                 <View style={[styles.submitIcon, compact && styles.submitIconCompact]}>
-                  <AppIcon name={shouldAdvanceToSolution ? 'practice' : isCheck ? 'verify' : 'explain'} size={compact ? 24 : 28} />
+                  <AppIcon name={shouldAdvanceToSolution ? 'practice' : isCheck ? 'verify' : 'calculator'} size={compact ? 24 : 28} />
                 </View>
               )}
             <View style={styles.submitCopy}>

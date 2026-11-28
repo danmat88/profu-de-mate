@@ -31,8 +31,8 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
         delay: () => composite,
         multiply: () => new MockAnimatedValue(1),
       },
-      Easing: { inOut: (fn: unknown) => fn, out: (fn: unknown) => fn, in: (fn: unknown) => fn, quad: (v: number) => v, sin: (v: number) => v, cubic: (v: number) => v },
-      Image: () => React.createElement('img'),
+      Easing: { inOut: (fn: unknown) => fn, out: (fn: unknown) => fn, in: (fn: unknown) => fn, quad: (v: number) => v, sin: (v: number) => v, cubic: (v: number) => v, linear: (v: number) => v, bezier: () => (v: number) => v },
+      Image: ({ accessibilityLabel }: any) => React.createElement('img', accessibilityLabel ? { 'aria-label': accessibilityLabel } : null),
       StyleSheet: { create: (styles: unknown) => styles }, View: view,
       useWindowDimensions: () => ({ width: 360, height: 802 }),
     },
@@ -59,6 +59,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
       return React.createElement('span', { 'data-typeface': flatten(style).fontFamily }, children);
     } },
     'assets/brand/splash_mark_v2.png': 1,
+    'assets/brand/wordmark_v2.png': 4,
   });
   const { LaunchSplash } = load('src/app/components/LaunchSplash.tsx');
   const props = { ready: false, reducedMotion: false, onFinish() {} };
@@ -66,7 +67,7 @@ test('splash text first mounts with prepared custom typefaces, never a temporary
   assert.equal(textMounts, 0, 'native text cannot cache a fallback typeface before fonts are ready');
   const ready = renderToStaticMarkup(React.createElement(LaunchSplash, { ...props, visualsReady: true }));
   assert.ok(textMounts > 0);
-  assert.match(ready, /data-typeface="BalsamiqSans_700Bold">Profu’/);
+  assert.match(ready, /aria-label="Profu’ de mate"/);
   assert.match(ready, /data-typeface="FiraSans_500Medium">Matematica, pas cu pas\./);
   assert.doesNotMatch(ready, /Verific contul|%/);
 });
@@ -90,9 +91,11 @@ test('all icon artwork and UI/document fonts must finish before visual preparati
     'src/shared/services/bundledImages.ts': { prepareBundledImages: (modules: number[]) => { requestedArtwork = Array.from(modules); return images; } },
     'src/shared/ui/AppIcon.tsx': { iconAssets: { camera: 10, gallery: 11, notebook: 12, practice: 13, scan: 14, settings: 15, verify: 16, trophy: 17 } },
     'src/shared/ui/Mascot.tsx': { mascotAssets: { default: 3, wave: 30, thinking: 31, cheer: 32, oops: 33, point: 34 } },
+    'src/shared/ui/MiniGlyph.tsx': { controlAssets: { back: 40, next: 41 } },
     'src/features/math/services/documentFonts.ts': { preloadDocumentFonts: () => documents },
     'assets/brand/splash_mark_v2.png': 1,
     'assets/brand/profu_mark_v2.png': 2,
+    'assets/brand/wordmark_v2.png': 4,
     'assets/profu_mascot_v2.png': 3,
   });
   const { preloadCriticalAppAssets } = load('src/app/services/startupAssets.ts');
@@ -102,7 +105,7 @@ test('all icon artwork and UI/document fonts must finish before visual preparati
   await Promise.resolve(); await Promise.resolve();
   assert.equal(ready, false, 'document fonts are also required before entering the app');
   finishDocumentFonts(); await prepared;
-  assert.deepEqual(requestedArtwork, [1, 2, 3, 3, 30, 31, 32, 33, 34, 10, 11, 12, 13, 14, 15, 16, 17]);
+  assert.deepEqual(requestedArtwork, [1, 2, 4, 3, 3, 30, 31, 32, 33, 34, 10, 11, 12, 13, 14, 15, 16, 17, 40, 41]);
   assert.equal(fontNames.length, 5);
 });
 

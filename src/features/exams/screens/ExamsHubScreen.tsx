@@ -428,7 +428,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
               />
               <View pointerEvents="none" style={styles.ctaTopGloss} />
               <View style={styles.heroCtaBadge}>
-                <AppIcon name="trophy" size={24} />
+                <AppIcon name="simulation" size={24} />
               </View>
               <Text numberOfLines={2} style={styles.heroCtaText}>
                 {activeFullDraftMatches && draftSummary
@@ -460,7 +460,7 @@ export function ExamsHubScreen({ navigation, route }: Props) {
             />
             <View style={styles.guideRail} />
             <View style={styles.guideIcon}>
-              <AppIcon name="explain" size={28} />
+              <AppIcon name="examPapers" size={28} />
             </View>
             <View style={styles.guideCopy}>
               <Text style={styles.cardKicker}>STRUCTURĂ &amp; MODELE PE BAREM</Text>

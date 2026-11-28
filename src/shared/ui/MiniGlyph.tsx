@@ -1,26 +1,49 @@
-import { StyleSheet, View, ViewStyle } from 'react-native';
-import { Text } from './Typography';
-import { colors, fonts } from '../theme';
+import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { bundledImageSource } from '../services/bundledImages';
+import { colors } from '../theme';
 
-type Glyph = 'back' | 'next' | 'close' | 'check' | 'wrong' | 'spark' | 'dot' | 'flag' | 'retry';
+export const controlAssets = {
+  back: require('../../../assets/controls/back.png'),
+  check: require('../../../assets/controls/check.png'),
+  close: require('../../../assets/controls/close.png'),
+  collapse: require('../../../assets/controls/collapse.png'),
+  dot: require('../../../assets/controls/dot.png'),
+  expand: require('../../../assets/controls/expand.png'),
+  flag: require('../../../assets/controls/flag.png'),
+  next: require('../../../assets/controls/next.png'),
+  retry: require('../../../assets/controls/retry.png'),
+  spark: require('../../../assets/controls/spark.png'),
+  wrong: require('../../../assets/controls/wrong.png'),
+} as const;
 
-const glyphs: Record<Glyph, string> = {
-  back: '←',
-  next: '→',
-  close: '×',
-  check: '✓',
-  wrong: '×',
-  spark: '✦',
-  dot: '•',
-  flag: '⚑',
-  retry: '↻',
-};
+export type MiniGlyphName = keyof typeof controlAssets;
 
-export function MiniGlyph({ name, size = 24, color = colors.ink, style }: { name: Glyph; size?: number; color?: string; style?: ViewStyle }) {
-  return <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.wrap, style]}><Text style={[styles.glyph, { fontSize: size, lineHeight: size + 3, color }]}>{glyphs[name]}</Text></View>;
+export function MiniGlyph({
+  name,
+  size = 24,
+  color = colors.ink,
+  style,
+}: {
+  name: MiniGlyphName;
+  size?: number;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const glyphSize = Math.round(size * 1.15);
+  return (
+    <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.wrap, style]}>
+      <Image
+        accessible={false}
+        accessibilityIgnoresInvertColors
+        fadeDuration={0}
+        source={bundledImageSource(controlAssets[name])}
+        resizeMode="contain"
+        style={{ width: glyphSize, height: glyphSize, tintColor: color }}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  glyph: { fontFamily: fonts.display, textAlign: 'center' },
 });

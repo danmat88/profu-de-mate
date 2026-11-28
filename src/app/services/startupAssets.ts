@@ -6,15 +6,18 @@ import { FiraSans_600SemiBold } from '@expo-google-fonts/fira-sans/600SemiBold';
 import { loadAsync } from 'expo-font';
 import { iconAssets } from '../../shared/ui/AppIcon';
 import { mascotAssets } from '../../shared/ui/Mascot';
+import { controlAssets } from '../../shared/ui/MiniGlyph';
 import { prepareBundledImages } from '../../shared/services/bundledImages';
 import { preloadDocumentFonts } from '../../features/math/services/documentFonts';
 
 const criticalAssetModules = [
   require('../../../assets/brand/splash_mark_v2.png'),
   require('../../../assets/brand/profu_mark_v2.png'),
+  require('../../../assets/brand/wordmark_v2.png'),
   require('../../../assets/profu_mascot_v2.png'),
   ...Object.values(mascotAssets),
   ...Object.values(iconAssets),
+  ...Object.values(controlAssets),
 ];
 
 const UI_FONTS = {

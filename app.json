@@ -84,9 +84,11 @@
         {
           "assets": [
             "./assets/icons",
+            "./assets/controls",
             "./assets/mascot",
             "./assets/brand/splash_mark_v2.png",
             "./assets/brand/profu_mark_v2.png",
+            "./assets/brand/wordmark_v2.png",
             "./assets/profu_mascot_v2.png"
           ]
         }

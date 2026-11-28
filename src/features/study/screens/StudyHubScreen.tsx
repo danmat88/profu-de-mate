@@ -515,7 +515,7 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               />
               <View pointerEvents="none" style={styles.ctaTopGloss} />
               <View style={styles.heroCtaBadge}>
-                <AppIcon name="practice" size={25} />
+                <AppIcon name="test" size={25} />
               </View>
               <Text numberOfLines={2} style={styles.heroCtaText}>
                 Test fulger · 5 întrebări
@@ -585,7 +585,7 @@ export const StudyHubScreen = memo(function StudyHubScreen({
               />
               <View pointerEvents="none" style={styles.cardTopGloss} />
               <View style={[styles.tileIcon, styles.formulasTileIcon]}>
-                <AppIcon name="explain" size={32} />
+                <AppIcon name="formulas" size={32} />
               </View>
               <Text numberOfLines={2} style={styles.tileTitle}>Formule & Fișe</Text>
               <Text numberOfLines={2} style={styles.tileNote}>

@@ -270,6 +270,7 @@ export function PracticeHubScreen({ navigation }: Props) {
                 </Text>
               </View>
               <View style={styles.questOfflinePill}>
+                <AppIcon name="offline" size={14} />
                 <Text maxFontSizeMultiplier={1.1} style={styles.questOfflineText}>
                   Offline · Instant
                 </Text>
@@ -299,7 +300,7 @@ export function PracticeHubScreen({ navigation }: Props) {
               />
               <View pointerEvents="none" style={styles.ctaTopGloss} />
               <View style={styles.heroCtaBadge}>
-                <AppIcon name="practice" size={24} />
+                <AppIcon name="test" size={24} />
               </View>
               <Text numberOfLines={2} style={styles.heroCtaText}>Începe testul fulger</Text>
               <View style={styles.heroCtaArrow}>
@@ -750,6 +751,9 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   questOfflinePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     paddingHorizontal: 9,
     paddingVertical: 3.5,
     borderRadius: radii.pill,

@@ -68,9 +68,9 @@ const WAVE_INPUT = WAVE_INPUT_17;
 const OWL_FLOAT_Y = sineWaveRange(-2.0, -4.4);
 const OWL_TILT_DEG = sineDegreeRange(1.8, 0.65);
 
-// Measured artwork bounding-box fill ratio: profu_mark_v2.png (95.4% H / 82.0% W)
-// vs splash_mark_v2.png (69.1% H / 59.0% W safe-zone padded for Android 12+ icon masks).
-const SPLASH_TO_BADGE_ART_RATIO = 1.385;
+// Measured artwork bounding-box fill ratio: profu_mark_v2.png (94.1% H / 87.1% W)
+// vs splash_mark_v2.png (68.2% H / 63.1% W safe-zone padded for Android 12+ icon masks).
+const SPLASH_TO_BADGE_ART_RATIO = 1.38;
 
 const RIBBON_START = 0.14;
 const RIBBON_GLIDE_CAP = 0.88;
@@ -1188,7 +1188,9 @@ export function LaunchSplash({
     ],
   }), [ribbonSheen, ribbonWidth]);
 
-  const copyTop = Math.round(actualOwlCenterY + hero.splashOwlSize / 2 + (hero.compact ? 14 : 20));
+  const wordmarkWidth = Math.round(Math.min(hero.width - 72, hero.compact ? 212 : 252));
+  const wordmarkHeight = Math.round(wordmarkWidth * (960 / 1600));
+  const copyTop = Math.round(actualOwlCenterY + hero.splashOwlSize / 2 + (hero.compact ? 2 : 6));
   const moodPillTop = Math.round(insets.top + (hero.compact ? 14 : 22));
 
   return (
@@ -1517,15 +1519,14 @@ export function LaunchSplash({
           style={[styles.identityPos, { top: copyTop }, chromeExitStyle]}
         >
           <Animated.View style={[styles.identityBlock, copyEnterStyle]}>
-            <Text
-              maxFontSizeMultiplier={1.28}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-              style={[styles.brand, hero.compact && styles.brandCompact]}
-            >
-              Profu’ <Text style={styles.brandAccent}>de mate</Text>
-            </Text>
+            <Image
+              accessible
+              accessibilityLabel="Profu’ de mate"
+              source={bundledImageSource(require('../../../assets/brand/wordmark_v2.png'))}
+              resizeMode="contain"
+              fadeDuration={0}
+              style={{ width: wordmarkWidth, height: wordmarkHeight }}
+            />
             <Text maxFontSizeMultiplier={1.25} style={styles.promise}>
               Matematica, pas cu pas.
             </Text>
@@ -1726,33 +1727,14 @@ const styles = StyleSheet.create({
     left: 28,
     right: 28,
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
   },
   identityBlock: {
     alignItems: 'center',
     width: '100%',
   },
-  brand: {
-    fontFamily: fonts.display,
-    color: colors.paper,
-    fontSize: 44,
-    lineHeight: 50,
-    letterSpacing: -0.5,
-    textAlign: 'center',
-    includeFontPadding: false,
-    textShadowColor: 'rgba(22, 5, 74, 0.34)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
-  },
-  brandCompact: {
-    fontSize: 38,
-    lineHeight: 44,
-  },
-  brandAccent: {
-    color: colors.lime,
-  },
   promise: {
-    marginTop: 5,
+    marginTop: -6,
     fontFamily: fonts.bodyMedium,
     color: 'rgba(244, 238, 255, 0.92)',
     fontSize: 15.5,
