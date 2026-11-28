@@ -358,6 +358,7 @@ export function StudioScreen() {
         active={screenFocused && motionReady}
         ready={motionReady}
         animateCanopy={onboardingFromReset}
+        splashCurtain={!onboardingFromReset}
         onConfirm={handleConfirmAgeEligibility}
         onOpenLegal={handleOpenLegalFromConsent}
       />

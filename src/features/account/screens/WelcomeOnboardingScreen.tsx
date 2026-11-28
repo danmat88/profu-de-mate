@@ -15,11 +15,12 @@ import { bundledImageSource } from '../../../shared/services/bundledImages';
 import * as Haptics from '../../../shared/services/haptics';
 import { colors, fonts, radii, typography } from '../../../shared/theme';
 import { AppIcon, type AppIconName } from '../../../shared/ui/AppIcon';
+import { CachedInsetRelief, CachedOutsetShadow } from '../../../shared/ui/CachedRelief';
 import { ComicBackdrop } from '../../../shared/ui/ComicBackdrop';
 import { ComicButton } from '../../../shared/ui/ComicButton';
 import { Mascot, type MascotPose } from '../../../shared/ui/Mascot';
 import { MiniGlyph } from '../../../shared/ui/MiniGlyph';
-import { RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
+import { ROYAL_HERO_GRADIENT, RoyalHeroCanopyBackdrop } from '../../../shared/ui/RoyalHeroCanopyBackdrop';
 import { SpeechBubble, type SpeechBubbleTone } from '../../../shared/ui/SpeechBubble';
 import { SpotlightAura } from '../../../shared/ui/SpotlightAura';
 import { Text } from '../../../shared/ui/Typography';
@@ -32,11 +33,18 @@ import { STUDY_TRACKS, type StudyTrackId } from '../../study/types';
 type Props = {
   active?: boolean;
   ready?: boolean;
-  /** When false (coming directly from LaunchSplash's retracting curtain), canopy starts seated so the curtain morphs flush into it. */
+  /** When false (coming directly from LaunchSplash), canopy starts seated so the curtain morphs flush into it. */
   animateCanopy?: boolean;
+  /** When true (cold launch from LaunchSplash), owns the single counter-translated full-screen curtain behind live canopy elements. */
+  splashCurtain?: boolean;
   onConfirm: (group: AgeEligibilityGroup, track: StudyTrackId | null) => void;
   onOpenLegal: () => void;
 };
+
+const ONBOARDING_SHADOWS = {
+  logoOutset: '0 4px 8px -1px rgba(20, 4, 66, 0.24), 0 1px 3px rgba(20, 4, 66, 0.16)',
+  logoInset: 'inset 0 2px 4px rgba(255, 255, 255, 0.96), inset 0 -3px 5px rgba(82, 24, 210, 0.16)',
+} as const;
 
 type AgeOptionConfig = {
   id: AgeEligibilityGroup;
@@ -172,7 +180,7 @@ const AgeOptionCard = memo(function AgeOptionCard({
   const enterStyle = useMemo(() => ({
     opacity: enterProgress.interpolate({
       inputRange: [0, 0.55, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -291,6 +299,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   active = true,
   ready = true,
   animateCanopy = false,
+  splashCurtain = false,
   onConfirm,
   onOpenLegal,
 }: Props) {
@@ -306,16 +315,19 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   });
   const compact = hero.compact;
 
+  const useFullSplashCurtain = splashCurtain && !reducedMotion && !animateCanopy;
   const [selectedGroup, setSelectedGroup] = useState<AgeEligibilityGroup | null>(null);
   const [parentalConfirmed, setParentalConfirmed] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<StudyTrackId | null>(null);
   const [mascotNudge, setMascotNudge] = useState(0);
   const [tapChatIndex, setTapChatIndex] = useState<number | null>(null);
+  const [curtainSettled, setCurtainSettled] = useState(!useFullSplashCurtain);
   const [entranceSettled, setEntranceSettled] = useState(reducedMotion);
   const [statusBarReady, setStatusBarReady] = useState(reducedMotion);
   const [exiting, setExiting] = useState(false);
 
   const canProceed = canConfirmAgeEligibility(selectedGroup, parentalConfirmed);
+  const splashCurtainPlayed = useRef(!useFullSplashCurtain);
   const entrancePlayed = useRef(reducedMotion);
   const exitLock = useRef(false);
   const previousCanProceed = useRef(false);
@@ -324,6 +336,8 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
 
   // Pure native-driver Animated values (100% Android RenderThread).
   const canopyEnter = useRef(new Animated.Value(reducedMotion || !animateCanopy ? 1 : 0)).current;
+  const splashCurtainProgress = useRef(new Animated.Value(useFullSplashCurtain ? 0 : 1)).current;
+  const brandMarkEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const mascotEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const heroCopyEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
   const sectionOneTitleEnter = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -355,11 +369,58 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     exitTimers.current = [];
   }, []);
 
-  // Choreographed entrance synchronized with LaunchSplash's cream veil reveal.
+  // Retract the single continuous full-screen Royal-Violet curtain smoothly into onboardingCanopyHeight
+  // right behind Onboarding's live header & Mascot (matching HomeSurface's zero-seam cinema handoff 1:1).
+  useEffect(() => {
+    if (!useFullSplashCurtain) {
+      splashCurtainProgress.stopAnimation();
+      splashCurtainProgress.setValue(1);
+      splashCurtainPlayed.current = true;
+      setCurtainSettled(true);
+      return undefined;
+    }
+    if (!ready) {
+      if (!splashCurtainPlayed.current) splashCurtainProgress.setValue(0);
+      return undefined;
+    }
+    if (splashCurtainPlayed.current) {
+      splashCurtainProgress.setValue(1);
+      setCurtainSettled(true);
+      return undefined;
+    }
+    splashCurtainPlayed.current = true;
+
+    let anim: Animated.CompositeAnimation | undefined;
+    const frameId = requestAnimationFrame(() => {
+      anim = Animated.timing(splashCurtainProgress, {
+        toValue: 1,
+        duration: 920,
+        delay: 160,
+        easing: Easing.bezier(0.42, 0, 0.22, 1),
+        useNativeDriver: true,
+      });
+      anim.start();
+    });
+    const settleTimer = setTimeout(() => {
+      splashCurtainProgress.stopAnimation();
+      splashCurtainProgress.setValue(1);
+      setCurtainSettled(true);
+    }, 1_240);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(settleTimer);
+      anim?.stop();
+      splashCurtainProgress.stopAnimation();
+    };
+  }, [ready, splashCurtainProgress, useFullSplashCurtain]);
+
+  // Choreographed entrance synchronized with the retracting Royal-Violet curtain & flying Splash owl.
   useEffect(() => {
     if (reducedMotion) {
       for (const val of [
         canopyEnter,
+        brandMarkEnter,
         mascotEnter,
         heroCopyEnter,
         sectionOneTitleEnter,
@@ -382,6 +443,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
       if (!entrancePlayed.current) {
         if (animateCanopy) canopyEnter.setValue(0);
         for (const val of [
+          brandMarkEnter,
           mascotEnter,
           heroCopyEnter,
           sectionOneTitleEnter,
@@ -405,12 +467,17 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     entrancePlayed.current = true;
 
     const anims: Animated.CompositeAnimation[] = [];
-    const run = (value: Animated.Value, duration: number, delay: number) => {
+    const run = (
+      value: Animated.Value,
+      duration: number,
+      delay: number,
+      easing: (v: number) => number = SILKY_EASE_OUT,
+    ) => {
       const anim = Animated.timing(value, {
         toValue: 1,
         duration,
         delay,
-        easing: SILKY_EASE_OUT,
+        easing,
         useNativeDriver: true,
       });
       anims.push(anim);
@@ -418,21 +485,37 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     };
 
     const frameId = requestAnimationFrame(() => {
-      if (animateCanopy) run(canopyEnter, 540, 0);
-      run(mascotEnter, 460, 60);
-      run(heroCopyEnter, 440, 115);
-      run(sectionOneTitleEnter, 380, 155);
-      run(cardEnter0, 440, 175);
-      run(cardEnter1, 440, 230);
-      run(cardEnter2, 440, 285);
-      run(tracksEnter, 450, 295);
-      run(footerEnter, 450, 345);
+      if (useFullSplashCurtain) {
+        // Live canopy title, dialogue & Mascot bloom over the rising 920ms curtain while Profu soars across the sky;
+        // top-left brandMark fades silently under the docked Splash owl at 980ms for a pixel-exact invisible handoff.
+        run(heroCopyEnter, 500, 340);
+        run(mascotEnter, 540, 400);
+        run(sectionOneTitleEnter, 460, 460);
+        run(cardEnter0, 480, 500);
+        run(cardEnter1, 480, 565);
+        run(cardEnter2, 480, 630);
+        run(tracksEnter, 500, 680);
+        run(footerEnter, 500, 720);
+        run(brandMarkEnter, 100, 980, Easing.linear);
+      } else {
+        if (animateCanopy) run(canopyEnter, 540, 0);
+        run(mascotEnter, 460, 60);
+        run(brandMarkEnter, 440, 115);
+        run(heroCopyEnter, 440, 115);
+        run(sectionOneTitleEnter, 380, 155);
+        run(cardEnter0, 440, 175);
+        run(cardEnter1, 440, 230);
+        run(cardEnter2, 440, 285);
+        run(tracksEnter, 450, 295);
+        run(footerEnter, 450, 345);
+      }
     });
 
-    const statusBarTimer = setTimeout(() => setStatusBarReady(true), 560);
+    const statusBarTimer = setTimeout(() => setStatusBarReady(true), useFullSplashCurtain ? 1_380 : 560);
     const settleTimer = setTimeout(() => {
       for (const val of [
         canopyEnter,
+        brandMarkEnter,
         mascotEnter,
         heroCopyEnter,
         sectionOneTitleEnter,
@@ -446,7 +529,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
         val.setValue(1);
       }
       setEntranceSettled(true);
-    }, 920);
+    }, useFullSplashCurtain ? 1_300 : 920);
 
     return () => {
       cancelAnimationFrame(frameId);
@@ -456,6 +539,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     };
   }, [
     animateCanopy,
+    brandMarkEnter,
     canopyEnter,
     cardEnter0,
     cardEnter1,
@@ -467,6 +551,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     reducedMotion,
     sectionOneTitleEnter,
     tracksEnter,
+    useFullSplashCurtain,
   ]);
 
   // Smooth glide-in for the 13–15 parental consent card.
@@ -715,11 +800,17 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     };
   }, [canProceed, chosenTrackMeta, exiting, parentalConfirmed, selectedGroup, tapChatIndex]);
 
+  const canopyHeight = hero.onboardingCanopyHeight;
+  const fullCurtainHeight = Math.round(hero.height + hero.canopyRadius + 6);
+  const fullCurtainRetractY = -Math.max(100, fullCurtainHeight - canopyHeight);
+  const skyGradientEndY = Math.max(0.15, Math.min(1, canopyHeight / Math.max(1, fullCurtainHeight)));
+  const isFullCurtainActive = useFullSplashCurtain && !curtainSettled;
+
   // Strictly memoized Fabric-safe native transform interpolations.
   const canopyEnterStyle = useMemo(() => ({
     opacity: canopyEnter.interpolate({
       inputRange: [0, 0.45, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -732,6 +823,50 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
       },
     ],
   }), [canopyEnter]);
+
+  const fullCurtainOuterStyle = useMemo(() => ({
+    transform: [
+      {
+        translateY: splashCurtainProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, fullCurtainRetractY],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [fullCurtainRetractY, splashCurtainProgress]);
+
+  const fullCurtainInnerStyle = useMemo(() => ({
+    transform: [
+      {
+        translateY: splashCurtainProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -fullCurtainRetractY],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [fullCurtainRetractY, splashCurtainProgress]);
+
+  const curtainSplashBlendStyle = useMemo(() => ({
+    opacity: splashCurtainProgress.interpolate({
+      inputRange: [0, 0.82, 1],
+      outputRange: [1, 0, 0],
+      extrapolate: 'clamp',
+    }),
+  }), [splashCurtainProgress]);
+
+  const curtainSettledGridStyle = useMemo(() => ({
+    opacity: splashCurtainProgress.interpolate({
+      inputRange: [0, 0.84, 1],
+      outputRange: [0, 0, 1],
+      extrapolate: 'clamp',
+    }),
+  }), [splashCurtainProgress]);
+
+  const brandMarkEnterStyle = useMemo(() => ({
+    opacity: brandMarkEnter,
+  }), [brandMarkEnter]);
 
   const canopyExitStyle = useMemo(() => ({
     opacity: canopyExit.interpolate({
@@ -753,7 +888,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   const mascotEnterStyle = useMemo(() => ({
     opacity: mascotEnter.interpolate({
       inputRange: [0, 0.5, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -784,7 +919,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   const heroCopyEnterStyle = useMemo(() => ({
     opacity: heroCopyEnter.interpolate({
       inputRange: [0, 0.55, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -801,7 +936,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   const sectionOneTitleStyle = useMemo(() => ({
     opacity: sectionOneTitleEnter.interpolate({
       inputRange: [0, 0.6, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -818,7 +953,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   const tracksEnterStyle = useMemo(() => ({
     opacity: tracksEnter.interpolate({
       inputRange: [0, 0.55, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -859,7 +994,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
   const footerEnterStyle = useMemo(() => ({
     opacity: footerEnter.interpolate({
       inputRange: [0, 0.5, 1],
-      outputRange: [0.01, 1, 1],
+      outputRange: [0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
@@ -995,7 +1130,6 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
     ],
   })), [celebrateBurst]);
 
-  const hardwareEntranceLayer = !entranceSettled && !reducedMotion;
   const mascotSize = hero.onboardingMascotSize;
   const spotlightSize = hero.onboardingSpotlightSize;
 
@@ -1007,74 +1141,163 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
       {statusBarReady ? <StatusBar style="light" /> : null}
       <ComicBackdrop />
 
-      {/* Full-bleed curved Royal-Violet hero canopy pixel-matched to LaunchSplash's retracting curtain */}
+      {/* Permanent, rock-solid curved Royal-Violet canopy backdrop (zIndex: 3, strictly behind live header & above scrolled body) */}
       <Animated.View
-        renderToHardwareTextureAndroid={hardwareEntranceLayer}
-        style={[styles.canopyExitWrap, canopyExitStyle]}
+        pointerEvents="none"
+        style={[styles.canopyBackdropWrap, canopyExitStyle]}
       >
         <Animated.View
           style={[
-            styles.canopy,
+            styles.canopyBackdrop,
             {
-              height: hero.onboardingCanopyHeight,
-              paddingTop: hero.topInset,
+              height: canopyHeight,
               borderBottomLeftRadius: hero.canopyRadius,
               borderBottomRightRadius: hero.canopyRadius,
             },
             canopyEnterStyle,
           ]}
         >
-          <RoyalHeroCanopyBackdrop width={hero.width} height={hero.onboardingCanopyHeight} />
+          <RoyalHeroCanopyBackdrop width={hero.width} height={canopyHeight} />
+        </Animated.View>
+      </Animated.View>
 
+      {/* Temporary full-screen counter-translated Splash curtain (zIndex: 3, strictly behind live header & in front of lower canvas).
+          Unmounts cleanly once docked onto the pixel-identical permanent canopy underneath! */}
+      {isFullCurtainActive ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.splashCurtainOuter,
+            {
+              height: fullCurtainHeight,
+              borderBottomLeftRadius: hero.canopyRadius,
+              borderBottomRightRadius: hero.canopyRadius,
+            },
+            fullCurtainOuterStyle,
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.curtainPinnedStage,
+              { height: fullCurtainHeight },
+              fullCurtainInnerStyle,
+            ]}
+          >
+            <LinearGradient
+              colors={ROYAL_HERO_GRADIENT}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: skyGradientEndY }}
+              style={styles.fill}
+            />
+            <Animated.View
+              style={[
+                styles.curtainPinnedCanopyGrid,
+                { height: canopyHeight },
+                curtainSettledGridStyle,
+              ]}
+            >
+              <RoyalHeroCanopyBackdrop
+                width={hero.width}
+                height={canopyHeight}
+                showGradient={false}
+              />
+            </Animated.View>
+            <Animated.View style={[styles.fill, curtainSplashBlendStyle]}>
+              <LinearGradient
+                colors={ROYAL_HERO_GRADIENT}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <RoyalHeroCanopyBackdrop
+                width={hero.width}
+                height={fullCurtainHeight}
+                showGradient={false}
+              />
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
+      ) : null}
+
+      {/* Live hero header & Profu companion (zIndex: 4 — animates LIVE on top of the retracting purple curtain!) */}
+      <Animated.View style={[styles.canopyExitWrap, canopyExitStyle]}>
+        <Animated.View
+          style={[
+            styles.canopy,
+            {
+              height: canopyHeight,
+              paddingTop: hero.topInset,
+            },
+            canopyEnterStyle,
+          ]}
+        >
           <View style={[styles.canopyInner, { width: hero.contentWidth, paddingTop: hero.headerTopPad }]}>
             {/* Top brand strip sharing exact circular Electric-Lime logo badge geometry with Home & Splash docking */}
-            <Animated.View style={[styles.brandBar, { height: hero.headerHeight }, heroCopyEnterStyle]}>
+            <View style={[styles.brandBar, { height: hero.headerHeight }]}>
               <View style={[styles.brandIdentity, hero.isVeryNarrow && styles.brandIdentityNarrow]}>
-                <View
-                  style={[
-                    styles.brandMark,
-                    {
-                      width: hero.logoBadgeSize,
-                      height: hero.logoBadgeSize,
-                      borderRadius: hero.logoBadgeSize / 2,
-                    },
-                    (hero.compact || hero.isVeryNarrow) && styles.brandMarkCompact,
-                  ]}
-                >
-                  <Image
-                    accessible={false}
-                    source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
-                    resizeMode="contain"
-                    fadeDuration={0}
-                    style={{ width: hero.logoImageSize, height: hero.logoImageSize }}
+                <Animated.View style={[styles.brandMarkShadow, brandMarkEnterStyle]}>
+                  <CachedOutsetShadow
+                    borderRadius={hero.logoBadgeSize / 2}
+                    shadow={ONBOARDING_SHADOWS.logoOutset}
+                    padTop={12}
+                    padX={16}
+                    padBottom={20}
                   />
-                </View>
-                <Text
-                  maxFontSizeMultiplier={1.25}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.72}
-                  style={[styles.brandTitle, (hero.compact || hero.isVeryNarrow) && styles.brandTitleCompact]}
-                >
-                  Profu’ <Text style={styles.brandTitleAccent}>de mate</Text>
-                </Text>
+                  <View
+                    style={[
+                      styles.brandMark,
+                      {
+                        width: hero.logoBadgeSize,
+                        height: hero.logoBadgeSize,
+                        borderRadius: hero.logoBadgeSize / 2,
+                      },
+                      (hero.compact || hero.isVeryNarrow) && styles.brandMarkCompact,
+                    ]}
+                  >
+                    <CachedInsetRelief
+                      borderRadius={hero.logoBadgeSize / 2}
+                      shadow={ONBOARDING_SHADOWS.logoInset}
+                      zIndex={1}
+                    />
+                    <Image
+                      accessible={false}
+                      source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
+                      resizeMode="contain"
+                      fadeDuration={0}
+                      style={{ width: hero.logoImageSize, height: hero.logoImageSize }}
+                    />
+                  </View>
+                </Animated.View>
+                <Animated.View style={[styles.brandTitleWrap, heroCopyEnterStyle]}>
+                  <Text
+                    maxFontSizeMultiplier={1.25}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                    style={[styles.brandTitle, (hero.compact || hero.isVeryNarrow) && styles.brandTitleCompact]}
+                  >
+                    Profu’ <Text style={styles.brandTitleAccent}>de mate</Text>
+                  </Text>
+                </Animated.View>
               </View>
 
-              <Animated.View
-                style={[
-                  styles.statusBadge,
-                  canProceed && styles.statusBadgeReady,
-                  badgePopStyle,
-                ]}
-              >
-                <Text
-                  maxFontSizeMultiplier={1.08}
-                  style={[styles.statusBadgeText, canProceed && styles.statusBadgeTextReady]}
+              <Animated.View style={heroCopyEnterStyle}>
+                <Animated.View
+                  style={[
+                    styles.statusBadge,
+                    canProceed && styles.statusBadgeReady,
+                    badgePopStyle,
+                  ]}
                 >
-                  {exiting ? '✦ PORNIM!' : canProceed ? '✦ GATA DE START' : '✦ BUN VENIT'}
-                </Text>
+                  <Text
+                    maxFontSizeMultiplier={1.08}
+                    style={[styles.statusBadgeText, canProceed && styles.statusBadgeTextReady]}
+                  >
+                    {exiting ? '✦ PORNIM!' : canProceed ? '✦ GATA DE START' : '✦ BUN VENIT'}
+                  </Text>
+                </Animated.View>
               </Animated.View>
-            </Animated.View>
+            </View>
 
             {/* Live Profu companion row mirroring Home's sky speech dialogue & spotlight mascot */}
             <View style={[styles.heroRow, compact && styles.heroRowCompact]}>
@@ -1227,10 +1450,7 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
             </View>
 
             {/* Step 2: Optional curriculum personalization + privacy assurance */}
-            <Animated.View
-              renderToHardwareTextureAndroid={hardwareEntranceLayer}
-              style={[styles.lowerCluster, tracksEnterStyle]}
-            >
+            <Animated.View style={[styles.lowerCluster, tracksEnterStyle]}>
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>
                   <View style={styles.sectionTitleGroup}>
@@ -1309,7 +1529,6 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
       {/* Elevated CTA footer rising smoothly on entrance and gliding out on confirm */}
       <Animated.View style={[styles.footerExitWrap, footerExitStyle]}>
         <Animated.View
-          renderToHardwareTextureAndroid={hardwareEntranceLayer}
           style={[
             styles.footer,
             { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, 12) },
@@ -1358,14 +1577,48 @@ export const WelcomeOnboardingScreen = memo(function WelcomeOnboardingScreen({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
-  scrollExitWrap: { flex: 1, minHeight: 0 },
+  scrollExitWrap: { flex: 1, minHeight: 0, zIndex: 1 },
   scroll: { flex: 1 },
+  footerExitWrap: { zIndex: 2 },
+  canopyBackdropWrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
+  },
+  canopyBackdrop: {
+    width: '100%',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  splashCurtainOuter: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
+    overflow: 'hidden',
+    backgroundColor: colors.splashRoyal,
+  },
+  curtainPinnedStage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+  },
+  curtainPinnedCanopyGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+  },
   canopyExitWrap: { zIndex: 4 },
-  footerExitWrap: { zIndex: 5 },
 
   canopy: {
     width: '100%',
-    overflow: 'hidden',
     position: 'relative',
   },
   canopyInner: {
@@ -1387,19 +1640,26 @@ const styles = StyleSheet.create({
   brandIdentityNarrow: {
     gap: 6,
   },
+  brandMarkShadow: {
+    position: 'relative',
+    flexShrink: 0,
+  },
   brandMark: {
     backgroundColor: '#FFFFFF',
     borderWidth: 2.5,
     borderColor: colors.lime,
-    borderBottomWidth: 3.5,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    flexShrink: 0,
+    position: 'relative',
+    zIndex: 1,
   },
   brandMarkCompact: {
     borderWidth: 2,
-    borderBottomWidth: 2.5,
+  },
+  brandTitleWrap: {
+    flexShrink: 1,
+    minWidth: 0,
   },
   brandTitle: {
     fontFamily: fonts.display,

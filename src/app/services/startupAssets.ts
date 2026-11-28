@@ -10,6 +10,11 @@ import { controlAssets } from '../../shared/ui/MiniGlyph';
 import { prepareBundledImages } from '../../shared/services/bundledImages';
 import { preloadDocumentFonts } from '../../features/math/services/documentFonts';
 
+const splashImageModules = [
+  require('../../../assets/brand/splash_mark_v2.png'),
+  require('../../../assets/brand/wordmark_v2.png'),
+];
+
 const criticalAssetModules = [
   require('../../../assets/brand/splash_mark_v2.png'),
   require('../../../assets/brand/profu_mark_v2.png'),
@@ -32,13 +37,16 @@ let splashFontsPromise: Promise<void> | null = null;
 let criticalAssetsPromise: Promise<void> | null = null;
 
 /**
- * Fast-path UI typeface preload so LaunchSplash hands off from the native
- * Android splash almost immediately instead of sitting on empty solid purple
- * while secondary screen icons and lesson document fonts decode in parallel.
+ * Fast-path UI typeface + Splash brand image preload so LaunchSplash hands off
+ * from the native Android splash with both splash_mark_v2 and wordmark_v2 ready
+ * on Frame 0 instead of waiting for secondary icons or lesson document fonts.
  */
 export function preloadSplashFonts(): Promise<void> {
   if (splashFontsPromise) return splashFontsPromise;
-  splashFontsPromise = loadAsync(UI_FONTS)
+  splashFontsPromise = Promise.all([
+    loadAsync(UI_FONTS),
+    prepareBundledImages(splashImageModules),
+  ])
     .then(() => undefined)
     .catch((error) => {
       splashFontsPromise = null;
@@ -55,8 +63,8 @@ export function preloadSplashFonts(): Promise<void> {
 export function preloadCriticalAppAssets(): Promise<void> {
   if (criticalAssetsPromise) return criticalAssetsPromise;
   criticalAssetsPromise = Promise.all([
-    prepareBundledImages(criticalAssetModules),
     preloadSplashFonts(),
+    prepareBundledImages(criticalAssetModules),
     preloadDocumentFonts(),
   ])
     .then(() => undefined)

@@ -251,6 +251,7 @@ export function LaunchSplash({
   });
   const [sceneReady, setSceneReady] = useState(false);
   const [imageReady, setImageReady] = useState(false);
+  const [wordmarkReady, setWordmarkReady] = useState(false);
   const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
   const [introStarted, setIntroStarted] = useState(reducedMotion);
   const [introComplete, setIntroComplete] = useState(reducedMotion);
@@ -294,6 +295,7 @@ export function LaunchSplash({
   const curtainHeight = Math.round(hero.height + hero.canopyRadius + 6);
   const targetCanopyHeight = onboardingPending ? hero.onboardingCanopyHeight : hero.homeCanopyHeight;
   const curtainRetractY = -Math.max(100, curtainHeight - targetCanopyHeight);
+  const curtainGradientEndY = Math.max(0.15, Math.min(1, targetCanopyHeight / Math.max(1, curtainHeight)));
 
   // Exact pixel-centered placement of the Splash owl and sub-pixel-exact docking vector.
   const owlLeft = Math.round(hero.splashOwlCenterX - hero.splashOwlSize / 2);
@@ -313,8 +315,8 @@ export function LaunchSplash({
   const flightAuraSize = Math.round(hero.splashOwlSize * 1.38);
 
   // Unhurried cinema pacing — calm anticipation beat before launch.
-  const introSettleMs = onboardingPending ? 820 : 560;
-  const celebrateBeatMs = onboardingPending ? 230 : 220;
+  const introSettleMs = onboardingPending ? 720 : 560;
+  const celebrateBeatMs = 220;
 
   introSettledRef.current = onIntroSettled;
   revealStartRef.current = onRevealStart;
@@ -344,6 +346,7 @@ export function LaunchSplash({
   // Hide native splash seamlessly over matching #5218D2 base, then illuminate the studio stage immediately.
   useEffect(() => {
     if (!sceneReady || !imageReady || !visualsReady) return undefined;
+    if (!wordmarkReady) return undefined;
     let active = true;
     let introTimer: ReturnType<typeof setTimeout> | undefined;
     let ambientTimer: ReturnType<typeof setTimeout> | undefined;
@@ -387,14 +390,14 @@ export function LaunchSplash({
         return;
       }
 
-      // Immediate layered studio illumination over exact #5218D2 native surface.
-      startTiming(gradientReveal, 1, 360, 0);
-      startTiming(gridReveal, 1, 420, 20);
-      startTiming(lightReveal, 1, 440, 35);
-      startTiming(owlEnter, 1, 480, 45);
-      startTiming(copyEnter, 1, 400, 160);
-      startTiming(formulaEnter, 1, 380, 240);
-      startTiming(ribbonEnter, 1, 340, 300);
+      // Immediate unified studio illumination out of the exact clean #5218D2 native surface.
+      startTiming(gradientReveal, 1, 460, 0);
+      startTiming(owlEnter, 1, 480, 0);
+      startTiming(gridReveal, 1, 460, 20);
+      startTiming(lightReveal, 1, 460, 25);
+      startTiming(copyEnter, 1, 420, 55);
+      startTiming(formulaEnter, 1, 380, 145);
+      startTiming(ribbonEnter, 1, 340, 205);
 
       ambientTimer = setTimeout(() => {
         if (!active) return;
@@ -439,6 +442,7 @@ export function LaunchSplash({
     ribbonEnter,
     sceneReady,
     visualsReady,
+    wordmarkReady,
   ]);
 
   // Smooth uninterrupted glide of the sculpted liquid shimmer capsule while startup resolves.
@@ -637,10 +641,10 @@ export function LaunchSplash({
 
   // Bounded hard deadline guarantees the splash can never stall launch.
   useEffect(() => {
-    if (!sceneReady || !imageReady || !visualsReady || !nativeSplashHidden || !ready) return undefined;
+    if (!sceneReady || !imageReady || !wordmarkReady || !visualsReady || !nativeSplashHidden || !ready) return undefined;
     const hardDeadline = setTimeout(finishOnce, 2_500);
     return () => clearTimeout(hardDeadline);
-  }, [finishOnce, imageReady, nativeSplashHidden, ready, sceneReady, visualsReady]);
+  }, [finishOnce, imageReady, nativeSplashHidden, ready, sceneReady, visualsReady, wordmarkReady]);
 
   // Strictly memoized Fabric-safe native interpolations.
   const gradientRevealStyle = useMemo(() => ({
@@ -707,12 +711,46 @@ export function LaunchSplash({
       ],
   }), [backdropHandoff, curtainExit, curtainRetractY, handoffFade, homeCurtainHandoff]);
 
-  const destinationCanopyStyle = useMemo(() => ({
+  const curtainPinnedInnerStyle = useMemo(() => ({
+    transform: homeCurtainHandoff
+      ? []
+      : [
+        {
+          translateY: curtainExit.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, -curtainRetractY],
+            extrapolate: 'clamp',
+          }),
+        },
+      ],
+  }), [curtainExit, curtainRetractY, homeCurtainHandoff]);
+
+  const fallbackDestinationOpacityStyle = useMemo(() => ({
     opacity: homeCurtainHandoff
       ? 0
       : curtainExit.interpolate({
-        inputRange: [0, 0.18, 0.82, 1],
-        outputRange: [0, 0, 1, 1],
+        inputRange: [0, 0.01, 1],
+        outputRange: [0, 1, 1],
+        extrapolate: 'clamp',
+      }),
+  }), [curtainExit, homeCurtainHandoff]);
+
+  const fallbackSplashBlendStyle = useMemo(() => ({
+    opacity: homeCurtainHandoff
+      ? 1
+      : curtainExit.interpolate({
+        inputRange: [0, 0.82, 1],
+        outputRange: [1, 0, 0],
+        extrapolate: 'clamp',
+      }),
+  }), [curtainExit, homeCurtainHandoff]);
+
+  const fallbackSettledGridStyle = useMemo(() => ({
+    opacity: homeCurtainHandoff
+      ? 0
+      : curtainExit.interpolate({
+        inputRange: [0, 0.84, 1],
+        outputRange: [0, 0, 1],
         extrapolate: 'clamp',
       }),
   }), [curtainExit, homeCurtainHandoff]);
@@ -1203,7 +1241,7 @@ export function LaunchSplash({
     >
       <StatusBar style="light" />
 
-      {/* Full-bleed Royal-Violet backdrop: hands off statically to HomeSurface's own skyDome on Home launch, or retracts smoothly on Onboarding */}
+      {/* Full-bleed Royal-Violet backdrop: hands off statically to Home/Onboarding curtain, or counter-translates cleanly with zero seam on pending routes */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -1225,58 +1263,72 @@ export function LaunchSplash({
             },
           ]}
         >
-          <Animated.View style={[StyleSheet.absoluteFill, gradientRevealStyle]}>
-            <LinearGradient
-              colors={ROYAL_HERO_GRADIENT}
-              start={{ x: 0.08, y: 0 }}
-              end={{ x: 0.92, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
+          <Animated.View
+            style={[
+              styles.curtainPinnedStage,
+              { height: curtainHeight },
+              curtainPinnedInnerStyle,
+            ]}
+          >
+            {!homeCurtainHandoff ? (
+              <Animated.View style={[StyleSheet.absoluteFill, fallbackDestinationOpacityStyle]}>
+                <LinearGradient
+                  colors={ROYAL_HERO_GRADIENT}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: curtainGradientEndY }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+            ) : null}
+
+            {visualsReady && !homeCurtainHandoff ? (
+              <Animated.View
+                style={[
+                  styles.curtainPinnedCanopyGrid,
+                  { height: targetCanopyHeight },
+                  fallbackSettledGridStyle,
+                ]}
+              >
+                <RoyalHeroCanopyBackdrop
+                  width={hero.width}
+                  height={targetCanopyHeight}
+                  showGradient={false}
+                />
+              </Animated.View>
+            ) : null}
+
+            <Animated.View style={[StyleSheet.absoluteFill, fallbackSplashBlendStyle]}>
+              <Animated.View style={[StyleSheet.absoluteFill, gradientRevealStyle]}>
+                <LinearGradient
+                  colors={ROYAL_HERO_GRADIENT}
+                  start={{ x: 0.08, y: 0 }}
+                  end={{ x: 0.92, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </Animated.View>
+
+              {visualsReady ? (
+                <Animated.View style={[StyleSheet.absoluteFill, gridRevealStyle]}>
+                  <RoyalHeroCanopyBackdrop
+                    width={hero.width}
+                    height={curtainHeight}
+                    showGradient={false}
+                  />
+                </Animated.View>
+              ) : null}
+
+              {visualsReady ? (
+                <Animated.View style={[StyleSheet.absoluteFill, lightRevealStyle]}>
+                  <SplashCenterSpotlightSvg
+                    width={hero.width}
+                    height={curtainHeight}
+                    owlCenterY={actualOwlCenterY}
+                    period={mood.period}
+                  />
+                </Animated.View>
+              ) : null}
+            </Animated.View>
           </Animated.View>
-
-          {visualsReady ? (
-            <Animated.View style={[StyleSheet.absoluteFill, gridRevealStyle]}>
-              <RoyalHeroCanopyBackdrop
-                width={hero.width}
-                height={curtainHeight}
-                showGradient={false}
-              />
-            </Animated.View>
-          ) : null}
-
-          {visualsReady ? (
-            <Animated.View style={[StyleSheet.absoluteFill, lightRevealStyle]}>
-              <SplashCenterSpotlightSvg
-                width={hero.width}
-                height={curtainHeight}
-                owlCenterY={actualOwlCenterY}
-                period={mood.period}
-              />
-            </Animated.View>
-          ) : null}
-
-          {visualsReady && !homeCurtainHandoff ? (
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.destinationCanopy,
-                { height: targetCanopyHeight },
-                destinationCanopyStyle,
-              ]}
-            >
-              <LinearGradient
-                colors={ROYAL_HERO_GRADIENT}
-                start={{ x: 0.08, y: 0 }}
-                end={{ x: 0.92, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <RoyalHeroCanopyBackdrop
-                width={hero.width}
-                height={targetCanopyHeight}
-                showGradient={false}
-              />
-            </Animated.View>
-          ) : null}
         </View>
       </Animated.View>
 
@@ -1512,52 +1564,54 @@ export function LaunchSplash({
         </Animated.View>
       </Animated.View>
 
-      {/* Brand wordmark + sculpted 3D formula chip strictly mounted after UI fonts resolve */}
-      {visualsReady ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.identityPos, { top: copyTop }, chromeExitStyle]}
-        >
-          <Animated.View style={[styles.identityBlock, copyEnterStyle]}>
-            <Image
-              accessible
-              accessibilityLabel="Profu’ de mate"
-              source={bundledImageSource(require('../../../assets/brand/wordmark_v2.png'))}
-              resizeMode="contain"
-              fadeDuration={0}
-              style={{ width: wordmarkWidth, height: wordmarkHeight }}
-            />
+      {/* 3D Brand wordmark pre-decoded from Frame 0 (hidden at copyEnter=0 until ready); native text mounts strictly after UI fonts resolve */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.identityPos, { top: copyTop }, chromeExitStyle]}
+      >
+        <Animated.View style={[styles.identityBlock, copyEnterStyle]}>
+          <Image
+            accessible
+            accessibilityLabel="Profu’ de mate"
+            source={bundledImageSource(require('../../../assets/brand/wordmark_v2.png'))}
+            resizeMode="contain"
+            fadeDuration={0}
+            onLoad={() => setWordmarkReady(true)}
+            onError={() => setWordmarkReady(true)}
+            style={{ width: wordmarkWidth, height: wordmarkHeight }}
+          />
+          {visualsReady ? (
             <Text maxFontSizeMultiplier={1.25} style={styles.promise}>
               Matematica, pas cu pas.
             </Text>
-          </Animated.View>
-
-          {!hero.compact ? (
-            <Animated.View style={[styles.formulaPillShadow, formulaEnterStyle]}>
-              <CachedOutsetShadow
-                borderRadius={radii.pill}
-                shadow={SPLASH_SHADOWS.formulaOutset}
-                padTop={12}
-                padX={16}
-                padBottom={20}
-              />
-              <View style={styles.formulaPill}>
-                <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.24)', 'rgba(255, 255, 255, 0.09)']}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <CachedInsetRelief borderRadius={radii.pill} shadow={SPLASH_SHADOWS.formulaInset} zIndex={1} />
-                <Text accessible={false} style={styles.formulaSpark}>✦</Text>
-                <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.formulaText}>
-                  {mood.formula}
-                </Text>
-              </View>
-            </Animated.View>
           ) : null}
         </Animated.View>
-      ) : null}
+
+        {visualsReady && !hero.compact ? (
+          <Animated.View style={[styles.formulaPillShadow, formulaEnterStyle]}>
+            <CachedOutsetShadow
+              borderRadius={radii.pill}
+              shadow={SPLASH_SHADOWS.formulaOutset}
+              padTop={12}
+              padX={16}
+              padBottom={20}
+            />
+            <View style={styles.formulaPill}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.24)', 'rgba(255, 255, 255, 0.09)']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <CachedInsetRelief borderRadius={radii.pill} shadow={SPLASH_SHADOWS.formulaInset} zIndex={1} />
+              <Text accessible={false} style={styles.formulaSpark}>✦</Text>
+              <Text maxFontSizeMultiplier={1.15} numberOfLines={1} style={styles.formulaText}>
+                {mood.formula}
+              </Text>
+            </View>
+          </Animated.View>
+        ) : null}
+      </Animated.View>
 
       {/* Sculpted 3D recessed Liquid-Glass shimmer progress capsule */}
       <Animated.View
@@ -1607,11 +1661,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.splashRoyal,
     overflow: 'hidden',
   },
-  destinationCanopy: {
+  curtainPinnedStage: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
+    overflow: 'hidden',
+  },
+  curtainPinnedCanopyGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     overflow: 'hidden',
   },
   moodPillPos: {
