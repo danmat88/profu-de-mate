@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
@@ -26,6 +26,7 @@ type Props = {
   ready: boolean;
   visualsReady: boolean;
   onboardingPending?: boolean;
+  homeCurtainHandoff?: boolean;
   startupReady?: boolean;
   reducedMotion: boolean;
   onIntroSettled?: () => void;
@@ -34,6 +35,26 @@ type Props = {
 };
 
 type CelebrationSparkSpec = {
+  symbol: string;
+  dx: number;
+  dy: number;
+  rotate: string;
+  color: string;
+  size: number;
+};
+
+type FlightTrailSpec = {
+  symbol: string;
+  color: string;
+  size: number;
+  lag: number;
+  offsetX: number;
+  offsetY: number;
+  spinFrom: string;
+  spinTo: string;
+};
+
+type DockSparkSpec = {
   symbol: string;
   dx: number;
   dy: number;
@@ -66,11 +87,28 @@ const SPLASH_SHADOWS = {
 } as const;
 
 const CELEBRATION_SPARKS: readonly CelebrationSparkSpec[] = [
-  { symbol: '✦', dx: -94, dy: -68, rotate: '-26deg', color: colors.lime, size: 19 },
-  { symbol: '+', dx: 96, dy: -58, rotate: '24deg', color: colors.cyan, size: 21 },
-  { symbol: 'π', dx: -88, dy: 28, rotate: '-16deg', color: colors.paper, size: 18 },
-  { symbol: '★', dx: 90, dy: 30, rotate: '26deg', color: colors.gold, size: 18 },
-  { symbol: '√', dx: 4, dy: -104, rotate: '12deg', color: colors.limeBright, size: 18 },
+  { symbol: '✦', dx: -96, dy: -70, rotate: '-26deg', color: colors.lime, size: 19 },
+  { symbol: '+', dx: 98, dy: -60, rotate: '24deg', color: colors.cyan, size: 21 },
+  { symbol: 'π', dx: -90, dy: 28, rotate: '-16deg', color: colors.paper, size: 18 },
+  { symbol: '★', dx: 92, dy: 30, rotate: '26deg', color: colors.gold, size: 18 },
+  { symbol: '√', dx: 4, dy: -106, rotate: '12deg', color: colors.limeBright, size: 18 },
+];
+
+// 5-star luminous comet slipstream drifting behind Profu's graceful 740ms swoop arc.
+const FLIGHT_TRAIL_SPECS: readonly FlightTrailSpec[] = [
+  { symbol: '✦', color: colors.lime, size: 20, lag: 0.06, offsetX: 8, offsetY: 10, spinFrom: '-32deg', spinTo: '52deg' },
+  { symbol: '✦', color: colors.cyan, size: 16, lag: 0.15, offsetX: -11, offsetY: 16, spinFrom: '24deg', spinTo: '-48deg' },
+  { symbol: '★', color: colors.gold, size: 14, lag: 0.24, offsetX: 13, offsetY: 22, spinFrom: '-22deg', spinTo: '56deg' },
+  { symbol: '✦', color: colors.paper, size: 12, lag: 0.33, offsetX: -8, offsetY: 28, spinFrom: '18deg', spinTo: '-40deg' },
+  { symbol: '+', color: colors.limeBright, size: 12, lag: 0.42, offsetX: 6, offsetY: 32, spinFrom: '-14deg', spinTo: '38deg' },
+];
+
+// Celebratory micro-sparks radiating from the top-left circular badge on touchdown.
+const DOCK_IMPACT_SPARKS: readonly DockSparkSpec[] = [
+  { symbol: '✦', dx: 30, dy: -22, rotate: '28deg', color: colors.lime, size: 14 },
+  { symbol: '✦', dx: 34, dy: 16, rotate: '-24deg', color: colors.cyan, size: 12 },
+  { symbol: '★', dx: -16, dy: 30, rotate: '34deg', color: colors.gold, size: 12 },
+  { symbol: '+', dx: -26, dy: -18, rotate: '-22deg', color: colors.paper, size: 11 },
 ];
 
 const MOOD_SPOTLIGHT: Record<SplashTimeOfDay, string> = {
@@ -94,6 +132,9 @@ const SplashCenterSpotlightSvg = memo(function SplashCenterSpotlightSvg({
   owlCenterY: number;
   period: SplashTimeOfDay;
 }) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const spotId = `spSpot_${uid}`;
+  const floorId = `spFlr_${uid}`;
   const safeHeight = Math.max(1, height);
   const tint = MOOD_SPOTLIGHT[period];
   const spotCy = `${Math.round((owlCenterY / safeHeight) * 100)}%`;
@@ -107,42 +148,88 @@ const SplashCenterSpotlightSvg = memo(function SplashCenterSpotlightSvg({
       style={StyleSheet.absoluteFill}
     >
       <Defs>
-        <RadialGradient id="splashCenterSpot" cx="50%" cy={spotCy} rx="56%" ry="34%">
+        <RadialGradient id={spotId} cx="50%" cy={spotCy} rx="56%" ry="34%">
           <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.3" />
           <Stop offset="34%" stopColor={tint} stopOpacity="0.18" />
           <Stop offset="68%" stopColor="#9B58FF" stopOpacity="0.065" />
           <Stop offset="100%" stopColor="#5218D2" stopOpacity="0" />
         </RadialGradient>
-        <RadialGradient id="splashCenterFloor" cx="50%" cy={floorCy} rx="22%" ry="2.3%">
+        <RadialGradient id={floorId} cx="50%" cy={floorCy} rx="22%" ry="2.3%">
           <Stop offset="0%" stopColor="#1B064F" stopOpacity="0.34" />
           <Stop offset="65%" stopColor="#1B064F" stopOpacity="0.1" />
           <Stop offset="100%" stopColor="#1B064F" stopOpacity="0" />
         </RadialGradient>
       </Defs>
-      <Rect x={0} y={0} width={width} height={height} fill="url(#splashCenterSpot)" />
-      <Rect x={0} y={0} width={width} height={height} fill="url(#splashCenterFloor)" />
+      <Rect x={0} y={0} width={width} height={height} fill={`url(#${spotId})`} />
+      <Rect x={0} y={0} width={width} height={height} fill={`url(#${floorId})`} />
     </Svg>
   );
 });
 
 /**
- * Flagship 3D "Royal-Violet Studio Curtain" launch splash with pixel-exact
- * shared hero geometry and zero double-image handoff:
+ * Soft luminous radial glow aura traveling behind Profu during swoop flight.
+ */
+const OwlFlightAuraSvg = memo(function OwlFlightAuraSvg({ size }: { size: number }) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const auraId = `owlAura_${uid}`;
+  return (
+    <Svg pointerEvents="none" width={size} height={size}>
+      <Defs>
+        <RadialGradient id={auraId} cx="50%" cy="50%" rx="50%" ry="50%">
+          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.64" />
+          <Stop offset="42%" stopColor="#D8FF3E" stopOpacity="0.34" />
+          <Stop offset="76%" stopColor="#43D6E6" stopOpacity="0.12" />
+          <Stop offset="100%" stopColor="#732CF4" stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+      <Rect x={0} y={0} width={size} height={size} fill={`url(#${auraId})`} />
+    </Svg>
+  );
+});
+
+/**
+ * Sample the heroic owl swoop curve at normalized progress p in [0, 1].
+ * Keeps the 5-star comet slipstream locked precisely onto the owl's flight trajectory.
+ */
+function sampleSwoopOffset(p: number, dx: number, dy: number): { x: number; y: number } {
+  const clamped = Math.max(0, Math.min(1, p));
+  const lerpSeg = (stops: readonly number[], vals: readonly number[]): number => {
+    for (let i = 0; i < stops.length - 1; i += 1) {
+      if (clamped <= stops[i + 1]) {
+        const span = Math.max(0.0001, stops[i + 1] - stops[i]);
+        const frac = (clamped - stops[i]) / span;
+        return vals[i] + (vals[i + 1] - vals[i]) * frac;
+      }
+    }
+    return vals[vals.length - 1];
+  };
+  const stops = [0, 0.25, 0.5, 0.75, 1];
+  return {
+    x: lerpSeg(stops, [0, dx * 0.14, dx * 0.45, dx * 0.8, dx]),
+    y: lerpSeg(stops, [0, dy * 0.28, dy * 0.62, dy * 0.88, dy]),
+  };
+}
+
+/**
+ * Flagship 3D Royal-Violet launch splash with unhurried, seamless cinema handoff:
  * - Frame 0 matches Android's native splash color (#5218D2) with zero flash.
- * - Matches Home's sculpted 3D Liquid-Glass aesthetic via GPU-cached CachedRelief
- *   greeting pill, frosted 3D emblem disc behind Profu, formula chip, and
- *   sculpted liquid progress capsule.
- * - On exit, the Royal-Violet curtain stays 100% opaque throughout its entire
- *   upward retraction while its bottom targetCanopyHeight cross-blends into a
- *   bit-for-bit twin of HomeSurface's skyDome; simultaneously, Profu's owl flies
- *   on a graceful parabolic arc, compensates for splash safe-zone padding
- *   (1.385x), blooms the exact circular white-and-lime badge, and docks flush
- *   before a 140ms invisible handoff dissolves LaunchSplash cleanly.
+ * - On Home launches (homeCurtainHandoff), hands its static full-screen purple
+ *   backdrop invisibly onto HomeSurface's own zIndex:1 skyDome BEFORE the curtain
+ *   starts lifting, so there is strictly ONE unsplit curtain on screen while Home's
+ *   header pills, greeting, and waving Mascot animate live on top of it (zero
+ *   double curtain, zero horizontal seam, zero empty dome).
+ * - On Onboarding / Pending launches, retracts its own single curved curtain
+ *   gracefully over 760ms.
+ * - Profu performs a Pixar squash-and-launch takeoff, glides across the sky over
+ *   a luxurious 740ms banked swoop with luminous radial aura & 5-star comet trail,
+ *   blooms its crisp white + Electric-Lime circular medallion, docks with double
+ *   shockwave rings + elastic micro-bounce, and hands off invisibly.
  */
 export function LaunchSplash({
   ready,
   visualsReady,
   onboardingPending = false,
+  homeCurtainHandoff = false,
   reducedMotion,
   onIntroSettled,
   onRevealStart,
@@ -183,8 +270,10 @@ export function LaunchSplash({
   const victoryBurst = useRef(new Animated.Value(0)).current;
   const owlCelebrate = useRef(new Animated.Value(0)).current;
   const chromeExit = useRef(new Animated.Value(0)).current;
+  const backdropHandoff = useRef(new Animated.Value(0)).current;
   const curtainExit = useRef(new Animated.Value(0)).current;
   const owlExit = useRef(new Animated.Value(0)).current;
+  const dockImpact = useRef(new Animated.Value(0)).current;
   const handoffFade = useRef(new Animated.Value(0)).current;
 
   const introSettledRef = useRef(onIntroSettled);
@@ -221,10 +310,11 @@ export function LaunchSplash({
   // Frosted 3D glass emblem disc behind the floating Splash owl.
   const emblemDiscSize = Math.round(hero.splashOwlSize * 0.86);
   const emblemRingSize = Math.round(hero.splashOwlSize * 1.02);
+  const flightAuraSize = Math.round(hero.splashOwlSize * 1.38);
 
-  // Smart rhythm: cinema-rich on first launch (onboarding), crisp athletic sting on daily returns.
-  const introSettleMs = onboardingPending ? 860 : 560;
-  const celebrateBeatMs = onboardingPending ? 250 : 180;
+  // Unhurried cinema pacing — calm anticipation beat before launch.
+  const introSettleMs = onboardingPending ? 820 : 560;
+  const celebrateBeatMs = onboardingPending ? 230 : 220;
 
   introSettledRef.current = onIntroSettled;
   revealStartRef.current = onRevealStart;
@@ -297,7 +387,7 @@ export function LaunchSplash({
         return;
       }
 
-      // Immediate layered studio illumination over exact #5218D2 native surface (zero empty-purple pause).
+      // Immediate layered studio illumination over exact #5218D2 native surface.
       startTiming(gradientReveal, 1, 360, 0);
       startTiming(gridReveal, 1, 420, 20);
       startTiming(lightReveal, 1, 440, 35);
@@ -399,14 +489,15 @@ export function LaunchSplash({
     };
   }, [introStarted, ready, reducedMotion, ribbonSheen]);
 
-  // Celebratory hop + Seamless Opaque Curtain-Pull + Pixel-Exact Parabolic Owl Docking + Invisible Handoff.
+  // Unhurried Cinema Launch: Anticipation Squash -> Invisible Static Backdrop Handoff -> 760ms Curtain + 740ms Owl Swoop -> Double Shockwave Dock.
   useEffect(() => {
     if (!ready || !introComplete || !nativeSplashHidden) return undefined;
     if (reducedMotion) {
       finishOnce();
       return undefined;
     }
-    let revealTimer: ReturnType<typeof setTimeout> | undefined;
+    let backdropHandoffTimer: ReturnType<typeof setTimeout> | undefined;
+    let dockImpactTimer: ReturnType<typeof setTimeout> | undefined;
     let handoffTimer: ReturnType<typeof setTimeout> | undefined;
     let passThroughTimer: ReturnType<typeof setTimeout> | undefined;
     let exitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -422,87 +513,118 @@ export function LaunchSplash({
       Haptics.selection();
     }
 
+    // Arm Home & StudioTabBar immediately behind the still-static opaque Splash so zero React
+    // re-render hitch occurs during flight and HomeSurface's single skyDome takes over smoothly.
+    notifyRevealOnce();
+
     victoryBurst.setValue(0);
     owlCelebrate.setValue(0);
     startAnim(Animated.timing(victoryBurst, {
       toValue: 1,
-      duration: 480,
+      duration: 680,
       easing: SILKY_EASE_OUT,
       useNativeDriver: true,
     }));
     startAnim(Animated.timing(owlCelebrate, {
       toValue: 1,
-      duration: 260,
+      duration: 320,
       easing: Easing.inOut(Easing.quad),
       useNativeDriver: true,
     }));
 
+    // On Home launches, dissolve LaunchSplash's static backdrop cleanly (T = 70..180ms)
+    // onto HomeSurface's pixel-identical static full-screen curtain BEFORE it starts moving,
+    // guaranteeing strictly ONE single zero-seam curtain and live canopy choreography!
+    if (homeCurtainHandoff) {
+      backdropHandoffTimer = setTimeout(() => {
+        startAnim(Animated.timing(backdropHandoff, {
+          toValue: 1,
+          duration: 110,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }));
+      }, 70);
+    }
+
     const beatTimer = setTimeout(() => {
-      // Stop living float so the owl starts docking smoothly from exact neutral center.
+      // Stop living float so the owl launches cleanly from exact neutral center.
       ambientLoopsRef.current.forEach((loop) => loop.stop());
       ambientLoopsRef.current = [];
       floatPhase.stopAnimation();
       floatPhase.setValue(0);
 
-      const curtainLiftEase = Easing.bezier(0.32, 0, 0.16, 1);
-
+      // Graceful unhurried Splash chrome melt (360ms — calm and poetic, never abrupt).
       startAnim(Animated.timing(chromeExit, {
         toValue: 1,
-        duration: 230,
+        duration: 360,
         easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       }));
+
+      // Fallback curtain retraction (active on Onboarding / Pending routes where HomeSurface is absent).
       startAnim(Animated.timing(curtainExit, {
         toValue: 1,
-        duration: 480,
+        duration: 920,
         delay: 0,
-        easing: curtainLiftEase,
+        easing: Easing.bezier(0.42, 0, 0.22, 1),
         useNativeDriver: true,
       }));
+
+      // Unhurried, balanced 920ms heroic owl swoop — NO double front-loading, visibly soaring across the sky!
       startAnim(Animated.timing(owlExit, {
         toValue: 1,
-        duration: 480,
+        duration: 920,
         delay: 0,
-        easing: curtainLiftEase,
+        easing: Easing.bezier(0.42, 0, 0.22, 1),
         useNativeDriver: true,
       }));
 
-      // Trigger Home card cascade right as the rising opaque curtain clears the lower workspace.
-      revealTimer = setTimeout(notifyRevealOnce, 100);
+      // Fire double concentric shockwave rings (Electric-Lime + Cyan) & 4 micro-sparks right at owl touchdown!
+      dockImpactTimer = setTimeout(() => {
+        dockImpact.setValue(0);
+        startAnim(Animated.timing(dockImpact, {
+          toValue: 1,
+          duration: 380,
+          easing: SILKY_EASE_OUT,
+          useNativeDriver: true,
+        }));
+      }, 855);
 
-      // Staged invisible handoff strictly AFTER curtain & owl dock pixel-for-pixel:
-      // 0..0.70 fades curtainWrap (1->0) while owlDockWrap stays 100% opaque (zero purple bleed);
-      // 0.70..1.0 dissolves owlDockWrap directly onto the already-solid Home logo badge.
+      // Dissolve docked owl (and fallback curtain if active) invisibly onto the already-solid badge.
       handoffTimer = setTimeout(() => {
         startAnim(Animated.timing(handoffFade, {
           toValue: 1,
-          duration: 165,
+          duration: 150,
           easing: Easing.linear,
           useNativeDriver: true,
         }));
-      }, 485);
+      }, 945);
 
-      // Hand touches cleanly to the destination screen right as docking completes.
-      passThroughTimer = setTimeout(() => setPassThrough(true), 500);
-      // Unmount LaunchSplash strictly after handoff fade & destination cascade settle.
-      exitTimer = setTimeout(finishOnce, 760);
+      // Hand touches cleanly to Home right as docking completes.
+      passThroughTimer = setTimeout(() => setPassThrough(true), 920);
+      // Unmount strictly after touchdown shockwave rings & micro-sparks finish twinkling out.
+      exitTimer = setTimeout(finishOnce, 1_260);
     }, celebrateBeatMs);
 
     return () => {
       clearTimeout(beatTimer);
-      if (revealTimer) clearTimeout(revealTimer);
+      if (backdropHandoffTimer) clearTimeout(backdropHandoffTimer);
+      if (dockImpactTimer) clearTimeout(dockImpactTimer);
       if (handoffTimer) clearTimeout(handoffTimer);
       if (passThroughTimer) clearTimeout(passThroughTimer);
       if (exitTimer) clearTimeout(exitTimer);
       exitAnims.forEach((anim) => anim.stop());
     };
   }, [
+    backdropHandoff,
     celebrateBeatMs,
     chromeExit,
     curtainExit,
+    dockImpact,
     finishOnce,
     floatPhase,
     handoffFade,
+    homeCurtainHandoff,
     introComplete,
     nativeSplashHidden,
     notifyRevealOnce,
@@ -542,8 +664,8 @@ export function LaunchSplash({
     opacity: Animated.multiply(
       lightReveal,
       chromeExit.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0],
+        inputRange: [0, 0.75, 1],
+        outputRange: [1, 0, 0],
         extrapolate: 'clamp',
       }),
     ),
@@ -558,57 +680,61 @@ export function LaunchSplash({
     ],
   }), [chromeExit, lightReveal]);
 
-  // Curtain stays 100% OPAQUE during its entire upward retraction so Home's skyDome
-  // never shows through as a double arch. Immediate initial arch lift clears the bottom
-  // overhang right as splash chrome dissolves (zero empty-purple pause), then fades first
-  // during handoffFade (0 -> 0.7) while owlDockWrap remains 100% opaque above it.
-  const curtainMorphStyle = useMemo(() => {
-    const immediateArchLift = -Math.min(Math.abs(curtainRetractY) * 0.28, hero.canopyRadius + 52);
-    return {
-      opacity: handoffFade.interpolate({
-        inputRange: [0, 0.7, 1],
+  // When homeCurtainHandoff is true, stays static while dissolving invisibly (70..180ms)
+  // onto HomeSurface's own single retracting skyDome. Otherwise retracts smoothly over 760ms.
+  const curtainMorphStyle = useMemo(() => ({
+    opacity: homeCurtainHandoff
+      ? backdropHandoff.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+        extrapolate: 'clamp',
+      })
+      : handoffFade.interpolate({
+        inputRange: [0, 0.55, 1],
         outputRange: [1, 0, 0],
         extrapolate: 'clamp',
       }),
-      transform: [
+    transform: homeCurtainHandoff
+      ? []
+      : [
         {
           translateY: curtainExit.interpolate({
-            inputRange: [0, 0.14, 0.56, 1],
-            outputRange: [0, immediateArchLift, curtainRetractY * 0.68, curtainRetractY],
+            inputRange: [0, 1],
+            outputRange: [0, curtainRetractY],
             extrapolate: 'clamp',
           }),
         },
       ],
-    };
-  }, [curtainExit, curtainRetractY, handoffFade, hero.canopyRadius]);
+  }), [backdropHandoff, curtainExit, curtainRetractY, handoffFade, homeCurtainHandoff]);
 
-  // Bottom targetCanopyHeight slice inside the retracting curtain cross-blends smoothly into
-  // a bit-for-bit twin of HomeSurface's skyDome so touchdown has zero color or grid jump.
   const destinationCanopyStyle = useMemo(() => ({
-    opacity: curtainExit.interpolate({
-      inputRange: [0, 0.14, 0.82, 1],
-      outputRange: [0, 0, 1, 1],
-      extrapolate: 'clamp',
-    }),
-  }), [curtainExit]);
+    opacity: homeCurtainHandoff
+      ? 0
+      : curtainExit.interpolate({
+        inputRange: [0, 0.18, 0.82, 1],
+        outputRange: [0, 0, 1, 1],
+        extrapolate: 'clamp',
+      }),
+  }), [curtainExit, homeCurtainHandoff]);
 
   const chromeExitStyle = useMemo(() => ({
     opacity: chromeExit.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0],
+      inputRange: [0, 0.88, 1],
+      outputRange: [1, 0, 0],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         translateY: chromeExit.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -16],
+          outputRange: [0, -24],
           extrapolate: 'clamp',
         }),
       },
     ],
   }), [chromeExit]);
 
+  // Frosted 3D emblem disc expands calmly like a magic halo portal as Profu takes flight.
   const emblemStageStyle = useMemo(() => ({
     opacity: Animated.multiply(
       lightReveal,
@@ -628,7 +754,7 @@ export function LaunchSplash({
           }),
           chromeExit.interpolate({
             inputRange: [0, 1],
-            outputRange: [1, 1.14],
+            outputRange: [1, 1.32],
             extrapolate: 'clamp',
           }),
         ),
@@ -636,13 +762,10 @@ export function LaunchSplash({
     ],
   }), [chromeExit, lightReveal, owlEnter]);
 
-  // Smooth 5-point parabolic docking arc into the exact top-left circular header badge.
-  // Stays 100% opaque through touchdown AND through curtainWrap's fade (handoffFade 0->0.7)
-  // so zero purple can bleed through the white + Electric-Lime medallion, then dissolves
-  // invisibly onto the identical already-visible Home logo badge (0.7->1.0).
+  // Unhurried, balanced 920ms sweeping banked swoop arc + elastic Pixar micro-bounce on touchdown.
   const owlDockFlightStyle = useMemo(() => ({
     opacity: handoffFade.interpolate({
-      inputRange: [0, 0.7, 1],
+      inputRange: [0, 0.55, 1],
       outputRange: [1, 1, 0],
       extrapolate: 'clamp',
     }),
@@ -650,25 +773,26 @@ export function LaunchSplash({
       {
         translateX: owlExit.interpolate({
           inputRange: [0, 0.25, 0.5, 0.75, 1],
-          outputRange: [0, logoDockDx * 0.16, logoDockDx * 0.44, logoDockDx * 0.78, logoDockDx],
+          outputRange: [0, logoDockDx * 0.14, logoDockDx * 0.45, logoDockDx * 0.8, logoDockDx],
           extrapolate: 'clamp',
         }),
       },
       {
         translateY: owlExit.interpolate({
           inputRange: [0, 0.25, 0.5, 0.75, 1],
-          outputRange: [0, logoDockDy * 0.34, logoDockDy * 0.66, logoDockDy * 0.9, logoDockDy],
+          outputRange: [0, logoDockDy * 0.28, logoDockDy * 0.62, logoDockDy * 0.88, logoDockDy],
           extrapolate: 'clamp',
         }),
       },
       {
         scale: owlExit.interpolate({
-          inputRange: [0, 0.25, 0.5, 0.75, 1],
+          inputRange: [0, 0.25, 0.56, 0.87, 0.94, 1],
           outputRange: [
             1,
-            1 - (1 - logoDockScale) * 0.2,
+            1 - (1 - logoDockScale) * 0.16,
             1 - (1 - logoDockScale) * 0.52,
-            1 - (1 - logoDockScale) * 0.82,
+            logoDockScale * 1.12,
+            logoDockScale * 0.97,
             logoDockScale,
           ],
           extrapolate: 'clamp',
@@ -676,31 +800,185 @@ export function LaunchSplash({
       },
       {
         rotate: owlExit.interpolate({
-          inputRange: [0, 0.28, 0.62, 0.88, 1],
-          outputRange: ['0deg', '-9deg', '-4deg', '1.8deg', '0deg'],
+          inputRange: [0, 0.24, 0.54, 0.86, 0.95, 1],
+          outputRange: ['0deg', '-16deg', '-10deg', '4deg', '-1deg', '0deg'],
           extrapolate: 'clamp',
         }),
       },
     ],
   }), [handoffFade, logoDockDx, logoDockDy, logoDockScale, owlExit]);
 
-  // Crisp white + Electric-Lime circular medallion blooms around the owl right as it docks.
+  // Luminous radial glow aura traveling behind Profu mid-flight.
+  const owlFlightAuraStyle = useMemo(() => ({
+    opacity: owlExit.interpolate({
+      inputRange: [0, 0.14, 0.54, 0.86, 1],
+      outputRange: [0, 0.65, 0.54, 0.16, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: owlExit.interpolate({
+          inputRange: [0, 0.36, 0.84, 1],
+          outputRange: [0.74, 1.32, 0.88, 0.62],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [owlExit]);
+
+  // 5-star comet slipstream drifting smoothly along Profu's swoop trajectory.
+  const flightTrailStyles = useMemo(() => FLIGHT_TRAIL_SPECS.map((spec) => {
+    const t0 = Math.min(0.5, spec.lag);
+    const t1 = Math.min(0.72, spec.lag + 0.19);
+    const t2 = Math.min(0.86, spec.lag + 0.39);
+    const t3 = Math.min(0.98, spec.lag + 0.56);
+    const p0 = sampleSwoopOffset(0, logoDockDx, logoDockDy);
+    const p1 = sampleSwoopOffset(0.28, logoDockDx, logoDockDy);
+    const p2 = sampleSwoopOffset(0.62, logoDockDx, logoDockDy);
+    const p3 = sampleSwoopOffset(0.92, logoDockDx, logoDockDy);
+    return {
+      opacity: owlExit.interpolate({
+        inputRange: [0, t0, t1, t2, t3, 1],
+        outputRange: [0, 0, 0.96, 0.78, 0, 0],
+        extrapolate: 'clamp',
+      }),
+      transform: [
+        {
+          translateX: owlExit.interpolate({
+            inputRange: [0, t0, t1, t2, t3, 1],
+            outputRange: [
+              spec.offsetX,
+              p0.x + spec.offsetX,
+              p1.x + spec.offsetX * 0.65,
+              p2.x + spec.offsetX * 0.3,
+              p3.x,
+              logoDockDx,
+            ],
+            extrapolate: 'clamp',
+          }),
+        },
+        {
+          translateY: owlExit.interpolate({
+            inputRange: [0, t0, t1, t2, t3, 1],
+            outputRange: [
+              spec.offsetY,
+              p0.y + spec.offsetY,
+              p1.y + spec.offsetY * 0.65,
+              p2.y + spec.offsetY * 0.3,
+              p3.y,
+              logoDockDy,
+            ],
+            extrapolate: 'clamp',
+          }),
+        },
+        {
+          scale: owlExit.interpolate({
+            inputRange: [0, t0, t1, t2, t3, 1],
+            outputRange: [0.3, 0.35, 1.24, 0.86, 0.25, 0.2],
+            extrapolate: 'clamp',
+          }),
+        },
+        {
+          rotate: owlExit.interpolate({
+            inputRange: [t0, t3],
+            outputRange: [spec.spinFrom, spec.spinTo],
+            extrapolate: 'clamp',
+          }),
+        },
+      ],
+    };
+  }), [logoDockDx, logoDockDy, owlExit]);
+
+  // Crisp white + Electric-Lime circular medallion blooms around the owl as it approaches the header.
   const dockingMedallionStyle = useMemo(() => ({
     opacity: owlExit.interpolate({
-      inputRange: [0, 0.42, 0.82, 1],
+      inputRange: [0, 0.5, 0.84, 1],
       outputRange: [0, 0, 1, 1],
       extrapolate: 'clamp',
     }),
     transform: [
       {
         scale: owlExit.interpolate({
-          inputRange: [0, 0.42, 0.84, 1],
-          outputRange: [0.76, 0.76, 1, 1],
+          inputRange: [0, 0.5, 0.85, 0.93, 1],
+          outputRange: [0.64, 0.64, 1.05, 0.98, 1],
           extrapolate: 'clamp',
         }),
       },
     ],
   }), [owlExit]);
+
+  // Double concentric touchdown shockwave rings (Electric-Lime outer + Cyan inner) & 4 micro-sparks.
+  const dockImpactRingStyle = useMemo(() => ({
+    opacity: dockImpact.interpolate({
+      inputRange: [0, 0.12, 0.56, 1],
+      outputRange: [0, 0.92, 0.44, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: dockImpact.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.86, 1.82],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [dockImpact]);
+
+  const dockImpactInnerRingStyle = useMemo(() => ({
+    opacity: dockImpact.interpolate({
+      inputRange: [0, 0.18, 0.62, 1],
+      outputRange: [0, 0.76, 0.3, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        scale: dockImpact.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.92, 1.46],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [dockImpact]);
+
+  const dockImpactSparkStyles = useMemo(() => DOCK_IMPACT_SPARKS.map((spark) => ({
+    opacity: dockImpact.interpolate({
+      inputRange: [0, 0.16, 0.68, 1],
+      outputRange: [0, 1, 0.8, 0],
+      extrapolate: 'clamp',
+    }),
+    transform: [
+      {
+        translateX: dockImpact.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, spark.dx],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        translateY: dockImpact.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, spark.dy],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        scale: dockImpact.interpolate({
+          inputRange: [0, 0.28, 1],
+          outputRange: [0.35, 1.2, 0.45],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        rotate: dockImpact.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0deg', spark.rotate],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  })), [dockImpact]);
 
   // Volume-preserving Pixar squash-and-stretch entrance for the hero owl.
   const owlEnterStyle = useMemo(() => ({
@@ -751,19 +1029,34 @@ export function LaunchSplash({
     ],
   }), [floatPhase]);
 
+  // Expressive Pixar anticipation crouch -> elastic spring launch -> smooth blend into swoop flight.
   const owlCelebrateStyle = useMemo(() => ({
     transform: [
       {
         translateY: owlCelebrate.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: [0, -8, 0],
+          inputRange: [0, 0.34, 0.72, 1],
+          outputRange: [0, 6.5, -14, 0],
           extrapolate: 'clamp',
         }),
       },
       {
-        scale: owlCelebrate.interpolate({
-          inputRange: [0, 0.45, 1],
-          outputRange: [1, 1.065, 1],
+        scaleX: owlCelebrate.interpolate({
+          inputRange: [0, 0.34, 0.72, 1],
+          outputRange: [1, 1.08, 0.93, 1],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        scaleY: owlCelebrate.interpolate({
+          inputRange: [0, 0.34, 0.72, 1],
+          outputRange: [1, 0.915, 1.08, 1],
+          extrapolate: 'clamp',
+        }),
+      },
+      {
+        rotate: owlCelebrate.interpolate({
+          inputRange: [0, 0.34, 0.72, 1],
+          outputRange: ['0deg', '5deg', '-6deg', '0deg'],
           extrapolate: 'clamp',
         }),
       },
@@ -772,7 +1065,7 @@ export function LaunchSplash({
 
   const sparkStyles = useMemo(() => CELEBRATION_SPARKS.map((spark) => ({
     opacity: victoryBurst.interpolate({
-      inputRange: [0, 0.14, 0.66, 1],
+      inputRange: [0, 0.14, 0.68, 1],
       outputRange: [0, 1, 0.86, 0],
       extrapolate: 'clamp',
     }),
@@ -794,7 +1087,7 @@ export function LaunchSplash({
       {
         scale: victoryBurst.interpolate({
           inputRange: [0, 0.28, 1],
-          outputRange: [0.3, 1.16, 0.7],
+          outputRange: [0.3, 1.18, 0.7],
           extrapolate: 'clamp',
         }),
       },
@@ -908,7 +1201,7 @@ export function LaunchSplash({
     >
       <StatusBar style="light" />
 
-      {/* Full-bleed curved Royal-Violet Curtain — stays 100% opaque while pulling up so zero double-curtain occurs */}
+      {/* Full-bleed Royal-Violet backdrop: hands off statically to HomeSurface's own skyDome on Home launch, or retracts smoothly on Onboarding */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -921,7 +1214,6 @@ export function LaunchSplash({
           curtainMorphStyle,
         ]}
       >
-        {/* Solid #5218D2 base matches Android native splash pixel-for-pixel on Frame 0 */}
         <View
           style={[
             styles.curtainSurface,
@@ -931,7 +1223,6 @@ export function LaunchSplash({
             },
           ]}
         >
-          {/* Layer 1: Full-screen Royal-Violet studio gradient */}
           <Animated.View style={[StyleSheet.absoluteFill, gradientRevealStyle]}>
             <LinearGradient
               colors={ROYAL_HERO_GRADIENT}
@@ -941,7 +1232,6 @@ export function LaunchSplash({
             />
           </Animated.View>
 
-          {/* Layer 2: Unified RoyalHeroCanopyBackdrop */}
           {visualsReady ? (
             <Animated.View style={[StyleSheet.absoluteFill, gridRevealStyle]}>
               <RoyalHeroCanopyBackdrop
@@ -952,7 +1242,6 @@ export function LaunchSplash({
             </Animated.View>
           ) : null}
 
-          {/* Layer 3: Center studio spotlight behind Profu (dissolves cleanly before takeoff) */}
           {visualsReady ? (
             <Animated.View style={[StyleSheet.absoluteFill, lightRevealStyle]}>
               <SplashCenterSpotlightSvg
@@ -964,8 +1253,7 @@ export function LaunchSplash({
             </Animated.View>
           ) : null}
 
-          {/* Layer 4: Pixel-exact twin of HomeSurface's skyDome aligned to bottom of curtain — eliminates gradient/grid shift on handoff */}
-          {visualsReady ? (
+          {visualsReady && !homeCurtainHandoff ? (
             <Animated.View
               pointerEvents="none"
               style={[
@@ -1023,7 +1311,7 @@ export function LaunchSplash({
         </Animated.View>
       ) : null}
 
-      {/* Sculpted 3D frosted-glass studio emblem stage behind Profu (dissolves cleanly before owl flight) */}
+      {/* Sculpted 3D frosted-glass studio emblem stage behind Profu (expands like a soft halo portal on launch) */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -1078,7 +1366,7 @@ export function LaunchSplash({
         </View>
       </Animated.View>
 
-      {/* Celebratory math sparks centered behind the hero owl */}
+      {/* Celebratory takeoff math sparks + 5-star luminous comet slipstream trail */}
       <View
         pointerEvents="none"
         style={[styles.sparksOrigin, { left: actualOwlCenterX, top: actualOwlCenterY }]}
@@ -1101,9 +1389,75 @@ export function LaunchSplash({
             ) : null}
           </Animated.View>
         ))}
+
+        {visualsReady
+          ? FLIGHT_TRAIL_SPECS.map((trail, index) => (
+            <Animated.View
+              key={`trail-${index}`}
+              style={[styles.sparkAnchor, flightTrailStyles[index]]}
+            >
+              <Text
+                accessible={false}
+                style={[
+                  styles.sparkText,
+                  { color: trail.color, fontSize: trail.size, lineHeight: trail.size + 3 },
+                ]}
+              >
+                {trail.symbol}
+              </Text>
+            </Animated.View>
+          ))
+          : null}
       </View>
 
-      {/* Pixel-exact docking hero owl: flies on parabolic arc and lands flush on top-left circular Home badge */}
+      {/* Double shockwave rings (Electric-Lime + Cyan) & 4 micro-sparks anchored at top-left badge */}
+      <View
+        pointerEvents="none"
+        style={[styles.sparksOrigin, { left: hero.logoCenterX, top: hero.logoCenterY }]}
+      >
+        <Animated.View
+          style={[
+            styles.dockImpactRing,
+            {
+              width: hero.logoBadgeSize + 4,
+              height: hero.logoBadgeSize + 4,
+              borderRadius: (hero.logoBadgeSize + 4) / 2,
+            },
+            dockImpactRingStyle,
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.dockImpactInnerRing,
+            {
+              width: hero.logoBadgeSize + 2,
+              height: hero.logoBadgeSize + 2,
+              borderRadius: (hero.logoBadgeSize + 2) / 2,
+            },
+            dockImpactInnerRingStyle,
+          ]}
+        />
+        {visualsReady
+          ? DOCK_IMPACT_SPARKS.map((spark, index) => (
+            <Animated.View
+              key={`dock-spark-${index}`}
+              style={[styles.sparkAnchor, dockImpactSparkStyles[index]]}
+            >
+              <Text
+                accessible={false}
+                style={[
+                  styles.sparkText,
+                  { color: spark.color, fontSize: spark.size, lineHeight: spark.size + 2 },
+                ]}
+              >
+                {spark.symbol}
+              </Text>
+            </Animated.View>
+          ))
+          : null}
+      </View>
+
+      {/* Pixel-exact docking hero owl: Pixar crouch -> 740ms luminous swoop -> medallion bloom -> micro-bounce */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -1117,6 +1471,17 @@ export function LaunchSplash({
           owlDockFlightStyle,
         ]}
       >
+        {visualsReady ? (
+          <Animated.View
+            style={[
+              styles.owlFlightAura,
+              { width: flightAuraSize, height: flightAuraSize },
+              owlFlightAuraStyle,
+            ]}
+          >
+            <OwlFlightAuraSvg size={flightAuraSize} />
+          </Animated.View>
+        ) : null}
         <Animated.View
           style={[
             styles.dockingMedallion,
@@ -1331,7 +1696,22 @@ const styles = StyleSheet.create({
     fontFamily: fonts.display,
     includeFontPadding: false,
   },
+  dockImpactRing: {
+    position: 'absolute',
+    borderWidth: 2.4,
+    borderColor: colors.lime,
+  },
+  dockImpactInnerRing: {
+    position: 'absolute',
+    borderWidth: 1.5,
+    borderColor: colors.cyan,
+  },
   owlDockWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  owlFlightAura: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',

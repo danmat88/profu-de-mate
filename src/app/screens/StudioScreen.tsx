@@ -3,7 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { memo, useCallback, useContext, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Animated, BackHandler, Keyboard, StyleSheet, View } from 'react-native';
-import { useSafeAreaFrame } from 'react-native-safe-area-context';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCommercial } from '../../features/access/context/CommercialContext';
 import { WelcomeOnboardingScreen } from '../../features/account/screens/WelcomeOnboardingScreen';
 import { getPreparedPendingAnalysis } from '../../features/analysis/services/pendingAnalysis';
@@ -30,6 +30,7 @@ import {
 import { colors } from '../../shared/theme';
 import type { RootStackParamList } from '../../shared/types';
 import { ActionToast } from '../../shared/ui/ActionToast';
+import { ComicBackdrop } from '../../shared/ui/ComicBackdrop';
 import type { AgeEligibilityGroup } from '../../shared/utils/ageEligibility';
 import { StudioTabBar, type StudioTabId } from '../components/StudioTabBar';
 
@@ -43,6 +44,8 @@ const TAB_ORDER: Record<StudioTabId, 0 | 1 | 2> = {
 const MemoHomePane = memo(function MemoHomePane({
   active,
   animateSkyDome,
+  splashCurtain,
+  bottomClearance,
   studyTrackLabel,
   studyTrackChosen,
   streakDays,
@@ -54,6 +57,8 @@ const MemoHomePane = memo(function MemoHomePane({
 }: {
   active: boolean;
   animateSkyDome: boolean;
+  splashCurtain: boolean;
+  bottomClearance: number;
   studyTrackLabel: string;
   studyTrackChosen: boolean;
   streakDays: number;
@@ -68,7 +73,8 @@ const MemoHomePane = memo(function MemoHomePane({
       embedded
       active={active}
       animateSkyDome={animateSkyDome}
-      bottomClearance={8}
+      splashCurtain={splashCurtain}
+      bottomClearance={bottomClearance}
       studyTrackLabel={studyTrackLabel}
       studyTrackChosen={studyTrackChosen}
       streakDays={streakDays}
@@ -81,12 +87,12 @@ const MemoHomePane = memo(function MemoHomePane({
   );
 });
 
-const MemoStudyPane = memo(function MemoStudyPane({ active }: { active: boolean }) {
-  return <StudyHubScreen active={active} bottomClearance={22} />;
+const MemoStudyPane = memo(function MemoStudyPane({ active, bottomClearance }: { active: boolean; bottomClearance: number }) {
+  return <StudyHubScreen active={active} bottomClearance={bottomClearance} />;
 });
 
-const MemoNotebookPane = memo(function MemoNotebookPane({ active }: { active: boolean }) {
-  return <NotebookScreen embedded active={active} bottomClearance={22} />;
+const MemoNotebookPane = memo(function MemoNotebookPane({ active, bottomClearance }: { active: boolean; bottomClearance: number }) {
+  return <NotebookScreen embedded active={active} bottomClearance={bottomClearance} />;
 });
 
 /**
@@ -102,7 +108,9 @@ const MemoNotebookPane = memo(function MemoNotebookPane({ active }: { active: bo
 export function StudioScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const frame = useSafeAreaFrame();
+  const insets = useSafeAreaInsets();
   const stageWidth = Math.max(1, Math.round(frame.width));
+  const dockClearance = 78 + Math.max(insets.bottom, 10);
   const reducedMotion = useReducedMotion();
   const motionReady = useContext(HomeMotionReadyContext);
   const { keyboardVisible } = useKeyboardHeight();
@@ -182,7 +190,7 @@ export function StudioScreen() {
       setStatusBarReady(false);
       return undefined;
     }
-    const timer = setTimeout(() => setStatusBarReady(true), 940);
+    const timer = setTimeout(() => setStatusBarReady(true), 1_380);
     return () => clearTimeout(timer);
   }, [effectiveHomeMotionReady, reducedMotion]);
 
@@ -359,6 +367,7 @@ export function StudioScreen() {
   return (
     <HomeMotionReadyContext.Provider value={effectiveHomeMotionReady}>
     <View style={styles.root}>
+      <ComicBackdrop />
       {statusBarReady && screenFocused ? (
         <StatusBar style={activeTab === 'solve' && !access ? 'dark' : 'light'} />
       ) : null}
@@ -376,6 +385,8 @@ export function StudioScreen() {
             <MemoHomePane
               active={screenFocused && settledTab === 'solve' && activeTab === 'solve'}
               animateSkyDome={openedFromOnboarding}
+              splashCurtain={!openedFromOnboarding && Boolean(access)}
+              bottomClearance={dockClearance + 8}
               studyTrackLabel={trackShortLabel}
               studyTrackChosen={profile.hasChosenTrack}
               streakDays={streakDays}
@@ -394,7 +405,10 @@ export function StudioScreen() {
             style={[styles.pane, { width: stageWidth }]}
           >
             {mountedTabs.study ? (
-              <MemoStudyPane active={screenFocused && settledTab === 'study' && activeTab === 'study'} />
+              <MemoStudyPane
+                active={screenFocused && settledTab === 'study' && activeTab === 'study'}
+                bottomClearance={dockClearance + 22}
+              />
             ) : null}
           </View>
 
@@ -405,7 +419,10 @@ export function StudioScreen() {
             style={[styles.pane, { width: stageWidth }]}
           >
             {mountedTabs.notebook ? (
-              <MemoNotebookPane active={screenFocused && settledTab === 'notebook' && activeTab === 'notebook'} />
+              <MemoNotebookPane
+                active={screenFocused && settledTab === 'notebook' && activeTab === 'notebook'}
+                bottomClearance={keyboardVisible ? 16 : dockClearance + 22}
+              />
             ) : null}
           </View>
         </Animated.View>

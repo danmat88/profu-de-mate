@@ -46,6 +46,7 @@ export type HomeScreenProps = {
   embedded?: boolean;
   active?: boolean;
   animateSkyDome?: boolean;
+  splashCurtain?: boolean;
   bottomClearance?: number;
   studyTrackLabel?: string;
   studyTrackChosen?: boolean;
@@ -62,6 +63,7 @@ export function HomeScreen(props?: HomeScreenProps) {
     embedded = false,
     active = true,
     animateSkyDome = true,
+    splashCurtain = false,
     bottomClearance = 8,
     studyTrackLabel,
     studyTrackChosen = true,
@@ -314,6 +316,7 @@ export function HomeScreen(props?: HomeScreenProps) {
       showGuide={!guideDismissed}
       embedded={embedded}
       animateSkyDome={animateSkyDome}
+      splashCurtain={splashCurtain}
       bottomClearance={bottomClearance}
       onDismissGuide={dismissGuide}
       onClearGalleryError={clearGalleryError}

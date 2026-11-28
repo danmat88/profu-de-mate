@@ -54,6 +54,7 @@ type Props = {
   showGuide?: boolean;
   embedded?: boolean;
   animateSkyDome?: boolean;
+  splashCurtain?: boolean;
   bottomClearance?: number;
   onDismissGuide?: () => void;
   onClearGalleryError?: () => void;
@@ -231,6 +232,7 @@ export const HomeSurface = memo(function HomeSurface({
   showGuide = false,
   embedded = false,
   animateSkyDome = true,
+  splashCurtain = false,
   bottomClearance = 8,
   onDismissGuide,
   onClearGalleryError,
@@ -265,6 +267,9 @@ export const HomeSurface = memo(function HomeSurface({
   const cheerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousMode = useRef(mode);
   const skyDomePlayed = useRef(reducedMotion || !animateSkyDome);
+  const useFullSplashCurtain = splashCurtain && !reducedMotion && !animateSkyDome;
+  const [curtainSettled, setCurtainSettled] = useState(!useFullSplashCurtain);
+  const splashCurtainPlayed = useRef(!useFullSplashCurtain);
   const initialRevealSettled = useRef(false);
 
   const isSolve = mode === 'solve';
@@ -290,6 +295,7 @@ export const HomeSurface = memo(function HomeSurface({
   const motionActive = motionReady && focused && foreground && !reducedMotion;
 
   const skyDomeEnter = useRef(new Animated.Value(reducedMotion || !animateSkyDome ? 1 : 0)).current;
+  const splashCurtainProgress = useRef(new Animated.Value(useFullSplashCurtain ? 0 : 1)).current;
   const stagePop = useRef(new Animated.Value(1)).current;
   const medallionPop = useRef(new Animated.Value(1)).current;
   const modeBlend = useRef(new Animated.Value(isSolve ? 0 : 1)).current;
@@ -357,6 +363,52 @@ export const HomeSurface = memo(function HomeSurface({
     };
   }, [animateSkyDome, motionReady, reducedMotion, skyDomeEnter]);
 
+  // Retract the single continuous full-screen Royal-Violet curtain smoothly into skyDomeHeight
+  // right behind Home's live header & Mascot (zero double curtain, zero horizontal seam).
+  useEffect(() => {
+    if (!useFullSplashCurtain) {
+      splashCurtainProgress.stopAnimation();
+      splashCurtainProgress.setValue(1);
+      splashCurtainPlayed.current = true;
+      setCurtainSettled(true);
+      return undefined;
+    }
+    if (!motionReady) {
+      if (!splashCurtainPlayed.current) splashCurtainProgress.setValue(0);
+      return undefined;
+    }
+    if (splashCurtainPlayed.current) {
+      splashCurtainProgress.setValue(1);
+      setCurtainSettled(true);
+      return undefined;
+    }
+    splashCurtainPlayed.current = true;
+
+    let anim: Animated.CompositeAnimation | undefined;
+    const frameId = requestAnimationFrame(() => {
+      anim = Animated.timing(splashCurtainProgress, {
+        toValue: 1,
+        duration: 920,
+        delay: 160,
+        easing: Easing.bezier(0.42, 0, 0.22, 1),
+        useNativeDriver: true,
+      });
+      anim.start();
+    });
+    const settleTimer = setTimeout(() => {
+      splashCurtainProgress.stopAnimation();
+      splashCurtainProgress.setValue(1);
+      setCurtainSettled(true);
+    }, 1_240);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      clearTimeout(settleTimer);
+      anim?.stop();
+      splashCurtainProgress.stopAnimation();
+    };
+  }, [motionReady, splashCurtainProgress, useFullSplashCurtain]);
+
   // Gate all self-running Home ambient loops strictly AFTER the unhurried entrance lands
   // so cold-start reveal runs at an uninterrupted 60fps with zero RenderThread contention.
   useEffect(() => {
@@ -364,7 +416,7 @@ export const HomeSurface = memo(function HomeSurface({
       setAmbientReady(false);
       return undefined;
     }
-    const wakeDelay = initialRevealSettled.current ? 180 : 1_080;
+    const wakeDelay = initialRevealSettled.current ? 180 : 1_540;
     const wakeTimer = setTimeout(() => {
       initialRevealSettled.current = true;
       setAmbientReady(true);
@@ -499,6 +551,13 @@ export const HomeSurface = memo(function HomeSurface({
     cycleEncouragement();
   };
 
+  const skyDomeHeight = hero.homeCanopyHeight;
+  const fullCurtainHeight = Math.round(hero.height + hero.canopyRadius + 6);
+  const fullCurtainRetractY = -Math.max(100, fullCurtainHeight - skyDomeHeight);
+  const skyGradientEndY = Math.max(0.15, Math.min(1, skyDomeHeight / Math.max(1, fullCurtainHeight)));
+  const isFullCurtainActive = useFullSplashCurtain && !curtainSettled;
+
+  // Permanent skyDome transform (used ONLY for post-onboarding unfurl; untouched on cold splash launch).
   const skyDomeAnimatedStyle = useMemo(() => ({
     opacity: skyDomeEnter.interpolate({
       inputRange: [0, 0.45, 1],
@@ -515,6 +574,52 @@ export const HomeSurface = memo(function HomeSurface({
       },
     ],
   }), [skyDomeEnter]);
+
+  // Outer rounded curtain clip slides smoothly up from full-screen to skyDomeHeight.
+  const fullCurtainOuterStyle = useMemo(() => ({
+    transform: [
+      {
+        translateY: splashCurtainProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, fullCurtainRetractY],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [fullCurtainRetractY, splashCurtainProgress]);
+
+  // Inner stage counter-translates by exact (-translateY) so the gradient & grid stay pinned
+  // at screen y = 0 throughout retraction — ZERO internal horizontal seam, ZERO double curtain!
+  const fullCurtainInnerStyle = useMemo(() => ({
+    transform: [
+      {
+        translateY: splashCurtainProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -fullCurtainRetractY],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  }), [fullCurtainRetractY, splashCurtainProgress]);
+
+  // Full-height Splash gradient softly cross-fades out into the clamped destination gradient pinned at y = 0.
+  const curtainSplashBlendStyle = useMemo(() => ({
+    opacity: splashCurtainProgress.interpolate({
+      inputRange: [0, 0.82, 1],
+      outputRange: [1, 0, 0],
+      extrapolate: 'clamp',
+    }),
+  }), [splashCurtainProgress]);
+
+  // Corner glints & settled canopy grid fade in only on the final ~15px velvet settle onto skyDomeHeight
+  // so no clipped box edge can ever appear mid-curtain at y = skyDomeHeight.
+  const curtainSettledGridStyle = useMemo(() => ({
+    opacity: splashCurtainProgress.interpolate({
+      inputRange: [0, 0.84, 1],
+      outputRange: [0, 0, 1],
+      extrapolate: 'clamp',
+    }),
+  }), [splashCurtainProgress]);
 
   const stageAnimated = useMemo(() => ({
     transform: [{ scale: stagePop }],
@@ -709,8 +814,6 @@ export const HomeSurface = memo(function HomeSurface({
 
   const mascotSize = hero.homeMascotSize;
   const spotlightSize = hero.homeSpotlightSize;
-  // Curved sky dome matches LaunchSplash's retracting curtain height & arch radius pixel-for-pixel.
-  const skyDomeHeight = hero.homeCanopyHeight;
   const isCheckTheme = !isSolve;
   const cornerColor = isCheckTheme ? colors.gold : colors.lime;
   const energyPercent = energyRatio !== null
@@ -728,8 +831,8 @@ export const HomeSurface = memo(function HomeSurface({
   const handleTrackPillPress = onChooseStudyTrack ?? onStudy ?? triggerTutorFromHeader;
 
   return (
-    <View style={styles.safe}>
-      <ComicBackdrop />
+    <View style={[styles.safe, embedded && styles.safeEmbedded]}>
+      {!embedded ? <ComicBackdrop /> : null}
       <View style={styles.homeScene}>
         <View
           style={[
@@ -739,299 +842,334 @@ export const HomeSurface = memo(function HomeSurface({
             embedded && { paddingBottom: bottomClearance },
           ]}
         >
-          <Enter
-            ready={motionReady}
-            delay={200}
-            duration={180}
-            distance={0}
-            scaleFrom={1}
-            preRasterize
-            style={[styles.header, compact && styles.headerCompact]}
-          >
+          <View style={[styles.header, compact && styles.headerCompact]}>
             <View style={[styles.brandRow, isVeryNarrow && styles.brandRowNarrow]}>
+              <Enter
+                ready={motionReady}
+                delay={980}
+                duration={100}
+                distance={0}
+                scaleFrom={1}
+              >
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Profu’ de mate"
+                  pressedScale={0.92}
+                  haptic="selection"
+                  onPress={triggerTutorFromHeader}
+                  backdrop={(
+                    <CachedOutsetShadow
+                      borderRadius={compact || isVeryNarrow ? 17.5 : 22}
+                      shadow={SHADOWS.headerOutset}
+                      padTop={12}
+                      padX={16}
+                      padBottom={20}
+                    />
+                  )}
+                  style={styles.logoShadow}
+                  contentStyle={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}
+                >
+                  <CachedInsetRelief
+                    borderRadius={compact || isVeryNarrow ? 17.5 : 22}
+                    shadow={SHADOWS.logoInset}
+                    zIndex={1}
+                  />
+                  <Image
+                    accessible={false}
+                    source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
+                    resizeMode="contain"
+                    style={[styles.logoImage, (compact || isVeryNarrow) && styles.logoImageCompact]}
+                  />
+                </PressableScale>
+              </Enter>
+              <Enter
+                ready={motionReady}
+                delay={340}
+                duration={500}
+                distance={-14}
+                scaleFrom={0.9}
+                style={styles.trackPillEnter}
+              >
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    !studyTrackChosen
+                      ? 'Alege clasa sau examenul pentru a personaliza aplicația'
+                      : studyTrackLabel
+                        ? `Nivel activ: ${studyTrackLabel}. Schimbă nivelul`
+                        : 'Deschide nivelul de studiu'
+                  }
+                  pressedScale={0.95}
+                  haptic="selection"
+                  onPress={handleTrackPillPress}
+                  backdrop={(
+                    <CachedOutsetShadow
+                      borderRadius={radii.pill}
+                      shadow={SHADOWS.trackOutset}
+                      padTop={12}
+                      padX={16}
+                      padBottom={20}
+                    />
+                  )}
+                  style={styles.trackPillWrap}
+                  contentStyle={[
+                    styles.trackPill,
+                    !studyTrackChosen && styles.trackPillSetup,
+                    (compact || isVeryNarrow) && styles.trackPillCompact,
+                  ]}
+                >
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={
+                      !studyTrackChosen
+                        ? ['rgba(255, 232, 126, 0.36)', 'rgba(255, 198, 64, 0.16)']
+                        : ['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.12)']
+                    }
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.fill}
+                  />
+                  <CachedInsetRelief borderRadius={radii.pill} shadow={SHADOWS.trackInset} zIndex={1} />
+                  <View
+                    style={[
+                      styles.trackDotHalo,
+                      !studyTrackChosen && styles.trackDotHaloSetup,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.trackPillDot,
+                        !studyTrackChosen
+                          ? styles.trackPillDotSetup
+                          : isCheckTheme && styles.trackPillDotCheck,
+                      ]}
+                    />
+                  </View>
+                  <Text
+                    maxFontSizeMultiplier={1.15}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[
+                      styles.trackPillText,
+                      !studyTrackChosen && styles.trackPillTextSetup,
+                      (compact || isVeryNarrow) && styles.trackPillTextCompact,
+                    ]}
+                  >
+                    {trackPillLabel}
+                  </Text>
+                  <View style={[styles.trackChevronOrb, !studyTrackChosen && styles.trackChevronOrbSetup]}>
+                    <Text
+                      accessible={false}
+                      style={[styles.trackPillChevron, !studyTrackChosen && styles.trackPillChevronSetup]}
+                    >
+                      ▾
+                    </Text>
+                  </View>
+                </PressableScale>
+              </Enter>
+            </View>
+
+            <Enter
+              ready={motionReady}
+              delay={420}
+              duration={500}
+              distance={-14}
+              scaleFrom={0.9}
+              style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
+            >
               <PressableScale
                 accessibilityRole="button"
-                accessibilityLabel="Profu’ de mate"
-                pressedScale={0.92}
+                accessibilityLabel={allowance.accessibilityLabel}
+                pressedScale={0.95}
                 haptic="selection"
-                onPress={triggerTutorFromHeader}
+                onPress={onAllowance}
                 backdrop={(
                   <CachedOutsetShadow
-                    borderRadius={compact || isVeryNarrow ? 17.5 : 22}
+                    borderRadius={radii.pill}
                     shadow={SHADOWS.headerOutset}
                     padTop={12}
                     padX={16}
                     padBottom={20}
                   />
                 )}
-                style={styles.logoShadow}
-                contentStyle={[styles.logo, (compact || isVeryNarrow) && styles.logoCompact]}
-              >
-                <CachedInsetRelief
-                  borderRadius={compact || isVeryNarrow ? 17.5 : 22}
-                  shadow={SHADOWS.logoInset}
-                  zIndex={1}
-                />
-                <Image
-                  accessible={false}
-                  source={bundledImageSource(require('../../../../assets/brand/profu_mark_v2.png'))}
-                  resizeMode="contain"
-                  style={[styles.logoImage, (compact || isVeryNarrow) && styles.logoImageCompact]}
-                />
-              </PressableScale>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={
-                  !studyTrackChosen
-                    ? 'Alege clasa sau examenul pentru a personaliza aplicația'
-                    : studyTrackLabel
-                      ? `Nivel activ: ${studyTrackLabel}. Schimbă nivelul`
-                      : 'Deschide nivelul de studiu'
-                }
-                pressedScale={0.95}
-                haptic="selection"
-                onPress={handleTrackPillPress}
-                backdrop={(
-                  <CachedOutsetShadow
-                    borderRadius={radii.pill}
-                    shadow={SHADOWS.trackOutset}
-                    padTop={12}
-                    padX={16}
-                    padBottom={20}
-                  />
-                )}
-                style={styles.trackPillWrap}
+                style={styles.allowancePressWrap}
                 contentStyle={[
-                  styles.trackPill,
-                  !studyTrackChosen && styles.trackPillSetup,
-                  (compact || isVeryNarrow) && styles.trackPillCompact,
+                  styles.allowancePill,
+                  (compact || isVeryNarrow) && styles.allowancePillCompact,
+                  premiumActive && !quotaExhausted && styles.allowancePillPremium,
+                  quotaExhausted && styles.allowancePillExhausted,
                 ]}
               >
                 <LinearGradient
                   pointerEvents="none"
                   colors={
-                    !studyTrackChosen
-                      ? ['rgba(255, 232, 126, 0.36)', 'rgba(255, 198, 64, 0.16)']
-                      : ['rgba(255, 255, 255, 0.3)', 'rgba(255, 255, 255, 0.12)']
+                    quotaExhausted
+                      ? ['#FFF9F6', '#FFEBE3']
+                      : premiumActive
+                        ? ['#F8FFE6', '#EAFFB5']
+                        : ['#FFFFFF', '#F5F0FF']
                   }
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={styles.fill}
                 />
-                <CachedInsetRelief borderRadius={radii.pill} shadow={SHADOWS.trackInset} zIndex={1} />
+                <CachedInsetRelief
+                  borderRadius={radii.pill}
+                  shadow={
+                    quotaExhausted
+                      ? SHADOWS.allowanceInsetExhausted
+                      : premiumActive
+                        ? SHADOWS.allowanceInsetPremium
+                        : SHADOWS.allowanceInset
+                  }
+                  zIndex={1}
+                />
                 <View
                   style={[
-                    styles.trackDotHalo,
-                    !studyTrackChosen && styles.trackDotHaloSetup,
+                    styles.allowanceIconWell,
+                    premiumActive && !quotaExhausted && styles.allowanceIconWellPremium,
+                    quotaExhausted && styles.allowanceIconWellExhausted,
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.trackPillDot,
-                      !studyTrackChosen
-                        ? styles.trackPillDotSetup
-                        : isCheckTheme && styles.trackPillDotCheck,
-                    ]}
-                  />
+                  {quotaExhausted ? (
+                    <ComicClockIcon size={13} color={colors.peachDeep} accent={colors.peach} />
+                  ) : (
+                    <MiniGlyph name="spark" size={13} color={premiumActive ? colors.limeDeep : colors.violetDeep} />
+                  )}
                 </View>
-                <Text
-                  maxFontSizeMultiplier={1.15}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
-                    styles.trackPillText,
-                    !studyTrackChosen && styles.trackPillTextSetup,
-                    (compact || isVeryNarrow) && styles.trackPillTextCompact,
-                  ]}
-                >
-                  {trackPillLabel}
-                </Text>
-                <View style={[styles.trackChevronOrb, !studyTrackChosen && styles.trackChevronOrbSetup]}>
-                  <Text
-                    accessible={false}
-                    style={[styles.trackPillChevron, !studyTrackChosen && styles.trackPillChevronSetup]}
-                  >
-                    ▾
-                  </Text>
-                </View>
-              </PressableScale>
-            </View>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={allowance.accessibilityLabel}
-              pressedScale={0.95}
-              haptic="selection"
-              onPress={onAllowance}
-              backdrop={(
-                <CachedOutsetShadow
-                  borderRadius={radii.pill}
-                  shadow={SHADOWS.headerOutset}
-                  padTop={12}
-                  padX={16}
-                  padBottom={20}
-                />
-              )}
-              style={[styles.allowanceWrap, isVeryNarrow && styles.allowanceWrapNarrow]}
-              contentStyle={[
-                styles.allowancePill,
-                (compact || isVeryNarrow) && styles.allowancePillCompact,
-                premiumActive && !quotaExhausted && styles.allowancePillPremium,
-                quotaExhausted && styles.allowancePillExhausted,
-              ]}
-            >
-              <LinearGradient
-                pointerEvents="none"
-                colors={
-                  quotaExhausted
-                    ? ['#FFF9F6', '#FFEBE3']
-                    : premiumActive
-                      ? ['#F8FFE6', '#EAFFB5']
-                      : ['#FFFFFF', '#F5F0FF']
-                }
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.fill}
-              />
-              <CachedInsetRelief
-                borderRadius={radii.pill}
-                shadow={
-                  quotaExhausted
-                    ? SHADOWS.allowanceInsetExhausted
-                    : premiumActive
-                      ? SHADOWS.allowanceInsetPremium
-                      : SHADOWS.allowanceInset
-                }
-                zIndex={1}
-              />
-              <View
-                style={[
-                  styles.allowanceIconWell,
-                  premiumActive && !quotaExhausted && styles.allowanceIconWellPremium,
-                  quotaExhausted && styles.allowanceIconWellExhausted,
-                ]}
-              >
-                {quotaExhausted ? (
-                  <ComicClockIcon size={13} color={colors.peachDeep} accent={colors.peach} />
-                ) : (
-                  <MiniGlyph name="spark" size={13} color={premiumActive ? colors.limeDeep : colors.violetDeep} />
-                )}
-              </View>
-              <View style={styles.allowanceCopy}>
-                <Text
-                  maxFontSizeMultiplier={1.3}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.82}
-                  style={styles.allowanceText}
-                >
-                  {allowance.label}
-                </Text>
-                {showPillResetTimer ? (
-                  <HomeResetPillNote
-                    resetAt={resetAt}
-                    exhausted={quotaExhausted}
-                    active={focused}
-                    fallbackNote={allowance.note}
-                  />
-                ) : (
+                <View style={styles.allowanceCopy}>
                   <Text
                     maxFontSizeMultiplier={1.3}
                     numberOfLines={1}
                     adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                    style={styles.allowanceNote}
+                    minimumFontScale={0.82}
+                    style={styles.allowanceText}
                   >
-                    {allowance.note}
+                    {allowance.label}
                   </Text>
-                )}
-              </View>
-              {energyPercent !== null ? (
-                <View pointerEvents="none" style={styles.energyTrack}>
-                  <LinearGradient
-                    colors={
-                      quotaExhausted
-                        ? ['#FF8B6E', '#E54B6B']
-                        : premiumActive
-                          ? ['#B4ED12', '#10B981']
-                          : ['#9652FF', '#581EE0', '#18C4DC']
-                    }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={[styles.energyFill, { width: energyPercent }]}
-                  />
+                  {showPillResetTimer ? (
+                    <HomeResetPillNote
+                      resetAt={resetAt}
+                      exhausted={quotaExhausted}
+                      active={focused}
+                      fallbackNote={allowance.note}
+                    />
+                  ) : (
+                    <Text
+                      maxFontSizeMultiplier={1.3}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      style={styles.allowanceNote}
+                    >
+                      {allowance.note}
+                    </Text>
+                  )}
                 </View>
-              ) : null}
-            </PressableScale>
+                {energyPercent !== null ? (
+                  <View pointerEvents="none" style={styles.energyTrack}>
+                    <LinearGradient
+                      colors={
+                        quotaExhausted
+                          ? ['#FF8B6E', '#E54B6B']
+                          : premiumActive
+                            ? ['#B4ED12', '#10B981']
+                            : ['#9652FF', '#581EE0', '#18C4DC']
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.energyFill, { width: energyPercent }]}
+                    />
+                  </View>
+                ) : null}
+              </PressableScale>
+            </Enter>
 
-            <IconButton
-              label="Deschide setările"
-              onPress={onSettings}
-              size={compact ? 38 : 42}
-              backdrop={(
-                <CachedOutsetShadow
-                  borderRadius={compact ? 19 : 21}
-                  shadow={SHADOWS.headerOutset}
-                  padTop={12}
-                  padX={16}
-                  padBottom={20}
-                />
-              )}
+            <Enter
+              ready={motionReady}
+              delay={500}
+              duration={500}
+              distance={-14}
+              scaleFrom={0.86}
               style={styles.settingsWrap}
             >
-              <AppIcon name="settings" size={compact ? 25 : 28} />
-            </IconButton>
-          </Enter>
+              <IconButton
+                label="Deschide setările"
+                onPress={onSettings}
+                size={compact ? 38 : 42}
+                backdrop={(
+                  <CachedOutsetShadow
+                    borderRadius={compact ? 19 : 21}
+                    shadow={SHADOWS.headerOutset}
+                    padTop={12}
+                    padX={16}
+                    padBottom={20}
+                  />
+                )}
+              >
+                <AppIcon name="settings" size={compact ? 25 : 28} />
+              </IconButton>
+            </Enter>
+          </View>
 
-          <Enter
-            ready={motionReady}
-            delay={290}
-            duration={380}
-            distance={12}
-            scaleFrom={0.97}
-            preRasterize
-            style={[styles.tutorRow, compact && styles.tutorRowCompact]}
-          >
-            <SpeechBubble
-              variant="sky"
-              title={greetingTitle}
-              body={greetingBody}
-              tone={bubbleTone}
-              tail="none"
-              compact={compact}
-              messageKey={`${greetingTitle}:${greetingBody}`}
-              onPress={triggerTutorFromHeader}
-            />
-            <View style={[styles.tutorMascotStage, { width: mascotSize + 4, height: mascotSize + 2 }]}>
-              <SpotlightAura size={spotlightSize} tone={auraTone} active={ambientReady} />
-              <View pointerEvents="none" style={[styles.mascotFloorGlow, compact && styles.mascotFloorGlowCompact]} />
-              <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkTop, sparkTopStyle]}>
-                <Text accessible={false} style={styles.tapSparkLime}>✦</Text>
-              </Animated.View>
-              <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkRight, sparkRightStyle]}>
-                <Text accessible={false} style={styles.tapSparkGold}>✦</Text>
-              </Animated.View>
-              <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkLeft, sparkLeftStyle]}>
-                <Text accessible={false} style={styles.tapSparkCyan}>✦</Text>
-              </Animated.View>
-              <Mascot
-                pose={mascotPose}
-                size={mascotSize}
-                active={ambientReady}
-                interactive
-                nudgeSignal={mascotNudge}
-                onPress={cycleEncouragement}
+          <View style={[styles.tutorRow, compact && styles.tutorRowCompact]}>
+            <Enter
+              ready={motionReady}
+              delay={390}
+              duration={540}
+              distance={16}
+              scaleFrom={0.95}
+              style={styles.tutorSpeechEnter}
+            >
+              <SpeechBubble
+                variant="sky"
+                title={greetingTitle}
+                body={greetingBody}
+                tone={bubbleTone}
+                tail="none"
+                compact={compact}
+                messageKey={`${greetingTitle}:${greetingBody}`}
+                onPress={triggerTutorFromHeader}
               />
-            </View>
-          </Enter>
+            </Enter>
+            <Enter
+              ready={motionReady}
+              delay={460}
+              duration={600}
+              distance={26}
+              scaleFrom={0.74}
+              tiltFrom={9}
+            >
+              <View style={[styles.tutorMascotStage, { width: mascotSize + 4, height: mascotSize + 2 }]}>
+                <SpotlightAura size={spotlightSize} tone={auraTone} active={ambientReady} />
+                <View pointerEvents="none" style={[styles.mascotFloorGlow, compact && styles.mascotFloorGlowCompact]} />
+                <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkTop, sparkTopStyle]}>
+                  <Text accessible={false} style={styles.tapSparkLime}>✦</Text>
+                </Animated.View>
+                <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkRight, sparkRightStyle]}>
+                  <Text accessible={false} style={styles.tapSparkGold}>✦</Text>
+                </Animated.View>
+                <Animated.View pointerEvents="none" style={[styles.tapSpark, styles.tapSparkLeft, sparkLeftStyle]}>
+                  <Text accessible={false} style={styles.tapSparkCyan}>✦</Text>
+                </Animated.View>
+                <Mascot
+                  pose={mascotPose}
+                  size={mascotSize}
+                  active={ambientReady}
+                  interactive
+                  nudgeSignal={mascotNudge}
+                  onPress={cycleEncouragement}
+                />
+              </View>
+            </Enter>
+          </View>
 
           <Enter
             ready={motionReady}
-            delay={95}
-            duration={420}
+            delay={780}
+            duration={500}
             distance={16}
-            scaleFrom={0.96}
-            preRasterize
+            scaleFrom={0.94}
             style={styles.modeSwitchEnter}
           >
             <SegmentedToggle
@@ -1047,11 +1185,10 @@ export const HomeSurface = memo(function HomeSurface({
 
           <Enter
             ready={motionReady}
-            delay={145}
-            duration={440}
-            distance={20}
-            scaleFrom={0.955}
-            preRasterize
+            delay={640}
+            duration={540}
+            distance={24}
+            scaleFrom={0.95}
             style={styles.cameraStageEnter}
           >
             <Animated.View
@@ -1579,11 +1716,10 @@ export const HomeSurface = memo(function HomeSurface({
             {embedded && (onQuickPractice || showTrackSetupBanner) ? (
               <Enter
                 ready={motionReady}
-                delay={200}
-                duration={440}
-                distance={16}
-                scaleFrom={0.965}
-                preRasterize
+                delay={520}
+                duration={520}
+                distance={22}
+                scaleFrom={0.955}
               >
                 <PressableScale
                   accessibilityRole="button"
@@ -1895,7 +2031,7 @@ export const HomeSurface = memo(function HomeSurface({
         </View>
       </View>
 
-      {/* Full-bleed curved Royal-Violet / Coral-Berry hero canopy unified with LaunchSplash & Onboarding */}
+      {/* Permanent, rock-solid curved hero canopy — NEVER mutates height or transform on cold splash handoff */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -1928,12 +2064,74 @@ export const HomeSurface = memo(function HomeSurface({
           showGradient={false}
         />
       </Animated.View>
+
+      {/* Temporary full-screen counter-translated curtain (zIndex: 1, strictly behind Home header & Mascot).
+          Unmounts cleanly once docked onto the pixel-identical permanent skyDome underneath! */}
+      {isFullCurtainActive ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.skyDome,
+            {
+              height: fullCurtainHeight,
+              borderBottomLeftRadius: hero.canopyRadius,
+              borderBottomRightRadius: hero.canopyRadius,
+            },
+            fullCurtainOuterStyle,
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.curtainPinnedStage,
+              { height: fullCurtainHeight },
+              fullCurtainInnerStyle,
+            ]}
+          >
+            {/* Seamless clamped destination gradient pinned at screen y = 0: matches settled skyDome bit-for-bit over 0..skyDomeHeight with ZERO horizontal seam */}
+            <LinearGradient
+              colors={ROYAL_HERO_GRADIENT}
+              start={{ x: 0.08, y: 0 }}
+              end={{ x: 0.92, y: skyGradientEndY }}
+              style={styles.fill}
+            />
+            {/* Settled skyDome grid + atmospheric corner glints pinned at screen y = 0..skyDomeHeight */}
+            <Animated.View
+              style={[
+                styles.curtainPinnedCanopyGrid,
+                { height: skyDomeHeight },
+                curtainSettledGridStyle,
+              ]}
+            >
+              <RoyalHeroCanopyBackdrop
+                width={hero.width}
+                height={skyDomeHeight}
+                showGradient={false}
+              />
+            </Animated.View>
+            {/* Full-screen Splash studio gradient + grid pinned at screen y = 0, softly melting away into the destination canopy */}
+            <Animated.View style={[styles.fill, curtainSplashBlendStyle]}>
+              <LinearGradient
+                colors={ROYAL_HERO_GRADIENT}
+                start={{ x: 0.08, y: 0 }}
+                end={{ x: 0.92, y: 1 }}
+                style={styles.fill}
+              />
+              <RoyalHeroCanopyBackdrop
+                width={hero.width}
+                height={fullCurtainHeight}
+                showGradient={false}
+              />
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
+      ) : null}
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   safe: { flex: 1, overflow: 'hidden', backgroundColor: colors.canvas },
+  safeEmbedded: { backgroundColor: 'transparent' },
   homeScene: { flex: 1, overflow: 'hidden', zIndex: 2 },
   fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   behind: { zIndex: 0 },
@@ -1948,6 +2146,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 1,
+    overflow: 'hidden',
+  },
+  curtainPinnedStage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+  },
+  curtainPinnedCanopyGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     overflow: 'hidden',
   },
 
@@ -1975,6 +2187,11 @@ const styles = StyleSheet.create({
   logoCompact: { width: 35, height: 35, borderRadius: 17.5, borderWidth: 2 },
   logoImage: { width: 35, height: 35, zIndex: 2 },
   logoImageCompact: { width: 28, height: 28 },
+  trackPillEnter: {
+    flexShrink: 1,
+    minWidth: 0,
+    alignSelf: 'center',
+  },
   trackPillWrap: {
     flexShrink: 1,
     minWidth: 0,
@@ -2078,6 +2295,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   allowanceWrapNarrow: { marginLeft: 6 },
+  allowancePressWrap: { position: 'relative' },
   allowancePill: {
     minWidth: 104,
     maxWidth: 140,
@@ -2138,6 +2356,7 @@ const styles = StyleSheet.create({
   // Hero owl + borderless luminous message row inside the sky dome
   tutorRow: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6 },
   tutorRowCompact: { gap: 4 },
+  tutorSpeechEnter: { flex: 1, minWidth: 0 },
   tutorMascotStage: {
     alignItems: 'center',
     justifyContent: 'center',

@@ -314,8 +314,8 @@ export const StudioTabBar = memo(function StudioTabBar({
     const frameId = requestAnimationFrame(() => {
       anim = Animated.timing(dockEnter, {
         toValue: 1,
-        duration: 440,
-        delay: 215,
+        duration: 520,
+        delay: 440,
         easing: SILKY_EASE_OUT,
         useNativeDriver: true,
       });
@@ -324,7 +324,7 @@ export const StudioTabBar = memo(function StudioTabBar({
     const watchdog = setTimeout(() => {
       dockEnter.stopAnimation();
       dockEnter.setValue(1);
-    }, 1_060);
+    }, 1_300);
 
     return () => {
       cancelAnimationFrame(frameId);
@@ -462,6 +462,7 @@ export const StudioTabBar = memo(function StudioTabBar({
     <View
       style={[
         styles.dockShelf,
+        isHomeActive && styles.dockShelfHome,
         {
           paddingHorizontal: gutter,
           paddingBottom: bottomPad,
@@ -604,12 +605,17 @@ export const StudioTabBar = memo(function StudioTabBar({
 
 const styles = StyleSheet.create({
   dockShelf: {
-    width: '100%',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.canvas,
     paddingTop: 10,
     alignItems: 'center',
-    position: 'relative',
     zIndex: 20,
+  },
+  dockShelfHome: {
+    backgroundColor: 'transparent',
   },
   topMist: {
     position: 'absolute',
